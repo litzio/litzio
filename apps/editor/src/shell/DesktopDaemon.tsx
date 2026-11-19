@@ -1,11 +1,12 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Ellipsis } from "lucide-react";
+import { Monitor } from "lucide-react";
 import type { DesktopBridge } from "../../shared/desktop-bridge.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
 import { useNotifications } from "@/components/ui/notification-center.tsx";
 import { Row } from "@/components/ui/row.tsx";
 import { Status } from "@/components/ui/status.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { connectDesktop, desktopConnection, disconnectDesktop } from "../desktop-connection.ts";
 import { i18n } from "../i18n.ts";
 import { hostConnection } from "../host-client.ts";
@@ -18,7 +19,8 @@ function connectionMessage(problem = "") {
   return "Cannot connect to the local daemon.";
 }
 
-export function DesktopMenu({ desktop }: { desktop: DesktopBridge }) {
+/** The Activity bar's Desktop item; tabIndex follows the bar's roving focus. */
+export function DesktopMenu({ desktop, tabIndex }: { desktop: DesktopBridge; tabIndex?: number }) {
   const connection = useSyncExternalStore(desktopConnection.subscribe, desktopConnection.get);
   const [problem, setProblem] = useState("");
   const checkingConnection = !!connection.version && connection.phase !== "connecting" && !connection.ended;
@@ -60,8 +62,10 @@ export function DesktopMenu({ desktop }: { desktop: DesktopBridge }) {
     ...(connection.version && connection.version.productVersion !== connection.version.desktopVersion ? [{ id: "daemon-version", message: i18n.t("Daemon version differs. Restart the daemon with the CLI to switch versions."), severity: "warning" as const }] : []),
     ...(problem ? [{ id: "daemon-problem", message: problem, severity: "error" as const }] : []),
   ]);
-  return <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={i18n.t("Desktop menu")} />}><Ellipsis /></DropdownMenuTrigger>
-    <DropdownMenuContent align="start">
+  return <DropdownMenu><Tooltip>
+    <TooltipTrigger render={<DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" data-activity-id="desktop" tabIndex={tabIndex} aria-label={i18n.t("Desktop menu")} />} />}><Monitor aria-hidden="true" /></TooltipTrigger>
+    <TooltipContent side="right">{i18n.t("Desktop menu")}</TooltipContent></Tooltip>
+    <DropdownMenuContent side="right" align="end">
       <DropdownMenuItem onClick={() => { void desktop.openInBrowser().catch(error => setProblem(String(error))); }}>{i18n.t("Open in browser")}</DropdownMenuItem>
       <DropdownMenuItem onClick={() => { void stop(); }}>{i18n.t("Stop daemon")}</DropdownMenuItem>
     </DropdownMenuContent>

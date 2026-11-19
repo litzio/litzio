@@ -1,6 +1,6 @@
-// Footer toggle, shared Settings/commands and persistence; captures are manual only.
+// Activity bar toggle, shared Settings/commands and persistence; captures are manual only.
 async (page, { expect, screenshots = false }) => {
-  const settings = () => page.getByTestId('sidebar').locator('[data-open-settings]');
+  const settings = () => page.getByTestId('activity-bar').locator('[data-open-settings]');
   const mode = () => page.getByRole('button',{name:/^(Color mode|색상 모드):/});
   const closeSettings = async () => { await page.locator('[data-tab-id="settings"] .document-tab-close').click(); await page.getByTestId('settings-dialog').waitFor({state:'detached'}); };
   const configure = async (language, theme) => {
@@ -26,15 +26,19 @@ async (page, { expect, screenshots = false }) => {
     await configure(language,theme);
     const expand=page.getByRole('button',{name:/^(Expand Explorer|탐색기 펼치기)$/});
     if(await expand.isVisible()) await expand.click();
-    await expect(mode()).toHaveAttribute('title',`${language==='en'?'Color mode':'색상 모드'}: ${theme==='light'?'Light':'다크'}`);
+    const modeName = `${language==='en'?'Color mode':'색상 모드'}: ${theme==='light'?'Light':'다크'}`;
+    await expect(mode()).toHaveAccessibleName(modeName);
+    await mode().hover(); await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText(modeName); await page.mouse.move(width/2, 500);
     await expect(mode().locator('svg')).toHaveClass(new RegExp(theme==='light'?'lucide-sun':'lucide-moon'));
-    const a = await settings().boundingBox(), b = await mode().boundingBox();
-    expect(a.y + a.height/2).toBe(b.y + b.height/2);
-    expect(a.x + a.width).toBeLessThanOrEqual(b.x);
-    expect(b.x+b.width).toBeLessThanOrEqual(width);
+    // Settings and Color mode stack in the Activity bar's bottom column inside the bar.
+    const a = await settings().boundingBox(), b = await mode().boundingBox(), bar = await page.getByTestId('activity-bar').boundingBox();
+    expect(a.x + a.width/2).toBe(b.x + b.width/2);
+    expect(a.y + a.height).toBeLessThanOrEqual(b.y);
+    expect(b.x+b.width).toBeLessThanOrEqual(bar.x + bar.width);
+    expect(b.y+b.height).toBeLessThanOrEqual(900);
     if (screenshots) { await page.evaluate(() => document.fonts.ready); await page.screenshot({path:`tmp/theme-1042/after-${width}.png`}); }
     await page.getByRole('button',{name:/^(Collapse Explorer|탐색기 접기)$/}).click();
-    await settings().focus(); await page.keyboard.press('Tab');
+    await settings().focus(); await page.keyboard.press('ArrowDown');
     await expect(mode()).toBeFocused();
     await page.keyboard.press('Enter');
     await assertChoice(theme==='light'?'dark':'light');

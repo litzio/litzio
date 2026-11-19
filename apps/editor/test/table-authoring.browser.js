@@ -158,19 +158,19 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     await expect(center.getByText(language==='ko'?'현재: 줄바꿈':'Current: wrap',{exact:true})).toBeVisible();
     await center.getByRole('option').click();
     await expect(paper()).toHaveAttribute('data-table-wrap','false');
-    await page.getByTestId('sidebar').getByRole('button',{name:language==='ko'?'설정':'Settings',exact:true}).click();
+    await page.getByTestId('activity-bar').getByRole('button',{name:language==='ko'?'설정':'Settings',exact:true}).click();
     await expect(page.getByTestId('table-wrap-default')).toHaveValue('true');
     if (screenshots) await page.screenshot({path:`tmp/902/settings-${width}-${language}.png`});
     await page.keyboard.press('Escape');
   }
   await page.evaluate(()=>{localStorage.setItem('litzio.uiLanguage','en');localStorage.setItem('litzio.theme','light');});
   await page.reload(); await toggleFromCenter();
-  await page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByTestId('table-wrap-default').selectOption('false');
   expect(await page.evaluate(path=>JSON.parse(localStorage.getItem("litzio.tableWrapDocuments.v2"))[path],file.replace('tables.md','wrapping.md'))).toBeUndefined();
   await page.keyboard.press('Escape');
   await expect(paper()).toHaveAttribute('data-table-wrap','false');
-  await page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByTestId('table-wrap-default').selectOption('true');
   await page.keyboard.press('Escape');
   await expect(paper()).toHaveAttribute('data-table-wrap','true');

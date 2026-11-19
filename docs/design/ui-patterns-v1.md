@@ -154,7 +154,7 @@ ContextMenu 항목 실행 뒤 닫힐 때 focus가 메뉴 안이나 body에 남�
 
 - **목적·사용/비사용:** 동작·값 선택·검색을 구별한다. combobox·tree·toolbar를 모양 때문에 하나의 menu로 합치지 않는다.
 - **선택지 묶음 (#1034):** 문서 보기·번호 방식·갤러리는 기존 Button 세그먼트를 일반화한 내부 ChoiceGroup을 사용한다. 필수 단일 선택과 Tab/Enter/Space 계약·토큰을 보존한다. U17 독립 서식, U18 표 selection/메뉴, U21 탭 키보드 소유권은 그대로 유지한다([선택지 분류](ui-decision-table-v1.md#선택지-분류)).
-- **추가 사용처 (#798):** Sidebar 하단 설정 바로 아래 별도 색상 모드 행(#912)은 고정 SunMoon 아이콘과 오른쪽의 흐린 현재 값을 표시하며 접히면 색상 모드 이름의 아이콘만 보인다. 메뉴는 공용 menu surface·행과 Base UI radio 선택을 사용한다. 현재 값의 check와 키보드 focus를 구별하며 Settings·명령 센터와 같은 저장·적용 경로를 쓴다([계약·검증](editor-ux-shell-v1.md#color-mode-entry-798)).
+- **작업 막대 (#1817):** [작업 막대](editor-ux-shell-v1.md#activity-bar-671--1817)는 세로 toolbar 하나(Tab 정지점 하나, 위·아래·Home·End 이동)이며 메뉴로 합치지 않는다. 색 모드는 막대 아래 묶음의 아이콘 토글로 현재 값을 아이콘·접근성 이름·Tooltip에 보이고 Settings·명령 센터와 같은 저장·적용 경로를 쓴다([계약·검증](editor-ux-shell-v1.md#color-mode-entry-798)). '더 보기'는 검색 Input과 아이콘·이름 행의 Popover, Desktop 메뉴만 DropdownMenu다.
 - **메뉴 쌓임 (#223):** 공용 CommandMenu는 고정 문서 viewport의 stacking context 밖 Portal에서 파일·탭 메뉴와 같은 층을 쓰므로 알림 버튼이 행을 가리지 않는다. 원래 문서의 위치·스크롤·그룹 경계와 미주 소유권을 유지하며, 표는 기존 Popover Portal을 유지한다. 알림 버튼의 위치·동작은 바꾸지 않는다.
 - **사용처:** U17 서식 toolbar, U18 블록·표 메뉴, U19 코드 언어/callout, U20 파일·탭 메뉴, U21 검색·탐색, U09–U10 인용·참조 후보.
 - **본문 메뉴 경계 (#223):** U18은 마우스 위치 또는 현재 블록의 커서 옆에서 같은 CommandMenu를 쓰고 문서 viewport 안으로 배치한다. 선택된 글자 안·입력칸·코드/수식 원문·읽기/읽기 전용에서는 기본 메뉴를 유지하며 클립보드 항목은 추가하지 않는다. 선택 밖 우클릭은 대상 커서/블록으로 이동한다. Esc·닫기는 편집기 선택/focus를 복원하고 다른 control 클릭은 정상 focus 인계를 유지한다. 파일·탭 우클릭과 폴더·Outline은 바꾸지 않는다.
@@ -198,17 +198,17 @@ ContextMenu 항목 실행 뒤 닫힐 때 focus가 메뉴 안이나 body에 남�
 
 ### 플러그인 설정
 
-플러그인 목록은 공통 상태 점/톤과 톱니·스위치 배치를 사용하며 꺼진 플러그인도 정보·설정에 진입한다. 화면 진입은 사이드바이며 설정에 화면 이동 버튼이나 “동작 · 이름” 합성 라벨을 두지 않는다.
+플러그인 목록은 공통 상태 점/톤과 톱니·스위치 배치를 사용하며 꺼진 플러그인도 정보·설정에 진입한다. 화면 진입은 작업 막대이며 설정에 화면 이동 버튼이나 “동작 · 이름” 합성 라벨을 두지 않는다.
 
 목록은 이름 아래에 버전과 설명을 표시한다. 목록 머리의 [플러그인 추가…] 옆 테두리 [업데이트 확인]은 모든 등록의 출처를 확인한다. 새 내용이 있는 행은 버전 아래에 경고 Status plain(버전이 다르면 “새 버전 있음”, 같거나 없으면 “새 내용 있음”)과 설치·원본 버전 Tooltip을, 오른쪽 동작 맨 앞에 테두리 [업데이트]를 둔다. 확인 실패는 오류 Status와 사유 Tooltip이다. 모두 최신이면 확인 버튼 옆에 정상 Status “최신 버전”을 보인다. 설정 창은 이름·설명 → schema 선언 순서의 일반 설정 → secret → 연결 확인 → 제거 → 접힌 상세(신뢰·digest) 순서다. 일반 설정과 secret의 title은 label, description은 hover/keyboard-focus Tooltip이다. 목록의 실행 중·설치됨·오류·사용 불가는 Status plain으로 표시하고 켜짐은 기존 스위치로 조작한다. 폭은 settings-content-width와 viewport 양쪽 16px 여백을 사용한다.
 
 일반 설정은 Dialog 안의 Row·Input·SettingsSwitch·FieldError를 사용한다. 필드별 저장 중·저장됨·실패를 가까이에 표시하고 실패 시 초안을 보존한다. 연결 확인은 순차 저장 완료 뒤 저장값으로 실행하며 저장 실패·꺼짐·미실행이면 막고 이유를 Tooltip으로 보인다. secret은 password Input에 명시적으로 저장한 뒤 비우며 값을 재조회하거나 비서에 입력하지 않는다. 목록 갱신은 picker 초안·focus를 초기화하지 않으며 선택한 등록이 외부에서 제거될 때만 Dialog를 닫고 Notice를 보인다.
 
-첫 켜기 확인의 registrationId·신뢰 수명과 secret 저장은 [플러그인 계약](plugin-stage1-v1.md#수명과-공용-작업), [설정·비밀값 계약](plugin-stage1-v1.md#설정비밀값비서-지침)이 소유한다. PluginIcon은 사이드바·탭·제목 행의 장식용 16px img를 공유하고 비율을 contain하며 기존 화면 아이콘으로 fallback한다. 형식·크기·Host 전달은 [신분증 계약](plugin-stage1-v1.md#신분증), 화면 부품은 [화면 계약](plugin-screens-v1.md#화면-부품)이 소유한다.
+첫 켜기 확인의 registrationId·신뢰 수명과 secret 저장은 [플러그인 계약](plugin-stage1-v1.md#수명과-공용-작업), [설정·비밀값 계약](plugin-stage1-v1.md#설정비밀값비서-지침)이 소유한다. PluginIcon은 탭·제목 행의 장식용 16px img를 공유하고 비율을 contain하며 기존 화면 아이콘으로 fallback한다. 작업 막대에서는 그림의 모양을 막대 글자색 한 가지로 칠하고(mask), 투명한 부분이 없는 그림은 manifest의 아이콘 이름(없으면 기본 아이콘)으로 보인다. 형식·크기·Host 전달은 [신분증 계약](plugin-stage1-v1.md#신분증), 화면 부품은 [화면 계약](plugin-screens-v1.md#화면-부품)이 소유한다.
 
 ### 비서 질문과 보조 작업
 
-탐색기와 비서의 펼친 머리는 PanelHeader를 쓰고 접힌 탐색기는 기존 레일을 유지한다. 패널 머리와 문서 패널의 탭 줄은 가운데 문서 탭 줄의 높이 토큰을 함께 써 아래 경계를 맞춘다. 이름과 동작은 세로 가운데이며 좌우 여백은 내용의 기존 시작선에 맞춘다(탐색기 목록 줄의 안쪽 시작선, 비서의 맥락·대화 시작선). TaskHeader와는 좌우 여백·구분선만 공유하고 작업 탭의 높이·세로 여백은 별도로 유지한다. 비서 도구 줄은 native details/summary와 plain Status를 쓰며 완료에는 점을 표시하지 않는다. outline sm Button·Lucide ArrowDown을 재사용한다.
+탐색기와 비서의 펼친 머리는 PanelHeader를 쓰고 탐색기 접기·펼치기는 작업 막대의 탐색기 항목이 맡는다. 패널 머리와 문서 패널의 탭 줄은 가운데 문서 탭 줄의 높이 토큰을 함께 써 아래 경계를 맞춘다. 이름과 동작은 세로 가운데이며 좌우 여백은 내용의 기존 시작선에 맞춘다(탐색기 목록 줄의 안쪽 시작선, 비서의 맥락·대화 시작선). TaskHeader와는 좌우 여백·구분선만 공유하고 작업 탭의 높이·세로 여백은 별도로 유지한다. 비서 도구 줄은 native details/summary와 plain Status를 쓰며 완료에는 점을 표시하지 않는다. outline sm Button·Lucide ArrowDown을 재사용한다.
 
 좁은 창 비서의 Tab·Escape·이전 편집 focus 복귀와 넓은 창 비모달 패널은 [비서 계약](main-agent-v1.md#대화와-표시)을 따른다. 질문은 과정 밖의 기존 AssistantQuestion fieldset/radio·Input/Button을 사용하며 답변 뒤 같은 카드에 읽기 전용 기록을 남긴다. 끝난 차단 RPC는 입력을 닫고 콜백을 복원하지 않는다. 렌더 확인은 카드가 mount된 창에서만 보내고 숨김 패널·기록 목록에서는 보내지 않는다([질문 계약](main-agent-v1.md#질문과-사용량)).
 

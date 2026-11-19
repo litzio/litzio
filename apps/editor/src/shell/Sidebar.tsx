@@ -1,17 +1,13 @@
 import { ContextMenu } from "@/components/ui/context-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 import { FolderTree, folderActions } from "./FolderTree.tsx";
-import { HostStatus } from "../components/HostStatus.tsx";
-import { hostConnection } from "../host-client.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { usePanelWidthBounds } from "./panel-width.ts";
-import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
 import type { FileActionHandler } from "./FileActionDialog.tsx";
 import { useTranslation } from "react-i18next";
-import { i18n, type MessageKey } from "../i18n.ts";
-import { useSyncExternalStore, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
-import { Sun, Moon, FileText, Files as FilesIcon, Folder, FolderOpen, PanelLeftClose, Plus, Settings } from "lucide-react";
-import { DesktopMenu } from "./DesktopDaemon.tsx";
+import { i18n } from "../i18n.ts";
+import { useRef } from "react";
+import { Folder, FolderOpen, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { PanelHeader } from "@/components/ui/panel-header.tsx";
 
@@ -19,7 +15,6 @@ import type { FolderTreeState } from "./folder-tree.ts";
 
 type SidebarProps = {
   onCopyPath?(path: string): void;
-  contributions?: { icon?: ReactNode; id: string; label: string; run(returnFocus: HTMLElement): void }[];
   onAddToChat?(path: string, returnFocus: HTMLElement): void;
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
@@ -29,8 +24,6 @@ type SidebarProps = {
   onClose?(): void;
   documentPath: string;
   onWidth(value: number): void;
-  onToggle(): void;
-  toggleRef?: RefObject<HTMLButtonElement | null>;
   /** Names the control the folder dialog returns focus to. */
   onOpenFolder(returnFocus: HTMLElement | null): void;
   onNewDocument?(returnFocus: HTMLElement): void;
@@ -53,34 +46,18 @@ type SidebarProps = {
   onCloseFolder?(root: string): void;
   onRefreshFolder?(root: string): void;
   onRevealFolder?(path: string): void;
-  theme?: ThemePreference;
-  onThemeChange?(theme: ThemePreference): void;
-  updateVersion?: string;
-  /** App Settings, separate from document settings. Names the control focus returns to. */
-  onSettings?(returnFocus: HTMLElement): void;
-  settingsDisabled?: boolean;
 };
 
-/** File navigation stays mounted when collapsed. Outline remains independent on the right. */
+/** Explorer panel beside the Activity bar, which owns its open/collapse toggle. File navigation
+ * stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
-  onCopyPath, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
-  folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
-  theme = "light", onThemeChange, contributions = [], onAddToChat,
+  onCopyPath, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
+  folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onAddToChat,
 }: SidebarProps) {
   useTranslation();
-  useSyncExternalStore(hostConnection.subscribe, hostConnection.snapshot, hostConnection.snapshot);
   const bounds = usePanelWidthBounds("sidebar");
   const content = useRef<HTMLDivElement>(null);
   const blankTrigger = useRef<HTMLDivElement>(null);
-  const localToggleRef = useRef<HTMLButtonElement>(null);
-  const toggleButtonRef = toggleRef ?? localToggleRef;
-  const restoreToggleFocus = useRef(false);
-  useLayoutEffect(() => {
-    if (restoreToggleFocus.current) {
-      toggleButtonRef.current?.focus();
-      restoreToggleFocus.current = false;
-    }
-  }, [open, toggleButtonRef]);
   const only = folders.length === 1 ? folders[0] : undefined;
   const blankActions = only ? folderActions({
     onCopyPath,
@@ -90,12 +67,6 @@ export function Sidebar({
     onRefresh: () => onRefreshFolder?.(only.root), onClose: () => onCloseFolder?.(only.root),
   }, only.root, () => content.current?.querySelector<HTMLButtonElement>('[data-folder-menu]') ?? null)
     : [{ id: "open", label: i18n.t("Open folder…"), icon: <FolderOpen aria-hidden="true" />, run: () => onOpenFolder(content.current) }];
-  const toggleButton = <Button ref={toggleButtonRef} className="sidebar-collapse" variant="ghost" size="icon-sm"
-    aria-label={i18n.t(open ? "Collapse Explorer" : "Expand Explorer")}
-    title={i18n.t(open ? "Collapse Explorer" : "Expand Explorer")} aria-expanded={open} aria-controls="sidebar-files"
-    onClick={event => { restoreToggleFocus.current = document.activeElement === event.currentTarget; onToggle(); }}>
-    {open ? <PanelLeftClose /> : <FilesIcon />}
-  </Button>;
   return (
     <nav className={`sidebar${open ? "" : " sidebar--collapsed"}${overlay && open ? " sidebar--overlay" : ""}`} aria-label={i18n.t("Application")} data-testid="sidebar"
       onKeyDown={event => {
@@ -104,8 +75,7 @@ export function Sidebar({
         }
       }}>
       {open && bounds ? <PanelResize label={i18n.t("Explorer width")} side="left" {...bounds} onWidth={onWidth} /> : null}
-      {open ? <PanelHeader title={i18n.t("Explorer")} actions={toggleButton} />
-        : <div className="sidebar-header"><div className="sidebar-header-actions">{toggleButton}</div></div>}
+      <PanelHeader title={i18n.t("Explorer")} />
       {/* Keep the tree mounted: collapse retains scroll and keyboard position. */}
       <div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open}
         onContextMenu={event => {
@@ -165,47 +135,6 @@ export function Sidebar({
         </section>
       </div>
       <ContextMenu actions={blankActions} trigger={<div ref={blankTrigger} className="contents" />} />
-      {onSettings || onThemeChange || contributions.length ? (
-        <div className="sidebar-footer">
-          {open ? contributions.map(item => <Button key={item.id} size="sm" variant="ghost" className="min-w-0 justify-start" disabled={fileActionsDisabled}
-            onClick={event => item.run(event.currentTarget)}>{item.icon ?? <FileText aria-hidden="true" />}{i18n.t(item.label as MessageKey)}</Button>) : null}
-          <div className="sidebar-preferences">
-            {onSettings ? <SettingsEntry disabled={settingsDisabled} iconOnly={!open} onOpen={onSettings} updateVersion={updateVersion} /> : null}
-            {onThemeChange ? <Button variant="ghost" size="icon-sm"
-              aria-label={`${i18n.t("Color mode")}: ${i18n.t(THEME_LABELS[theme])}`}
-              title={`${i18n.t("Color mode")}: ${i18n.t(THEME_LABELS[theme])}`}
-              onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}>
-              {theme === "dark" ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
-            </Button> : null}
-            {typeof window !== "undefined" && window.litzioDesktop ? <DesktopMenu desktop={window.litzioDesktop} /> : null}
-          </div>
-          <HostAccount collapsed={!open} />
-        </div>
-      ) : null}
     </nav>
   );
-}
-
-/** One Settings entry for both sidebar states, including its focus-return target. */
-function SettingsEntry({ iconOnly, onOpen, updateVersion, disabled }: { disabled?: boolean; updateVersion?: string; iconOnly: boolean; onOpen(returnFocus: HTMLElement): void }) {
-  return <Button disabled={disabled} data-open-settings="" className={iconOnly ? undefined : "min-w-0 flex-1 justify-start"}
-    size={iconOnly ? "icon-sm" : "sm"} variant="ghost"
-    aria-label={updateVersion ? i18n.t("Settings, new version available") : i18n.t("Settings")}
-    title={updateVersion ? i18n.t("New version {{version}} available", { version: updateVersion }) : i18n.t("Settings")}
-    onClick={event => onOpen(event.currentTarget)}>
-    <span className="settings-entry-icon"><Settings aria-hidden="true" />
-      {updateVersion ? <span className="settings-update-dot" data-testid="settings-update-dot" aria-hidden="true" /> : null}
-    </span>{iconOnly ? null : i18n.t("Settings")}
-  </Button>;
-}
-
-function HostAccount({ collapsed }: { collapsed: boolean }) {
-  const runtime = hostConnection.get();
-  const account = runtime.state === "connected" ? runtime.identity?.runAs : undefined;
-  const label = i18n.t("Background service");
-  const text = account ?? label;
-  return <div role="group" className="sidebar-host-account type-helper" aria-label={`${label} · ${i18n.t("Run as")}${account ? `: ${account}` : ""}`}>
-    <HostStatus runtime={runtime} compact showDetails={false} iconOnly={!!account || collapsed} />
-    {!collapsed && account ? <span className="sidebar-tree-name">{text}</span> : null}
-  </div>;
 }

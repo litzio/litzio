@@ -109,7 +109,7 @@ async (page, { expect, brand, screenshots }) => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await expect(pending).toBeVisible();
     expect(await pending.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-    await page.screenshot({ path: `tmp/1536-evidence/approval-1440-${theme}.png`, style: ".sidebar-host-account { visibility: hidden; }" });
+    await page.screenshot({ path: `tmp/1536-evidence/approval-1440-${theme}.png`, style: ".activity-bar-status { visibility: hidden; }" });
   }
   await expect(pending.getByRole('radio')).toHaveCount(0);
   await expect(pending.getByRole('button', { name: /Submit answers|답변 제출/ })).toHaveCount(0);

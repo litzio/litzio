@@ -78,10 +78,10 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
       if (await page.locator('html').getAttribute('data-theme') !== 'dark') await page.getByRole('button',{name:/^색상 모드:/}).click();
       await row('trash-target').click({button:'right'});
       await expect(page.getByRole('menuitem',{name:'폴더 삭제…',exact:true})).toBeVisible();
-      await page.screenshot({path:`tmp/file-actions-evidence/after-menu-${width}-ko-dark.png`,mask:[page.locator('.sidebar-folder-name'),page.locator('.sidebar-host-account')]});
+      await page.screenshot({path:`tmp/file-actions-evidence/after-menu-${width}-ko-dark.png`,mask:[page.locator('.sidebar-folder-name'),page.locator('.activity-bar-status')]});
       await page.getByRole('menuitem',{name:'폴더 삭제…',exact:true}).click();
       await expect(dialog).toContainText('파일 2개');
-      await page.screenshot({path:`tmp/file-actions-evidence/folder-trash-${width}-ko-dark.png`,mask:[page.locator('.sidebar-folder-name'),page.locator('.sidebar-host-account')]});
+      await page.screenshot({path:`tmp/file-actions-evidence/folder-trash-${width}-ko-dark.png`,mask:[page.locator('.sidebar-folder-name'),page.locator('.activity-bar-status')]});
       await dialog.getByRole('button',{name:'취소',exact:true}).click(); await dialog.waitFor({state:'hidden'});
     }
     await page.getByTestId('ui-language').selectOption('en');
@@ -113,7 +113,7 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
       await row('a.md').click({button:'right'});
       await expect(page.getByRole('menuitem', {name:'상대 경로 복사', exact:true})).toBeVisible();
       // Mask Host addresses in evidence intended for public review.
-      await page.screenshot({path:`tmp/file-actions-evidence/copy-path-${width}-ko-dark.png`, mask:[page.getByTestId('current-file'), page.locator('.sidebar-folder-name'), page.locator('.sidebar-host-account')]});
+      await page.screenshot({path:`tmp/file-actions-evidence/copy-path-${width}-ko-dark.png`, mask:[page.getByTestId('current-file'), page.locator('.sidebar-folder-name'), page.locator('.activity-bar-status')]});
       await page.keyboard.press('Escape'); await menu.waitFor({state:'hidden'});
     }
     await page.getByTestId('ui-language').selectOption('en');

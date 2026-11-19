@@ -84,6 +84,9 @@
   --layout-command-center-width: 28rem;
   --layout-command-center-popup-width: 36rem;
   --layout-command-center-list-height: 24rem;
+  /* Activity bar, always shown left of Explorer: 72px (--space-16 + --space-2) fits a 64px item
+   * whose name below the icon takes about five 12px Korean characters per line. */
+  --layout-activity-bar-width: 4.5rem;
   /* Expanded sidebar: its width, and its width at window widths of 1024px and below. */
   --layout-sidebar-width: 15rem;
   /* Explorer and Assistant reuse the existing Assistant docking boundary. */
@@ -300,7 +303,6 @@
   --layout-document-inline-padding: var(--layout-document-gutter);
   --layout-document-gutter: calc(var(--space-2) + var(--size-control-compact) * 2 + var(--layout-gutter-gap) + var(--layout-gutter-safety));
   --layout-gutter-safety: var(--space-3);
-  --layout-sidebar-rail-width: 3rem;
   --layout-header-row: 2.5rem;
   --layout-ui-inset: var(--space-5);
   --size-control: 2rem;
@@ -312,7 +314,7 @@
   --size-view-segment: calc(var(--size-control-compact) - 4px);
   --layout-gutter-gap: var(--space-1);
   --size-drop-indicator: 2px;
-  /* New-version cue on the Settings icon, shared by Sidebar and rail. */
+  /* New-version cue on the Activity bar Settings icon. */
   --size-update-dot: 8px;
   /* Non-color cue shared by current navigation and the active menu/list choice. */
   --size-current-marker: 3px;

@@ -238,7 +238,7 @@ async (page, { openDocument, expect, screenshots, brand }) => {
     await expect(tables.getByRole('button').first()).toHaveText('Table 1. Measured results');
     // #1455: both navigation overlays stay reachable; Explorer Escape does not dismiss
     // the document panel. The modal Assistant keeps its higher stacking/inert boundary.
-    const explorer = page.locator('.sidebar-collapse');
+    const explorer = page.locator('[data-activity-id="explorer"]');
     await explorer.click();
     await expect(page.locator('.sidebar--overlay')).toBeVisible();
     expect(await page.evaluate(() => {

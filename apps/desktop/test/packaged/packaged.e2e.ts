@@ -164,7 +164,7 @@ test("started without a document, it opens none; the sample opens with its figur
       if (await outlineToggle.getAttribute("aria-pressed") === "true") await outlineToggle.click();
       const geometry = await page.evaluate(() => {
         const overlay = (navigator as Navigator & { windowControlsOverlay: { getTitlebarAreaRect(): DOMRect } }).windowControlsOverlay.getTitlebarAreaRect();
-        const controls = [...document.querySelectorAll<HTMLElement>('.top-bar button, .document-tab-row button, .sidebar-header button')];
+        const controls = [...document.querySelectorAll<HTMLElement>('.top-bar button, .document-tab-row button, .activity-bar button')];
         const titleStrip = document.querySelector('.app-titlebar')!;
         const header = titleStrip.getBoundingClientRect();
         // Resolve the same CSS-token relationship as captionPixels, retaining #711's

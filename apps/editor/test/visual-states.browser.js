@@ -381,7 +381,7 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect, waitForE
     await page.setViewportSize({width,height:1000});
     await waitForExplorerLayout(page);
     // Wait for an accessible toggle rather than treating transient absence as an open Explorer.
-    const explorerToggle=page.getByTestId('sidebar').getByRole('button',{name:/^(Expand|Collapse) Explorer$/,exact:true});
+    const explorerToggle=page.getByTestId('activity-bar').getByRole('button',{name:/^(Expand|Collapse) Explorer$/,exact:true});
     await expect(explorerToggle).toBeVisible();
     if(await explorerToggle.getAttribute('aria-expanded')==='false') await explorerToggle.click();
     await expect(explorerToggle).toHaveAttribute('aria-expanded','true');

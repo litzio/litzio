@@ -44,7 +44,7 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
       await configure(language,theme);
       await page.getByTestId('sidebar').locator(`[role="treeitem"][data-path=${JSON.stringify(file('native.md'))}]`).click();
       await expect(activeDocument(page).locator('[data-read-only="true"] .document-editor')).toBeVisible();
-      await page.screenshot({mask:[page.locator(".sidebar-footer")],path:`tmp/text-mode-captures/compare-native-${width}.png`});
+      await page.screenshot({mask:[page.locator(".activity-bar-status")],path:`tmp/text-mode-captures/compare-native-${width}.png`});
       await configure('en','light');
       await openPath(page,file('foreign.md'));
       await page.getByTestId('view-visual').click();
@@ -52,13 +52,13 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
       await configure(language,theme);
       await page.getByTestId('sidebar').locator(`[role="treeitem"][data-path=${JSON.stringify(file('foreign.md'))}]`).click();
       await page.getByTestId('view-read').click();
-      await page.screenshot({mask:[page.locator(".sidebar-footer")],path:`tmp/text-mode-captures/compare-markdown-${width}.png`});
+      await page.screenshot({mask:[page.locator(".activity-bar-status")],path:`tmp/text-mode-captures/compare-markdown-${width}.png`});
       await page.getByTestId('view-visual').click();
       await input().fill('긴 문장과 공백 없는 식별자도 화면 안에서 편집합니다. '.repeat(25) + 'identifier'.repeat(80));
       await input().press('Control+Home');
       await activeDocument(page).evaluate(node => node.scrollTo(0,0));
       await expect.poll(() => activeDocument(page).evaluate(node => node.scrollTop)).toBe(0);
-      await page.screenshot({mask:[page.locator(".sidebar-footer")],path:`tmp/text-mode-captures/compare-edit-${width}.png`});
+      await page.screenshot({mask:[page.locator(".activity-bar-status")],path:`tmp/text-mode-captures/compare-edit-${width}.png`});
       await input().fill(original);
       await page.getByTestId('view-read').click();
     }

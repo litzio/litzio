@@ -16,7 +16,7 @@ export async function openFolderPicker(page: Page, language = "en"): Promise<voi
   await page.bringToFront();
   await waitForExplorerLayout(page);
   const sidebar = page.getByTestId("sidebar");
-  const expand = sidebar.getByRole("button", { name: language === "ko" ? "탐색기 펼치기" : "Expand Explorer", exact: true });
+  const expand = page.getByTestId("activity-bar").getByRole("button", { name: language === "ko" ? "탐색기 펼치기" : "Expand Explorer", exact: true });
   if (await expand.isVisible()) await expand.click();
   const name = language === "ko" ? "폴더 열기…" : "Open folder…";
   const folders = sidebar.getByTestId("folder");

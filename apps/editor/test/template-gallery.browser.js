@@ -16,7 +16,7 @@ async (page, { expect, waitForEditorFocus }) => {
     const folder = [root, 'tmp', 'new-document'].join(sep);
     await page.evaluate(() => localStorage.setItem('litzio.uiLanguage', 'ko'));
     await page.reload();
-    const enter = page.getByTestId('sidebar').getByRole('button', { name: '템플릿 갤러리', exact: true });
+    const enter = page.getByTestId('activity-bar').getByRole('button', { name: '템플릿 갤러리', exact: true });
     await enter.click();
     const gallery = page.getByRole('tabpanel', { name: '템플릿 갤러리', exact: true });
     const cards = gallery.locator('.template-card-preview');

@@ -324,6 +324,10 @@ export const en = {
 
 
   "Template gallery": "Template gallery",
+  "Activity bar": "Activity bar",
+  "More": "More",
+  "Search screens": "Search screens",
+  "No matching screens": "No matching screens",
   "Save as template…": "Save as template…",
   "Template saved.": "Template saved.",
   "Save the document before saving it as a template.": "Save the document before saving it as a template.",
@@ -1594,6 +1598,10 @@ export const ko: Record<keyof typeof en, string> = {
 
 
   "Template gallery": "템플릿 갤러리",
+  "Activity bar": "작업 막대",
+  "More": "더 보기",
+  "Search screens": "화면 검색",
+  "No matching screens": "일치하는 화면이 없습니다",
   "Save as template…": "템플릿으로 저장…",
   "Template saved.": "템플릿을 저장했습니다.",
   "Save the document before saving it as a template.": "템플릿으로 저장하려면 먼저 문서를 저장하세요.",

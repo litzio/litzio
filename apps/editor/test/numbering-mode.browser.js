@@ -28,7 +28,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
           await page.mouse.move(0,0);
           await engine.getByTestId('mermaid-preview').locator('img').waitFor();
           await page.screenshot({path:`tmp/settings-1721/${phase}-${value || 'none'}-${language}-${theme}-${width}-${state}.png`,
-            mask:[page.locator('.sidebar-host-account'),page.locator('.document-path'),page.locator('.sidebar-folder-name')],
+            mask:[page.locator('.activity-bar-status'),page.locator('.document-path'),page.locator('.sidebar-folder-name')],
             maskColor:await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--id-color-surface').trim())});
         }
       }
@@ -40,7 +40,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
       const trigger=page.getByRole('button',{name:'문서 설정',exact:true});
       await trigger.click();
       await page.screenshot({path:'tmp/settings-1721/after-bibliography-ko-dark-640.png',
-        mask:[page.locator('.sidebar-host-account'),page.locator('.document-path'),page.locator('.sidebar-folder-name')],
+        mask:[page.locator('.activity-bar-status'),page.locator('.document-path'),page.locator('.sidebar-folder-name')],
         maskColor:await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--id-color-surface').trim())});
     }
     return {manualCaptures:true};

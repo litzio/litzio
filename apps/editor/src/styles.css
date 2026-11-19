@@ -63,9 +63,9 @@ button {
   --document-panel-effective-width: clamp(var(--layout-document-panel-min-width), var(--document-panel-width, var(--layout-document-panel-width)), var(--layout-document-panel-max-width));
 }
 
-/* One title strip above file navigation | document | document navigation. */
+/* One title strip above Activity bar + file navigation | document | document navigation. */
 .app-shell {
-  --shell-sidebar: var(--sidebar-effective-width);
+  --shell-sidebar: calc(var(--layout-activity-bar-width) + var(--sidebar-effective-width));
   --shell-panel: var(--document-panel-effective-width);
   display: grid;
   grid-template-columns: var(--shell-sidebar) minmax(0, 1fr) var(--shell-panel);
@@ -75,15 +75,15 @@ button {
 }
 
 .app-shell--collapsed {
-  --shell-sidebar: var(--layout-sidebar-rail-width);
+  --shell-sidebar: var(--layout-activity-bar-width);
 }
 
-/* The Explorer rail remains available; expansion overlays instead of narrowing the document. */
-.app-shell--navigation-overlay { --shell-sidebar: var(--layout-sidebar-rail-width); }
-.app-shell--navigation-overlay .app-brand { justify-content: center; padding-inline: 0; }
+/* The Activity bar remains; Explorer expansion overlays beside it instead of narrowing the document. */
+.app-shell--navigation-overlay { --shell-sidebar: var(--layout-activity-bar-width); }
 .app-shell .sidebar--overlay {
   position: fixed;
-  left: 0;
+  left: var(--layout-activity-bar-width);
+  margin-left: 0;
   width: var(--sidebar-effective-width);
   z-index: 4;
   box-shadow: var(--shadow-overlay);
@@ -116,12 +116,12 @@ button {
   align-self: start;
   gap: var(--space-2);
   height: calc(var(--layout-header-row) - var(--border-width));
-  padding-inline: var(--space-3);
+  /* The brand icon stays centered over the Activity bar column in every Explorer state. */
+  padding-inline: calc((var(--layout-activity-bar-width) - var(--size-control-compact)) / 2) var(--space-3);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
 }
 .app-brand img { width: var(--size-control-compact); height: var(--size-control-compact); }
-.app-shell--collapsed .app-brand { justify-content: center; padding-inline: 0; }
 
 .sidebar {
   z-index: 1;
@@ -133,44 +133,95 @@ button {
   flex-direction: column;
   gap: var(--space-4);
   height: calc(100vh - var(--app-titlebar-height, var(--layout-header-row)));
+  /* Shares the first grid column with the Activity bar, to its right. */
+  margin-left: var(--layout-activity-bar-width);
   padding: 0 var(--space-3) var(--space-3);
   border-right: var(--border-width) solid var(--id-color-border);
   background: var(--id-color-surface-subtle);
 }
 
-.sidebar--collapsed {
+/* Collapsed Explorer keeps its tree mounted; the Activity bar Explorer item expands it. */
+.sidebar--collapsed { display: none; }
+
+/* Activity bar: Explorer | Template gallery and plugin screens | Settings, Color mode, Desktop menu, connection. */
+.activity-bar {
+  --activity-icon: calc(var(--size-icon-slot) + var(--space-1));
+  z-index: 1;
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  position: sticky;
+  top: var(--app-titlebar-height, var(--layout-header-row));
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  padding: 0 var(--space-1) var(--space-3);
+  width: var(--layout-activity-bar-width);
+  height: calc(100vh - var(--app-titlebar-height, var(--layout-header-row)));
+  /* The first icon is centered in the PanelHeader / document tab-row band; its name hangs below. */
+  padding: calc((var(--layout-document-tab-height) + var(--border-width) - var(--activity-icon)) / 2 - var(--space-1) - var(--border-width)) var(--space-1) var(--space-3);
+  border-right: var(--border-width) solid var(--id-color-border);
+  background: var(--id-color-surface-subtle);
+  app-region: no-drag;
 }
+.activity-bar-group { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); width: 100%; }
+.activity-bar-screens { flex: 1; min-height: 0; overflow: hidden; }
+.activity-bar-preferences { margin-top: var(--space-2); }
+.activity-bar-separator { flex-shrink: 0; width: calc(100% - var(--space-4)); height: var(--border-width); margin-block: var(--space-2); background: var(--id-color-border); }
+.activity-bar-item {
+  position: relative;
+  flex-direction: column;
+  gap: calc(var(--space-1) / 2);
+  width: 100%;
+  height: auto;
+  padding: var(--space-1) calc(var(--space-1) / 2);
+  white-space: normal;
+  font-weight: var(--font-weight-normal);
+}
+.activity-bar-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: var(--activity-icon); height: var(--activity-icon); }
+.activity-bar-icon > :is(svg, .plugin-icon) { width: var(--activity-icon); height: var(--activity-icon); }
+/* Up to two lines; a longer name ellipsizes and stays whole in the tooltip and accessible name. */
+.activity-bar-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 100%;
+  overflow: hidden;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-meta);
+  color: var(--id-color-text-muted);
+}
+.activity-bar-item:is([data-selected], [data-active]) { background: var(--id-color-surface-selected); color: var(--id-color-text-selected); }
+.activity-bar-item:is([data-selected], [data-active]):hover { background: var(--id-color-surface-selected-hover); }
+.activity-bar-item:is([data-selected], [data-active]) .activity-bar-label { color: inherit; }
+/* The open panel also carries the shared current-navigation marker at the bar's left edge. */
+.activity-bar-item[data-selected]::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--space-1));
+  top: var(--space-1);
+  bottom: var(--space-1);
+  width: var(--size-current-marker);
+  border-radius: var(--size-current-marker);
+  background: var(--id-color-text-selected);
+}
+.activity-bar-item[data-overflow] { visibility: hidden; }
+.activity-bar-status { display: flex; align-items: center; justify-content: center; height: var(--size-control-compact); }
+.activity-more { width: var(--layout-sidebar-width); gap: var(--space-2); padding: var(--space-2); }
+.activity-more-list { display: flex; flex-direction: column; gap: var(--space-1); min-height: 0; margin: 0; padding: 0; list-style: none; overflow-y: auto; }
+.activity-more-item { width: 100%; justify-content: flex-start; font-weight: var(--font-weight-normal); }
+.activity-more-item .activity-bar-icon, .activity-more-item .activity-bar-icon > :is(svg, .plugin-icon) { width: var(--size-icon-slot); height: var(--size-icon-slot); }
+.activity-more-item[data-active] { background: var(--id-color-surface-selected); color: var(--id-color-text-selected); }
+.activity-more-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.activity-more-empty { padding: var(--space-2) var(--space-3); }
+/* Plugin artwork in the bar: its shape in the current text color. */
+.plugin-icon--mono { display: inline-block; background: currentColor; mask: var(--plugin-icon-image) center / contain no-repeat; }
 
 .sidebar > .panel-header {
   width: calc(100% + var(--space-3) * 2);
   margin-inline: calc(-1 * var(--space-3));
-}
-
-.sidebar-header {
-  user-select: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  width: calc(100% + var(--space-3) * 2);
-  margin-inline: calc(-1 * var(--space-3));
-  padding-inline: var(--space-3);
-  min-height: calc(var(--layout-document-tab-height) + var(--border-width));
-  border-bottom: var(--border-width) solid var(--id-color-border);
-}
-
-.sidebar-header-actions {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.sidebar--collapsed .sidebar-header {
-  justify-content: center;
-  width: calc(100% + var(--space-1) * 2);
-  margin-inline: calc(-1 * var(--space-1));
-  padding-inline: var(--space-1);
 }
 
 .sidebar-content {
@@ -654,7 +705,7 @@ button {
   container-type: inline-size;
 }
 .app-header { background: var(--id-color-surface-subtle); }
-:is(.app-titlebar, .document-tab-row, .sidebar-header, .panel-header, .document-panel-header) :is(button, input, select, textarea, a, [role="menu"], [role="menuitem"]) {
+:is(.app-titlebar, .document-tab-row, .panel-header, .document-panel-header, .activity-bar) :is(button, input, select, textarea, a, [role="menu"], [role="menuitem"]) {
   app-region: no-drag;
 }
 
@@ -911,23 +962,6 @@ button {
   gap: var(--space-1);
 }
 
-/* Settings sit above the active Host execution account. */
-.sidebar-footer {
-  display: flex;
-  flex-direction: column;
-  margin-top: auto;
-  app-region: no-drag;
-}
-
-/* Settings and Color mode share footer row geometry in both sidebar states. */
-.sidebar-preferences { display: flex; align-items: center; gap: var(--space-1); }
-.sidebar--collapsed .sidebar-preferences { flex-direction: column; }
-.sidebar-host-account { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-control-compact); padding-inline: calc(var(--space-3) + var(--border-width)); }
-.sidebar-host-account .host-status { flex-shrink: 0; }
-/* Center the shared Status indicator (--space-2 wide) in the icon slot used by the rows above. */
-.sidebar-host-account .host-status [data-status-indicator] { margin-inline: calc((var(--size-icon-slot) - var(--space-2)) / 2); }
-.sidebar-host-account .sidebar-tree-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar--collapsed .sidebar-host-account { justify-content: center; }
 /* Whole-screen theme crossfade; other controls retain immediate state changes. */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--duration-theme-transition); }
 @media (prefers-reduced-motion: reduce) {
@@ -2952,9 +2986,6 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 
 /* ---- UI polish spike -------------------------------------------------------------------- */
 
-/* Expanded is disclosure semantics, not a persistent pressed action in the header. */
-.sidebar-collapse[aria-expanded="true"] { background: transparent; }
-.sidebar-collapse[aria-expanded="true"]:hover { background: var(--id-color-surface-hover); }
 .top-bar-toggle[aria-pressed="true"] { border-color: transparent; }
 .top-bar-toggle:not([aria-pressed="true"]):hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--id-color-surface-hover);
@@ -3086,7 +3117,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 /* The Table metadata is its object-selection surface; cells retain text editing. */
 .table-block:is(:hover, :focus-within, [data-selected="true"], [data-editing="true"]) > .block-metadata { pointer-events: auto; }
 
-/* Settings update cue shares the icon slot in the expanded sidebar and collapsed rail. */
+/* Settings update cue on the Activity bar Settings icon slot. */
 .settings-entry-icon { position: relative; display: inline-flex; flex-shrink: 0; }
 .settings-update-dot {
   position: absolute;
@@ -3126,8 +3157,8 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .notification-popover[data-slot="popover-content"] { width: min(28rem, calc(100vw - var(--space-8))); padding: 0; gap: 0; border: 0; color: inherit; overflow: hidden; }
 .notification-popover > ul { max-height: var(--available-height); }
 @media print { .notification-center { display: none; } }
-.notification-auto { position: fixed; z-index: 40; pointer-events: none; right: calc(var(--notification-panel-width, 0px) + var(--space-8)); top: calc(var(--app-header-height, 80px) + var(--space-8)); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); --notification-sidebar-width: var(--sidebar-effective-width); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8) - var(--space-4)); --notification-enter-offset: calc(-1 * var(--space-1)); color: inherit; font-size: var(--font-size-sm); line-height: var(--line-height-label); }
-body:has(.app-shell--collapsed) .notification-auto { --notification-sidebar-width: var(--layout-sidebar-rail-width); }
+.notification-auto { position: fixed; z-index: 40; pointer-events: none; right: calc(var(--notification-panel-width, 0px) + var(--space-8)); top: calc(var(--app-header-height, 80px) + var(--space-8)); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); --notification-sidebar-width: calc(var(--layout-activity-bar-width) + var(--sidebar-effective-width)); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8) - var(--space-4)); --notification-enter-offset: calc(-1 * var(--space-1)); color: inherit; font-size: var(--font-size-sm); line-height: var(--line-height-label); }
+body:has(.app-shell--collapsed) .notification-auto { --notification-sidebar-width: var(--layout-activity-bar-width); }
 .notification-center[data-severity="error"] { color: var(--id-color-danger); }
 .notification-center[data-severity="warning"] { color: var(--id-color-warning); }
 

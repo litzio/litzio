@@ -18,7 +18,7 @@
 - Feature sample verification: 2026-10-28 (#528 Core read-model coverage, canonical CLI check/format, Desktop version unit tests, existing Command center browser entry and manual 1440/640px Korean/English captures; packaged execution deferred to CI).
 - Last verified: 2026-10-28 (#637: block Equation editing moves into the document; inline math retains its popover).
 - Explorer naming update: 2026-10-29 (#703: Explorer / 탐색기 replaces the Files panel name; [contract and captures](../design/editor-ux-shell-v1.md#explorer-name-703)).
-- Collapsed rail update: 2026-10-28 (#671: Files and shared Settings entry; [contract and captures](../design/editor-ux-shell-v1.md#collapsed-rail-files-and-settings-671)).
+- Collapsed rail update: 2026-10-28 (#671: Files and shared Settings entry; [contract and captures](../design/editor-ux-shell-v1.md#activity-bar-671--1817)).
 - Settings entry update: 2026-10-28 (#669: remove the Settings-only document-settings entry; [contract and captures](../design/editor-ux-shell-v1.md#settings-document-entry-removal-669)).
 - Brand title-strip update: 2026-10-28 (#647 owner-approved composition; targeted verification recorded in the PR).
 - Previous shell verification: 2026-10-27 (#582 / #605: Editor 315 tests, Desktop 48 tests, typecheck/build and targeted persistent-Chrome regressions; [contract and captures](../design/editor-ux-shell-v1.md#sidebar-and-native-title-bar-582--605)).

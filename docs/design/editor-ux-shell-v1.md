@@ -217,8 +217,9 @@ and #694's separate overlay fix.
 
 The left Sidebar is named **Explorer / 탐색기**. Its heading, empty-region name,
 Command center file-result category and expand/collapse command use this name.
-The expanded control is **Collapse Explorer / 탐색기 접기**; the collapsed rail
-control is **Expand Explorer / 탐색기 펼치기**, for both accessible name and tooltip.
+The [Activity bar](#activity-bar-671--1817) Explorer item shows **Explorer / 탐색기**; its
+accessible name and tooltip are **Collapse Explorer / 탐색기 접기** while Explorer is open and
+**Expand Explorer / 탐색기 펼치기** while it is collapsed.
 The shortcut guide contains no Sidebar-specific entry or binding to rename.
 The folder-menu command **Open in File Explorer / 파일 탐색기에서 열기** (#487)
 still names the Windows application and keeps its existing wording.
@@ -442,14 +443,14 @@ Wide document stays in the document tab-row actions (#695).
 
 ## Sidebar and native title bar (#582 / #605)
 
-The approved explorer layout puts only **Explorer / 탐색기** and Collapse Explorer in the header.
+The approved explorer layout puts only **Explorer / 탐색기** in the header; the Activity bar owns collapse and expand.
 Each opened folder shows **New document… / 새 문서…** and its More actions
 menu (New folder…, Open folder…, Refresh, Close folder, in that order). There is no additional New document row while
 a folder is open. Empty Explorer retains Open folder… and New document…; the latter first
 chooses a folder, then opens the existing filename form. Start and command-center entries
 use the same New document… name. Folder selection and creation semantics are unchanged.
 Cancel returns to the invoking button; if opening the first folder removed that empty-state
-button, the visible Sidebar toggle receives focus. Menu-originated dialogs return to that
+button, the Activity bar Explorer item receives focus. Menu-originated dialogs return to that
 folder's More actions trigger. Each opened root has the same chevron and name (no folder icon),
 regular typography, 28px row and spacing as child folders, at visual depth zero, without extra
 heading or inter-section gaps. Root actions remain visible without hover. The full opened-root header uses the same
@@ -464,14 +465,14 @@ through the two actions to the retained tree stop.
 The first row is one full-width title strip (#647): the existing Desktop SVG icon and
 **`Litzio`** at the left, shared search in the remaining width, and native caption
 buttons at the right in Desktop. HTTP Host uses the same arrangement with zero caption
-reservation and no native window dragging. The brand follows the Explorer width; collapsing
-Explorer retains only the icon. The Explorer icon button (Expand Explorer, #671) stays in the 48px rail on
-the second row, directly below the icon: this preserves its Explorer-navigation location,
-28px target, accessible name, aria-expanded and keyboard focus return without making the
-brand an additional action. DOM tab order follows Explorer controls, title-strip search, document tabs, document actions/content, then
+reservation and no native window dragging. The brand spans the Activity bar and Explorer widths
+and keeps its icon centered above the Activity bar column; collapsing Explorer retains only the icon.
+The Activity bar starts on the second row, directly below the icon, and its Explorer item keeps the
+Explorer-navigation location, accessible name, aria-expanded and keyboard focus return without making the
+brand an additional action. DOM tab order follows the Activity bar (one Tab stop), Explorer controls, title-strip search, document tabs, document actions/content, then
 document navigation; the brand adds no tab stop.
 
-Explorer / Collapse and the Outline / Tables / Figures tab row begin directly below the title
+The Explorer heading and the Outline / Tables / Figures tab row begin directly below the title
 strip, aligned with the document tab row and its bottom boundary. The separate visible
 Outline title row is removed; the panel keeps its accessible Outline heading. Docking,
 width, overlay dismissal and list navigation are unchanged. Below the docking width the
@@ -498,7 +499,7 @@ operation or CLI parity command is needed.
 
 ## Structure
 
-The Sidebar footer has a Settings entry in both expanded and collapsed states (also available through the command center), opening the [dedicated Settings screen](#dedicated-settings-screen-594). The start screen adds a minimal recovery list/empty state; matching Open offers the newest record in a shared recovery dialog. Standing recording failures use MessageArea. The [recovery contract](editing-session-save-v1.md#local-recovery-records) owns retention and lifecycle. The typed Desktop bridge additionally provides About and update notice/actions. Update notices do not take editor focus. Version/channel/progress/retry/restart policy is defined by [Desktop distribution](desktop-distribution-v1.md).
+The Activity bar has a Settings entry in both Explorer states (also available through the command center), opening the [dedicated Settings screen](#dedicated-settings-screen-594). The start screen adds a minimal recovery list/empty state; matching Open offers the newest record in a shared recovery dialog. Standing recording failures use MessageArea. The [recovery contract](editing-session-save-v1.md#local-recovery-records) owns retention and lifecycle. The typed Desktop bridge additionally provides About and update notice/actions. Update notices do not take editor focus. Version/channel/progress/retry/restart policy is defined by [Desktop distribution](desktop-distribution-v1.md).
 
 Each document tab keeps one Tiptap/ProseMirror document state owning selection, history and editing; typed blocks use NodeViews and overlays.
 
@@ -506,7 +507,7 @@ The shell has three responsibilities: the Sidebar on the left browses opened fol
 
 | Area | Current behavior |
 | --- | --- |
-| Sidebar | Explorer and Collapse Explorer in the header, followed by file navigation; no duplicate New document row with opened folders (#582). There is no Explorer / Display switch. The collapsed 48px rail contains an Explorer icon button at the document-tab row and an icon-only Settings button at the bottom (#671). The Explorer icon restores file navigation; its accessible name and tooltip remain Expand Explorer (탐색기 펼치기), describing the action rather than only naming the panel. Settings uses the same entry component and screen as the expanded footer, at the same vertical position; Settings Escape returns focus to its opening button. Both rail actions are keyboard reachable, have localized names/tooltips and are Desktop no-drag targets. Explorer contains the opened folders (#112, [ADR-0009](../adr/0009-multiple-opened-folders.md)), each a non-overlapping root section in opening order (ancestor absorption takes the first absorbed position; [#702](#non-overlapping-opened-folders-702)), or, without any, guidance followed by the browser's recent folders (name, full path in `title`): one click lists that folder like Open folder, without opening a document. User-controlled collapse/expand, with a 48px rail when collapsed. No workspace or placeholder navigation. Each folder heading names its folder (disclosure button and name, full path in `title`; [section visibility](#collapsible-folder-sections-425)) with `+` (New document…) and a `⋯` menu containing New folder…, Open folder…, Refresh and Close folder (removes only that folder; tabs stay open). Open folder… adds an unrelated folder; one already open is listed again in place. A descendant is revealed in its ancestor tree, and a new ancestor absorbs its descendant sections ([#702](#non-overlapping-opened-folders-702)). With no opened folder, the empty Explorer panel offers Open folder… and New document…. Below each heading is a folder tree; file listing and activation follow [Folder files and image preview](#folder-files-and-image-preview-217). A `.md` file whose leading frontmatter lacks the native marker stays listed in subtle text with its own icon, and its tooltip and accessible description say it is not an Litzio document; opening it automatically selects text mode (#817) ([Folder listing](filesystem-host-boundary-v1.md#folder-listing-v1-112)). On explicit active-document path changes, the containing sections and folders above it expand in each opened folder containing it; a document elsewhere adds nothing to the trees. The opened folders' paths are browser preferences: on start they are listed again in order, and one the Host refuses or no longer has is left out quietly. Child-folder expansion is page state only. Root section collapse is an origin-specific preference restored on Reload/Desktop restart; startup document restoration respects it. Opening document settings or collapsing the sidebar retains the mounted tree, its expansion, scroll and keyboard stop, without listing again. The tree takes the remaining height and scrolls by itself; the open document uses the shared selected surface/text with 600 semibold as a non-color cue, without a left marker there and Close folder removes it. Keyboard: Up/Down, Home/End move through visible items; Right expands a folder or moves into it; Left collapses it or moves to the parent; Enter or Space opens a document or toggles a folder. Explorer does not list the open document separately: the tab row and TopBar name it. |
+| Sidebar | Explorer in the header, followed by file navigation; no duplicate New document row with opened folders (#582). There is no Explorer / Display switch. The always-visible [Activity bar](#activity-bar-671--1817) to its left owns collapse/expand, screen entries and Settings; its Explorer item's accessible name and tooltip (Collapse Explorer / Expand Explorer) describe the action rather than only naming the panel. Settings Escape returns focus to its opening button. Explorer contains the opened folders (#112, [ADR-0009](../adr/0009-multiple-opened-folders.md)), each a non-overlapping root section in opening order (ancestor absorption takes the first absorbed position; [#702](#non-overlapping-opened-folders-702)), or, without any, guidance followed by the browser's recent folders (name, full path in `title`): one click lists that folder like Open folder, without opening a document. User-controlled collapse/expand through the Activity bar; collapsed Explorer takes no width. No workspace or placeholder navigation. Each folder heading names its folder (disclosure button and name, full path in `title`; [section visibility](#collapsible-folder-sections-425)) with `+` (New document…) and a `⋯` menu containing New folder…, Open folder…, Refresh and Close folder (removes only that folder; tabs stay open). Open folder… adds an unrelated folder; one already open is listed again in place. A descendant is revealed in its ancestor tree, and a new ancestor absorbs its descendant sections ([#702](#non-overlapping-opened-folders-702)). With no opened folder, the empty Explorer panel offers Open folder… and New document…. Below each heading is a folder tree; file listing and activation follow [Folder files and image preview](#folder-files-and-image-preview-217). A `.md` file whose leading frontmatter lacks the native marker stays listed in subtle text with its own icon, and its tooltip and accessible description say it is not an Litzio document; opening it automatically selects text mode (#817) ([Folder listing](filesystem-host-boundary-v1.md#folder-listing-v1-112)). On explicit active-document path changes, the containing sections and folders above it expand in each opened folder containing it; a document elsewhere adds nothing to the trees. The opened folders' paths are browser preferences: on start they are listed again in order, and one the Host refuses or no longer has is left out quietly. Child-folder expansion is page state only. Root section collapse is an origin-specific preference restored on Reload/Desktop restart; startup document restoration respects it. Opening document settings or collapsing the sidebar retains the mounted tree, its expansion, scroll and keyboard stop, without listing again. The tree takes the remaining height and scrolls by itself; the open document uses the shared selected surface/text with 600 semibold as a non-color cue, without a left marker there and Close folder removes it. Keyboard: Up/Down, Home/End move through visible items; Right expands a folder or moves into it; Left collapses it or moves to the parent; Enter or Space opens a document or toggles a folder. Explorer does not list the open document separately: the tab row and TopBar name it. |
 | Document settings | Collapsed value summary at the top of the paper, before the title and outside ProseMirror (#580). Expands into grouped field rows for Number headings (H1–H6), Reference style (Default, Concise, Formal, Korean; unmatched values show Custom) with notation previews, and Connect bibliography…. Reuses existing operations, history, dirty indication and Save under the [numbering](heading-numbering-v1.md) and [bibliography](citations-v1.md#connect-and-disconnect-bibliography-files-438) contracts. Command center reveals/expands/focuses it. Field controls disable during pending work; Source/start omit the block and read-only shows only summary. Escape inside collapses and focuses the disclosure; the style menu handles its own Escape first. Bibliography uses the existing connection dialog with return to the row’s Connect button. Expansion is per-tab session only. Opening/collapsing preserves editor instance, selection, history and unapplied drafts. App Settings remains separate and has no document-settings entry (#669). |
 | Document panel | Outline, Tables and Figures navigation (#613), with 600 semibold, themed surface and segment shadow for the selected tab, muted inactive labels and reserved semibold label width (#620), titled Outline, with no internal close button (#590). The tab-row Outline toggle opens and closes it. The outline is derived from the editor document, indents 12px per level below H1 up to three levels and wraps labels to two lines, marks the section being read with selected background/text and 600 semibold (no left marker, #515); a hidden semibold copy reserves its two-line text extent to prevent selection height jumps. The current item stays inside the list's visible area. The list scrolls by itself and is never written to the document. Table/Figure items reuse the body caption prefix and Core reference template (for example `Table 1. Caption`), including in Korean UI; a missing caption shows only the number. At 1424px and wider the panel is docked and starts open; below 1424px it starts closed and, opened, overlays the document below the sticky header instead of narrowing it, so Save, File actions and the Outline toggle stay usable; Escape closes it and returns focus to the tab-row Outline toggle. The docking width is independent of the 1024px narrow sidebar. Entering the overlay layout always closes it. Returning to docked restores the user's last explicit docked open/closed choice, or opens by default if none exists. Overlay interactions do not overwrite that choice. Open/closed is page memory only and resets on reload; no persistent preference is added. |
 | TopBar | Shared single-row brand/search/caption strip; document actions and compact status belong to their owning tab row. See [#695](#title-strip-and-tab-row-actions-695) for responsive search, menu guards and status. Save, Source, Compare, Reload/discard, Copy path and layout preferences retain their existing operations and shortcuts. |
@@ -831,7 +832,7 @@ Escape/outside dismissal returns to the invoking control or editor without chang
 selection/history/property drafts.
 A selected command closes the center before opening its target dialog; that dialog owns focus.
 Outline and sidebar commands hand focus to their surviving toggle, including when the invoking
-control was inside the panel being hidden. Collapsing the sidebar keeps its rail toggle available for focus return.
+control was inside the panel being hidden. The Activity bar Explorer item stays visible for focus return.
 Other dialogs retain their shortcuts, and Ctrl/Cmd+S cannot save behind the center.
 No-match feedback and controls are translated with the existing UI language.
 
@@ -1283,8 +1284,9 @@ line's first row. There is no clipping or document write.
 
 ## Outline docking verification #552
 
-The docking boundary is 89rem (1424px): 240px Sidebar + 256px Outline + 928px Standard
-column. At 1280–1423px the Outline starts closed and opens as an overlay. Explicit docked
+The docking boundary is 89rem (1424px). With docked Outline the Standard column fills the area
+beside the 72px Activity bar, 240px Explorer and 256px Outline up to its 928px width, so between
+1424px and 1495px it is narrower (872px at 1440px); without docked Outline it keeps 928px from 1280px. At 1280–1423px the Outline starts closed and opens as an overlay. Explicit docked
 open/closed choices survive resizing in page memory; entering overlay closes it without
 replacing that choice. Reload restores the default. This is Editor interaction only;
 Core/CLI semantics and persistent preferences do not change.
@@ -1295,7 +1297,7 @@ The internal Hide outline button is removed. The TopBar Outline toggle remains t
 open/close control; overlay Escape still closes it and returns focus to that toggle.
 Command Center Show/Hide outline commands remain available. Title, list navigation, docking,
 page-memory choices and reload defaults are unchanged. This is Editor interaction only;
-Core/CLI operations are not applicable. The Sidebar Collapse sidebar button is unchanged.
+Core/CLI operations are not applicable.
 
 ## Figure image filename (#652)
 
@@ -1322,13 +1324,46 @@ owns its fixed path, IPC and logging behavior.
 
 App Settings has no document-settings entry. The inline document disclosure and Command Center remain the entry points.
 
-## Collapsed rail Files and Settings (#671)
+## Activity bar (#671 / #1817)
 
-The owner decision is recorded in [#671](https://github.com/litzio/litzio/issues/671).
-The 48px rail keeps Files on the document-tab row and Settings at the expanded
-footer's vertical position. The same Settings entry has a text or icon-only variant,
-with the update indicator defined by the Desktop contract.
-The title strip, caption reservation and drag areas from #647 remain unchanged.
+The owner decisions are recorded in [#671](https://github.com/litzio/litzio/issues/671) and
+[#1812](https://github.com/litzio/litzio/issues/1812). The Activity bar (**작업 막대**) is always visible
+at the window's left edge, from below the title strip to the bottom, at `--layout-activity-bar-width`
+(72px) in every window width and Explorer state. Explorer opens beside it.
+
+- **Top group:** Explorer. Choosing it expands a collapsed Explorer and collapses an open one
+  (`aria-expanded`, `aria-controls="sidebar-files"`); while open it uses the selected surface/text and the
+  shared current-navigation marker at the bar's left edge.
+- **Middle group:** Template gallery, then each plugin's primary screen in the screen list's order.
+  Choosing one opens or selects its task tab (the same handlers as Command Center); the item for the
+  focused group's active tab uses the selected surface/text and `aria-current="page"`. Items are disabled
+  during window-level operations like other task entries.
+- **Bottom group:** Settings (with the update dot), Color mode, the Desktop menu (Desktop only) and the
+  connection status dot.
+
+Top and middle items show a 20px icon with the name below in 12/16px muted text, up to two lines; a longer
+name ellipsizes. Each item's full name is its accessible name and right-side Tooltip. Bottom items are
+compact icon-only buttons with Tooltips. Icons in the bar use one color: plugin SVG/PNG artwork is drawn
+as its shape in the bar's text color. A fully opaque picture has no shape to draw, so the bar uses the
+manifest's named icon (or the default) instead. Tabs, Settings and other surfaces keep the plugin's own
+artwork.
+
+When the window height cannot hold every middle item, the items that fit stay and a **More / 더 보기**
+item replaces the rest. It opens a Popover beside the bar with a **Search screens / 화면 검색** Input and
+the whole middle group as icon + name rows, so the list stays the same whatever the window height. Enter
+in the search runs the first match; choosing a row runs it and closes the Popover; Escape returns focus to
+More. The Desktop menu uses a monitor icon so it is not confused with More.
+
+The Explorer icon is centered in the PanelHeader / document tab-row band (y 40–73px). The bar is one
+Tab stop (`role="toolbar"`, vertical): Up/Down move between items and wrap, Home/End go to the first and
+last item, Enter/Space run the item, and the last focused item is the Tab stop. The connection status is
+not an item. Pointer use of the bar never counts as an outside pointer for the narrow Explorer overlay.
+Command Center keeps its Explorer, screen, Template gallery and Settings commands. Captures (Korean,
+synthetic documents and plugins): [1440 before](assets/activity-bar-1817/before-1440-light.png),
+[1440 light](assets/activity-bar-1817/after-1440-light.png), [1440 dark](assets/activity-bar-1817/after-1440-dark.png),
+[collapsed with a plugin screen](assets/activity-bar-1817/after-1440-collapsed-plugin.png),
+[1440×700 More](assets/activity-bar-1817/after-1440x700-more.png) and
+[640 dark overlay](assets/activity-bar-1817/after-640-dark-overlay.png).
 This is shell interaction only; no Core semantic operation or CLI command is needed.
 
 ## Localized feature samples (#528)
@@ -1377,11 +1412,11 @@ no Core/CLI semantic operation, document write or Host state is added.
 
 ## Color mode entry (#798)
 
-Expanded Explorer combines Settings (left-aligned gear and label) and a right-aligned icon-only theme toggle on one footer row (#1042). The collapsed rail shows the two icon buttons stacked. The theme button displays the current Light/Sun or Dark/Moon state in its icon, localized accessible name and tooltip. Click, Enter or Space toggles immediately between the two choices and retains button focus. Settings' update dot stays separate. Command Center offers the same two choices with English and Korean search aliases.
+The Activity bar's bottom group stacks Settings and the icon-only theme toggle in both Explorer states (#1042). The theme button displays the current Light/Sun or Dark/Moon state in its icon, localized accessible name and tooltip. Click, Enter or Space toggles immediately between the two choices and retains button focus. Settings' update dot stays separate. Command Center offers the same two choices with English and Korean search aliases.
 
 All three entry points share the live App choice, `writeTheme` storage and `applyTheme`, including the Desktop bridge. Settings retains its existing selection markup with two choices. Failed storage retains the live choice and displays the localized Settings alert or notification-center error. Accent/page style remain in Settings. This device display preference has no Core operation or CLI parity requirement.
 
-`pnpm browser:test color-mode` checks first OS resolution, persistence across reload and later OS changes, footer geometry, keyboard toggling, Settings and bilingual command parity, and storage refusal. This replaces the old menu-specific radio/focus checks because that menu is removed. The existing `ui-language` assertions retain explicit theme/native-control synchronization. No exhaustive combinations or subprocess tests are added.
+`pnpm browser:test color-mode` checks first OS resolution, persistence across reload and later OS changes, Activity bar geometry, keyboard toggling, Settings and bilingual command parity, and storage refusal. This replaces the old menu-specific radio/focus checks because that menu is removed. The existing `ui-language` assertions retain explicit theme/native-control synchronization. No exhaustive combinations or subprocess tests are added.
 
 ## Document table display (#902)
 
@@ -1415,11 +1450,11 @@ verified independently in two groups at 1280px, without changing that rule.
 
 Owner decision [#1026](https://github.com/litzio/litzio/issues/1026) replaces the
 Back to document screen with a single Host-owned Settings task tab. Explorer,
-title strip and ordinary document tabs remain accessible. Sidebar and Command
+title strip and ordinary document tabs remain accessible. The Activity bar and Command
 Center open it in the focused group; reopening selects its existing group without
 moving or duplicating it. The ordinary tab context menu moves it to the right or
 the other group. The same narrow-area merge rule applies. During window-level document loading,
-file navigation/operations or a pending continuation, Settings entry is disabled in Sidebar,
+file navigation/operations or a pending continuation, Settings entry is disabled in the Activity bar,
 Command Center and the Assistant setup action, consistently with other task entries.
 Settings opens only after those controls become available; clicks are not queued.
 Tab-owned Save/Source work retains the existing ability to open Settings diagnostics
@@ -1430,7 +1465,7 @@ Settings and documents; Tab enters its close control and category navigation.
 Delete or the close button closes the tab and focuses the neighboring tab.
 Escape from Settings content or its tab closes it, selects the still-open task
 from which Settings was entered, and returns focus to the connected opener (or
-Explorer toggle). If that task has closed, the ordinary neighboring tab remains. Nested dialogs retain their own Escape boundary.
+the Activity bar Explorer item). If that task has closed, the ordinary neighboring tab remains. Nested dialogs retain their own Escape boundary.
 Opening Settings dismisses the narrow Assistant overlay so the task tab is
 reachable; the wide docked Assistant remains available and keeps its own Escape.
 Settings does not trap focus or own document Save/Undo. Ctrl+S while Settings owns
@@ -1443,7 +1478,7 @@ other visible group. This does not trap focus or prevent normal document editing
 Like Plugin tabs, Settings has no document session, dirty indicator, recovery
 record or startup restoration. Switching away keeps its mounted category and
 unsaved settings drafts; closing discards view-local drafts. Applied app preferences
-remain stored independently. Assistant settings save changes sequentially and automatically, separately from document Save ([current contract](main-agent-v1.md#연결과-설정)). Metadata outside-pointer completion excludes the Settings tab and Sidebar entry.
+remain stored independently. Assistant settings save changes sequentially and automatically, separately from document Save ([current contract](main-agent-v1.md#연결과-설정)). Metadata outside-pointer completion excludes the Settings tab and Activity bar entry.
 Ordinary document-tab pointer switching retains its existing outside-apply behavior;
 keyboard switching retains drafts. Closing Settings selects its ordinary neighbor.
 Document input, drafts and Undo history stay with their mounted
@@ -1460,7 +1495,7 @@ explanation prose is removed; document identity/dirty state remains in its tab.
 
 ## Template gallery task tab (#936 phase 2)
 
-Sidebar and command center open a single Template gallery tab in the existing
+The Activity bar and command center open a single Template gallery tab in the existing
 editor groups. It can be closed or moved like Settings, without a document Save,
 recovery record or Outline. Reentry selects its owning group; other document tabs
 retain their draft and scroll state. The command center also provides Save as
@@ -1474,13 +1509,14 @@ Adjustable value `--layout-navigation-overlay-breakpoint` in `styles/tokens.css`
 This preserves their existing wide docking at 1440px without adding another breakpoint;
 the Document panel retains its independent 89rem boundary. Below 1100px Explorer
 starts collapsed, including on reload and every transition from a wide window. Opening
-it overlays the document from the title strip to the bottom, with the existing width,
-surface and shadow. The document keeps all space beside the 48px control rail (592px at
+it overlays the document beside the Activity bar, from the title strip to the bottom, with the
+existing width, surface and shadow. The document keeps all space beside the 72px Activity bar (568px at
 the minimum 640px window); Explorer expansion consumes no extra document width.
 
 File activation (including PDF), task navigation (Settings, Template
 gallery and plugin screens), outside pointer and Escape dismiss the
-overlay and return focus to its toggle. A subsequently activated document or outside
+overlay; Escape inside Explorer returns focus to the Activity bar Explorer item, and an
+Activity bar item used to dismiss it keeps its focus. Activity bar pointer use is not outside. A subsequently activated document or outside
 control may take focus through its normal action. Portalled menus/dialogs keep their
 own dismissal boundary and do not collapse Explorer underneath their return target.
 The tree stays mounted; folder expansion and scroll state remain. Wide-window user
@@ -1492,17 +1528,13 @@ document meaning or CLI interaction is introduced.
 
 ## 활성 Host 실행 계정 (#1199)
 
-After Explorer file navigation, footer Tab order is Template gallery → Settings → Color mode → Desktop menu (Desktop only) → TopBar. The execution-account line is not a Tab stop. The rail keeps Settings, Color mode and Desktop menu above the bottom execution-account status.
-
 다른 PC의 Host 접속은 지원하지 않는다. 같은 PC의 공유 daemon·수동 다시 연결, CLI `--host`와 개발·검사용 독립 HTTP Host는 유지한다. 세션·작업은 시작 시점의 client를 유지하며 탭·기억·복구는 Host가 반환한 path로 식별한다. [저장 형식 계약](editing-session-save-v1.md#단일-연결의-기억복구-형식-1595-pr-3)을 따른다.
 
-사이드바 맨 아래 한 줄은 단일 연결의 상태와 실행 계정을 표시한다. 여러 Host의 라벨·Local 탭 배지는 표시하지 않는다. 관측 대상은 같은 PC의 로컬 Host다. 기존 설정·테마·메뉴 행은 그 바로 위에 둔다. Host 선택기는 제공하지 않는다.
+작업 막대 맨 아래 상태 점은 단일 연결의 상태를 표시한다. 여러 Host의 라벨·Local 탭 배지는 표시하지 않는다. 관측 대상은 같은 PC의 로컬 Host다. 설정·색 모드·Desktop 메뉴는 그 바로 위에 둔다. Host 선택기는 제공하지 않는다.
 
 Desktop의 로컬 Host 상태도  관측 완료 5초 뒤 읽기 전용 health/capability 검사를 반복한다(#1487). 시작 시 한 번 실패한 관측이 계속 남지 않으며, 다음 성공에서 상태·실행 계정을 복원한다. 첫 실패의 닿지 않음/이유 표시는 유지한다. daemon 탐색·spawn·수동 다시 연결과 별개의 상태 관측이며 상세 계약은 [Desktop distribution](desktop-distribution-v1.md)을 따른다.
 
-연결됨 상태의 점과 글씨는 정상 의미 색(`--id-color-success`)을 쓴다. 공통 HostStatus 상태 점과 기존 control 높이·간격·문자색 토큰을 사용하며, 상태 점의 가운데는 펼친·축소 사이드바 모두 위 행들의 아이콘 칸 가운데와 같은 세로선에 둔다. 연결된 Host의 `identity.runAs`만 표시하며 연결되지 않거나 계정이 없는 Host는 상태만 표시한다. 축소된 사이드바에서는 상태 점만 표시한다. 이 줄은 바로 위 설정 진입을 가리지 않도록 툴팁·`title`을 띄우지 않고 Tab 정지점도 아니다. 백그라운드 서비스·실행 계정은 보조기술 이름으로 제공한다. 설명은 Desktop 설정 정보·업데이트의 로컬 백그라운드 서비스 절에 실행 계정 사실 행으로 둔다. 한국어 명칭은 **실행 계정**, 설명은 “이 Host의 파일 작업과 비서 실행은 이 계정 권한으로 수행됩니다”이다. 기준 캡처(1440px 밝음): [펼침](assets/sidebar-host-row-1766/after-expanded-1440-light.png)·[축소](assets/sidebar-host-row-1766/after-collapsed-1440-light.png)·[설정 정보](assets/sidebar-host-row-1766/after-settings-about-1440-light.png). 접속자 신원은 제공하지 않는다.
-
-640px 이상에서 한 줄 말줄임을 사용하며 전체 계정은 보조기술 이름과 설정 정보의 실행 계정 사실 행으로 확인한다. 공통 구현은 HostStatus이며 별도 아이콘·팔레트·상호작용 예외는 없다.
+연결됨 상태의 점은 정상 의미 색(`--id-color-success`)을 쓴다. 공통 HostStatus 상태 점과 기존 control 높이·문자색 토큰을 사용하며, 상태 점의 가운데는 작업 막대 아래 묶음의 아이콘 가운데와 같은 세로선에 둔다. 실행 계정은 화면에 글자로 표시하지 않는다. 상태 점은 바로 위 설정 진입을 가리지 않도록 툴팁·`title`을 띄우지 않고 막대 항목·Tab 정지점도 아니다. 백그라운드 서비스와 연결된 Host의 실행 계정(`identity.runAs`)은 보조기술 이름으로 제공하며, 연결되지 않거나 계정이 없는 Host는 상태만 제공한다. 설명은 Desktop 설정 정보·업데이트의 로컬 백그라운드 서비스 절에 실행 계정 사실 행으로 둔다. 한국어 명칭은 **실행 계정**, 설명은 “이 Host의 파일 작업과 비서 실행은 이 계정 권한으로 수행됩니다”이다. 기준 캡처(1440px 밝음): [설정 정보](assets/sidebar-host-row-1766/after-settings-about-1440-light.png). 접속자 신원은 제공하지 않는다. 공통 구현은 HostStatus이며 별도 아이콘·팔레트·상호작용 예외는 없다.
 
 단일 연결 화면 캡처: [탐색기](assets/single-host-connection/after-explorer.png), [설정](assets/single-host-connection/after-settings.png), [비서](assets/single-host-connection/after-assistant.png).
 

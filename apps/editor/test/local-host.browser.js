@@ -18,22 +18,22 @@ async (page, { expect, screenshots, brand, openPath, assistantFixture }) => {
       onUpdateState:()=>()=>{},onRestartCheck:()=>()=>{}};
   },{version:health.productVersion,prefix:brand.storagePrefix});
   await page.reload();
-  const status=page.locator('.sidebar-host-account .host-status');
+  const status=page.locator('.activity-bar-status .host-status');
   await expect(status).toHaveText('Connecting');release();
   await expect(status).toHaveText('Connected');
   await page.setViewportSize({width:1440,height:1000});
-  // The status dot shares the footer icon column, and the account row opens no hover surface over Settings.
-  const account=page.locator('.sidebar-host-account');
-  const footerColumn=()=>page.locator('.sidebar-footer').evaluate(footer=>{
+  // The status dot shares the Activity bar's bottom icon column and opens no hover surface over Settings.
+  const account=page.locator('.activity-bar-status');
+  const footerColumn=()=>page.locator('.activity-bar-preferences').evaluate(group=>{
     const center=node=>{const box=node.getBoundingClientRect();return box.left+box.width/2;};
-    const icons=[...footer.querySelectorAll(':scope > button > svg, [data-open-settings] svg')].map(center);
-    return {icons,dot:center(footer.querySelector('.sidebar-host-account [data-status-indicator]'))};
+    const icons=[...group.querySelectorAll('[data-activity-id] svg')].map(center);
+    return {icons,dot:center(group.querySelector('.activity-bar-status [data-status-indicator]'))};
   });
   const expectAligned=async()=>{const {icons,dot}=await footerColumn();expect(icons.length).toBeGreaterThan(0);for(const icon of icons) expect(Math.abs(icon-dot)).toBeLessThanOrEqual(1);};
   await expect(account).toHaveAccessibleName('Background service · Run as: Fixture account');
   await expectAligned();
   await account.hover();await page.waitForTimeout(300);
-  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveCount(0);
   await expect(account).not.toHaveAttribute('title');
   await page.getByRole('button',{name:'Collapse Explorer'}).click();
   await expectAligned();

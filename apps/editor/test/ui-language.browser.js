@@ -191,11 +191,14 @@ async (page, { openPath, screenshots }) => {
     await closeSettings();
     check(await page.evaluate(() => document.querySelector('.document-scroll[data-active="true"]').scrollTop) === scrollBefore, 'Settings changed document scroll');
     check(await page.getByTestId('sidebar').getByRole('heading', { level: 2 }).innerText() === '탐색기', 'Explorer heading must be translated into Korean');
-    const collapseExplorer = page.getByRole('button', {name:'탐색기 접기', exact:true});
-    check(await collapseExplorer.getAttribute('title') === '탐색기 접기', 'Expanded Explorer tooltip must be translated');
+    // The Activity bar Explorer item shows its translated name and names its action in the tooltip.
+    const tooltipText = async target => { await page.mouse.move(720, 500); await target.hover(); const tip = page.locator('[data-slot="tooltip-content"][data-open]'); await tip.waitFor(); const text = await tip.innerText(); await page.mouse.move(720, 500); await tip.waitFor({state:'detached'}); return text; };
+    const collapseExplorer = page.getByTestId('activity-bar').getByRole('button', {name:'탐색기 접기', exact:true});
+    check(await collapseExplorer.locator('.activity-bar-label').innerText() === '탐색기', 'Activity bar Explorer name must be translated');
+    check(await tooltipText(collapseExplorer) === '탐색기 접기', 'Expanded Explorer tooltip must be translated');
     await collapseExplorer.click();
-    const expandExplorer = page.getByRole('button', {name:'탐색기 펼치기', exact:true});
-    check(await expandExplorer.getAttribute('title') === '탐색기 펼치기', 'Rail Explorer tooltip must be translated');
+    const expandExplorer = page.getByTestId('activity-bar').getByRole('button', {name:'탐색기 펼치기', exact:true});
+    check(await tooltipText(expandExplorer) === '탐색기 펼치기', 'Collapsed Explorer tooltip must be translated');
     await expandExplorer.click();
     await page.getByTestId('folder').first().getByRole('button', {name:'더 많은 작업', exact:true}).click();
     await page.getByRole('menuitem', {name:'폴더 열기…', exact:true}).waitFor();
