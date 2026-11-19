@@ -156,7 +156,7 @@ async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
   if (screenshots) {
     for (const [width,language,theme] of [[1440,'en','light'],[640,'ko','dark']]) {
       await page.setViewportSize({width,height:900});
-      await page.getByTestId('sidebar').locator('[data-open-settings]').click();
+      await page.getByTestId('activity-bar').locator('[data-open-settings]').click();
       await page.getByTestId('theme').selectOption(theme);
       await page.getByTestId('ui-language').selectOption(language);
       await page.locator('[data-tab-id="settings"] .document-tab-close').click();
@@ -168,7 +168,7 @@ async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
       await page.screenshot({path:`tmp/file-preview-capture/pdf-${width}.png`});
     }
     await page.getByRole('button',{name:'탐색기 펼치기',exact:true}).click();
-    await page.getByTestId('sidebar').locator('[data-open-settings]').click();
+    await page.getByTestId('activity-bar').locator('[data-open-settings]').click();
     await page.getByTestId('theme').selectOption('light');
     await page.getByTestId('ui-language').selectOption('en');
     await page.locator('[data-tab-id="settings"] .document-tab-close').click();

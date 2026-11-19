@@ -41,8 +41,12 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   const initial=await (await page.request.get(page.url().split('/').slice(0,3).join('/')+'/api/document',{headers:{Connection:'close'}})).json();const root=initial.allowedRoots[0];
   await openPath(page,[root,'fixture','a.md'].join(root.includes('\\')?'\\':'/'));
   await page.locator('.tiptap:visible').click(); await page.keyboard.press('Control+End'); await page.keyboard.insertText(' unsaved-screen-fixture');
-  await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
+  const barEntry=page.getByTestId('activity-bar').getByRole('button',{name:'Measurements',exact:true});
+  await expect(barEntry).not.toHaveAttribute('aria-current','page');
+  await barEntry.click();
   const workspace=page.getByTestId('view-workspace').filter({visible:true});
+  // The Activity bar marks the entry of the focused group's active screen tab.
+  await expect(barEntry).toHaveAttribute('aria-current','page');
   const target = workspace.getByRole('button',{name:'Menu target',exact:true});
   await target.click({button:'right'});
   await expect(page.getByRole('menuitem',{name:'Run action'})).toBeVisible();
@@ -145,18 +149,18 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
     }
     await page.setViewportSize({width:1440,height:1000});
     await page.evaluate(()=>document.documentElement.dataset.theme='light');
-    await page.getByTestId('sidebar').getByRole('button',{name:'Template gallery',exact:true}).click();
+    await page.getByTestId('activity-bar').getByRole('button',{name:'Template gallery',exact:true}).click();
     await expect(page.locator('.template-gallery')).toBeVisible();
     await page.screenshot({path:'tmp/consistency-gallery.png',mask:[page.locator('.sidebar')],maskColor:await page.locator('.sidebar').evaluate(n=>getComputedStyle(n).backgroundColor)});
-    await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
+    await page.getByTestId('activity-bar').getByRole('button',{name:'Measurements',exact:true}).click();
   }
   await expect(workspace.getByRole('heading',{name:'Measurements',exact:true})).toHaveCount(1);
   const surfaceGeometry = element => { const style=getComputedStyle(element), title=element.querySelector('h1'), rect=element.getBoundingClientRect(), heading=title.getBoundingClientRect(); return {padding:style.padding, background:style.backgroundColor, inset:heading.left-rect.left, top:heading.top-rect.top, font:getComputedStyle(title).fontSize, weight:getComputedStyle(title).fontWeight}; };
   const pluginGeometry=await workspace.evaluate(surfaceGeometry);
-  await page.getByTestId('sidebar').getByRole('button',{name:'Template gallery',exact:true}).click();
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Template gallery',exact:true}).click();
   await expect(page.locator('.template-gallery')).toBeVisible();
   expect(await page.locator('.template-gallery').evaluate(surfaceGeometry)).toEqual(pluginGeometry);
-  await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Measurements',exact:true}).click();
   const load=workspace.getByRole('button',{name:'Load measurements',exact:true});
   await expect(load).toHaveCSS('background-color',pluginGeometry.background);
   expect(await load.evaluate(n=>{const s=getComputedStyle(n);return parseFloat(s.borderWidth)>0 && s.borderStyle==='solid' && s.borderColor!==s.backgroundColor;})).toBe(true);
@@ -220,7 +224,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   const figure = page.locator('.tiptap:visible figure').filter({hasText:'Saved chart'});
   await expect(figure).toBeVisible();
   await expect.poll(()=>figure.locator('img').evaluate(image=>image.complete && image.naturalWidth > 0)).toBe(true);
-  await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Measurements',exact:true}).click();
   await workspace.getByRole('button',{name:'Save document',exact:true}).click();
   await expect(workspace.locator('output')).toContainText('file already exists');
   // A separately saved copy has a fresh document-scoped image URL: the ordinary tab
@@ -292,10 +296,10 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
     const capture = async theme => page.screenshot({path:`tmp/document-view-block-1440-${theme}.png`,mask:[sidebar],
       maskColor:await sidebar.evaluate(node=>getComputedStyle(node).backgroundColor)});
     await capture('light');
-    await sidebar.getByRole('button',{name:'Color mode: Light',exact:true}).click();
+    await page.getByTestId('activity-bar').getByRole('button',{name:'Color mode: Light',exact:true}).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
     await capture('dark');
-    await sidebar.getByRole('button',{name:'Color mode: Dark',exact:true}).click();
+    await page.getByTestId('activity-bar').getByRole('button',{name:'Color mode: Dark',exact:true}).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   }
   // The plugin owns a two-column layout; hover must use the preview's compact paper inset.
@@ -366,7 +370,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   }
   await page.setViewportSize({width:1440,height:1000});
   const lightPaper=await preview.evaluate(node=>getComputedStyle(node).backgroundColor);
-  await page.locator('.sidebar').getByRole('button',{name:'Color mode: Light',exact:true}).click();
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Color mode: Light',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await expect.poll(()=>preview.evaluate(node=>getComputedStyle(node).backgroundColor)).not.toBe(lightPaper);
   if(screenshots) await page.screenshot({path:'tmp/document-view-wide-1440-dark.png',mask:[page.locator('.sidebar')],maskColor:await page.locator('.sidebar').evaluate(node=>getComputedStyle(node).backgroundColor)});
@@ -384,7 +388,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
         await page.screenshot({path:`tmp/document-view-first-cell-${width}-${theme}.png`,mask:[sidebar],
           maskColor:await sidebar.evaluate(node=>getComputedStyle(node).backgroundColor)});
       }
-      await sidebar.getByRole('button',{name:`Color mode: ${theme === 'dark' ? 'Dark' : 'Light'}`,exact:true}).click();
+      await page.getByTestId('activity-bar').getByRole('button',{name:`Color mode: ${theme === 'dark' ? 'Dark' : 'Light'}`,exact:true}).click();
       await expect(page.locator('html')).toHaveAttribute('data-theme',theme === 'dark' ? 'light' : 'dark');
     }
     await page.setViewportSize({width:1440,height:1000});
@@ -406,14 +410,14 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
       });
       await expect(cell).toHaveAttribute('data-current-cell','true');
       await capture('cell', theme);
-      await sidebar.getByRole('button',{name:`Color mode: ${theme === 'dark' ? 'Dark' : 'Light'}`,exact:true}).click();
+      await page.getByTestId('activity-bar').getByRole('button',{name:`Color mode: ${theme === 'dark' ? 'Dark' : 'Light'}`,exact:true}).click();
       await expect(page.locator('html')).toHaveAttribute('data-theme',theme === 'dark' ? 'light' : 'dark');
     }
-    await sidebar.getByRole('button',{name:'Measurements',exact:true}).click();
+    await page.getByTestId('activity-bar').getByRole('button',{name:'Measurements',exact:true}).click();
     await workspace.getByRole('button',{name:'Go to table cell',exact:true}).click();
     await expect.poll(cellIsVisible).toBe(true);
   }
-  await page.locator('.sidebar').getByRole('button',{name:'Color mode: Dark',exact:true}).click();
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Color mode: Dark',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   const tableCellPaint = await highlight.evaluate(node => {
     const style = getComputedStyle(node);
@@ -509,10 +513,10 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
     const sidebar=page.locator('.sidebar');
     const capture=async theme=>page.screenshot({path:`tmp/visible-target-1440-${theme}.png`,mask:[sidebar],maskColor:await sidebar.evaluate(node=>getComputedStyle(node).backgroundColor)});
     await capture('light');
-    await sidebar.getByRole('button',{name:'Color mode: Light',exact:true}).click();
+    await page.getByTestId('activity-bar').getByRole('button',{name:'Color mode: Light',exact:true}).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
     await capture('dark');
-    await sidebar.getByRole('button',{name:'Color mode: Dark',exact:true}).click();
+    await page.getByTestId('activity-bar').getByRole('button',{name:'Color mode: Dark',exact:true}).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   }
   expect(await preview.evaluate(node=>node.scrollTop)).toBe(readingPosition);
@@ -662,10 +666,10 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect(workspace.getByRole('button',{name:'Load measurements',exact:true})).toBeVisible();
 
 
-  if(screenshots) await page.screenshot({path:'tmp/screen-code-light.png',mask:[page.locator('.sidebar-host-account'),page.locator('.sidebar-folder-header')]});
-  await page.locator('.sidebar').getByRole('button',{name:'Color mode: Light',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  if(screenshots) await page.screenshot({path:'tmp/screen-code-light.png',mask:[page.locator('.activity-bar-status'),page.locator('.sidebar-folder-header')]});
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Color mode: Light',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await workspace.getByRole('button',{name:'Load measurements'}).click();await expect(workspace.locator('output')).toContainText('points');
-  if(screenshots) await page.screenshot({path:'tmp/screen-code-dark.png',mask:[page.locator('.sidebar-host-account'),page.locator('.sidebar-folder-header')]});
+  if(screenshots) await page.screenshot({path:'tmp/screen-code-dark.png',mask:[page.locator('.activity-bar-status'),page.locator('.sidebar-folder-header')]});
   // Keep the two interaction fixtures' held-request variables in separate scopes.
   {
   const inRoot=(...parts)=>[root,...parts].join(root.includes('\\')?'\\':'/');
@@ -716,7 +720,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await workspace.getByRole('button',{name:'Open existing',exact:true}).click();
   await page.getByRole('tab',{name:'a.md, Unsaved changes',exact:true}).click();
   await expect(page.locator('.tiptap:visible')).toContainText('unsaved-screen-fixture');
-  await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Measurements',exact:true}).click();
   await expect(output).toContainText('"status":"opened"');
   await field.fill(root+'/../outside.md');await workspace.getByRole('button',{name:'Open existing',exact:true}).click();await expect(output).toContainText('"status":"refused"');
   await workspace.getByRole('button',{name:'Pick initial',exact:true}).click();await expect(output).toContainText('inside this screen');await expect(dialog).toHaveCount(0);
@@ -727,7 +731,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
     await page.setViewportSize({width,height:1000});
     await expect.poll(()=>dialog.evaluate(node=>node.scrollWidth<=node.clientWidth+1)).toBe(true);
     const box=await dialog.boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(width);
-    if(screenshots)await page.screenshot({path:'tmp/screen-pick-'+width+'.png',maskColor:await page.locator('.sidebar').evaluate(node=>getComputedStyle(node).backgroundColor),mask:[page.locator('.sidebar-host-account'),page.locator('.sidebar-folder-header'),field,dialog.getByTestId('folder-path'),output]});
+    if(screenshots)await page.screenshot({path:'tmp/screen-pick-'+width+'.png',maskColor:await page.locator('.sidebar').evaluate(node=>getComputedStyle(node).backgroundColor),mask:[page.locator('.activity-bar-status'),page.locator('.sidebar-folder-header'),field,dialog.getByTestId('folder-path'),output]});
   }
   await dialog.getByTestId('folder-open').click();await expect(output).toContainText('"kind":"folder"');
   await page.setViewportSize({width:1440,height:1000});
@@ -740,13 +744,13 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect(output).toContainText('"opening":{"status":"refused"');await expect(output).toContainText('"revision":');expect(creations).toBe(1);page.off('request',countCreate);
   await field.fill(inRoot('fixture','output','new','nested','screen-child.md'));await workspace.getByRole('button',{name:'Open existing',exact:true}).click();
   await expect(page.locator('.tiptap:visible')).toContainText('Created in a selected subfolder.');
-  await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
+  await page.getByTestId('activity-bar').getByRole('button',{name:'Measurements',exact:true}).click();
   await page.locator('.sidebar').getByRole('button',{name:'More actions',exact:true}).first().click();
   await page.getByRole('menuitem',{name:'Close folder',exact:true}).click();
   await workspace.getByRole('button',{name:'Open existing',exact:true}).click();await expect(output).toContainText('"status":"refused"');
   await workspace.getByRole('button',{name:'Save child',exact:true}).click();await expect(output).toContainText('Open a folder');
   await workspace.getByRole('button',{name:'Pick initial',exact:true}).click();await expect(output).toContainText('inside this screen');
-  await openPath(page,actionPath);await page.locator('.sidebar').getByRole('button',{name:'Measurements',exact:true}).click();
+  await openPath(page,actionPath);await page.getByTestId('activity-bar').getByRole('button',{name:'Measurements',exact:true}).click();
   await workspace.getByRole('button',{name:'Pick folder',exact:true}).click();await expect(dialog).toBeVisible();
   revision++;await expect(dialog).toHaveCount(0);await expect(output).toHaveText('Ready');
   let held;let releaseRead;const readReleased=new Promise(resolve=>{releaseRead=resolve;});

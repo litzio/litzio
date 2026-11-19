@@ -91,7 +91,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Last checked');
   if (screenshots) await page.screenshot({
     path: 'tmp/1699-provider-settings-1440-light.png',
-    mask: [page.locator('.sidebar-host-account')],
+    mask: [page.locator('.activity-bar-status')],
     maskColor: await page.locator('.sidebar').evaluate(node => getComputedStyle(node).backgroundColor),
   });
   await page.getByRole('button', { name: 'Codex models', exact: true }).click();
@@ -630,7 +630,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       await panel.locator('textarea').focus();
       await assertDraftNames(true);
       await assertChipFlow();
-      await page.screenshot({ path: `tmp/1589-${theme}-1440-ko.png`, mask: [page.locator(".sidebar-host-account")] });
+      await page.screenshot({ path: `tmp/1589-${theme}-1440-ko.png`, mask: [page.locator(".activity-bar-status")] });
     }
     await page.setViewportSize({ width:640,height:900 });
     await assertChipFlow();
@@ -1556,7 +1556,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.locator('html')).toHaveAttribute('data-page','flat');
   await page.getByTestId('page-background').selectOption('paper');
   await expect(page.getByTestId('page-background')).toHaveValue('paper');
-  if(screenshots){await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'docs/design/assets/single-host-connection/after-1440-light.png',mask:[page.locator('.sidebar-host-account'),page.locator('.document-location'),page.locator('.sidebar-folder-header')]});}
+  if(screenshots){await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'docs/design/assets/single-host-connection/after-1440-light.png',mask:[page.locator('.activity-bar-status'),page.locator('.document-location'),page.locator('.sidebar-folder-header')]});}
   await page.getByTestId('ui-language').selectOption('ko');await page.getByTestId('theme').selectOption('dark');
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await expect(editor).toHaveText(documentBeforeDisplay);

@@ -44,7 +44,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   };
   const openScreen = async name => {
     await showExplorer();
-    await page.locator('.sidebar').getByRole('button',{name,exact:true}).click();
+    await page.getByTestId('activity-bar').getByRole('button',{name,exact:true}).click();
   };
   const observer = await page.context().newPage();
   // Headless Chromium reports every tab focused; explicitly deliver the window
@@ -138,13 +138,13 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
     await page.reload();
     await page.getByRole("button", { name: width === 640 ? "설정" : "Settings", exact: true }).click();
     await page.getByRole("button", { name: width === 640 ? "플러그인" : "Plugins", exact: true }).click();
-    await page.screenshot({ path: `tmp/plugin-list-1379/list-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+    await page.screenshot({ path: `tmp/plugin-list-1379/list-${width}.png`, mask: [page.locator(".activity-bar-status")] });
     await page.getByRole("button", { name: width === 640 ? "Drive fixture 설정" : "Drive fixture settings", exact: true }).click();
     await page.getByText(width === 640 ? "상세 정보" : "Details", { exact: true }).click();
-    await page.screenshot({ path: `tmp/plugin-list-1379/detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+    await page.screenshot({ path: `tmp/plugin-list-1379/detail-${width}.png`, mask: [page.locator(".activity-bar-status")] });
     await page.keyboard.press("Escape");
     await page.getByRole("switch", { name: width === 640 ? "Drive fixture 활성화" : "Enable Drive fixture", exact: true }).click();
-    await page.screenshot({ path: `tmp/plugin-list-1379/confirmation-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+    await page.screenshot({ path: `tmp/plugin-list-1379/confirmation-${width}.png`, mask: [page.locator(".activity-bar-status")] });
   }
   if (screenshots) {
     await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
@@ -161,8 +161,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   expect(installed.running).toBe(true);
   expect(installed.version).toBe("1.2.3");
   await returnToObserver();
-  await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toBeVisible();
-  await observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
+  await expect(observer.getByTestId('activity-bar').getByRole('button', { name: 'Drive fixture', exact: true })).toBeVisible();
+  await observer.getByTestId('activity-bar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
   await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
   const readSnapshot = async value => {
     const screen = observer.getByTestId("view-workspace").filter({ visible: true });
@@ -264,7 +264,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   // The existing open-screen revision observer unmounts disabled code.
   await expect(observer.getByText('Updated runtime fixture', { exact: true })).not.toBeVisible();
   await returnToObserver();
-  await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toHaveCount(0);
+  await expect(observer.getByTestId('activity-bar').getByRole('button', { name: 'Drive fixture', exact: true })).toHaveCount(0);
   await page.bringToFront();
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).not.toBeChecked();
@@ -285,13 +285,13 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   });
   pluginFixture.cli(["plugins", "enable", "fixture.drive"]);
   await returnToObserver();
-  await observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
+  await observer.getByTestId('activity-bar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
   await expect(observer.getByText('Updated runtime fixture', { exact: true })).toBeVisible();
   await page.bringToFront();
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
   await expect(observer.getByText('Updated runtime fixture', { exact: true })).not.toBeVisible();
   await returnToObserver();
-  await expect(observer.locator('.sidebar').getByRole('button', { name: 'Drive fixture', exact: true })).toHaveCount(0);
+  await expect(observer.getByTestId('activity-bar').getByRole('button', { name: 'Drive fixture', exact: true })).toHaveCount(0);
   await page.bringToFront();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.some(p => p.id === "fixture.drive")).toBe(false);
   await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));

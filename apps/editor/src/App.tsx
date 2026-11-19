@@ -53,6 +53,7 @@ import { UnsavedChangesDialog } from "./shell/UnsavedChangesDialog.tsx";
 import type { FileActionHandler } from "./shell/FileActionDialog.tsx";
 import type { ImageRenamer } from "./image-rename.ts";
 import { Sidebar } from "./shell/Sidebar.tsx";
+import { ActivityBar, type ActivityItem } from "./shell/ActivityBar.tsx";
 import { folderChain, knownFolders, useFolderTrees } from "./shell/folder-tree.ts";
 import { childPath, documentLocation, splitDocumentPath, unquotePath } from "./shell/document-path.ts";
 import { DocumentActions } from "./shell/DocumentActions.tsx";
@@ -86,8 +87,9 @@ const PANEL_OVERLAY_LAYOUT = "(width < 89rem)";
 // CSS custom properties cannot be used in media queries. Both navigation surfaces consume
 // this adjustable token through matchMedia and expose their layout as shell classes.
 const navigationOverlayLayout = () => `(width < ${getComputedStyle(globalThis.document.documentElement).getPropertyValue("--layout-navigation-overlay-breakpoint").trim()})`;
-// 640px supported viewport - 200px narrow Explorer; two groups plus their boundary.
-const SPLIT_MIN_WIDTH = 440 * 2 + 1;
+// Two groups plus their boundary. 432px per group keeps the split in the default 1440px window
+// (1440 - 72px Activity bar - 240px Explorer - 256px docked Outline = 872px of document area).
+const SPLIT_MIN_WIDTH = 432 * 2 + 1;
 
 
 /** The Desktop app's bridge; the browser Editor has none and shows no Desktop UI. */
@@ -143,7 +145,7 @@ function EditorApp() {
     const outside = (event: PointerEvent) => {
       const target = event.target;
       // Portalled menus/dialogs belong to their own focus boundary, including Explorer actions.
-      if (!(target instanceof Element) || target.closest('.sidebar, .ui-portal, [role="dialog"], [role="menu"]')) return;
+      if (!(target instanceof Element) || target.closest('.sidebar, .activity-bar, .ui-portal, [role="dialog"], [role="menu"]')) return;
       if ([...globalThis.document.querySelectorAll('[role="menu"], [role="dialog"]')].some(element => element.getClientRects().length)) return;
       closeSidebar();
     };
@@ -153,7 +155,8 @@ function EditorApp() {
   useLayoutEffect(() => {
     const target = sidebarFocus.current === "sidebar" ? sidebarToggle.current : null;
     sidebarFocus.current = null;
-    target?.focus();
+    // An Activity bar item that closed the overlay stays visible and keeps its focus.
+    if (!globalThis.document.activeElement?.closest(".activity-bar")) target?.focus();
   }, [sidebarOpen]);
   const [panelOverlay, setPanelOverlay] = useState(() => globalThis.matchMedia?.(PANEL_OVERLAY_LAYOUT).matches ?? false);
   // Page state only: open when docked, closed (and overlaying when opened) below the docking width.
@@ -224,7 +227,7 @@ function EditorApp() {
   // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
   useLayoutEffect(() => {
     if (!(assistantOpen && assistantOverlay) && !fileOperationPending) return;
-    const elements = globalThis.document.querySelectorAll<HTMLElement>(".sidebar, .app-main, .app-titlebar, .document-panel, .notification-center");
+    const elements = globalThis.document.querySelectorAll<HTMLElement>(".activity-bar, .sidebar, .app-main, .app-titlebar, .document-panel, .notification-center");
     elements?.forEach(element => { element.inert = true; });
     return () => elements?.forEach(element => { element.inert = false; });
   }, [assistantOpen, assistantOverlay, fileOperationPending]);
@@ -1257,12 +1260,30 @@ function EditorApp() {
       run: () => { shortcutsReturnFocus.current = commandReturnFocus.current; setShortcutsOpen(true); } },
   ];
 
+  // Middle Activity bar group: Template gallery, then each plugin's primary screen.
+  const activityItems: ActivityItem[] = [{ id: "templates", label: i18n.t("Template gallery"), icon: <FileText aria-hidden="true" />, active: activeId === "templates", run: openTemplateGallery },
+    ...screens.filter((screen, index, all) => screen.primary && all.findIndex(s => s.primary && s.plugin === screen.plugin) === index).map(screen => {
+      const Icon = viewScreenIcon(screen.icon);
+      return { id: `screen-${screen.plugin}`, label: screen.title, active: activeId === `screen-${screen.plugin}-${screen.id}`, run: () => openScreen(screen),
+        icon: <PluginIcon client={getHostClient()} plugin={screen.plugin} digest={screen.iconDigest} mono fallback={<Icon aria-hidden="true" />} /> };
+    })];
+
   return (<>
     <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+      <ActivityBar explorerOpen={sidebarOpen} explorerRef={sidebarToggle} onExplorer={() => chooseSidebarOpen(!sidebarOpen)}
+        items={activityItems} itemsDisabled={busy || Boolean(continuation)}
+        theme={theme} onThemeChange={changeTheme}
+        settingsDisabled={settingsDisabled}
+        updateVersion={unseenUpdate}
+        onSettings={(returnFocus) => {
+          settingsReturnFocus.current = returnFocus;
+          setSettingsCategory(unseenUpdate ? "about" : "appearance");
+          setHighlightUpdate(!!unseenUpdate);
+          openSettingsTab();
+          void refreshRecovery();
+        }} />
       <Sidebar onCopyPath={path => void copyPath(path)}
         onAddToChat={assistantAvailable ? addToChat : undefined}
-        theme={theme} onThemeChange={changeTheme}
-        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }, ...screens.filter((screen,index,all) => screen.primary && all.findIndex(s => s.primary && s.plugin === screen.plugin) === index).map(screen => {const Icon=viewScreenIcon(screen.icon);return {id:`screen-${screen.plugin}`,label:screen.title,icon:<PluginIcon client={getHostClient()} plugin={screen.plugin} digest={screen.iconDigest} fallback={<Icon aria-hidden="true" />} />,run:()=>openScreen(screen)};})]}
         onFileAction={(action, root, entry, name, identity, client) => fileAction(action, root, entry, name, undefined, undefined, client, identity)} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => tab.path === path); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}
@@ -1270,10 +1291,6 @@ function EditorApp() {
         overlay={sidebarOverlay}
         onClose={closeSidebar}
         documentPath={activePdf?.pdf ?? openedPath}
-        toggleRef={sidebarToggle}
-        onToggle={() => {
-          chooseSidebarOpen(!sidebarOpen);
-        }}
         onOpenFolder={(returnFocus) => {
           dialogReturnFocus.current = returnFocus;
           setFolderDialog(true);
@@ -1311,15 +1328,6 @@ function EditorApp() {
         } : undefined}
         onRefreshFolder={folders.refreshRoot}
         onCloseFolder={folders.close}
-        settingsDisabled={settingsDisabled}
-        updateVersion={unseenUpdate}
-        onSettings={(returnFocus) => {
-          settingsReturnFocus.current = returnFocus;
-          setSettingsCategory(unseenUpdate ? "about" : "appearance");
-          setHighlightUpdate(!!unseenUpdate);
-          openSettingsTab();
-          void refreshRecovery();
-        }}
       />
       <div className="app-titlebar" ref={titlebar}>
         <div className="app-brand">

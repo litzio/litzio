@@ -101,6 +101,7 @@ export const STABLE_SCENARIOS = [
   "save-during-edit",
   "metadata-popover",
   "linked-document-view",
+  "activity-bar",
 ];
 
 /** These scenarios inspect notification content, actions, history or stacking.

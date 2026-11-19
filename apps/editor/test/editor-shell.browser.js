@@ -26,11 +26,24 @@ async (page, { showNotifications }) => {
     await page.getByRole('button',{name:'Expand Explorer'}).click();
     result.currentPath = (await page.getByTestId('current-file').getAttribute('title')).endsWith('technical-document.md');
 
-    // The read-only execution-account row is not a Tab stop; footer controls lead to TopBar → document navigation.
-    await page.getByRole('button',{name:'Settings',exact:true}).focus();
+    // The Activity bar is one Tab stop: Up/Down/Home/End move between its items and skip the read-only
+    // connection status. Tab leaves it for Explorer, whose controls lead to TopBar → document navigation.
+    const bar = page.getByTestId('activity-bar');
+    const barExplorer = bar.getByRole('button',{name:'Collapse Explorer',exact:true});
+    const colorMode = bar.getByRole('button',{name:/^Color mode:/});
+    await bar.getByRole('button',{name:'Settings',exact:true}).focus();
+    await page.keyboard.press('ArrowDown');
+    result.settingsToColorMode = await colorMode.evaluate(n=>n===document.activeElement);
+    await page.keyboard.press('ArrowDown');
+    result.barArrowWraps = await barExplorer.evaluate(n=>n===document.activeElement);
+    await page.keyboard.press('End');
+    result.barEnd = await colorMode.evaluate(n=>n===document.activeElement);
+    await page.keyboard.press('Home');
+    result.barHome = await barExplorer.evaluate(n=>n===document.activeElement);
+    result.barSingleTabStop = await bar.evaluate(n=>[...n.querySelectorAll('button')].filter(b=>b.tabIndex===0).length===1 && !n.querySelector('.activity-bar-status [tabindex]'));
     await page.keyboard.press('Tab');
-    result.settingsToColorMode = await page.getByRole('button',{name:/^Color mode:/}).evaluate(n=>n===document.activeElement);
-    await page.keyboard.press('Tab');
+    result.barToExplorer = await page.evaluate(()=>!!document.activeElement?.closest('.sidebar'));
+    for (let step = 0; step < 20 && await page.evaluate(()=>!!document.activeElement?.closest('.sidebar')); step++) await page.keyboard.press('Tab');
     result.filesToTopBar = await page.getByRole('button',{name:'Find documents and commands',exact:true}).evaluate(n=>n===document.activeElement);
 
     await page.keyboard.press('Tab');
@@ -47,10 +60,12 @@ async (page, { showNotifications }) => {
     const dialog = page.getByRole('dialog');
     const openFolder = page.getByRole('button',{name:'Open folder…', exact:true});
     result.folderOnlyEntry = await page.getByRole('button',{name:'Open file…', exact:true}).count() === 0;
+    // The Activity bar precedes Explorer's controls (its width separator, then Open folder…).
+    await barExplorer.focus();
     await openFolder.focus();
-    await page.keyboard.press('Shift+Tab');
-    result.headerTabToCollapse = await isFocused(page.getByRole('button', {name:'Collapse Explorer', exact:true}));
-    await page.keyboard.press('Tab');
+    for (let step = 0; step < 3 && await page.evaluate(()=>!!document.activeElement?.closest('.sidebar')); step++) await page.keyboard.press('Shift+Tab');
+    result.headerTabToCollapse = await isFocused(barExplorer);
+    for (let step = 0; step < 3 && !await isFocused(openFolder); step++) await page.keyboard.press('Tab');
     result.headerReverseTab = await isFocused(openFolder);
     await openFolder.focus();
     await page.keyboard.press('Enter');
@@ -78,19 +93,21 @@ async (page, { showNotifications }) => {
     await page.keyboard.press('Escape'); await settingsDialog.waitFor({state:'hidden'});
     result.documentSettingsEscapeReturnsFocus = await isFocused(settings);
     await page.getByRole('button',{name:'Collapse Explorer'}).click();
-    const files = page.getByRole('button',{name:'Expand Explorer',exact:true});
-    const railSettings = page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true});
-    result.railActionsNamed = await files.getAttribute('title') === 'Expand Explorer' &&
-      await railSettings.getAttribute('title') === 'Settings';
+    const files = bar.getByRole('button',{name:'Expand Explorer',exact:true});
+    const railSettings = bar.getByRole('button',{name:'Settings',exact:true});
+    const tooltip = async target => { await page.mouse.move(720, 500); await target.hover(); const tip = page.locator('[data-slot="tooltip-content"][data-open]'); await tip.waitFor(); const text = await tip.innerText(); await page.mouse.move(720, 500); await tip.waitFor({state:'detached'}); return text; };
+    result.railActionsNamed = await tooltip(files) === 'Expand Explorer' && await tooltip(railSettings) === 'Settings' &&
+      await files.getAttribute('aria-expanded') === 'false' && await files.getAttribute('aria-controls') === 'sidebar-files';
     await files.focus();
-    await page.keyboard.press('Tab');
+    await page.keyboard.press('End');
+    await page.keyboard.press('ArrowUp');
     result.railSettingsKeyboardReachable = await isFocused(railSettings);
     await page.keyboard.press('Enter');
     await page.locator('[data-tab-id="settings"] .document-tab-close').waitFor();
     await page.keyboard.press('Escape');
     await page.getByTestId('settings-dialog').waitFor({state:'detached'});
     result.railSettingsReturnsFocus = await isFocused(railSettings);
-    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Home');
     result.railFilesKeyboardReachable = await isFocused(files);
     await page.keyboard.press('Enter');
     result.railFilesRestoresNavigation = await openFolder.isVisible();

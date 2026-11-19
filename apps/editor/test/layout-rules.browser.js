@@ -124,7 +124,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
     };
     const geometry=[['[data-testid="save"]',32],['.folder-picker-field',32],['.code-language',28],
       ['.table-row-handle',28],['.table-column-handle',28],
-      ['.table-action-bar button',28],['.sidebar-collapse',28]].map(([selector,height])=>{
+      ['.table-action-bar button',28],['.activity-bar [data-activity-id="settings"]',28]].map(([selector,height])=>{
         const n=required(selector),s=getComputedStyle(n);
         return {selector,height:n.getBoundingClientRect().height,expected:height,radius:s.borderRadius,expectedRadius:resolve('borderRadius','--id-radius-md')};
       });
@@ -184,11 +184,11 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
       for(const collapsed of (fullLayout || width===1440 || width===640 ? [false,true] : [false])) {
         // Each narrow entry starts closed. Keep both historical geometry states explicit.
         await expect.poll(() => page.locator('.app-shell').evaluate(n=>n.classList.contains('app-shell--navigation-overlay'))).toBe(width<1100);
-        if(await page.locator('.sidebar-collapse').getAttribute('aria-expanded') === String(collapsed)) await page.locator('.sidebar-collapse').click();
+        if(await page.locator('[data-activity-id="explorer"]').getAttribute('aria-expanded') === String(collapsed)) await page.locator('[data-activity-id="explorer"]').click();
         // An intentional Explorer overlay covers the left document gutter. Exercise that
         // gutter after dismissal, then reopen for the unchanged expanded-navigation checks.
         const reopenOverlay = width<1100 && !collapsed;
-        if(reopenOverlay) await page.locator('.sidebar-collapse').click();
+        if(reopenOverlay) await page.locator('[data-activity-id="explorer"]').click();
         await page.mouse.move(width-2,2);
         await page.evaluate(()=>{document.querySelector('.document-scroll[data-active="true"]').scrollTo(0,0);document.activeElement?.blur();});
         const rest=await page.locator('.block-controls').evaluateAll(nodes=>nodes.map(n=>({opacity:getComputedStyle(n).opacity,pointer:getComputedStyle(n).pointerEvents})));
@@ -209,7 +209,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
         if(controlsBox.x+controlsBox.width>=contentExtent.x)throw Error('Expanded extent covers the gutter');
         if(await controls.evaluate(n=>getComputedStyle(n).opacity)!=='1') throw Error('Gutter disappears between block and button');
         const after=(await paragraph.boundingBox()).x;
-        if(reopenOverlay) await page.locator('.sidebar-collapse').click();
+        if(reopenOverlay) await page.locator('[data-activity-id="explorer"]').click();
         const headerOverlap=await page.locator('.top-bar').evaluate(header=>{
           const controls=[...document.querySelectorAll('.command-center-trigger,.top-bar-actions button,.document-status')].map(n=>({name:n.getAttribute('aria-label')||n.textContent.trim(),r:n.getBoundingClientRect()})).filter(({r})=>r.width>0&&r.height>0);
           return controls.flatMap((a,i)=>controls.slice(i+1).filter(b=>Math.min(a.r.right,b.r.right)-Math.max(a.r.left,b.r.left)>0.5&&Math.min(a.r.bottom,b.r.bottom)-Math.max(a.r.top,b.r.top)>0.5).map(b=>`${a.name} / ${b.name}`));
@@ -224,7 +224,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
           const controls={right:controlsBox.x+controlsBox.width};
           const standard=rect('[data-testid="save"]').height;
           const expectedSidebarHeader=rect('.document-tab-row').height;
-          const compactSelectors=[':is(.sidebar-header, .sidebar > .panel-header) button','[data-document-tab][data-active=true] .object-tools > button:first-child','[data-document-tab][data-active=true] .object-tools > button:first-child',...(collapsed?[]:['.sidebar-folder-actions button'])];
+          const compactSelectors=['.activity-bar-preferences button','[data-document-tab][data-active=true] .object-tools > button:first-child','[data-document-tab][data-active=true] .object-tools > button:first-child',...(collapsed?[]:['.sidebar-folder-actions button'])];
           const compact=compactSelectors.flatMap(selector=>{
             const nodes=[...document.querySelectorAll(selector)];
             if(!nodes.length)throw Error(`Missing compact control: ${selector}`);
@@ -241,10 +241,15 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
             if(!n.textContent.trim())throw Error('Missing sidebar label');
             return n.getBoundingClientRect().left;
           });
-          // Expanded widths are adjustable values; the collapsed rail is fixed.
+          // Explorer and Activity bar widths are adjustable values; collapsed Explorer takes no width.
           const token=name=>{const v=getComputedStyle(document.documentElement).getPropertyValue(name).trim();if(!v.endsWith('rem'))throw Error(`Unexpected ${name}: ${v}`);return parseFloat(v)*parseFloat(getComputedStyle(document.documentElement).fontSize);};
           const sidebarWidth=rect('.sidebar').width;
-          const expectedSidebar=collapsed?token('--layout-sidebar-rail-width'):token(innerWidth<=1024?'--layout-sidebar-width-narrow':'--layout-sidebar-width');
+          const expectedSidebar=collapsed?0:token(innerWidth<=1024?'--layout-sidebar-width-narrow':'--layout-sidebar-width');
+          const bar=rect('.activity-bar'),tabRow=rect('.document-tab-row'),barIcon=rect('.activity-bar [data-activity-id="explorer"] .activity-bar-icon');
+          // The Activity bar stays at its width from the title strip down; its first icon is centered in the tab-row band.
+          const barDelta=Math.max(Math.abs(bar.width-token('--layout-activity-bar-width')),Math.abs(bar.left),Math.abs(bar.top-tabRow.top),Math.abs(barIcon.top+barIcon.height/2-tabRow.top-tabRow.height/2));
+          // Standard keeps its width while the remaining area allows it; with docked Outline beside the bar it fills that area.
+          const expectedColumn=Math.min(token('--layout-content-width'),main.width);
           // The document panel starts open (docked) from the 1424px docking width and closed below it,
           // independently of the 1024px narrow sidebar.
           const panel=document.querySelector('.document-panel')?.getBoundingClientRect();
@@ -273,17 +278,17 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
           if([body,...headings].some(t=>t.font!==documentFont)||
             [caption,table].some(t=>t.font!==uiFont)||getComputedStyle(document.body).fontFamily!==uiFont)
             throw Error('Document/UI font must follow its own token');
-          const shellOverflow=['.app-shell','.sidebar','.app-main','.top-bar','.document-scroll[data-active="true"] .document-column','[data-document-tab][data-active=true] .document','[data-document-tab][data-active=true] .document-editor','.figure','.equation','.table-block'].filter(s=>{const r=rect(s);return r.left<0||r.right>innerWidth+1;});
+          const shellOverflow=['.app-shell','.activity-bar','.sidebar','.app-main','.top-bar','.document-scroll[data-active="true"] .document-column','[data-document-tab][data-active=true] .document','[data-document-tab][data-active=true] .document-editor','.figure','.equation','.table-block'].filter(s=>{const r=rect(s);return r.left<0||r.right>innerWidth+1;});
           const center=rect('.command-center-trigger'), actions=rect('.top-bar-actions');
-          return {width,collapsed,expectedSidebarHeader,header:rect('.app-titlebar').height,headerWidth:rect('.top-bar-container').width,commandCenterDelta:Math.abs(center.left+center.width/2-(rect('.top-bar').left+rect('.top-bar').width/2)),centerBottom:center.bottom,actionsTop:actions.top,sidebarHeader:rect(':is(.sidebar-header, .sidebar > .panel-header)').height,centerDelta:Math.abs(main.left+main.width/2-column.left-column.width/2),blockDelta:Math.max(...starts)-Math.min(...starts),gutterGap:doc.left-controls.right,standard,compact,icons:icons?.map(r=>({x:r.x,w:r.width,h:r.height}))??null,rowIcons,labels,sidebarWidth,expectedSidebar,panelWidth,expectedPanel,body,headings,caption,table,expectedTypeValues,shellOverflow};
+          return {width,collapsed,expectedSidebarHeader,header:rect('.app-titlebar').height,headerWidth:rect('.top-bar-container').width,commandCenterDelta:Math.abs(center.left+center.width/2-(rect('.top-bar').left+rect('.top-bar').width/2)),centerBottom:center.bottom,actionsTop:actions.top,sidebarHeader:collapsed?expectedSidebarHeader:rect('.sidebar > .panel-header').height,barDelta,columnWidth:column.width,expectedColumn,centerDelta:Math.abs(main.left+main.width/2-column.left-column.width/2),blockDelta:Math.max(...starts)-Math.min(...starts),gutterGap:doc.left-controls.right,standard,compact,icons:icons?.map(r=>({x:r.x,w:r.width,h:r.height}))??null,rowIcons,labels,sidebarWidth,expectedSidebar,panelWidth,expectedPanel,body,headings,caption,table,expectedTypeValues,shellOverflow};
         },{collapsed,width,controlsBox});
         const matchesType=(actual,expected)=>Math.abs(actual.size-expected.size)<0.1&&Math.abs(actual.line-expected.line)<0.1;
         const expected=result.expectedTypeValues;
-        const fail=result.centerDelta>1||result.blockDelta>1||result.gutterGap<11||Math.abs(before-after)>0.5||result.standard!==32||result.compact.some(h=>h!==28)||result.shellOverflow.length||!matchesType(result.body,expected.body)||result.headings.some((t,i)=>!matchesType(t,expected.headings[i])||t.weight!==expected.headings[i].weight)||!matchesType(result.caption,expected.caption)||!matchesType(result.table,expected.table)||Math.abs(result.sidebarWidth-result.expectedSidebar)>0.5||Math.abs(result.panelWidth-result.expectedPanel)>0.5||(!collapsed&&(Math.max(...result.labels)-Math.min(...result.labels)>1||!result.rowIcons.length||Math.max(...result.rowIcons)-Math.min(...result.rowIcons)>1||result.icons.some(i=>i.w!==16||i.h!==16)));
+        const fail=result.centerDelta>1||result.blockDelta>1||result.gutterGap<11||Math.abs(before-after)>0.5||result.standard!==32||result.compact.some(h=>h!==28)||result.shellOverflow.length||!matchesType(result.body,expected.body)||result.headings.some((t,i)=>!matchesType(t,expected.headings[i])||t.weight!==expected.headings[i].weight)||!matchesType(result.caption,expected.caption)||!matchesType(result.table,expected.table)||Math.abs(result.sidebarWidth-result.expectedSidebar)>0.5||result.barDelta>0.5||Math.abs(result.panelWidth-result.expectedPanel)>0.5||(!collapsed&&(Math.max(...result.labels)-Math.min(...result.labels)>1||!result.rowIcons.length||Math.max(...result.rowIcons)-Math.min(...result.rowIcons)>1||result.icons.some(i=>i.w!==16||i.h!==16)));
         // The title remains one row independently of sidebar and outline widths.
         if(width>=1280&&width<=1424&&result.header!==40)throw Error(`Docking boundary wrapped TopBar: ${JSON.stringify(result)}`);
-        if(width>=1279&&Math.abs(await page.locator('.document-scroll[data-active="true"] .document-column').evaluate(n=>n.getBoundingClientRect().width)-928)>0.5)
-          throw Error(`Docking reduced Standard column at ${width}px`);
+        if(width>=1279&&Math.abs(result.columnWidth-result.expectedColumn)>0.5)
+          throw Error(`Docking reduced Standard column at ${width}px: ${result.columnWidth} (expected ${result.expectedColumn})`);
         if(fail||result.sidebarHeader!==result.expectedSidebarHeader||result.commandCenterDelta>1||result.header!==40||result.actionsTop<40)throw Error(JSON.stringify(result));
         results.push({...result,hoverShift:after-before});
         if(collapsed)await page.getByRole('button',{name:'Expand Explorer',exact:true}).click();
@@ -296,7 +301,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
     await page.setViewportSize({width,height:800});
     await waitForExplorerLayout(page);
     for(const collapsed of [false,true]) {
-      if(await page.locator('.sidebar-collapse').getAttribute('aria-expanded') === String(collapsed)) await page.locator('.sidebar-collapse').click();
+      if(await page.locator('[data-activity-id="explorer"]').getAttribute('aria-expanded') === String(collapsed)) await page.locator('[data-activity-id="explorer"]').click();
       await page.evaluate(()=>document.querySelector('.document-scroll[data-active="true"]').scrollTo(0,0));
       const narrow=await page.evaluate(()=>{
         // Visual/Source is one segmented control: its track is measured as a single control.
@@ -381,7 +386,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   const docked=await shell();
   const panelHeader=await page.locator('.document-panel-header').evaluate(header=>{
     const row=header.getBoundingClientRect(), title=header.querySelector('[role=tablist]').getBoundingClientRect();
-    return {height:row.height,sidebarHeight:document.querySelector(':is(.sidebar-header, .sidebar > .panel-header)').getBoundingClientRect().height,titleCenterDelta:Math.abs(title.top+title.height/2-row.top-row.height/2)};
+    return {height:row.height,sidebarHeight:document.querySelector('.sidebar > .panel-header').getBoundingClientRect().height,titleCenterDelta:Math.abs(title.top+title.height/2-row.top-row.height/2)};
   });
   if(panelHeader.height!==panelHeader.sidebarHeight||panelHeader.titleCenterDelta>0.5)throw Error(`Outline header alignment: ${JSON.stringify(panelHeader)}`);
   await outlineToggle.click();

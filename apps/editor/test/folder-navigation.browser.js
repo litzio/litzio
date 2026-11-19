@@ -14,7 +14,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await ready();
   // #1455: entering the shared narrow navigation layout starts closed; expansion must
   // leave the document geometry unchanged. The wide explicit choice survives round trips.
-  const explorerToggle = page.locator('.sidebar-collapse');
+  const explorerToggle = page.locator('[data-activity-id="explorer"]');
   await resizeViewport({width:1440,height:900});
   await expect(explorerToggle).toHaveAttribute('aria-expanded','true');
   await explorerToggle.click();
@@ -24,6 +24,14 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await explorerToggle.click();
   await expect(page.locator('.sidebar--overlay')).toBeVisible();
   await expect.poll(() => page.locator('.app-main').boundingBox()).toEqual(mainBox);
+  // The overlay opens beside the always-visible Activity bar, which keeps its full width.
+  const barBox = await page.getByTestId('activity-bar').boundingBox();
+  expect(barBox.x).toBe(0);
+  expect((await page.locator('.sidebar--overlay').boundingBox()).x).toBe(barBox.width);
+  // Activity bar pointer use is not an outside pointer for the overlay.
+  await page.getByTestId('activity-bar').locator('.activity-bar-separator').click({force:true});
+  await expect(page.locator('.sidebar--overlay')).toBeVisible();
+  await page.locator('.sidebar--overlay').locator('button').first().focus();
   await page.keyboard.press('Escape');
   await expect(explorerToggle).toHaveAttribute('aria-expanded','false');
   await expect(explorerToggle).toBeFocused();
@@ -79,6 +87,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   };
 
   const sidebar = page.getByTestId('sidebar');
+  const bar = page.getByTestId('activity-bar');
   const openFolder = sidebar.getByRole('button', {name:'Open folder…', exact:true});
   const headerPositions = new Map();
   const captureMetadata = [];
@@ -129,31 +138,32 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
         const { applyTheme } = await import('/src/theme.ts');
         await i18n.changeLanguage('en'); await applyTheme('light');
       });
-      const expand = page.getByRole('button', {name:'Expand Explorer', exact:true});
+      const expand = bar.getByRole('button', {name:'Expand Explorer', exact:true});
       if (await expand.isVisible()) await expand.click();
-      await sidebar.getByRole('button', {name:'Collapse Explorer', exact:true}).waitFor();
+      await bar.getByRole('button', {name:'Collapse Explorer', exact:true}).waitFor();
       const header = sidebar.locator('.panel-header');
-      assert(await header.getByRole('button').count() === 1 && await header.innerText() === 'Explorer',
-        `Sidebar header contains only Explorer and collapse: ${state}, ${width}px`);
+      assert(await header.getByRole('button').count() === 0 && await header.innerText() === 'Explorer',
+        `Explorer header contains only its name; the Activity bar owns collapse: ${state}, ${width}px`);
       const entry = state === 'empty' ? openFolder : section.first().getByRole('button', {name:'More actions', exact:true});
-      const collapse = header.getByRole('button', {name:'Collapse Explorer', exact:true});
+      const collapse = bar.getByRole('button', {name:'Collapse Explorer', exact:true});
       // Cancel can finish before the closing modal releases pointer interception.
       // Judge the same hit geometry only after the user's next click is actionable.
       await collapse.click({trial:true});
       const geometry = await collapse.evaluate(button => {
         const rect = button.getBoundingClientRect();
-        const header = button.closest('.panel-header').getBoundingClientRect();
+        const bar = button.closest('.activity-bar').getBoundingClientRect();
         const style = getComputedStyle(document.documentElement);
         const rem = parseFloat(style.fontSize);
-        return {x:rect.x - header.x, y:rect.y - header.y, width:rect.width, height:rect.height,
+        return {x:rect.x - bar.x, y:rect.y - bar.y, width:rect.width, height:rect.height,
           target:parseFloat(style.getPropertyValue('--size-control-compact')) * rem,
           icon:button.querySelector('svg').getBoundingClientRect().width,
-          iconTarget:parseFloat(style.getPropertyValue('--size-icon-slot')) * rem,
+          iconTarget:(parseFloat(style.getPropertyValue('--size-icon-slot')) + parseFloat(style.getPropertyValue('--space-1'))) * rem,
+          inside:rect.left >= bar.left && rect.right <= bar.right,
           reachable:button.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)),
           overflow:document.documentElement.scrollWidth > innerWidth};
       });
-      assert(geometry.reachable && !geometry.overflow && geometry.width === geometry.target && geometry.height === geometry.target && geometry.icon === geometry.iconTarget,
-        `Header control must fit and remain reachable: ${JSON.stringify(geometry)}`);
+      assert(geometry.reachable && !geometry.overflow && geometry.inside && geometry.width >= geometry.target && geometry.height >= geometry.target && geometry.icon === geometry.iconTarget,
+        `Activity bar Explorer item must fit and remain reachable: ${JSON.stringify(geometry)}`);
       const previous = headerPositions.get(width);
       assert(!previous || JSON.stringify(previous) === JSON.stringify(geometry), `Folder count moved the header entry at ${width}px`);
       headerPositions.set(width, geometry);
@@ -418,7 +428,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await open.click();
   await dialog.waitFor({state:'detached'});
   await section.waitFor();
-  assert(await sidebar.getByRole("button", {name:"Collapse Explorer", exact:true}).evaluate(node => node === document.activeElement), 'Successful folder Open returns focus to header');
+  assert(await bar.getByRole("button", {name:"Collapse Explorer", exact:true}).evaluate(node => node === document.activeElement), 'Successful folder Open returns focus to the Activity bar Explorer item');
   await checkSidebarEntry('one');
   const sectionToggle = target => target.getByRole('button', {name:/^(Collapse|Expand) folder /});
   const firstSection = section.first();
@@ -488,7 +498,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   if (screenshots) {
     for (const width of [1440, 640]) {
       await resizeViewport({width, height:812});
-      await sidebar.getByRole('button', {name:'Collapse Explorer', exact:true}).waitFor();
+      await bar.getByRole('button', {name:'Collapse Explorer', exact:true}).waitFor();
       const environment = await page.evaluate(async () => {
         await document.fonts.ready; document.activeElement?.blur(); document.querySelector('.document-scroll[data-active="true"]').scrollTo(0, 0);
         return {viewport:[innerWidth, innerHeight], dpr:devicePixelRatio, zoom:visualViewport.scale,
@@ -626,7 +636,8 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
 
   // Tool switches retain the tree's expansion, scroll and last keyboard stop without listing again.
   const viewport = page.viewportSize();
-  await resizeViewport({width:1280, height:300});
+  // Without the former Explorer footer, a shorter window still leaves the tree less room than its rows.
+  await resizeViewport({width:1280, height:220});
   await row('install.md').focus();
   await page.keyboard.press('End');
   const tree = section.getByRole('tree');
@@ -1057,7 +1068,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await resizeViewport({width:1440, height:900});
   if (screenshots) await page.screenshot({path:'tmp/picker-capture/non-overlapping-parent-1440.png'});
   await toggle.click();
-  await sidebar.getByRole('button', {name:'Collapse Explorer', exact:true}).click();
+  await bar.getByRole('button', {name:'Collapse Explorer', exact:true}).click();
   await page.getByRole('button', {name:'Find documents and commands', exact:true}).click();
   await page.getByRole('dialog', {name:'Command center', exact:true}).getByRole('combobox').fill('>Open folder');
   await page.getByRole('option', {name:'Open folder…', exact:true}).click();

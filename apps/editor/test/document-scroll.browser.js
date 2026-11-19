@@ -146,13 +146,17 @@ async (page, { openPath, expect, screenshots, waitForExplorerLayout }) => {
       const last = node.querySelector('.document-editor > :last-child');
       return {position:getComputedStyle(node).position, overflow:getComputedStyle(node).overflowY,
         height:node.clientHeight, total:node.scrollHeight, last:last.getBoundingClientRect().bottom,
-        bottom:node.getBoundingClientRect().bottom, top:node.scrollTop, pageHeight:document.documentElement.scrollHeight};
+        bottom:node.getBoundingClientRect().bottom, top:node.scrollTop, pageHeight:document.documentElement.scrollHeight,
+        activityBar:getComputedStyle(document.querySelector('.activity-bar')).display, documentTop:node.getBoundingClientRect().top};
     });
     expect(print.position).toBe('static');
     expect(print.overflow).toBe('visible');
     expect(print.last).toBeLessThanOrEqual(print.bottom);
     expect(print.last).toBeLessThanOrEqual(print.pageHeight);
     expect(print.top).toBe(0);
+    // The Activity bar is screen chrome: printing neither shows it nor pushes the document below it.
+    expect(print.activityBar).toBe('none');
+    expect(print.documentTop).toBe(0);
   } finally { await page.emulateMedia({media:'screen'}); }
   // The #694 follow-up requires the native scrollbar below chrome, while the title-strip
   // boundary reaches the window edge. Capture these same measured states for manual review.

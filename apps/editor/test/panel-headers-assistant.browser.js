@@ -74,18 +74,18 @@ async (page, { expect, openPath, assistantFixture, screenshots, brand }) => {
         await panel.getByRole('button', { name: '비서 닫기', exact: true }).click();
         if (!await page.getByTestId('document-panel').isVisible()) await page.getByRole('button', { name: '개요', exact: true }).click();
         await expect(page.getByTestId('document-panel')).toBeVisible();
-        await page.screenshot({ path: `docs/design/assets/panel-headers-assistant-1686/after-document-${width}-${theme}-ko.png`, mask: [page.locator('.sidebar-host-account'), page.locator('.document-location'), page.locator('.sidebar-folder-header')] });
+        await page.screenshot({ path: `docs/design/assets/panel-headers-assistant-1686/after-document-${width}-${theme}-ko.png`, mask: [page.locator('.activity-bar-status'), page.locator('.document-location'), page.locator('.sidebar-folder-header')] });
         await trigger.click();
       }
       if (state === 'history') { await panel.getByRole('button', { name: '대화 기록', exact: true }).click(); await expect(panel.locator('.assistant-history')).toBeVisible(); }
       if (state === 'work') { await expect(panel.getByTestId('assistant-result')).toBeVisible(); await panel.locator('.assistant-transcript').evaluate(el => el.scrollTop = 0); }
       if (state === 'cards') { await panel.getByTestId('assistant-question').scrollIntoViewIfNeeded(); }
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-      await page.screenshot({ path: `docs/design/assets/panel-headers-assistant-1686/after-${state}-${width}-${theme}-ko.png`, mask: [page.locator('.sidebar-host-account'), page.locator('.document-location'), page.locator('.sidebar-folder-header')] });
+      await page.screenshot({ path: `docs/design/assets/panel-headers-assistant-1686/after-${state}-${width}-${theme}-ko.png`, mask: [page.locator('.activity-bar-status'), page.locator('.document-location'), page.locator('.sidebar-folder-header')] });
       if (width === 640 && state === 'empty') {
         await panel.getByRole('button', { name: '비서 닫기', exact: true }).click();
         await page.getByRole('button', { name: '탐색기 펼치기', exact: true }).click();
-        await page.screenshot({ path: `docs/design/assets/panel-headers-assistant-1686/after-explorer-640-light-ko.png`, mask: [page.locator('.sidebar-host-account'), page.locator('.document-location'), page.locator('.sidebar-folder-header')] });
+        await page.screenshot({ path: `docs/design/assets/panel-headers-assistant-1686/after-explorer-640-light-ko.png`, mask: [page.locator('.activity-bar-status'), page.locator('.document-location'), page.locator('.sidebar-folder-header')] });
       }
     }
     await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); }, brand.storagePrefix);

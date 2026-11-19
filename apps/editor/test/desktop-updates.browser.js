@@ -2,7 +2,7 @@
 // update notifications and the restart check the Desktop app asks before installing. The browser
 // Editor without the bridge shows common recovery Settings only. Updater behavior itself is tested in apps/desktop.
 // pnpm browser:test desktop-updates
-async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForExplorerLayout }) => {
+async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForExplorerLayout, expect }) => {
   page.setDefaultTimeout(15000);
   const check = (value, message) => { if (!value) throw new Error(message); };
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -110,7 +110,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
           await screen.locator('.settings-body').evaluate(n=>n.scrollTop=0);
           await page.evaluate(()=>document.fonts.ready);
           await screen.screenshot({path:`docs/design/assets/settings-parts-1685/after-settings-${category}-${captureWidth}-${theme}.png`});
-          if(category === 'about' && captureWidth === 1440) await page.screenshot({path:`docs/design/assets/settings-parts-1685/merged-panel-settings-1440-${theme}.png`,mask:[page.locator('.sidebar-host-account'),page.locator('.document-location'),page.locator('.sidebar-folder-header')]});
+          if(category === 'about' && captureWidth === 1440) await page.screenshot({path:`docs/design/assets/settings-parts-1685/merged-panel-settings-1440-${theme}.png`,mask:[page.locator('.activity-bar-status'),page.locator('.document-location'),page.locator('.sidebar-folder-header')]});
         }
       }
       await page.setViewportSize({width:1440,height:1000});
@@ -240,8 +240,8 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
               const shell = document.querySelector('.app-shell');
               return parseFloat(shell.style.getPropertyValue('--app-header-height')) === document.querySelector('.app-titlebar').offsetHeight + document.querySelector('.app-header').offsetHeight;
             });
-            // Measure the Settings action in both states, independent of other footer entries.
-            const geometry = await page.getByTestId('sidebar').getByRole('button', {name:'Settings', exact:true}).evaluate((settings, reserved) => {
+            // Measure the Activity bar Settings action in both Explorer states, independent of other bar entries.
+            const geometry = await page.getByTestId('activity-bar').getByRole('button', {name:'Settings', exact:true}).evaluate((settings, reserved) => {
               const header = document.querySelector('.app-titlebar').getBoundingClientRect();
               const bar = document.querySelector('.top-bar').getBoundingClientRect();
               const tabs = document.querySelector('.document-tab-row').getBoundingClientRect();
@@ -253,34 +253,36 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
               const borderColor = getComputedStyle(document.querySelector('.document-tab-row')).borderBottomColor;
               const continuous = Array.from({length:Math.ceil(header.width)}, (_, i) => header.left + i + 0.5)
                 .filter(x => x < header.right).every(x => lines.filter(line => line.left <= x && line.right > x && line.bottom === tabs.top && line.thickness === 1 && line.color === borderColor).length === 1);
-              const blocked = [...document.querySelectorAll('.app-titlebar button, .top-bar button, .document-tab-row button, :is(.sidebar-header, .sidebar > .panel-header) button, .sidebar-footer button, .document-panel-header button')].filter(node => {
+              const blocked = [...document.querySelectorAll('.app-titlebar button, .top-bar button, .document-tab-row button, .activity-bar button, .document-panel-header button')].filter(node => {
                 const r = node.getBoundingClientRect();
                 // Preserve the former follow-up's checks even for hidden header controls.
-                const checked = r.width || node.matches('.top-bar button, .document-tab-row button, :is(.sidebar-header, .sidebar > .panel-header) button');
+                const checked = r.width || node.matches('.top-bar button, .document-tab-row button');
                 return checked && (r.right > innerWidth || (r.top < 40 && r.right > innerWidth - reserved) || getComputedStyle(node).getPropertyValue('app-region') !== 'no-drag');
               }).map(node => node.getAttribute('aria-label') || node.textContent);
               const panel = document.querySelector('.document-panel--overlay:not([hidden])');
               const usableWidth = document.querySelector('.top-bar').getBoundingClientRect().width;
               const brand = document.querySelector('.app-brand');
-              const sidebar = document.querySelector(':is(.sidebar-header, .sidebar > .panel-header)').getBoundingClientRect();
+              const sidebar = document.querySelector('.sidebar > .panel-header').getBoundingClientRect();
               const docked = document.querySelector('.document-panel:not([hidden]):not(.document-panel--overlay) .document-panel-navigation')?.getBoundingClientRect();
               const collapsed = document.querySelector('.sidebar').classList.contains('sidebar--collapsed');
-              const aligned = sidebar.top === tabs.top && (collapsed ? sidebar.bottom === tabs.bottom : !docked || sidebar.height === docked.height) && (!docked || docked.top === tabs.top);
+              // The Activity bar's first icon sits centered in the PanelHeader / document tab-row band in both states.
+              const icon = document.querySelector('.activity-bar [data-activity-id="explorer"] .activity-bar-icon').getBoundingClientRect();
+              const iconCentered = Math.abs(icon.top + icon.height / 2 - (tabs.top + tabs.bottom) / 2) <= 0.5;
+              const aligned = iconCentered && (collapsed || sidebar.top === tabs.top && (!docked || sidebar.height === docked.height)) && (!docked || docked.top === tabs.top);
               const branded = brand.querySelector('img').complete && !!brand.querySelector('span') ===
                 (!document.querySelector('.sidebar--collapsed') && !document.querySelector('.app-shell--navigation-overlay'));
               const settingsBox = settings.getBoundingClientRect();
-              const rail = document.querySelector('.sidebar').getBoundingClientRect();
-              const modeBox = document.querySelector('.sidebar-preferences button:last-child').getBoundingClientRect();
-              const footerAligned = collapsed ? settingsBox.bottom <= modeBox.top && settingsBox.x === modeBox.x
-                : settingsBox.y + settingsBox.height / 2 === modeBox.y + modeBox.height / 2 && settingsBox.right <= modeBox.left;
+              const rail = document.querySelector('.activity-bar').getBoundingClientRect();
+              const modeBox = document.querySelector('.activity-bar [data-activity-id="theme"]').getBoundingClientRect();
+              const footerAligned = settingsBox.bottom <= modeBox.top && settingsBox.x === modeBox.x;
               const settingsBounded = footerAligned && settingsBox.left >= rail.left && settingsBox.right <= rail.right && modeBox.right <= rail.right && modeBox.bottom <= innerHeight;
               return {settingsTop:settingsBox.top, settingsBounded, aligned, branded, continuous, singleLine:lines.every(line => line.bottom === tabs.top && line.thickness === 1), lines, blocked,
                 rowHeight:header.height, usableWidth, barBottom:bar.bottom, tabsTop:tabs.top, headerBottom:document.querySelector('.app-header').getBoundingClientRect().bottom,
                 overlayTop:panel?.getBoundingClientRect().top, drag:getComputedStyle(document.querySelector('.top-bar')).getPropertyValue('app-region')};
             }, reserved);
-            check(geometry.settingsBounded, 'Settings/theme controls must align without overlap and remain inside the sidebar');
+            check(geometry.settingsBounded, 'Settings/theme controls must align without overlap and remain inside the Activity bar');
             if (collapsed && [1440,640].includes(width) && reserved === 138 && !panelOpen) {
-              const settings = page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true});
+              const settings = page.getByTestId('activity-bar').getByRole('button',{name:'Settings',exact:true});
               await settings.click();
               await page.locator('[data-tab-id="settings"] .document-tab-close').waitFor();
               check(await page.getByRole('button',{name:'About & updates',exact:true}).isVisible(), 'Rail opened different Desktop Settings');
@@ -368,7 +370,10 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
 
   const calls = () => page.evaluate(() => window.__desktop.calls.map(call => call[0] === 'install' ? `install:${call[1].ok}` : call.join(':')));
   const push = state => page.evaluate(state => window.__desktop.push(state), state);
-  const settings = page.getByTestId('sidebar').getByRole('button', {name:/^Settings/});
+  const bar = page.getByTestId('activity-bar');
+  const settings = bar.getByRole('button', {name:/^Settings/});
+  // Activity bar items name their action; the tooltip names the offered version.
+  const tooltipOf = async (target, text) => { const tip = page.locator('[data-slot="tooltip-content"][data-open]'); await page.mouse.move(720, 500); await target.hover(); await expect(tip).toHaveText(text); await page.mouse.move(720, 500); await expect(tip).toHaveCount(0); };
   const dialog = page.getByTestId('settings-dialog');
   const status = () => page.getByTestId('update-status').innerText();
   // Bridge callbacks schedule React work; delivery is not a rendered-state acknowledgement.
@@ -384,13 +389,14 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   };
   const notice = page.getByTestId('update-notice');
 
-  // Built-in task entries precede Settings; retain the real keyboard route through the retained entry.
-  await page.keyboard.press('Tab');
-  const gallery = page.getByTestId('sidebar').getByRole('button', {name:'Template gallery', exact:true});
-  check(await gallery.evaluate(node => node === document.activeElement), 'Tab from the Explorer document did not reach Template gallery');
-  await page.keyboard.press('Tab');
-  // Settings → About remains the next keyboard destination after Template gallery.
-  check(await settings.evaluate(node => node === document.activeElement), 'Tab from Template gallery did not reach Settings');
+  // Built-in task entries precede Settings in the Activity bar; retain the real keyboard route through the bar.
+  await bar.getByRole('button', {name:/^(Collapse|Expand) Explorer$/}).focus();
+  await page.keyboard.press('ArrowDown');
+  const gallery = bar.getByRole('button', {name:'Template gallery', exact:true});
+  check(await gallery.evaluate(node => node === document.activeElement), 'ArrowDown from Explorer did not reach Template gallery');
+  // Settings → About follows the screen entries.
+  for (let step = 0; step < 20 && !await settings.evaluate(node => node === document.activeElement); step++) await page.keyboard.press('ArrowDown');
+  check(await settings.evaluate(node => node === document.activeElement), 'ArrowDown from Template gallery did not reach Settings');
   await page.keyboard.press('Enter');
   await dialog.waitFor();
   await page.getByRole('tab',{name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
@@ -415,13 +421,13 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   await dialog.waitFor({state:'detached'});
   check(await settings.evaluate(node => node === document.activeElement), 'Closing Settings did not return focus to Settings');
 
-  // One Settings dot acknowledges the viewed version, across sidebar/rail and reloads.
+  // One Settings dot acknowledges the viewed version, with Explorer expanded or collapsed and across reloads.
   const dot = page.getByTestId('settings-update-dot');
   await push({phase:'available', version:'0.3.0-beta.1', prerelease:true});
   await dot.waitFor();
   check(await notice.count() === 0, 'Top update banner remains');
   check(await settings.getAttribute('aria-label') === 'Settings, new version available', 'Update cue has no accessible name');
-  check(await settings.getAttribute('title') === 'New version 0.3.0-beta.1 available', 'Tooltip omits the offered version');
+  await tooltipOf(settings, 'New version 0.3.0-beta.1 available');
   for (const width of [1440,640]) {
     await page.setViewportSize({width,height:900});
     await page.waitForFunction(width=>document.querySelector('.app-shell').classList.contains('app-shell--navigation-overlay') === (width<1100),width);
@@ -432,7 +438,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
     if (screenshots) await page.screenshot({path:`tmp/665/after-en-dark-${width}.png`});
   }
   await page.getByRole('button',{name:'Collapse Explorer',exact:true}).click();
-  check(await dot.isVisible(), 'Collapsed rail lost the update dot');
+  check(await dot.isVisible(), 'Collapsed Explorer lost the update dot');
   if (screenshots) await page.screenshot({path:'tmp/665/after-en-dark-640-rail.png'});
   await settings.click();
   await dialog.waitFor();
@@ -442,7 +448,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   await dot.waitFor({state:'detached'});
   await capture('update-highlight-en-dark-640');
   await page.keyboard.press('Escape'); await dialog.waitFor({state:'detached'});
-  check(await settings.evaluate(n => n === document.activeElement), 'Rail Settings lost return focus');
+  check(await settings.evaluate(n => n === document.activeElement), 'Activity bar Settings lost return focus');
   await page.getByRole('button',{name:'Expand Explorer',exact:true}).click();
   await settings.click(); await dialog.waitFor();
   check(await dialog.getByRole('button',{name:'Appearance & language',exact:true}).getAttribute('aria-current') === 'page', 'Seen update changed default Settings category');
@@ -628,8 +634,8 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   await page.keyboard.press('Escape'); await dialog.waitFor({state:'detached'});
   await push({phase:'available',version:'0.3.0-beta.3',prerelease:true});
   await dot.waitFor();
-  const koreanSettings = page.getByTestId('sidebar').getByRole('button',{name:'설정, 새 버전 사용 가능',exact:true});
-  check(await koreanSettings.getAttribute('title') === '새 버전 0.3.0-beta.3 사용 가능', 'Korean update tooltip is wrong');
+  const koreanSettings = bar.getByRole('button',{name:'설정, 새 버전 사용 가능',exact:true});
+  await tooltipOf(koreanSettings, '새 버전 0.3.0-beta.3 사용 가능');
   for (const width of [1440,640]) {
     await page.setViewportSize({width,height:900});
     if (screenshots) await page.screenshot({path:`tmp/665/after-ko-light-${width}.png`});

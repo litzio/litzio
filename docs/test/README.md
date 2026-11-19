@@ -265,7 +265,8 @@ captures under `tmp/read-view-849/`. Its browser uses the checkout's persistent 
 
 `folder-memory`는 열린 폴더 기억과 함께 root 섹션 접힘의 Reload/현재 문서 복원, Close/reopen, 복원만으로 쓰기 0회, 유효하지 않은 기록의 다음 사용자 쓰기 정리, 복원 중 사용자 접기·펼치기·Close 경합, 두 탭의 마지막 동작과 reveal 기억을 검증한다(#425, #370). 하위 펼침과 listing은 저장하지 않는다.
 
-`editor-shell`은 문서 설정 대화상자의 TopBar 키보드 진입·닫기·포커스 복귀와 편집기/selection/history/draft 보존, 접힌 탐색 rail, File actions → Reload 취소를 검증한다. `folder-navigation`은 설정 열기와 접기 전후 트리 펼침·스크롤·키보드 위치를, `outline`은 문서 설정의 제목 번호 변경·Undo/Redo·실제 Save/Reload를 검증한다. `layout-rules`는 TopBar 넓게 보기의 문서/dirty 상태 불변과 기기별 유지, 1920/1440/1280/1024/768/390/375px 문서 설정 dialog 경계와 포커스 복귀를 확인한다. 문서 없음·저장 진행·Source에서 문서 설정 진입 제한은 기존 시나리오에서 확인한다. `command-center`는 정확한 명령 이름을 선택해 문서 설정의 양 언어 별칭·modal 전환과 넓게 보기 전환·복원·문서 상태 불변을, `bibliography-connection`은 기존 연결·Save/Reload와 원래 설정 진입점으로의 포커스 복귀를 검증한다. `quiet-document --screenshots`는 기존 동일 상태 비교와 문서 설정을 함께 촬영한다.
+`editor-shell`은 문서 설정 대화상자의 TopBar 키보드 진입·닫기·포커스 복귀와 편집기/selection/history/draft 보존, 작업 막대의 화살표 이동·탐색기 접기/펼치기·Tooltip, File actions → Reload 취소를 검증한다. `folder-navigation`은 설정 열기와 접기 전후 트리 펼침·스크롤·키보드 위치를, `outline`은 문서 설정의 제목 번호 변경·Undo/Redo·실제 Save/Reload를 검증한다. `layout-rules`는 TopBar 넓게 보기의 문서/dirty 상태 불변과 기기별 유지, 1920/1440/1280/1024/768/390/375px 문서 설정 dialog 경계와 포커스 복귀를 확인한다. 문서 없음·저장 진행·Source에서 문서 설정 진입 제한은 기존 시나리오에서 확인한다. `command-center`는 정확한 명령 이름을 선택해 문서 설정의 양 언어 별칭·modal 전환과 넓게 보기 전환·복원·문서 상태 불변을, `bibliography-connection`은 기존 연결·Save/Reload와 원래 설정 진입점으로의 포커스 복귀를 검증한다. `quiet-document --screenshots`는 기존 동일 상태 비교와 문서 설정을 함께 촬영한다.
+`activity-bar`는 합성 플러그인 화면 12개로 낮은 창에서 넘친 항목이 '더 보기'로 모이는지, 숨은 항목이 보이지도 키보드로 닿지도 않는지, 목록의 검색·Enter 실행·현재 화면 표시·Escape 복귀와 막대 안 단색 아이콘(투명한 부분이 없는 그림은 이름 아이콘)을 검사한다. 탐색기 토글·키보드 순서·overlay 위치는 `editor-shell`·`layout-rules`·`folder-navigation`이 맡는다.
 
 `visual-states`는 연 파일 행의 `aria-current="page"`를 기다린 뒤 파일·Outline의 현재 표식과 hover·keyboard focus·geometry를 측정한다. 파일 GET이 진행 중일 때 이전 문서의 Outline 표식은 남아 있을 수 있으므로 새 파일의 준비 신호가 아니다. 현재 상태를 기다린 뒤에도 비색상 표식의 실제 CSS와 너비를 별도로 검사한다.
 
@@ -389,7 +390,7 @@ Litzio keeps one stylesheet; comparison captures do not need a runtime old/new t
 
 Use 1440px as the default comparison width under [ADR-0010](../adr/0010-supported-viewport-and-input.md) and owner decision #1455; add 640px captures when layout changes there. At the minimum width, check for unintended overlap, clipping and unreachable controls; side-by-side multi-panel screens guarantee basic operation and wider-window guidance. Keep existing automated 640px assertions. Follow the [Windows browser/session rules](../contributing/windows-browser-automation.md), and close processes started for the comparison. Captures are manual evidence, not screenshot assertions or owner visual approval.
 
-목록·그림의 내용이 완성된 상태를 기다린 뒤 촬영한다. 공개할 캡처는 기존 Playwright `mask` 관례를 재사용한다. `.sidebar-host-account`의 계정 표시와 `.document-path`, `.sidebar-folder-name`, `.document-start-folder-path`, `.command-center-result-detail` 등 파일 경로·최근 폴더 영역을 가리고, 설정·진단·선택 창에서 추가로 드러나는 로컬 값도 해당 영역을 가린다. 촬영 코드를 실행했다는 사실만으로 가림을 판정하지 않으며, 게시 전에 모든 이미지를 한 장씩 열어 계정·PC 이름·실제 경로가 없는지 확인한다. 합성 fixture 이름과 실제 로컬 값을 구분하고, 가림의 색은 해당 표면 토큰을 사용한다.
+목록·그림의 내용이 완성된 상태를 기다린 뒤 촬영한다. 공개할 캡처는 기존 Playwright `mask` 관례를 재사용한다. `.document-path`, `.sidebar-folder-name`, `.document-start-folder-path`, `.command-center-result-detail` 등 파일 경로·최근 폴더 영역을 가리고, 설정·진단·선택 창에서 추가로 드러나는 로컬 값도 해당 영역을 가린다. 촬영 코드를 실행했다는 사실만으로 가림을 판정하지 않으며, 게시 전에 모든 이미지를 한 장씩 열어 계정·PC 이름·실제 경로가 없는지 확인한다. 합성 fixture 이름과 실제 로컬 값을 구분하고, 가림의 색은 해당 표면 토큰을 사용한다.
 
 ## Native document boundary
 

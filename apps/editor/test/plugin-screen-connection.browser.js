@@ -42,7 +42,7 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
   await page.reload();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await openPath(page, pluginFixture.document);
-  await page.locator(".sidebar").getByRole("button", { name: "Slow save", exact: true }).click();
+  await page.getByTestId("activity-bar").getByRole("button", { name: "Slow save", exact: true }).click();
   const workspace = page.getByTestId("view-workspace").filter({ visible: true });
   const hostStatus = page.locator(".host-status");
   await expect(hostStatus).toHaveAttribute("data-tone", "connected");
@@ -116,7 +116,7 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
   await page.evaluate(() => sessionStorage.setItem("fixture-legacy-daemon", "true"));
   try {
     await page.reload();
-    await page.locator(".sidebar").getByRole("button", { name: "Slow save", exact: true }).click();
+    await page.getByTestId("activity-bar").getByRole("button", { name: "Slow save", exact: true }).click();
     await workspace.getByRole("button", { name: "Save sample" }).click();
     await expect(workspace.getByText("Sample saved", { exact: true })).toBeVisible();
     const oldSave = workspace.getByRole("button", { name: "Save after replacement" });

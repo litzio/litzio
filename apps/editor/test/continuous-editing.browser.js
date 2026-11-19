@@ -105,7 +105,9 @@ async (page, { expect, showNotifications, openDocument }) => {
     assert(deleted !== before, `${name}: block deletion did not apply`);
     const surface = page.locator(selector);
     const box = await surface.boundingBox();
-    const clickOutside = () => page.mouse.click(box.x + (name === 'tab bar blank' ? box.width - 4 : 4), box.y + (name === 'sidebar blank' ? box.height - 8 : 8));
+    // Document surfaces start at the main area's left edge, beside the Activity bar and Explorer.
+    const left = name === 'sidebar blank' ? box.x : Math.max(box.x, (await page.locator('.app-main').boundingBox()).x);
+    const clickOutside = () => page.mouse.click(name === 'tab bar blank' ? box.x + box.width - 4 : left + 4, box.y + (name === 'sidebar blank' ? box.height - 8 : 8));
     await clickOutside();
     const focus = await page.evaluate(() => ({tag:document.activeElement.tagName, className:document.activeElement.className,
       editor:!!document.activeElement.closest('.document-editor')}));
