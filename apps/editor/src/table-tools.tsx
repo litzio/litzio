@@ -71,10 +71,13 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
 }) {
   useTranslation();
   const visible = useEditorVisible();
-  const geometry = useTableToolGeometry(grid, node, visible);
+  const geometry = useTableToolGeometry(grid, actionLayer, node, visible);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [focused, setFocused] = useState<Menu | null>(null);
   const anchor = useRef<HTMLButtonElement | null>(null);
+  // The portal layers are sibling refs, attached only after the first commit; render the controls once they exist.
+  const [, setLayersAttached] = useState(false);
+  useEffect(() => setLayersAttached(true), []);
   const current = useEditorState({ editor, selector: ({ editor: instance }) => {
     const { $from } = instance.state.selection;
     return $from.depth >= 3 && $from.node(1).type.name === "table" && $from.before(1) === getPos()
@@ -103,19 +106,20 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
   }, [editor, getPos, menu]);
 
   const emphasizedColumn = menu?.kind === "column" ? menu.target.column : focused?.kind === "column" ? focused.target.column : current?.column;
+  // Write only: every table commits in the same pass, so a read here would force layout once per table.
   useLayoutEffect(() => {
-    const bar = actionLayer.current, block = grid.current?.closest<HTMLElement>(".table-block");
-    if (!bar || !block || !geometry) return;
+    const block = grid.current?.closest<HTMLElement>(".table-block");
+    if (!block || !geometry) return;
     const cell = emphasizedColumn === undefined ? undefined : geometry.columns[emphasizedColumn];
-    const width = bar.getBoundingClientRect().width;
+    const width = geometry.actionWidth;
     const left = cell?.visible && cell.left - geometry.targetSize / 2 < width + geometry.clearance
       ? cell.left + geometry.targetSize / 2 + geometry.clearance : 0;
     block.style.setProperty("--table-action-left", `${left}px`);
     block.style.setProperty("--table-action-clearance", `${left + width + geometry.clearance}px`);
     return () => { block.style.removeProperty("--table-action-left"); block.style.removeProperty("--table-action-clearance"); };
-  }, [actionLayer, grid, geometry, emphasizedColumn]);
+  }, [grid, geometry, emphasizedColumn]);
 
-  if (!visible || !editor.isEditable || hidden || !geometry || !rowLayer.current || !actionLayer.current) return null;
+  if (!visible || !editor.isEditable || hidden || !rowLayer.current || !actionLayer.current) return null;
   const position = getPos();
   if (typeof position !== "number") return null;
   const index = editor.state.doc.resolve(position).index();
@@ -148,22 +152,28 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
     if (kind === "column") grid.current?.querySelector("table")?.rows[0]?.cells[target.column]?.scrollIntoView({ block: "nearest", inline: "nearest" });
   };
   const blur = () => setFocused(null);
+  // A table far from view is not measured yet, but keeps its native Tab stops. Focus scrolls it near, which measures it.
+  const unmeasured = { opacity: 0 };
+  let rowCount = 0;
+  node.forEach(child => { if (child.type.name === "tableRow") rowCount++; });
+  const columnCells = geometry?.columns ?? Array.from({ length: node.firstChild?.childCount ?? 0 }, () => undefined);
+  const rowCells = geometry?.rows ?? Array.from({ length: rowCount }, () => undefined);
   return <div className="table-tools" data-active={active ? "true" : "false"} data-menu-open={menu ? "true" : "false"} contentEditable={false}>
     {createPortal(<div className="table-tools" data-active={active ? "true" : "false"} data-menu-open={menu ? "true" : "false"} contentEditable={false}>
-      {geometry.columns.map((cell, i) => <Button variant="table-handle" size="sm" key={i} type="button" className="table-column-handle"
-        data-show={active && column === i && cell.visible ? "true" : "false"}
+      {columnCells.map((cell, i) => <Button variant="table-handle" size="sm" key={i} type="button" className="table-column-handle"
+        data-show={active && column === i && cell?.visible ? "true" : "false"}
         aria-label={i18n.t("Column {{column}} actions", { column: columnName(i) })} title={i18n.t("Column {{column}} actions", { column: columnName(i) })}
         aria-pressed={column === i} aria-haspopup="menu" aria-expanded={menu?.kind === "column" && target.column === i}
         onFocus={() => focus("column", { row: current?.row ?? 0, column: i })} onBlur={blur}
-        style={{ left: cell.left, top: geometry.top }}
+        style={cell && geometry ? { left: cell.left, top: geometry.top } : unmeasured}
         onClick={event => open(event.currentTarget, "column", { row: current?.row ?? 0, column: i })}><MoreHorizontal size={16} aria-hidden="true" /></Button>)}
-      {geometry.rows.map((cell, i) => <Button variant="table-handle" size="sm" key={i} type="button" className="table-row-handle"
-        data-show={active && row === i ? "true" : "false"} data-scrolled={geometry.scrolled ? "true" : "false"}
+      {rowCells.map((cell, i) => <Button variant="table-handle" size="sm" key={i} type="button" className="table-row-handle"
+        data-show={active && row === i && cell ? "true" : "false"} data-scrolled={geometry?.scrolled ? "true" : "false"}
         aria-label={i18n.t("Row {{row}} actions{{header}}", { row: i + 1, header: i === 0 ? i18n.t(" (header)") : "" })}
         title={i18n.t("Row {{row}} actions{{header}}", { row: i + 1, header: i === 0 ? i18n.t(" (header)") : "" })}
         aria-pressed={row === i} aria-haspopup="menu" aria-expanded={menu?.kind === "row" && target.row === i}
         onFocus={() => focus("row", { row: i, column: current?.column ?? 0 })} onBlur={blur}
-        style={{ left: geometry.left, top: cell.top + cell.height / 2 }}
+        style={cell && geometry ? { left: geometry.left, top: cell.top + cell.height / 2 } : unmeasured}
         onClick={event => open(event.currentTarget, "row", { row: i, column: current?.column ?? 0 })}><MoreVertical size={16} aria-hidden="true" /></Button>)}
     </div>, rowLayer.current)}
     {createPortal(<Button variant="outline" size="sm" type="button" aria-label={i18n.t("Table properties")}
