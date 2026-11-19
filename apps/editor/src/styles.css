@@ -161,10 +161,13 @@ button {
   padding: calc((var(--layout-document-tab-height) + var(--border-width) - var(--activity-icon)) / 2 - var(--space-1) - var(--border-width)) var(--space-1) var(--space-3);
   border-right: var(--border-width) solid var(--id-color-border);
   background: var(--id-color-surface-subtle);
+  overflow: hidden auto;
+  scrollbar-width: thin;
   app-region: no-drag;
 }
 .activity-bar-group { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); width: 100%; }
-.activity-bar-screens { flex: 1; min-height: 0; overflow: hidden; }
+/* The group keeps room for More (one icon and one label line); a window lower than that scrolls the bar. */
+.activity-bar-screens { flex: 1; min-height: calc(var(--activity-icon) + var(--line-height-meta) + 2.5 * var(--space-1) + 2 * var(--border-width)); overflow: hidden; }
 .activity-bar-preferences { margin-top: var(--space-2); }
 .activity-bar-separator { flex-shrink: 0; width: calc(100% - var(--space-4)); height: var(--border-width); margin-block: var(--space-2); background: var(--id-color-border); }
 .activity-bar-item {
@@ -3140,7 +3143,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 @media print {
   body { overflow: visible; }
   .app-shell { display: block; width: auto; height: auto; }
-  .app-titlebar, .sidebar, .app-header, .document-panel { display: none; }
+  .app-titlebar, .activity-bar, .sidebar, .app-header, .document-panel { display: none; }
   .document-scroll { position: static; overflow: visible !important; padding: 0; }
   .document-scroll-frame { position: static !important; }
   .document-scrollbar { display: none; }

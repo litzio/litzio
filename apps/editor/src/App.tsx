@@ -227,7 +227,7 @@ function EditorApp() {
   // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
   useLayoutEffect(() => {
     if (!(assistantOpen && assistantOverlay) && !fileOperationPending) return;
-    const elements = globalThis.document.querySelectorAll<HTMLElement>(".sidebar, .app-main, .app-titlebar, .document-panel, .notification-center");
+    const elements = globalThis.document.querySelectorAll<HTMLElement>(".activity-bar, .sidebar, .app-main, .app-titlebar, .document-panel, .notification-center");
     elements?.forEach(element => { element.inert = true; });
     return () => elements?.forEach(element => { element.inert = false; });
   }, [assistantOpen, assistantOverlay, fileOperationPending]);

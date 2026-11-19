@@ -113,7 +113,7 @@ HTTP, CLI and the retained assistant tools use the same template operations desc
 
 ## Editor gallery (phase 2)
 
-The sidebar and command center open one **Template gallery** task tab, using the
+The Activity bar and command center open one **Template gallery** task tab, using the
 existing shell/group/tab lifetime. It has no document Save or recovery session.
 New document… remains the empty-document entry. The gallery groups built-in and
 user cards; only the Built-in badge is persistent. Descriptions are available on

@@ -1352,7 +1352,8 @@ When the window height cannot hold every middle item, the items that fit stay an
 item replaces the rest. It opens a Popover beside the bar with a **Search screens / 화면 검색** Input and
 the whole middle group as icon + name rows, so the list stays the same whatever the window height. Enter
 in the search runs the first match; choosing a row runs it and closes the Popover; Escape returns focus to
-More. The Desktop menu uses a monitor icon so it is not confused with More.
+More. The middle group always keeps room for More; a window lower than that scrolls the bar, so More stays
+reachable. The Desktop menu uses a monitor icon so it is not confused with More.
 
 The Explorer icon is centered in the PanelHeader / document tab-row band (y 40–73px). The bar is one
 Tab stop (`role="toolbar"`, vertical): Up/Down move between items and wrap, Home/End go to the first and

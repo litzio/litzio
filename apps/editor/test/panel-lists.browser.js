@@ -253,14 +253,26 @@ async (page, { openDocument, expect, screenshots, brand }) => {
     // Stacking needs only the Assistant shell, without a real account/model connection.
     // Do not resume a synthetic thread left by another scenario in the persistent profile.
     await page.evaluate(prefix => localStorage.removeItem(prefix + '.assistantConversation.v2'), brand.storagePrefix);
-    await page.route('**/api/assistant/settings*',route=>route.fulfill({json:{provider:'codex',permissionMode:'opened-folders',model:'gpt-6-luna',reasoningEffort:'low'}}));
+    // The settings response is held so the modal opens before its composer can take focus.
+    let releaseSettings; const settingsHeld = new Promise(resolve => { releaseSettings = resolve; });
+    await page.route('**/api/assistant/settings*',async route=>{await settingsHeld;await route.fulfill({json:{provider:'codex',permissionMode:'opened-folders',model:'gpt-6-luna',reasoningEffort:'low'}});});
     await page.route('**/api/assistant/models*',route=>route.fulfill({json:{provider:'codex',models:[],updatedAt:0}}));
     await page.route('**/api/assistant/diagnostics*',route=>route.fulfill({json:{provider:'codex',connected:false,checkedAt:0}}));
-    await page.locator('.assistant-trigger').click();
+    // Opened by shortcut from the Activity bar, the modal keeps the covered bar from taking keys.
+    const galleryTabs = await page.getByRole('tab', {name:/^(Template gallery|템플릿 갤러리)$/}).count();
+    await explorer.focus();
+    await page.keyboard.press('ControlOrMeta+Shift+Y');
     await expect(page.locator('.assistant-panel--overlay')).toBeVisible();
+    expect(await page.getByTestId('activity-bar').evaluate(n=>n.inert)).toBe(true);
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.assistant-panel--overlay')).toBeVisible();
+    await expect(page.getByRole('tab', {name:/^(Template gallery|템플릿 갤러리)$/})).toHaveCount(galleryTabs);
+    releaseSettings();
     expect(await page.getByTestId('sidebar').evaluate(n=>n.inert)).toBe(true);
     await page.locator('.assistant-panel').getByRole('button',{name:'비서 닫기',exact:true}).click();
     await expect(page.getByTestId('sidebar')).not.toHaveAttribute('inert');
+    await expect(page.getByTestId('activity-bar')).not.toHaveAttribute('inert');
   } finally {
     await page.evaluate(() => localStorage.setItem('litzio.uiLanguage', 'en'));
   }

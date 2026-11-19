@@ -77,6 +77,19 @@ async (page, { expect }) => {
     await expect(search).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(more).toBeFocused();
+    // A window lower than More itself still reaches it: the bar scrolls, and keyboard focus brings all of More into view.
+    for (const height of [220, 210]) {
+      await page.setViewportSize({width:640, height});
+      await expect(bar.locator('.activity-bar-screens > [data-activity-item]:not([data-overflow])')).toHaveCount(0);
+      await bar.getByRole('button', {name:/^(Collapse|Expand) Explorer$/}).focus();
+      await page.keyboard.press('ArrowDown');
+      await expect(more).toBeFocused();
+      const reach = await more.evaluate(node => {
+        const item = node.getBoundingClientRect(), group = node.closest('.activity-bar').getBoundingClientRect();
+        return {top:item.top >= group.top - 0.5, bottom:item.bottom <= group.bottom + 0.5, hit:node.contains(document.elementFromPoint(item.x + item.width / 2, item.y + item.height / 2))};
+      });
+      expect(reach, `More is whole and on top at 640x${height}`).toEqual({top:true, bottom:true, hit:true});
+    }
     // A tall window shows every entry without More.
     await page.setViewportSize({width:1440, height:1200});
     await expect(more).toHaveCount(0);
