@@ -161,6 +161,12 @@ function paragraphBeside(state: EditorState, after: boolean): Transaction {
   return tr.setSelection(TextSelection.create(tr.doc, pos + 1)).scrollIntoView();
 }
 
+/** Enter at the start of a non-empty heading opens an empty paragraph above it; the caret stays at the heading start. */
+function headingStartEnter(state: EditorState): Transaction {
+  const tr = paragraphBeside(state, false);
+  return tr.setSelection(TextSelection.create(tr.doc, tr.mapping.map(state.selection.from))).scrollIntoView();
+}
+
 /** A selected preview has no text caret; text input must leave it and the document unchanged. */
 function selectedPreview(state: EditorState): boolean {
   return state.selection instanceof NodeSelection &&
@@ -402,7 +408,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
             if (selection.empty && selection.$from.parentOffset === 0) {
               view.dispatch(selection.$from.parent.content.size === 0
                 ? state.tr.setNodeMarkup(selection.$from.before(), state.schema.nodes.paragraph, { sourcePath: freshBlockPath() })
-                : paragraphBeside(state, false));
+                : headingStartEnter(state));
               return true;
             }
             return splitBlockAs((node, atEnd) => atEnd || node.content.size === 0
