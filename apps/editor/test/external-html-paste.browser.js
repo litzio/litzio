@@ -1,7 +1,7 @@
 // External (web, Notion, Word) HTML clipboard normalized to supported blocks: the OS clipboard
 // with notice, one Undo/Redo, Save/Reload and canonical Markdown; representative sources; refusals.
 // Plain-text Markdown read by Core: structure, Undo, Save/Reload, Ctrl+Shift+V and literal places.
-async (page, { showNotifications, openPath }) => {
+async (page, { showNotifications, openPath, reloadDocument }) => {
   await page.unrouteAll();
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -232,29 +232,26 @@ async (page, { showNotifications, openPath }) => {
     '## 구술 대본\n\n오늘은 **측정시스템 분석**의 목적부터 말씀드리겠습니다.\n\n측정값의 변동에는 **부품 변동**과 **측정 변동**이 섞여 있습니다.\n\n' +
     'Inline `mono` text.\n\n```\ncode\n```\n\n:::{table}\n\n| A | B |\n| - | - |\n| c | d |\n:::\n\nOmega.\n';
   assert(markdownDisk === markdownPreview && markdownDisk === markdownSaved, `Markdown paste must save Core's canonical Markdown: ${JSON.stringify(markdownDisk)}`);
-  await page.getByRole('button', {name:'File actions', exact:true}).click();
-  await page.getByRole('menuitem', {name:'Reload', exact:true}).click();
+  // Reload hands focus back to File actions late; the keyboard steps below must not race it.
+  await reloadDocument(page);
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   assert((await state()).doc === markdownPasted.doc, 'Reload must retain the pasted Markdown structure');
   result.markdownSaveReload = true;
 
   // Ctrl+Shift+V keeps the characters; text without Markdown syntax pastes exactly as before.
-  // The engine treats a paste with Shift held as plain, which is what Ctrl+Shift+V delivers in
-  // Windows Chromium. The Linux CI browser binds no Ctrl+Shift+V paste, so hold Shift around the event.
   const pasteBoth = async text => {
     await select('Omega.');
     const before = await state();
-    const paste = async shift => {
-      if (shift) await page.keyboard.down('Shift');
-      await textPaste(text);
-      if (shift) await page.keyboard.up('Shift');
+    await writeText(text);
+    const paste = async key => {
+      await page.keyboard.press(key);
       await changedFrom(before);
       const pasted = await outline();
       await page.keyboard.press('Control+z');
-      assert((await state()).doc === before.doc, `One Undo restores the ${shift ? 'plain' : 'automatic'} paste`);
+      assert((await state()).doc === before.doc, `One Undo restores the ${key} paste`);
       return pasted;
     };
-    return {plain: await paste(true), auto: await paste(false)};
+    return {plain: await paste('Control+Shift+v'), auto: await paste('Control+v')};
   };
   const literal = await pasteBoth('# 제목 **굵게**\n1. 항목');
   assert(JSON.stringify(literal.plain.slice(-2)) === JSON.stringify(['paragraph|# 제목 **굵게**|', 'paragraph|1. 항목Omega.|']) &&
