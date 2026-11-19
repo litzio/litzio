@@ -59,7 +59,8 @@ test("emphasis runs left literal by the punctuation flanking rule warn; literal 
     ["값을**(정확도)** 본다", "**(정확도)**", "값&#xC744;**(정확도)** 본다"],
     ["값을**(정확도)**를 본다", "**(정확도)**", "값&#xC744;**(정확도)**&#xB97C; 본다"],
     ["*(주의)*를 본다", "*(주의)*", "*(주의)*&#xB97C; 본다"],
-    ["값을*(주의)*를 본다", "*(주의)*", "값&#xC744;*(주의)*&#xB97C; 본다"],
+    ["값을*(주의)* 본다", "*(주의)*", "값&#xC744;*(주의)* 본다"],
+    ["*(注意)*が見える", "*(注意)*", "*(注意)*&#x304C;見える"],
     ["__(a)__를 본다", "__(a)__", "__(a)__&#xB97C; 본다"],
     ["**결과:**3건", "**결과:**", "**결과:**&#x33;건"],
     ["앞 줄\n**정확도(Accuracy)**를 본다", "**정확도(Accuracy)**", "앞 줄\n**정확도(Accuracy)**&#xB97C; 본다"],
@@ -86,8 +87,9 @@ test("emphasis runs left literal by the punctuation flanking rule warn; literal 
     "`**(a)**를` and $**(a)**를$", "```\n**(a)**를\n```", "[x](https://example.com/**(a)**b)",
     "https://example.com/**(a)**b", "* item\n* **(a)** item", "***", "2 * 3 and a*b", "**(note",
     "foo__bar__baz and __init__", "a***(b)",
-    // Single stars beside ASCII letters or digits are arithmetic.
-    "5*(3+4)*2", "2*(3+4)* 5", "Calculate x*(a+b)* y and compare.",
+    // Single stars that need the repair on both sides, or beside non-CJK letters, are arithmetic.
+    "5*(3+4)*2", "2*(3+4)* 5", "Calculate x*(a+b)* y and compare.", "계산식 α*(β+γ)*δ를 대입한다.",
+    "값*(β+γ)*를", "*(β+γ)*δ", "*(a)*b",
   ]) assert.deepEqual(unresolvedReferences(parse(`${source}\n`)), [], source);
 });
 

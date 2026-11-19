@@ -173,6 +173,13 @@ function installed<Rule>(ruler: { getRules(chain: string): Rule[]; disable(name:
   return rules.find(rule => !otherRules.has(rule))!;
 }
 
+const CJK = /[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+
+function codePointBefore(text: string, position: number): number {
+  const low = text.charCodeAt(position - 1);
+  return low >= 0xDC00 && low <= 0xDFFF && position > 1 ? text.codePointAt(position - 2)! : low;
+}
+
 type Tokenizer = ReturnType<typeof createTokenizer>;
 type InlineState = Parameters<Parameters<Tokenizer["inline"]["ruler"]["push"]>[1]>[0];
 type Delimiter = InlineState["delimiters"][number];
@@ -248,12 +255,15 @@ function observeEmphasis(tokenizer: Tokenizer, inUrl: (state: InlineState, posit
         const strictOpen = flags.get(list[index])!.open;
         const strictClose = flags.get(list[opener.end])!.close;
         if (strictOpen && strictClose) return;
-        // Single `*`/`_` beside an ASCII letter or digit is usually arithmetic or code
-        // (`2*(3+4)* 5`, `x*(a+b)* y`). The writing this diagnostic targets attaches
-        // non-ASCII text such as a Korean particle (`*(주의)*를`), so a single run warns
-        // only when every repaired outside character is non-ASCII.
-        const outside = [...(strictOpen ? [] : [first.start - 1]), ...(strictClose ? [] : [last.start + last.length])];
-        if ((first.length < 2 || last.length < 2) && outside.some(position => state.src.charCodeAt(position) < 0x80)) return;
+        // Single `*`/`_` is often multiplication or code (`2*(3+4)* 5`, `α*(β+γ)*δ`).
+        // The writing this diagnostic targets attaches a CJK particle or ending to one
+        // side (`*(주의)*를`), so a single run warns only when the other side is already
+        // a strict delimiter and the one repaired outside character is CJK.
+        if (first.length < 2 || last.length < 2) {
+          if (!strictOpen && !strictClose) return;
+          const outside = strictOpen ? state.src.codePointAt(last.start + last.length)! : codePointBefore(state.src, first.start);
+          if (!CJK.test(String.fromCodePoint(outside))) return;
+        }
         if (inUrl(state, first.start) || inUrl(state, last.start)) return;
         found.set(`${first.start}:${last.start}`, {
           syntax: "emphasis", source: state.src.slice(first.start, last.start + last.length),
