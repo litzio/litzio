@@ -7,9 +7,9 @@ import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
-import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, History, ExternalLink, FolderOpen, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks, LoaderCircle } from "lucide-react";
+import { Plus, History, ExternalLink, FolderOpen, Ellipsis, Paperclip, TextCursorInput, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks, LoaderCircle } from "lucide-react";
 import { ASSISTANT, type AiProvider, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { PanelHeader } from "@/components/ui/panel-header.tsx";
@@ -23,6 +23,11 @@ import { brand } from "../../../../brand.ts";
 import "./assistant.css";
 import { CopyButton } from "../components/CopyButton.tsx";
 import { AssistantAnswer } from "./AssistantAnswer.tsx";
+import { FolderDialog } from "./FolderDialog.tsx";
+import { browseInsideRoots } from "./folder-requests.ts";
+import { splitDocumentPath } from "./document-path.ts";
+import { isScreenPath } from "../views/screen-path.ts";
+import type { FolderPlace } from "../../shared/document-protocol.ts";
 import { AssistantHistory, pathName, providerLabel } from "./AssistantHistory.tsx";
 
 function lastConversation(conversationKey: string) { try { return localStorage.getItem(conversationKey) || undefined; } catch { return undefined; } }
@@ -337,14 +342,32 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       return [...previous, file];
     });
   };
+  // Explorer "Add to chat" and the composer file picker attach the same explicit file chip.
+  const addFileReference = (path: string) => { addReference({ path, name: pathName(path), kind: "file" }); setHistory(null); };
   useEffect(() => {
     if (!referenceRequest) return;
-    {
-      addReference({ path: referenceRequest.path, name: pathName(referenceRequest.path), kind: "file" });
-      setHistory(null);
-    }
+    addFileReference(referenceRequest.path);
     onReferenceConsumed(referenceRequest);
   }, [referenceRequest, onReferenceConsumed]);
+  const [choosingFile, setChoosingFile] = useState(false);
+  const fileButton = useRef<HTMLButtonElement>(null), filePicked = useRef(false);
+  const folderKey = folders.join("\n");
+  // Same range as the explorer: files inside the opened folders, never another place on the Host.
+  const browseFiles = useCallback((path: string) => browseInsideRoots(folders, path, client), [folderKey, client]);
+  const fileRoots = useCallback(async (): Promise<FolderPlace[]> => folders.map(path => ({ kind: "root", name: pathName(path), path })), [folderKey]);
+  const fileStart = documentPath && isScreenPath(documentPath, folders) ? splitDocumentPath(documentPath).directory : folders[0] ?? "";
+  const chooseFile = async (path: string) => {
+    const listing = await browseFiles(splitDocumentPath(path).directory);
+    const entry = listing.entries.find(value => value.path === path);
+    if (!entry || entry.kind === "folder") return i18n.t("Unavailable");
+    filePicked.current = true; addFileReference(entry.path);
+    return "";
+  };
+  const reuseMessage = (text: string) => {
+    const next = message.trim() ? `${message.replace(/\s+$/, "")}\n${text}` : text;
+    referenceCaret.current = next.length; setMessage(next); setMention(null);
+    input.current?.focus();
+  };
   const mentionOpen = mention !== null;
   useEffect(() => {
     if (!mentionOpen || !open) return;
@@ -531,27 +554,33 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         const next = history ? null : await request<AssistantConversationInfo[]>(ASSISTANT.conversationsRoute);
         if (isCurrent()) setHistory(next);
       })}><History /></Button>
-      {(["open", "reveal"] as const).map(action => {
-        const label = i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location"), unavailable = !conversation || pending || !window.litzioDesktop?.providerSessionLog;
-        // Only a disabled button needs its wrapper as the named keyboard stop for the reason.
-        return <Tooltip key={action}><TooltipTrigger render={unavailable ? <span tabIndex={0} aria-label={label} /> : <span />}>
-        <Button variant="ghost" size="icon-sm" aria-label={label} disabled={unavailable} onClick={() => void run(async () => {
+      {(() => {
+        const label = i18n.t("Provider log"), unavailable = !conversation || pending || !window.litzioDesktop?.providerSessionLog;
+        const openLog = (action: "open" | "reveal") => void run(async () => {
           try {
             const result = await window.litzioDesktop!.providerSessionLog(conversation!.id, conversation!.provider ?? "codex", action);
             if (result) setProblem(i18n.t(result.reason === "missing" ? "Provider log is absent or has been removed." : result.reason === "denied" ? "Provider log access was denied." : result.reason === "launch" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified."));
           }
           catch { setProblem(i18n.t(action === "open" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified.")); }
-        })}>{action === "open" ? <ExternalLink /> : <FolderOpen />}</Button>
-      </TooltipTrigger><TooltipContent>{i18n.t(!window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : action === "open" ? "Open provider log in Notepad" : "Show provider log location")}</TooltipContent></Tooltip>;
-      })}
+        });
+        // Only a disabled trigger needs its wrapper as the named keyboard stop for the reason.
+        return <DropdownMenu><Tooltip><TooltipTrigger render={unavailable ? <span tabIndex={0} aria-label={label} /> : <span />}>
+          <DropdownMenuTrigger disabled={unavailable} render={<Button variant="ghost" size="icon-sm" aria-label={label} />}><Ellipsis /></DropdownMenuTrigger>
+        </TooltipTrigger><TooltipContent>{i18n.t(!window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : "Provider log")}</TooltipContent></Tooltip>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => openLog("open")}><ExternalLink aria-hidden="true" />{i18n.t("Open provider log in Notepad")}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openLog("reveal")}><FolderOpen aria-hidden="true" />{i18n.t("Show provider log location")}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>;
+      })()}
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </>} />
     <div className="assistant-context type-helper" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
 
-      {documentPath && documentDirty ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>
-        {i18n.t("Using saved version")}
-      </TooltipTrigger><TooltipContent><span><span className="break-all">{documentPath}</span><br />{i18n.t("The assistant reads the saved file. Unsaved changes are not included.")}</span></TooltipContent></Tooltip>
-        : <span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span>}<span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
+      <span className="assistant-context-file"><span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span>
+        {documentPath && documentDirty ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" aria-label={`${i18n.t("Saved version")}: ${i18n.t("The assistant reads the saved file. Unsaved changes are not included.")}`} />}>
+          <Status variant="plain" tone="warning" label={i18n.t("Saved version")} />
+        </TooltipTrigger><TooltipContent><span><span className="break-all">{documentPath}</span><br />{i18n.t("The assistant reads the saved file. Unsaved changes are not included.")}</span></TooltipContent></Tooltip> : null}</span><span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
     </div>
     {changeComparison ? <Dialog open onOpenChange={value => { if (!value) setChangeComparison(undefined); }}>
       <DialogContent className="recovery-prompt-comparing" finalFocus={changeFocus}><DialogHeader><DialogTitle>{i18n.t("View changes")}: {pathName(changeComparison.path)}</DialogTitle></DialogHeader>
@@ -567,7 +596,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         onRename={renameHistory} onArchive={archiveHistory} />
         : conversation?.turns.map(turn => <section key={`${conversation.id}:${turn.id}`} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user" && !item.questionAnswer).map(item => <div key={item.id}>
-            <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips previews={imagePreviews} references={item.references ?? []} /></p>
+            <UserMessage text={item.text} references={item.references ?? []} previews={imagePreviews} reuseDisabled={!ready || !enabled || !!setup} onReuse={reuseMessage} />
           </div>)}
           <div role="group" aria-label={i18n.t("Assistant response")}>
             {turn.items.map(item => item.kind === "assistant" ? <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} /> : isWorkDetail(item) ? <AssistantWorkStep key={item.id} item={item} running={turn.status === "inProgress"} active={turn.status === "inProgress" && (item.status === "inProgress" || item.status === "pending" || !item.status && item === turn.items.at(-1))} onDisclosure={holdDisclosure} actions={item.fileChanges?.map(path => <div className="flex flex-wrap items-center gap-2" data-testid="assistant-file-change" data-path={path} key={path}>
@@ -615,7 +644,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         </section>)}
       {!history && visibleSubmissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))).map(value =>
         <div key={value.receipt.id} className="assistant-submission">
-          <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{value.text}</span><ReferenceChips previews={imagePreviews} references={value.references} /></p>
+          <UserMessage text={value.text} references={value.references} previews={imagePreviews} reuseDisabled={!ready || !enabled || !!setup} onReuse={reuseMessage} />
           {submissionActions(value)}
         </div>)}
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><EmptyState title={i18n.t("Ask about your document")} description={i18n.t("With edit access, documents are edited directly.")} /></div> : null}
@@ -710,17 +739,25 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
       </div>
       <div className="assistant-footer">
-
+        {(() => {
+          const unavailable = !folders.length, label = i18n.t("Add file");
+          return <Tooltip><TooltipTrigger render={unavailable ? <span tabIndex={0} aria-label={label} /> : <span />}>
+            <Button ref={fileButton} type="button" variant="ghost" size="icon-sm" aria-label={label} disabled={unavailable} onClick={() => { filePicked.current = false; setChoosingFile(true); }}><Paperclip /></Button>
+          </TooltipTrigger><TooltipContent>{i18n.t(unavailable ? "Open a folder to add its files." : "Add file")}</TooltipContent></Tooltip>;
+        })()}
         <AssistantUsageTooltip copilotUsage={conversation?.copilotUsage} provider={provider} active={open} context={usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
-        </AssistantUsageTooltip><small className="type-helper">{i18n.t("Shift+Enter for a new line")}</small>
+        </AssistantUsageTooltip>
         <Tooltip><TooltipTrigger render={<Button type={showStop ? "button" : "submit"} variant={showStop ? "outline" : "default"} size="icon-sm" aria-label={composerAction}
           disabled={pending || !showStop && (!ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup)} />}
           onClick={showStop ? () => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); }) : undefined}>
           {showStop ? <Square /> : <ArrowUp />}
-        </TooltipTrigger><TooltipContent>{composerAction}</TooltipContent></Tooltip>
+        </TooltipTrigger><TooltipContent>{showStop ? composerAction : i18n.t("{{action}} (Enter) · New line Shift+Enter", { action: composerAction })}</TooltipContent></Tooltip>
       </div>
     </form>
+    <FolderDialog open={choosingFile} choose="file" selectOnly title={i18n.t("Add file")} initialPath={fileStart} recent={[]} allowedRoots={folders}
+      browse={browseFiles} places={fileRoots} onOpen={chooseFile} onClose={() => setChoosingFile(false)}
+      finalFocus={() => (filePicked.current ? input.current : fileButton.current) ?? true} />
   </aside>;
 }
 function AssistantWorkStep({ item, active, running, onDisclosure, actions }: { actions?: import("react").ReactNode; running: boolean; item: AssistantConversation["turns"][number]["items"][number]; active: boolean; onDisclosure(): void }) {
@@ -786,6 +823,18 @@ function ReferenceChips({ references, remove, previews, composer = false, upload
   </>;
 }
 
+/** A sent message can be copied or reused as new composer text; it is never edited in place. */
+function UserMessage({ text, references, previews, reuseDisabled, onReuse }: { text: string; references: AssistantFileReference[]; previews: Record<string, string>; reuseDisabled: boolean; onReuse(text: string): void }) {
+  return <div className="assistant-user-message">
+    <p className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{text}</span><ReferenceChips previews={previews} references={references} /></p>
+    {text.trim() ? <div className="assistant-user-actions">
+      <CopyButton iconOnly text={text} label={i18n.t("Copy message")} />
+      <Tooltip><TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Reuse message")} disabled={reuseDisabled} />} onClick={() => onReuse(text)}><TextCursorInput /></TooltipTrigger>
+        <TooltipContent>{i18n.t("Reuse message")}</TooltipContent></Tooltip>
+    </div> : null}
+  </div>;
+}
+
 function hasSkillToken(text: string, name: string) { return text.split(/\s+/).includes(`$${name}`); }
 
 /** Direct choices reuse the existing menu and item interaction. */
@@ -793,11 +842,14 @@ function AssistantChoice({ label, value, help, disabled, visible, choiceOpen, on
   label: string; value: string; help: string; disabled: boolean; visible: boolean; choiceOpen: string | null; onOpenChange(open: string | null): void;
   selected: string; options: { value: string; label: string; disabled?: boolean }[]; onSelect(value: string): void;
 }) {
-  const open = choiceOpen === label;
+  const open = choiceOpen === label, name = i18n.t("{{name}} settings", { name: label });
   const change = (value: boolean) => onOpenChange(value ? label : null);
   useEffect(() => { if (!visible) change(false); }, [visible]);
   return <DropdownMenu open={open && visible && !disabled} onOpenChange={change}>
-    <Tooltip disabled={open}><TooltipTrigger render={<DropdownMenuTrigger disabled={disabled} render={<Button type="button" variant="outline" size="sm" aria-label={i18n.t("{{name}} settings", { name: label })} />} />}>{value || label}</TooltipTrigger><TooltipContent className="assistant-choice-help pointer-events-none">{label}: {help}</TooltipContent></Tooltip>
+    {/* A locked choice keeps its reason readable: the wrapper becomes the named keyboard stop. */}
+    <Tooltip disabled={open}><TooltipTrigger render={disabled ? <span tabIndex={0} aria-label={name} /> : <span />}>
+      <DropdownMenuTrigger disabled={disabled} render={<Button type="button" variant="outline" size="sm" aria-label={name} />}>{value || label}</DropdownMenuTrigger>
+    </TooltipTrigger><TooltipContent className="assistant-choice-help pointer-events-none">{label}: {help}</TooltipContent></Tooltip>
     <DropdownMenuContent side="top" align="start" aria-label={label} className="assistant-choices">
       {options.map(option => <DropdownMenuItem disabled={option.disabled} key={option.value} aria-current={selected === option.value ? "true" : undefined} onClick={() => onSelect(option.value)}>
         <Check aria-hidden="true" style={{ visibility: selected === option.value ? "visible" : "hidden" }} />{option.label}

@@ -3,7 +3,7 @@ import type { ScreenPickedPath, ScreenPickPathInput } from "@litzio/plugin-sdk";
 import type { FolderBrowseResponse, FolderPlace } from "../../shared/document-protocol.ts";
 import type { HostClient } from "../host-client.ts";
 import { HostClientContext } from "../host-context.tsx";
-import { requestFolder } from "../shell/folder-requests.ts";
+import { browseInsideRoots } from "../shell/folder-requests.ts";
 import { FolderDialog } from "../shell/FolderDialog.tsx";
 import { splitDocumentPath } from "../shell/document-path.ts";
 import { i18n } from "../i18n.ts";
@@ -54,21 +54,9 @@ function ScreenPathDialog({ choice, client }: { choice: Choice; client: HostClie
     try {
       assertPath(path);
       if (input.kind === "file") {
-        const root = roots.find(root => isScreenPath(path, [root], true))!;
-        const reply = await requestFolder(root, path, false, client, controller.signal);
+        const reply = await browseInsideRoots(roots, path, client, controller.signal);
         assertPath(reply.path);
-        const crumbs: FolderBrowseResponse["crumbs"] = [];
-        let current = reply.path;
-        while (isScreenPath(current, [root], true)) {
-          const trimmed = current.replace(/(?<=.)[\\/]+$/, "");
-          crumbs.unshift({ name: splitDocumentPath(trimmed).name || current, path: current });
-          if (!isScreenPath(current, [root])) break;
-          const parent = splitDocumentPath(trimmed).directory;
-          if (parent === current) break;
-          current = parent;
-        }
-        return { path: reply.path, crumbs, entries: reply.entries.filter(entry => isScreenPath(entry.path, [root]) &&
-          (entry.kind === "folder" || !input.extensions || input.extensions.some(extension => entry.name.toLowerCase().endsWith(extension.toLowerCase())))) };
+        return { ...reply, entries: reply.entries.filter(entry => entry.kind === "folder" || !input.extensions || input.extensions.some(extension => entry.name.toLowerCase().endsWith(extension.toLowerCase()))) };
       }
       const response = await client.request(`/api/folder-browse?${new URLSearchParams({ path, ...(input.kind === "pdf" ? { files: "pdf" } : {}) })}`, { signal: controller.signal });
       const reply = await response.json();

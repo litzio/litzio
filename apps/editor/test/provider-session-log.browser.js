@@ -19,8 +19,9 @@ async (page, { expect, screenshots, brand }) => {
   await page.keyboard.press('Control+Shift+Y');
   const panel = page.getByTestId('assistant-panel');
   await expect(panel).toBeVisible();
-  const open = panel.getByRole('button', { name: '공급자 로그를 메모장에서 열기', exact: true });
-  await expect(open).toBeDisabled();
+  const logMenu = panel.getByRole('button', { name: '공급자 로그', exact: true });
+  const open = async () => { await logMenu.click(); await page.getByRole('menuitem', { name: '공급자 로그를 메모장에서 열기', exact: true }).click(); };
+  await expect(logMenu).toBeDisabled();
   await page.evaluate(() => { window.logCalls = []; window.litzioDesktop = { providerSessionLog: async (...args) => { window.logCalls.push(args); } }; });
   if (screenshots) {
     for (const width of [1440, 640]) {
@@ -32,9 +33,9 @@ async (page, { expect, screenshots, brand }) => {
   }
   await panel.getByRole('textbox').fill('이 합성 대화의 공급자 로그를 확인하고 싶습니다.');
   await panel.getByRole('button', { name: '메시지 보내기', exact: true }).click();
-  await expect(open).toBeEnabled();
+  await expect(logMenu).toBeEnabled();
   expect(await page.evaluate(() => window.logCalls)).toEqual([]);
-  await open.click();
+  await open();
   await expect.poll(() => page.evaluate(() => window.logCalls)).toEqual([[id, 'codex', 'open']]);
   if (screenshots) {
     for (const width of [1440, 640]) {
@@ -44,9 +45,9 @@ async (page, { expect, screenshots, brand }) => {
       await panel.screenshot({ path: `tmp/1304/provider-log-${width}-dark-ko.png` });
     }
   }
-  await panel.getByRole('button', { name: '공급자 로그 파일 위치 표시', exact: true }).click();
+  await logMenu.click(); await page.getByRole('menuitem', { name: '공급자 로그 파일 위치 표시', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.logCalls.at(-1))).toEqual([id, 'codex', 'reveal']);
   await page.evaluate(() => { window.litzioDesktop.providerSessionLog = async () => ({ available: false, reason: 'missing' }); });
-  await open.click();
+  await open();
   await expect(panel.getByRole('alert')).toContainText('공급자 로그가 없거나 이미 삭제되었습니다.');
 }
