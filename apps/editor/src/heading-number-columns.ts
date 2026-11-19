@@ -68,8 +68,9 @@ function measure(headings: readonly NumberedHeading[], fontOf: Parameters<typeof
   const widest = new Map<number, number>();
   for (const { level, size, span } of spans) widest.set(level, Math.max(widest.get(level) ?? 0, span.getBoundingClientRect().width / size));
   probe.remove();
-  // Round up so the widest number never pushes its own text past the shared line.
-  return new Map([...widest].map(([level, em]) => [level, `${Math.ceil(em * 1000) / 1000}em`]));
+  // Round up with a margin above layout-unit precision (1/64px), so the widest number stays
+  // inside the column and its text snaps to the same pixel as the rest of its level.
+  return new Map([...widest].map(([level, em]) => [level, `${Math.ceil((em + 0.002) * 100) / 100}em`]));
 }
 
 /** Re-measures after web fonts finish loading, since fallback glyph widths differ. */
