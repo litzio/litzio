@@ -285,7 +285,8 @@ new causes update it without moving its location or focus. Bell activation colla
 an expanded presentation; activation while closed opens the manual list.
 
 The existing Base UI Popover anchors only the manual list below the bell and fits
-it within the viewport. It is a named nonmodal Notifications dialog, distinct from
+it within the viewport; it never flips to another side, and a short window scrolls
+inside the list ([1440×600 capture](assets/notification-popover-side-1803/after-expanded-1440x600-light-en.png)). It is a named nonmodal Notifications dialog, distinct from
 Save/New/Reload modal dialogs. Focus-only document navigation keeps it open; outside
 pointer dismissal and Escape close it. Escape from a focused notification action
 returns to the bell. Closed contents remain a hidden native list for the existing

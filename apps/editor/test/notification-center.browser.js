@@ -276,6 +276,24 @@ async (page, { openPath, expect }) => {
   await expect(toggle()).toHaveAccessibleDescription('Notifications: Warning, 2');
   if (await toggle().getAttribute('aria-expanded') === 'false') await toggle().click();
   await expect(group).toHaveAttribute('aria-expanded','false');
+  // #1803: a short window keeps the expanded manual list below the bell and scrolls it inside.
+  // The two-warning fixture overflows at 320px as the audited three-warning list did below 600px.
+  if (await center.getAttribute('data-presentation') === 'automatic') await toggle().click();
+  if (await center.getAttribute('data-presentation') === 'closed') await toggle().click();
+  await expect(center).toHaveAttribute('data-presentation','manual');
+  await page.setViewportSize({ width: 1440, height: 320 });
+  await group.click();
+  await expect(group).toHaveAttribute('aria-expanded','true');
+  await expect.poll(async () => {
+    const bell = await toggle().boundingBox();
+    return center.locator('.notification-popover').evaluate((popup, bellBottom) => {
+      const r = popup.getBoundingClientRect(), list = popup.querySelector('ul');
+      return { below: r.top >= bellBottom, inside: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
+        scrolls: list.scrollHeight > list.clientHeight };
+    }, bell.y + bell.height);
+  }).toEqual({ below: true, inside: true, scrolls: true });
+  await group.click();
+  await page.setViewportSize({ width: 1440, height: 900 });
   await center.getByRole('button', {name:'Dismiss group: Numbering warnings · 2',exact:true}).click();
   await expect(toggle()).toHaveAttribute('aria-expanded','false');
   await expect(toggle()).toBeFocused();
