@@ -188,6 +188,7 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
       <Bell />{visible.length ? <span className="notification-count" aria-hidden="true">{visible.length}</span> : null}
     </TooltipTrigger><TooltipContent>{i18n.t("Notifications")}</TooltipContent></Tooltip>
     {presentation === "manual" || manualMounted ? <PopoverContent anchor={toggle} portalContainer={outlet} side="bottom" align="end" sideOffset={8}
+      collisionAvoidance={{ side: "none" }}
       initialFocus={false} finalFocus={() => {
         const target = returnFocus.current ? toggle.current : false;
         returnFocus.current = false;
