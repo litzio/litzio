@@ -1,7 +1,8 @@
 // Run with pnpm browser:test list-authoring.
 // Edits list items with the keyboard (Enter, Tab, Enter on an empty item), inserts a numbered
 // list from the slash menu, joins the line after a list into its last item with Backspace
-// (#1821), saves a scratch Markdown file, and reloads it.
+// (#1821), also right after Home on a paragraph with inline atoms, saves the scratch Markdown
+// files, and reloads them.
 async (page, { openDocument, withBlockHover }) => {
   await page.unrouteAll();
   await page.reload();
@@ -11,20 +12,24 @@ async (page, { openDocument, withBlockHover }) => {
   const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
-  const file = [root, 'tmp', 'list-authoring', 'lists.md'].join(separator);
-  const markdown = async () => {
-    const response = await page.request.get(`${origin}/document/lists.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } });
-    if (response.status() !== 200) throw new Error(`Prepare ${file} first`);
+  const scratch = (name) => [root, 'tmp', 'list-authoring', name].join(separator);
+  const markdown = async (name = 'lists.md') => {
+    const response = await page.request.get(`${origin}/document/${name}?path=${encodeURIComponent(scratch(name))}`, { headers: { Connection: "close" } });
+    if (response.status() !== 200) throw new Error(`Prepare ${scratch(name)} first`);
     return (await response.text()).replaceAll('\r\n', '\n');
   };
   const fresh = '---\nlitzio: 1\n---\n\n# Lists\n\nIntro paragraph.\n\n- Wire\n- Power\n\nDone.\n';
   if (await markdown() !== fresh) throw new Error('Scratch document is not a fresh list fixture');
+  const inlineParagraph = '**Bold** and *italic*, [manual](https://a.example), $x$[^n], {cite}`Alpha`, {eq}`eq-a`.';
+  const inlineTail = ['', '```{math}', ':label: eq-a', '', 'a = b', '```', '', 'Guard.', '', '[^n]: Note.', ''];
+  const inlineFresh = ['---', 'litzio: 1', '---', '', '# Lists', '', '- Outer', '  - Middle', '    - Deep', '', inlineParagraph, ...inlineTail].join('\n');
+  if (await markdown('list-inline.md') !== inlineFresh) throw new Error('Scratch document is not a fresh inline list fixture');
 
-  const openScratch = async () => {
-    await openDocument(page, file);
-    await page.waitForFunction(() =>
+  const openScratch = async (name = 'lists.md') => {
+    await openDocument(page, scratch(name));
+    await page.waitForFunction((name) =>
       document.querySelector('[data-testid="status"]')?.getAttribute('data-operation') === 'ready' &&
-      document.querySelector('[data-testid="current-file"]')?.getAttribute('title')?.includes('lists.md'));
+      document.querySelector('[data-testid="current-file"]')?.getAttribute('title')?.includes(name), name);
   };
   // Place the caret after a text block's content, like continuous-editing; keys are real.
   const caretAtEnd = async (text) => page.locator('[data-document-tab][data-active=true] .document-editor').evaluate((element, text) => {
@@ -110,15 +115,17 @@ async (page, { openDocument, withBlockHover }) => {
   await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.textContent?.trim() === 'Unsaved changes');
 
   // Below a numbered list whose last item has a nested list, Backspace at the start of a
-  // written line appends its text to the visually last item, as one Undo step (#1821).
+  // written line appends its text to the visually last item (#1821). Typed at a person's
+  // speed, Home and Backspace fall inside history's 500 ms grouping window, yet the join is
+  // its own Undo step: one Undo restores the separate line with its typed text.
   await page.keyboard.press('Enter');
   await page.keyboard.type('Inner');
   await page.keyboard.press('Tab');
   for (let i = 0; i < 3; i++) await page.keyboard.press('Enter');
-  await page.keyboard.type('Tail');
-  // A person pauses before the next edit; history groups edits made within 500 ms.
-  await page.waitForTimeout(700);
+  await page.keyboard.type('Tail', {delay:110});
+  await page.waitForTimeout(110);
   await page.keyboard.press('Home');
+  await page.waitForTimeout(110);
   const writtenLine = await shape();
   await page.keyboard.press('Backspace');
   const joined = await shape();
@@ -164,6 +171,34 @@ async (page, { openDocument, withBlockHover }) => {
   const reloaded = page.locator('[data-document-tab][data-active=true]').getByTestId('document-editor');
   await reloaded.locator('ul[data-block="list"]').first().waitFor({state:'visible'});
   const reopened = await shape();
+  const reloadedNested = await reloaded.locator('ul[data-block="list"] ul[data-block="list"] > li').innerText() === 'Check';
+
+  // A click in a paragraph holding inline atoms, then Home and Backspace with no pause: the
+  // Backspace can arrive before Home's selectionchange. The join still uses the moved caret
+  // and keeps every inline node and the endnote definition through Save and reopen (#1821).
+  await openScratch('list-inline.md');
+  const inlineEditor = page.locator('[data-document-tab][data-active=true] .document-editor');
+  await inlineEditor.locator(':scope > p').filter({hasText:'Bold'}).click();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Backspace');
+  const inlineJoined = await shape();
+  const inlineAtoms = await inlineEditor.evaluate(element => {
+    const names = [];
+    element.editor.state.doc.descendants(node => { if (node.isInline && !node.isText) names.push(node.type.name); });
+    return names.join(',');
+  });
+  await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.textContent?.trim() === 'Unsaved changes');
+  await page.getByRole('button', {name:'Save', exact:true}).click();
+  await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor({state:'attached'});
+  const inlineSaved = await markdown('list-inline.md');
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.getAttribute('data-operation') === 'ready');
+  await openScratch('list-inline.md');
+  await page.locator('[data-document-tab][data-active=true] .document-editor ul').first().waitFor({state:'visible'});
+  const inlineReopened = await shape();
+  const inlineExpected = ['---', 'litzio: 1', '---', '', '# Lists', '', '*   Outer', '', '    *   Middle', '',
+    '        *   Deep' + inlineParagraph, ...inlineTail].join('\n');
+
   const result = {
     openedEditable,
     tabNested,
@@ -173,9 +208,13 @@ async (page, { openDocument, withBlockHover }) => {
     joinUndoRedo,
     savedAsCanonicalMarkdown: saved === expected,
     reopenedSameLists: reopened.doc === redone.doc,
-    reloadedNested: await reloaded.locator('ul[data-block="list"] ul[data-block="list"] > li').innerText() === 'Check',
+    reloadedNested,
+    inlineAtomsKept: inlineAtoms === 'inlineMath,footnoteReference,citation,crossReference' &&
+      inlineJoined.caret.startsWith('"DeepBold and italic') && inlineJoined.caret.endsWith('@4'),
+    inlineSavedCanonical: inlineSaved === inlineExpected,
+    inlineReopenedSame: inlineReopened.doc === inlineJoined.doc,
   };
   const failed = Object.entries(result).filter(([, value]) => value !== true);
-  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, emptyLine, backspacedEmptyLine, writtenLine, joined, undone, redone, reopened})}`);
+  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, emptyLine, backspacedEmptyLine, writtenLine, joined, undone, redone, reopened, inlineJoined, inlineAtoms, inlineSaved, inlineReopened})}`);
   return result;
 }

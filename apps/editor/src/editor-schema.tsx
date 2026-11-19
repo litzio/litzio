@@ -11,6 +11,7 @@ import { Subscript } from "@tiptap/extension-subscript";
 import { Superscript } from "@tiptap/extension-superscript";
 import { codeHighlightingPlugin, lowlight } from "./code-highlight.ts";
 import { type Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { closeHistory } from "@tiptap/pm/history";
 import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { documentInteraction } from "./document-interaction.ts";
@@ -623,14 +624,15 @@ const ParagraphMerge = Extension.create({
         const previous = state.doc.resolve(pos).nodeBefore;
         if (previous && ["bulletList", "orderedList"].includes(previous.type.name)) {
           // List v1 items hold one paragraph, so the paragraph's text continues the visually
-          // last item instead of becoming a new item (#1821). An empty paragraph is removed.
+          // last item instead of becoming a new item (#1821). One replacement removes only the
+          // boundary between the two text blocks, so the inline content and its atoms move as
+          // they are (an empty paragraph just disappears). The join is its own Undo step.
           let end = 0;
           previous.descendants((node, offset) => {
             if (node.isTextblock) end = pos - previous.nodeSize + 1 + offset + 1 + node.content.size;
             return !node.isTextblock;
           });
-          const paragraph = selection.$from.parent;
-          const tr = state.tr.delete(pos, pos + paragraph.nodeSize).insert(end, paragraph.content);
+          const tr = closeHistory(state.tr).delete(end, pos + 1);
           this.editor.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, end)).scrollIntoView());
           return true;
         }
