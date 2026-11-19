@@ -239,19 +239,22 @@ async (page, { showNotifications, openPath }) => {
   result.markdownSaveReload = true;
 
   // Ctrl+Shift+V keeps the characters; text without Markdown syntax pastes exactly as before.
+  // The engine treats a paste with Shift held as plain, which is what Ctrl+Shift+V delivers in
+  // Windows Chromium. The Linux CI browser binds no Ctrl+Shift+V paste, so hold Shift around the event.
   const pasteBoth = async text => {
     await select('Omega.');
     const before = await state();
-    await writeText(text);
-    const paste = async key => {
-      await page.keyboard.press(key);
+    const paste = async shift => {
+      if (shift) await page.keyboard.down('Shift');
+      await textPaste(text);
+      if (shift) await page.keyboard.up('Shift');
       await changedFrom(before);
       const pasted = await outline();
       await page.keyboard.press('Control+z');
-      assert((await state()).doc === before.doc, `One Undo restores the ${key} paste`);
+      assert((await state()).doc === before.doc, `One Undo restores the ${shift ? 'plain' : 'automatic'} paste`);
       return pasted;
     };
-    return {plain: await paste('Control+Shift+v'), auto: await paste('Control+v')};
+    return {plain: await paste(true), auto: await paste(false)};
   };
   const literal = await pasteBoth('# 제목 **굵게**\n1. 항목');
   assert(JSON.stringify(literal.plain.slice(-2)) === JSON.stringify(['paragraph|# 제목 **굵게**|', 'paragraph|1. 항목Omega.|']) &&
