@@ -207,10 +207,22 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: bo
     if (node.children?.some(child => child.type === "strong" || child.type === "emphasis")) {
       node.children = encodeEmphasisBoundaries(node.children, alternate);
     }
-    // myst-to-md does not protect literal dollars, citation-triggering @ text or a line that
-    // starts with a MyST colon fence. The writer emits these escaped `html` values verbatim.
+    // myst-to-md does not protect literal dollars, citation-triggering @ text or text that
+    // starts an output line with a MyST colon fence. The writer emits these escaped `html` values verbatim.
     if (node.children?.some(child => child.type === "text" && /[$@]|(?:^|\n):::/.test(String(child.value)))) {
-      node.children = node.children.flatMap((child, index) => child.type === "text" ? escapeText(child, inLink, index === 0) : [child]);
+      // An output line starts at a paragraph's first text and after a hard break; a heading's
+      // `#`, a cell's `|`, a mark's `**` or a role's name come first everywhere else.
+      const paragraph = node.type === "paragraph";
+      // The writer turns a line ending before raw output into a space, so a hard break before
+      // a fence is written raw together with the escaped colon.
+      const fenceAfterBreak = (index: number, siblings: MystNode[]) => paragraph && siblings[index]?.type === "text" &&
+        siblings[index - 1]?.type === "break" && String(siblings[index]!.value).startsWith(":::");
+      node.children = node.children.flatMap((child, index, siblings) => {
+        if (fenceAfterBreak(index + 1, siblings)) return [{ type: "html", value: "\\\n\\:" }];
+        if (child.type !== "text") return [child];
+        if (fenceAfterBreak(index, siblings)) return escapeText({ ...child, value: String(child.value).slice(1) }, inLink, false);
+        return escapeText(child, inLink, paragraph && index === 0);
+      });
     }
     // myst-to-md writes inline math as the `{math}` role; write MyST's usual `$...$`.
     if (node.children?.some(child => child.type === "inlineMath")) {

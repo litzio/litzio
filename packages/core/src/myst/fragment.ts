@@ -37,7 +37,7 @@ export function readMarkdownFragment(markdown: string): MarkdownFragment {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   const document = parse(NATIVE_PREFIX + lines.join("\n"));
   const [frontMatter, ...body] = document.children;
-  const ranges = sourceRanges(body, lines.length);
+  const ranges = sourceRanges(body, lines);
   const supported = body.map((node, index) => supportedNativeBlock(node, [index + 1]));
   const referenced = new Set<string>();
   body.forEach((node, index) => { if (supported[index] && node.type !== "footnoteDefinition") footnoteLabels(node, referenced); });
@@ -81,21 +81,35 @@ export function readMarkdownFragment(markdown: string): MarkdownFragment {
   };
 }
 
-/** Zero-based source lines of each body block. Lifted directives carry no position: they own
- * the lines between the previous body block and the next positioned source. Endnote
- * definitions always carry theirs, though the parse moves them after the body. */
-function sourceRanges(body: MystNode[], lineCount: number): Range[] {
+/** Zero-based source lines of each body block. Lifted directives carry no position: one
+ * starts at the first non-blank line after the previous body block and ends at its closing
+ * fence (the same fence character, at least as long), or else before the next positioned
+ * source. Endnote definitions always carry theirs, though the parse moves them after the body. */
+function sourceRanges(body: MystNode[], lines: string[]): Range[] {
   const line = (value: number | undefined) => value === undefined ? undefined : value - PREFIX_LINES - 1;
   const starts = body.flatMap(node => line(node.position?.start.line) ?? []);
   let previousEnd = -1;
+  let previousUnknown: Range | undefined;
   return body.map(node => {
     const start = line(node.position?.start.line), end = line(node.position?.end.line);
     if (start !== undefined && end !== undefined) {
-      if (node.type !== "footnoteDefinition") previousEnd = end;
+      if (node.type !== "footnoteDefinition") { previousEnd = end; previousUnknown = undefined; }
       return { start, end, known: true };
     }
-    const next = Math.min(lineCount, ...starts.filter(value => value > previousEnd));
-    return { start: previousEnd + 1, end: next - 1, known: false };
+    const next = Math.min(lines.length, ...starts.filter(value => value > previousEnd));
+    let first = previousEnd + 1;
+    while (first < next && !lines[first]!.trim()) first++;
+    // No lines left: the previous lifted block's range was a guess that took them; share it.
+    if (first >= next && previousUnknown) return { ...previousUnknown };
+    const opener = /^ {0,3}(:{3,}|`{3,}|~{3,})/.exec(lines[first] ?? "")?.[1];
+    let close = next - 1;
+    if (opener) {
+      const closer = new RegExp(`^ {0,3}${opener[0] === ":" ? ":" : `\\${opener[0]}`}{${opener.length},}[ \\t]*$`);
+      for (let at = first + 1; at < next; at++) if (closer.test(lines[at]!)) { close = at; break; }
+    }
+    previousEnd = close;
+    previousUnknown = { start: first, end: close, known: false };
+    return { ...previousUnknown };
   });
 }
 

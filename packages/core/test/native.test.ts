@@ -11,7 +11,7 @@ import {
   createDocument, parse, serialize, getEditableDocument, NativeDocumentError, canonicalWriteIssue, hasNativeMarker,
   insertHeading, insertParagraph, insertFigure, updateHeadingNumbering, removeBlock,
   updateHeadingInlineContent, updateHeadingLevel, insertFootnote, updateParagraphInlineContent, moveBlock,
-  insertTarget, moveSection, removeSection, updateNodeTextAtPath, updateTableCell, mergeParagraphWithPrevious,
+  insertTarget, moveSection, removeSection, updateNodeTextAtPath, updateTableCell, mergeParagraphWithPrevious, insertHardBreak,
 } from "@litzio/core";
 
 const native = (body: string) => `---\nlitzio: 1\n---\n\n${body}`;
@@ -284,6 +284,9 @@ test("Markdown that native admission refuses is kept as literal source lines in 
     [["paragraph", "Rich"], ["paragraph", "- [ ] [task][url]"], ["paragraph", "[url]: https://example.com/path"]]);
   assert.deepEqual(lines("**Rich**\n\n- [ ] A[^a]\n\n[^a]: Definition\n\nEnd text"),
     [["paragraph", "Rich"], ["paragraph", "- [ ] A[^a]"], ["paragraph", "[^a]: Definition"], ["paragraph", "End text"]]);
+  // A kept directive owns its lines up to its closing fence, not the definition after it.
+  assert.deepEqual(lines("**Rich**\n\n:::{note}\nKept\n:::\n\n[url]: https://example.com/path\n\n- [ ] [task][url]"),
+    [["paragraph", "Rich"], ["admonition", "Kept"], ["paragraph", "[url]: https://example.com/path"], ["paragraph", "- [ ] [task][url]"]]);
   // Without refused text, a kept link already carries its definition's URL.
   assert.deepEqual(core.readMarkdownFragment("**a** [x][r]\n\n[r]: https://example.com").literal, 0);
   // Literal colon fences are writable text.
@@ -297,6 +300,25 @@ test("Markdown that native admission refuses is kept as literal source lines in 
     assert.equal(fragment.formatted, true);
     assert.ok(fragment.literal > 0);
   }
+});
+
+test("canonical write escapes a colon fence only where it starts an output line", () => {
+  // Where a heading's #, a cell's |, a mark, a role or a link comes first, the bytes are the
+  // ones written before the escape existed.
+  for (const body of ["# ::: heading\n", ":::{table}\n\n| A   |\n| --- |\n| ::: |\n:::\n", ":::{note}\n**::: body**\n:::\n",
+    "H{sub}`::: example`\n", "[:::x](https://e.com)\n", "x :::\n", "**a** :::b\n"]) {
+    assert.equal(serialize(parse(native(body))), native(body), body);
+  }
+  // Text that starts an output line (a paragraph's start, after a soft or hard break) is written
+  // escaped and reopens as the same text.
+  for (const body of ["\\:::x\n", "a\n\\:::b\n", "*   a\n    \\:::b\n", "> \\:::x\n", "**a\n\\:::b**\n", "A\\\n\\:::colon\n"]) {
+    assert.equal(serialize(parse(native(body))), native(body), body);
+  }
+  // A hard break added by a Core operation keeps its line and its break.
+  const broken = insertHardBreak(parse(native("A::: colon\n")), [1], 1);
+  assert.equal(serialize(broken), native("A\\\n\\::: colon\n"));
+  assert.deepEqual(getEditableDocument(parse(serialize(broken))).blocks.map(block => "content" in block ? block.content : []),
+    [[{ kind: "text", text: "A" }, { kind: "break" }, { kind: "text", text: "::: colon" }]]);
 });
 
 test("native table directives reject source options before the parser can discard them", async (t) => {
