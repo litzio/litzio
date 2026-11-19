@@ -23,12 +23,7 @@ const decodes = new Map<number, boolean>();
  */
 export function encodeEmphasisBoundaries(children: MystNode[], alternate = false): MystNode[] {
   const underscored = new Set<MystNode>();
-  if (alternate) children.forEach((child, index) => {
-    const before = children[index - 1];
-    if (isMark(child) && isMark(before) && !underscored.has(before) && mixed(edge(before, "last"), edge(child, "first"))) {
-      underscored.add(child);
-    }
-  });
+  if (alternate) children.forEach((child, index) => { if (switchable(children, index)) underscored.add(child); });
   const result: MystNode[] = [];
   children.forEach((child, index) => {
     if (underscored.has(child)) {
@@ -72,55 +67,78 @@ export function encodeEmphasisBoundaries(children: MystNode[], alternate = false
  * (`*` markers, references by CommonMark 0.31 classes) is written first and kept whenever the
  * pinned reader reads it back unchanged; a second attempt changes only refused documents, and
  * if it is refused as well the first refusal stands. It does two things:
- * - Adjacent marks share one `*` run (`**정확도(A)***를*`), which may not close the first mark
- *   and open the second when punctuation meets a letter or digit. The second mark of each such
+ * - Two adjacent marks share one `*` run (`**정확도(A)***를*`), which may not close the first mark
+ *   and open the second when punctuation meets a letter or digit. The second mark of such a
  *   pair uses `_` (`**정확도(A)**_를_`), as mdast-util-to-markdown 2.x does. `_` cannot close
  *   inside a word, so a letter or digit after it is written as a reference too.
- * - An outer character is also encoded where only markdown-it 13 fails (`**(a)**&#x1F600;`).
+ * - An outer character is also encoded where any of `readers` fails (`**(a)**&#x1F600;`).
+ * Readers merge chains of three or more adjacent marks differently, and `readers` disagree on
+ * symbols and supplementary characters, so no notation is safe for all of them there: a chain
+ * is never switched, and a document with any adjacent marks the readers judge differently
+ * (`**→***a.*`) gets no second attempt.
  */
 export function hasAlternateBoundaries(node: MystNode): boolean {
-  const children = node.children ?? [];
-  return children.some((child, index) => {
+  let candidate = false;
+  const visit = (parent: MystNode): boolean => (parent.children ?? []).every((child, index, children) => {
     const before = children[index - 1], after = children[index + 1];
-    if (isMark(child) && isMark(before) && mixed(edge(before, "last"), edge(child, "first"))) return true;
+    if (isMark(child) && isMark(before)) {
+      const left = edge(before, "last"), right = edge(child, "first");
+      if (new Set(readers.map(reader => mixed(reader, left, right))).size > 1) return false;
+      if (switchable(children, index)) candidate = true;
+    }
     if (child.type === "text") {
       const value = String(child.value ?? ""), first = firstChar(value), last = lastChar(value);
-      if (first && isMark(before) && breaks(edge(before, "last"), first, "after", true)) return true;
-      if (last && isMark(after) && breaks(edge(after, "first"), last, "before", true)) return true;
+      if (first && isMark(before) && breaks(edge(before, "last"), first, "after", true)) candidate = true;
+      if (last && isMark(after) && breaks(edge(after, "first"), last, "before", true)) candidate = true;
     }
-    return hasAlternateBoundaries(child);
+    return visit(child);
   });
+  return visit(node) && candidate;
+}
+
+type Kind = "space" | "punctuation" | "word";
+type Reader = (character: string, unit: number) => Kind;
+
+/** How readers class the character beside a delimiter run: CommonMark 0.31 (and
+ * markdown-it 14.3) by code point with Unicode symbols as punctuation; the pinned
+ * markdown-it 13 by the UTF-16 unit beside the run without symbols; markdown-it 14.1 by
+ * that unit with symbols. */
+const readers: Reader[] = [
+  character => /^\s$/u.test(character) ? "space" : isPunctuation(character) ? "punctuation" : "word",
+  (_, unit) => isWhiteSpace(unit) ? "space" : isMdAsciiPunct(unit) || isPunctChar(String.fromCharCode(unit)) ? "punctuation" : "word",
+  (_, unit) => isWhiteSpace(unit) ? "space" : isMdAsciiPunct(unit) || isPunctuation(String.fromCharCode(unit)) ? "punctuation" : "word",
+];
+
+function kind(reader: Reader, character: string, side: "start" | "end"): Kind {
+  return reader(character, side === "start" ? character.charCodeAt(0) : character.charCodeAt(character.length - 1));
 }
 
 /**
  * Whether the delimiter between a mark's inner edge and the touching outer character cannot
- * close (`side` "after": outer text follows the mark) or open ("before"). CommonMark 0.31 and
- * markdown-it 14 judge code points with Unicode symbols as punctuation. With `alternate`, the
- * judgement of the pinned markdown-it 13 on the UTF-16 unit beside the delimiter counts too.
+ * close (`side` "after": outer text follows the mark) or open ("before"). The plain output
+ * judges by CommonMark 0.31 classes; with `alternate`, a failure for any reader counts.
  */
 function breaks(inner: string | undefined, outer: string, side: "before" | "after", alternate: boolean): boolean {
   if (inner === undefined) return false;
-  if (isPunctuation(inner) && isWordChar(outer)) return true;
-  if (!alternate) return false;
-  const innerUnit = side === "after" ? inner.charCodeAt(inner.length - 1) : inner.charCodeAt(0);
-  const outerUnit = side === "after" ? outer.charCodeAt(0) : outer.charCodeAt(outer.length - 1);
-  return punctuation13(innerUnit) && word13(outerUnit);
+  const [innerSide, outerSide] = side === "after" ? ["end", "start"] as const : ["start", "end"] as const;
+  return (alternate ? readers : readers.slice(0, 1))
+    .some(reader => kind(reader, inner, innerSide) === "punctuation" && kind(reader, outer, outerSide) === "word");
 }
 
-/** One edge is punctuation and the other is not, for either reader: the shared run may not do both. */
-function mixed(left: string | undefined, right: string | undefined): boolean {
+/** The second of exactly two adjacent marks whose shared run cannot close one and open the
+ * other, for every reader alike. */
+function switchable(children: MystNode[], index: number): boolean {
+  const before = children[index - 1], child = children[index];
+  if (!isMark(child) || !isMark(before) || isMark(children[index - 2]) || isMark(children[index + 1])) return false;
+  const left = edge(before, "last"), right = edge(child, "first");
+  return readers.every(reader => mixed(reader, left, right));
+}
+
+/** One edge is punctuation and the other a letter or digit, for this reader. */
+function mixed(reader: Reader, left: string | undefined, right: string | undefined): boolean {
   if (left === undefined || right === undefined) return false;
-  if ((isPunctuation(left) && isWordChar(right)) || (isWordChar(left) && isPunctuation(right))) return true;
-  const leftUnit = left.charCodeAt(left.length - 1), rightUnit = right.charCodeAt(0);
-  return (punctuation13(leftUnit) && word13(rightUnit)) || (word13(leftUnit) && punctuation13(rightUnit));
-}
-
-function punctuation13(unit: number): boolean {
-  return isMdAsciiPunct(unit) || isPunctChar(String.fromCharCode(unit));
-}
-
-function word13(unit: number): boolean {
-  return !isWhiteSpace(unit) && !punctuation13(unit);
+  const l = kind(reader, left, "end"), r = kind(reader, right, "start");
+  return (l === "punctuation" && r === "word") || (l === "word" && r === "punctuation");
 }
 
 function isMark(node: MystNode | undefined): node is MystNode {

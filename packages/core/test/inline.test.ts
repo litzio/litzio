@@ -259,7 +259,6 @@ test("marks with punctuation at the edge stay marks beside letters, digits and a
     [strong(text("값")), emphasis(text("(를)")), text(" 본다")],
     [emphasis(text("값")), strong(text("(를)")), text(" 본다")],
     [text("값"), strong(text("정확도(A)")), emphasis(text("를")), text("본다")],
-    [strong(text("a.")), emphasis(text("b")), strong(text("c"))],
     [strong(text("(A)")), emphasis(text("b\n다"))],
     [strong(text("(A)")), emphasis(text("b"), { kind: "break" }, text("다"))],
     [strong(text("(A)")), emphasis(text("b")), text("c@name")],
@@ -269,7 +268,6 @@ test("marks with punctuation at the edge stay marks beside letters, digits and a
     [strong(text("(a)")), text("𐄀")],
     [strong(text("(a)")), text("→")],
     [text("😀"), strong(text("(a)"))],
-    [strong(text("(a)")), emphasis(text("😀"))],
     // Not representable with a reference: left unencoded, so a symbol edge still saves.
     [strong(text("X→")), text("\u0085")],
     [text("line \nz"), strong(text("→X"))],
@@ -296,7 +294,7 @@ test("marks with punctuation at the edge stay marks beside letters, digits and a
     [[strong(text("(a)")), text("😀")], "**(a)**&#x1F600;\n"],
     [[strong(text("(a)")), text("𐄀")], "**(a)**&#x10100;\n"],
     [[strong(text("(a)")), text("→")], "**(a)**&#x2192;\n"],
-    // Both readers close this one: its bytes stay.
+    // The pinned reader closes this one, so its bytes stay.
     [[strong(text("값→")), text("😀")], "**값→**😀\n"],
     [[strong(text("→")), emphasis(text("b")), text("\u0085")], "**→***b*\u0085\n"],
     [[strong(text("굵게")), emphasis(text("기울임"))], "**굵게***기울임*\n"],
@@ -304,7 +302,13 @@ test("marks with punctuation at the edge stay marks beside letters, digits and a
     [[strong(text("(A)")), emphasis(text("(B)"))], "**(A)***(B)*\n"],
   ] as [InlineContent[], string][]) assert.equal(serialize(updateParagraphInlineContent(parse("Original."), [0], content)), expected);
   for (const content of [[strong(text("(X)")), text("\u0085")], [text("a"), { kind: "break" }, text("z"), strong(text("(X)"))],
-    [strong(text("(A)")), emphasis(text("b")), text("\u0085")]] as InlineContent[][]) {
+    [strong(text("(A)")), emphasis(text("b")), text("\u0085")],
+    // No `_` is chosen where readers class the touching characters differently, or for chains
+    // of three or more adjacent marks: these stay refused as before.
+    [strong(text("(a)")), emphasis(text("😀"))],
+    [strong(text("→")), emphasis(text("😀")), strong(text("(a)"))],
+    [strong(text("😀")), emphasis(text("→")), strong(text("(a)"))],
+    [strong(text("a.")), emphasis(text("b")), strong(text("c"))]] as InlineContent[][]) {
     assert.throws(() => updateParagraphInlineContent(parse("Original."), [0], content), /round-trip/);
   }
   // Native files: a written reference is admitted and keeps its bytes; symbol edges keep saving.
