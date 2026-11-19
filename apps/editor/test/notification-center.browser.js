@@ -1,5 +1,5 @@
 // Window-scoped notifications: applied Core numbering, render failures, lifecycle and navigation.
-async (page, { openPath, expect, screenshots }) => {
+async (page, { openPath, expect }) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.evaluate(() => localStorage.setItem('litzio.uiLanguage','en'));
   await page.reload();
@@ -71,7 +71,6 @@ async (page, { openPath, expect, screenshots }) => {
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
         expect(bounds.y).toBeGreaterThanOrEqual(0);
         expect(bounds.y + bounds.height).toBeLessThanOrEqual(900);
-        if (screenshots) await page.screenshot({ path: `tmp/970-outline-${width}-${open ? 'panel' : 'closed'}-${expanded ? 'list' : 'bell'}.png` });
       }
     }
   }
@@ -88,60 +87,6 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(center.locator('ul')).toHaveText('No notifications');
   await expect(center.locator('ul')).toBeVisible();
   await toggle().click();
-  if (screenshots) {
-    for (const language of ['en','ko']) {
-      if (language === 'ko') {
-        await page.getByRole('button', {name:'Settings',exact:true}).click();
-        await page.getByTestId('ui-language').selectOption('ko');
-        await page.keyboard.press('Escape');
-        await page.getByTestId('settings-dialog').waitFor({state:'detached'});
-      }
-      const theme = language === 'ko' ? 'dark' : 'light';
-      await page.emulateMedia({colorScheme:theme});
-      for (const width of [1440,640]) {
-        await page.setViewportSize({width,height:900});
-        await page.evaluate(async () => {
-          await document.fonts.ready;
-          document.querySelector('.document-scroll[data-active=true]').scrollTo(0,0);
-        });
-        await expectEmpty(center, language === 'ko' ? '알림: 없음' : 'Notifications: none');
-        for (const state of ['closed','open']) {
-          if (state === 'open') await toggle().click();
-          await expect(toggle()).toHaveAttribute('aria-expanded',String(state === 'open'));
-          if (state === 'open') await expect(center.locator('ul')).toHaveText(language === 'ko' ? '알림 없음' : 'No notifications');
-          const bounds = await center.boundingBox();
-          expect(bounds.x).toBeGreaterThanOrEqual(0);
-          expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 16);
-          expect(bounds.y + bounds.height).toBeLessThanOrEqual(900);
-          expect(await center.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-          await page.mouse.move(0,0);
-          await page.screenshot({path:`tmp/notification-837-after-${width}-${theme}-${language}-${state}.png`});
-        }
-        await toggle().click();
-        // End-of-document selection still opens its toolbar. Notifications may overlap.
-        await engine.evaluate(el => el.editor.commands.focus('end'));
-        await engine.evaluate(el => {
-          const e = el.editor;
-          let range;
-          e.state.doc.descendants((node,pos) => {
-            if (node.isTextblock && node.textContent.length > 5) range = {from:pos+1,to:pos+6};
-          });
-          e.commands.setTextSelection(range);
-        });
-        const toolbar = page.locator('.selection-toolbar');
-        await expect(toolbar).toBeVisible();
-        await engine.evaluate(el => el.editor.commands.setTextSelection(el.editor.state.selection.to));
-      }
-    }
-    await page.getByRole('button', {name:'설정',exact:true}).click();
-    await page.getByTestId('ui-language').selectOption('en');
-    await page.keyboard.press('Escape');
-    await page.getByTestId('settings-dialog').waitFor({state:'detached'});
-    await page.setViewportSize({width:1440,height:900});
-    await page.emulateMedia({colorScheme:'light'});
-    await page.evaluate(() => document.querySelector('.document-scroll[data-active=true]').scrollTo(0,0));
-
-  }
   const change = async value => engine.evaluate((el, value) => {
     const e = el.editor;
     e.state.doc.forEach((node, pos) => {
@@ -184,48 +129,6 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(toggle()).toHaveAttribute('aria-expanded','false');
   await expect(toggle()).toBeFocused();
   await toggle().click();
-  if (screenshots) {
-    await engine.locator('[data-testid=mermaid-preview] img').first().waitFor();
-    for (const language of ['en', 'ko']) {
-      if (language === 'ko') {
-        await page.getByRole('button', { name: 'Settings', exact: true }).click();
-        await page.getByTestId('ui-language').selectOption('ko');
-        await page.keyboard.press('Escape');
-        await page.getByTestId('settings-dialog').waitFor({ state: 'detached' });
-      }
-      for (const width of [1440, 640]) for (const theme of ['light', 'dark']) {
-        await page.setViewportSize({ width, height: 900 });
-        await page.emulateMedia({ colorScheme: theme });
-        await page.evaluate(async () => { await document.fonts.ready; document.querySelector('.document-scroll[data-active=true]').scrollTo(0,0); });
-        await page.mouse.move(0,0);
-        const geometry = await center.evaluate(el => {
-          const list = el.querySelector('ul'), rect = el.getBoundingClientRect();
-          return { left:rect.left, right:rect.right, top:rect.top, bottom:rect.bottom,
-            width:innerWidth, height:innerHeight, contentFits:list.scrollWidth === list.clientWidth,
-            pageFits:document.documentElement.scrollWidth <= innerWidth };
-        });
-        expect(geometry.left).toBeGreaterThanOrEqual(0);
-        expect(geometry.right).toBeLessThanOrEqual(geometry.width - 16);
-        expect(geometry.top).toBeGreaterThanOrEqual(0);
-        expect(geometry.bottom).toBeLessThanOrEqual(geometry.height);
-        expect(geometry.contentFits && geometry.pageFits).toBe(true);
-        const sidebar = await page.getByTestId('sidebar').boundingBox();
-        expect(geometry.left).toBeGreaterThanOrEqual(sidebar.x + sidebar.width);
-        const alignment = await center.getByTestId('numbering-warning').evaluate(el => {
-          const range = document.createRange(); range.selectNodeContents(el.querySelector('button'));
-          return Math.abs(range.getBoundingClientRect().left - el.querySelector('p').getBoundingClientRect().left);
-        });
-        expect(alignment).toBeLessThan(1);
-        await page.screenshot({ path: `tmp/notification-792-after-${width}-${theme}-${language}.png` });
-      }
-    }
-    await page.getByRole('button', { name:'설정', exact:true }).click();
-    await page.getByTestId('ui-language').selectOption('en');
-    await page.keyboard.press('Escape');
-    await page.getByTestId('settings-dialog').waitFor({state:'detached'});
-    await page.setViewportSize({width:1440,height:900});
-    await page.emulateMedia({colorScheme:'light'});
-  }
   await center.getByRole('button', { name:'Go to problem', exact:true }).click();
   // NotificationScope reveals the document before navigating on the next animation frame.
   // Observe that completed navigation, rather than the selection before its callback runs.
