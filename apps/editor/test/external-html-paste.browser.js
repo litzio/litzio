@@ -318,20 +318,20 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   assert((await state()).doc === beforeNotes.doc, 'Two Undo steps restore two endnote pastes');
   result.markdownEndnotes = true;
 
-  // Markdown that native admission refuses stays as its text, with a notice.
-  await select('Omega.');
-  const beforeUnsupported = await state();
-  await textPaste('**지원** 문단\n\n- [ ] 할 일');
-  await showNotifications(page);
-  await notice.filter({hasText:'Unsupported Markdown was pasted as plain text.'}).waitFor({state:'visible'});
-  const unsupported = await outline();
-  assert(unsupported.includes('paragraph|지원 문단|bold') && unsupported.includes('paragraph|- [ ] 할 일Omega.|'),
-    `Unsupported Markdown must stay as its text: ${JSON.stringify(unsupported)}`);
-  await editor.evaluate(el => el.editor.commands.undo());
-  assert((await state()).doc === beforeUnsupported.doc, 'One Undo restores a partly literal Markdown paste');
-  result.markdownUnsupported = true;
+  // All or nothing: text Core does not read as a whole (a task list line, link reference
+  // definitions, comments, block breaks, a leading thematic break before a definition) pastes
+  // exactly as Ctrl+Shift+V does, without a notice.
+  await notice.waitFor({state:'detached', timeout:10000});
+  for (const text of ['**지원** 문단\n\n- [ ] 할 일', '**a** [x][r]\n\n[r]: https://example.com/r', '**a**\n\n% 주석\n\nb', '**a**\n\n+++\n\nb',
+    '---\n> [r]: https://example.com/r\n---\n\n**b**']) {
+    const both = await pasteBoth(text);
+    assert(JSON.stringify(both.auto) === JSON.stringify(both.plain) && both.auto.some(block => block.includes('**')),
+      `Text Core does not read as a whole pastes as plain text: ${JSON.stringify(both)}`);
+    assert(await notice.count() === 0, `No notice for a plain-text paste: ${text}`);
+  }
+  result.markdownAllOrNothing = true;
 
-  // E. Review regressions (#1844): one-line places, endnotes, URLs, history, composition, refused source.
+  // E. Review regressions (#1844): one-line places, endnotes, URLs, history, composition.
   const placesFile = [root, 'tmp', 'external-html-paste', 'places.md'].join(separator);
   await openPath(page, placesFile);
   await editor.locator('[data-block="table"]').waitFor();
@@ -360,7 +360,7 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
 
   // URLs: clipboard text that is one URL becomes a link (also with Ctrl+Shift+V and over a
   // selection), a URL in external HTML text too; a link already read keeps its target and title;
-  // code and Markdown Core kept literal stay text, and nothing outside the paste joins a link.
+  // code stays text, and nothing outside the paste joins a link.
   const linksIn = marker => editor.evaluate((el, marker) => {
     let found;
     el.editor.state.doc.descendants(node => { if (!found && node.isTextblock && node.textContent.includes(marker)) found = node; });
@@ -380,7 +380,7 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     ['markdown link', () => select('Omega.'), () => textPaste(`[${url}](https://example.org/target "Keep")`), 'example.com',
       [[url, 'link https://example.org/target Keep'], ['Omega.', '']]],
     ['inline code', () => caretIn('Inline mono text.', 'Inline m'.length), () => textPaste(url), 'Inline', [['Inline ', ''], [`m${url}ono`, 'code'], [' text.', '']]],
-    ['literal line', () => caretIn('LeftRIGHT', 'Left'.length), () => textPaste(`[url]: ${url}`), 'Left', [[`Left[url]: ${url}RIGHT`, '']]],
+    ['definition line', () => caretIn('LeftRIGHT', 'Left'.length), () => textPaste(`[url]: ${url}`), 'Left', [['Left[url]: ', ''], [url, `link ${url}`], ['RIGHT', '']]],
     // A URL inside pasted text links only itself: "RIGHT" right after it stays document text.
     ['sentence', () => caretIn('LeftRIGHT', 'Left'.length), () => textPaste(`see ${url}`), 'Left', [['Leftsee ', ''], [url, `link ${url}`], ['RIGHT', '']]],
     ['markdown sentence', () => select('Omega.'), () => textPaste(`**b** see ${url}`), 'see', [['b', 'bold'], [' see ', ''], [url, `link ${url}`], ['Omega.', '']]],
@@ -451,32 +451,5 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   assert((await state()).doc === beforeDrop2.doc, 'One Undo restores the drop');
   result.markdownComposition = true;
 
-  // Refused Markdown alone is literal with a notice; a table with options keeps the bold before it and saves.
-  // A link definition sends the whole text to literal lines, and a `+++` line among them saves.
-  for (const [anchor, whole, text] of [['LeftRIGHT', true, '- [ ] Task'], ['Inline mono text.', true, '**Rich**\n\n[unused]: /path\n\n```md\n+++\n```'],
-    ['Omega.', false, '**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::']]) {
-    await notice.waitFor({state:'detached', timeout:10000});
-    await select(anchor, whole);
-    await textPaste(text);
-    await showNotifications(page);
-    await notice.filter({hasText:'Unsupported Markdown was pasted as plain text.'}).waitFor({state:'visible'});
-  }
-  const refusedSource = await outline();
-  assert(['paragraph|- [ ] Task|', 'paragraph|Rich|bold', 'paragraph|:::{table}|', 'paragraph|:widths: 1 2|', 'paragraph|:::Omega.|'].every(block => refusedSource.includes(block)),
-    `Refused Markdown keeps its source and the formatting around it: ${JSON.stringify(refusedSource)}`);
-  const wholeLiteral = ['paragraph|**Rich**|', 'paragraph|[unused]: /path|', 'paragraph|```md|', 'paragraph|+++|', 'paragraph|```|'];
-  assert(JSON.stringify(refusedSource.slice(refusedSource.indexOf(wholeLiteral[0]), refusedSource.indexOf(wholeLiteral[0]) + 5)) === JSON.stringify(wholeLiteral),
-    `A link definition keeps every line literal: ${JSON.stringify(refusedSource)}`);
-  await page.getByRole('button', {name:'Save', exact:true}).click();
-  await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
-  assert(await page.getByTestId('status').getAttribute('data-operation') === 'saved', `Literal colon fences save: ${await page.locator('body').innerText()}`);
-  const placesDisk = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(placesFile)}`, { headers: { Connection: "close" } })).json()).source.replaceAll('\r\n', '\n');
-  assert(placesDisk.includes('**Rich**\n\n\\:::{table}\n\n:widths: 1 2\n\n') && placesDisk.includes('\\:::Omega.\n') && placesDisk.includes('\n\\+++\n'),
-    `Saved literal source: ${JSON.stringify(placesDisk)}`);
-  await reloadDocument(page);
-  await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  const reopened = await outline();
-  assert(wholeLiteral.every(block => reopened.includes(block)) && reopened.includes('paragraph|:::Omega.|'), `Reload keeps the literal lines: ${JSON.stringify(reopened)}`);
-  result.markdownRefusedSource = true;
   return result;
 }

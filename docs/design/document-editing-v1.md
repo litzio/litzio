@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Last verified: 2026-11-16 — #1658: 표 속성·Figure inline caption을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
-- Plain-text Markdown paste: 2026-11-20 (#1843 and its review; Core fragment reading tests and the `external-html-paste` browser scenario: structure, one Undo/Redo, Save → Reload, Ctrl+Shift+V, code, one-line places, endnotes, URLs, history, composition and refused source).
+- Plain-text Markdown paste: 2026-11-20 (#1843; all-or-nothing Core reading tests and the `external-html-paste` browser scenario: structure, one Undo/Redo, Save → Reload, Ctrl+Shift+V, plain-text fallback, code, one-line places, endnotes, URLs, history and composition).
 - Paragraph tail normalization: 2026-11-04 (#1107; native Shift+Enter → Save/Reload and path-only assistant-send browser regressions).
 - Empty-title entry: 2026-10-30 (#786; small bilingual optional-title hint, preserved slot height and immediate title typography; document-title browser regression and [captures](figure-authoring-v1.md#empty-authoring-entry-786)).
 - Engine upgrade: 2026-11-20 (#1827: Tiptap 3.34.0 and the `prosemirror-view@1.42.9` patch; `focus-caret`, `citation-authoring` and `document-title` with and without the patch on Windows Chrome).
@@ -549,44 +549,33 @@ command is added; pasting is an editor input interaction.
 
 ### Plain-text Markdown paste (#1843)
 
-Clipboard text without `text/html` (Notepad, `.md` files, AI chat source) is read as Markdown
-when Core finds Markdown syntax in it. Core `readMarkdownFragment` reads the text as the body
-of a native document, with the parser and native admission that open a document, and the Editor
-projects the blocks with the Core → editor projection that opening uses. No Markdown is read in
-the Editor. The slice then takes the External clipboard path above: fresh session locators, the
-same edge rule (only a paragraph edge joins the surrounding text), the one-line place checks
-below, the structure guard, endnote label planning, label duplicate refusal, one paste
-transaction and Core validation on Save. `text/html`, Litzio's typed clipboard and image files
-keep their existing precedence.
+Clipboard text without `text/html` (Notepad, `.md` files, AI chat source) is pasted as Litzio
+formatting only when Core reads all of it as a document. Core `readMarkdownFragment` reads the
+text as the whole body of a native document (`litzio: 1` frontmatter plus the text) through the
+same admission and canonical round-trip as opening a document; the Editor projects the blocks
+with the Core → editor projection that opening uses. No Markdown is read in the Editor.
+`text/html`, Litzio's typed clipboard and image files keep their existing precedence.
 
-- Markdown evidence: any kept block other than a paragraph, inline content other than text and
-  line breaks (bold, italic, inline code, links, math, references), or a block native admission
-  refuses. Indented code and trailing-space line breaks do not count, because plain text
-  indented by four spaces or with trailing spaces is not evidence that its author wrote
-  Markdown. Text without that evidence takes the engine's plain-text paste unchanged (one
-  paragraph per line). Arithmetic such as `2*3*4` is CommonMark emphasis and does count;
-  Ctrl+Shift+V keeps it literal.
-- Kept: everything native admission accepts, read exactly as Open reads it (a soft line break
-  stays in its paragraph, `&amp;` is `&`). Endnote definitions referenced by kept text are
-  inserted as for Litzio's own clipboard.
-- Literal with a notice ("Unsupported Markdown was pasted as plain text."): the source lines of
-  a block native admission refuses (task lists, multi-paragraph list items or quotes, raw HTML,
-  images, directives with unsupported options such as a table's `:widths:`) are pasted in their
-  place, one paragraph per non-blank line, among the formatted blocks. Endnote definitions only
-  refused text references stay with that text in source order. When the kept blocks fail
-  whole-document admission (bracket citation shorthand, an endnote definition nothing
-  references), every non-blank line is pasted that way. Nothing is dropped. A lifted directive
-  owns only its lines from its opening to its closing fence.
-  Whole text literal: Markdown holding source the parser consumes without editor content is
-  pasted entirely as literal lines with the notice: link reference definitions (used or not,
-  at any depth; a Litzio document does not keep reference links in their written form), MyST
-  comments (`%`) and block breaks (`+++`). So is any text with a non-blank line not explained by a
-  block the parser located, a literal line, or a fenced directive that reads back as the same
-  block (for example an unclosed directive). Lines that start with MyST block syntax save as
-  literal text
-  ([Core escapes it](document-support-v1.md#interfaces-and-errors)). The notice uses the paste notice channel
-  ([1440 capture](assets/markdown-paste-1843/notice-1440-light.png); Korean: "지원하지 않는
-  마크다운은 글자 그대로 붙여 넣었습니다.").
+- All or nothing: if any part of the text is not native content (a task list, a multi-paragraph
+  list item or quote, raw HTML, an image, a directive with unsupported options such as a table's
+  `:widths:`, bracket citation shorthand, an endnote definition nothing references), or the parse
+  consumes source without leaving editable content (link reference definitions, used or not and
+  at any depth; MyST comments, `%`; block breaks, `+++`), nothing is converted. The text takes
+  the engine's plain-text paste, the same result as Ctrl+Shift+V (one paragraph per line), with
+  no notice, as before. Consumed source is judged on the same source and parser options as the
+  parse, so a leading `---` is read alike by both.
+- Formatting evidence: a converted text must hold a block other than a paragraph or inline
+  content other than text and line breaks (bold, italic, inline code, links, math, references).
+  Indented code and trailing-space line breaks do not count, because plain text indented by four
+  spaces or with trailing spaces is not evidence that its author wrote Markdown. Text without
+  that evidence also takes the plain-text paste. Arithmetic such as `2*3*4` is CommonMark
+  emphasis and does count; Ctrl+Shift+V keeps it literal.
+- Converted text is read exactly as Open reads it (a soft line break stays in its paragraph,
+  `&amp;` is `&`). The slice takes the External clipboard path above: fresh session locators,
+  the same edge rule (only a paragraph edge joins the surrounding text), the one-line place
+  checks below, the structure guard, endnote label planning (endnote definitions referenced by
+  the text are inserted as for Litzio's own clipboard), label duplicate refusal and Core
+  validation on Save.
 - Literal places: Ctrl+Shift+V uses the engine's plain-text paste. Code blocks and a caret
   inside inline code keep the characters, as before. Title, math, source and property fields
   are native text fields whose paste the engine does not handle. Dropped text stays plain text,
@@ -604,9 +593,11 @@ keep their existing precedence.
   so one Undo removes the paste and keeps typing done just before it.
 - URLs: the engine's paste rules are all off; they re-read document text after a paste, so they
   rewrote links that already had a target, linked text in inline code and pulled text after the
-  caret into a link. The paste path links URLs explicitly instead, with one function for pasted
-  and dropped text, Markdown and external HTML (`pasted-url.ts`). URLs are found as the Link
-  extension finds them (linkify, its `shouldAutoLink`) and only with targets external HTML keeps:
+  caret into a link. They also turned `**x**` in pasted plain text into bold, even with
+  Ctrl+Shift+V; text Core does not convert now stays as typed. The paste path links URLs
+  explicitly instead, with one function for pasted and dropped text, Markdown and external HTML
+  (`pasted-url.ts`). URLs are found as the Link extension finds them (linkify, its
+  `shouldAutoLink`) and only with targets external HTML keeps:
   - only the pasted content's own text is read, so text around the paste (the `RIGHT` after a
     caret) never joins a link; with Ctrl+V and Ctrl+Shift+V, also over a selection (which it
     replaces, as before) and for dropped text, a URL alone or inside a sentence becomes a link;
@@ -614,15 +605,11 @@ keep their existing precedence.
     (`<strong>https://</strong>example.com/path`, `https://example.com/*path*`) links whole to
     one target and keeps its formatting;
   - text that already has a link (an HTML `<a>`, a Markdown link, which keep their target and
-    title), text with a code mark or in a code block, and source lines Core kept literal are not
-    linked: linking literal source would change what it saves as;
+    title) and text with a code mark or in a code block are not linked;
   - Litzio's own clipboard and block moves are pasted as they are.
-  A link definition line (`[url]: https://…`) is literal source, so its URL is not linked.
 - Limits: a leading YAML block in the pasted text is not frontmatter here and reads as a divider
   and text; Chromium's context-menu "Paste as plain text" cannot be told from Ctrl+V and is read
-  as Markdown. A lifted directive whose closing fence is not found shares the lines up to the
-  next block with the lifted directive after it, so when one of them is refused both are pasted
-  literally.
+  as Markdown.
 
 ## Verification
 

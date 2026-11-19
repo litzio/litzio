@@ -11,7 +11,7 @@ import {
   createDocument, parse, serialize, getEditableDocument, NativeDocumentError, canonicalWriteIssue, hasNativeMarker,
   insertHeading, insertParagraph, insertFigure, updateHeadingNumbering, removeBlock,
   updateHeadingInlineContent, updateHeadingLevel, insertFootnote, updateParagraphInlineContent, moveBlock,
-  insertTarget, moveSection, removeSection, updateNodeTextAtPath, updateTableCell, mergeParagraphWithPrevious, insertHardBreak,
+  insertTarget, moveSection, removeSection, updateNodeTextAtPath, updateTableCell, mergeParagraphWithPrevious,
 } from "@litzio/core";
 
 const native = (body: string) => `---\nlitzio: 1\n---\n\n${body}`;
@@ -251,114 +251,47 @@ test("a Markdown fragment reads as the body of an opened document, with endnotes
   const body = "# 측정시스템 분석\n\n## 발표 흐름\n\n1. **MSA 목적:** 측정값 신뢰\n2. **반복성:** 같은 사람\n\n| A | B |\n|---|:-:|\n| `x` | [y](https://example.com) |\n\n오늘은 **측정**을 설명합니다[^n].\n\n[^n]: 주석.\n";
   const fragment = core.readMarkdownFragment(body.replace(/\n/g, "\r\n"));
   const opened = getEditableDocument(parse(native(body))).blocks;
+  assert.ok(fragment);
   assert.deepEqual(fragment.blocks, opened.filter(block => block.block !== "footnote"));
   assert.deepEqual(fragment.footnotes, [{ label: "n", content: [{ kind: "text", text: "주석." }] }]);
   assert.equal(fragment.formatted, true);
-  assert.equal(fragment.literal, 0);
 });
 
 test("a Markdown fragment counts as formatted only from visible Markdown syntax", () => {
   for (const text of ["First line\nsecond line\n\nThird & last", "Intro\n\n    four-space indented text", "Trailing spaces  \nbreak the line"]) {
-    assert.equal(core.readMarkdownFragment(text).formatted, false, text);
+    assert.equal(core.readMarkdownFragment(text)?.formatted, false, text);
   }
   for (const text of ["# Title", "- item", "2. item", "> quote", "```\ncode\n```", "---", "a **b**", "a *b*", "a `b`", "[a](https://example.com)"]) {
-    assert.equal(core.readMarkdownFragment(text).formatted, true, text);
+    assert.equal(core.readMarkdownFragment(text)?.formatted, true, text);
   }
 });
 
-test("Markdown that native admission refuses is kept as literal source lines in place, never dropped", () => {
-  const lines = (text: string) => core.readMarkdownFragment(text).blocks.map(block => [block.block, "text" in block ? block.text : ""]);
-  const mixed = core.readMarkdownFragment("# Kept\n\n- [ ] task\n  more\n\n<div>raw</div>\n\n**kept**");
-  assert.deepEqual(lines("# Kept\n\n- [ ] task\n  more\n\n<div>raw</div>\n\n**kept**"),
-    [["heading", "Kept"], ["paragraph", "- [ ] task"], ["paragraph", "  more"], ["paragraph", "<div>raw</div>"], ["paragraph", "kept"]]);
-  assert.equal(mixed.literal, 3);
-  // Refused source alone still counts, so a caller can tell the user it stayed literal.
-  assert.deepEqual([core.readMarkdownFragment("- [ ] Task").formatted, core.readMarkdownFragment("- [ ] Task").literal], [false, 1]);
-  // A lifted directive has no source position of its own; its lines are those between its neighbours.
-  const table = core.readMarkdownFragment("**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::\n\nAfter");
-  assert.deepEqual(table.blocks.map(block => block.block === "paragraph" ? block.content : block.block), [[{ kind: "strong", children: [{ kind: "text", text: "Rich" }] }],
-    [{ kind: "text", text: ":::{table}" }], [{ kind: "text", text: ":widths: 1 2" }], [{ kind: "text", text: "| A | B |" }], [{ kind: "text", text: "| - | - |" }],
-    [{ kind: "text", text: ":::" }], [{ kind: "text", text: "After" }]]);
-  // Endnote definitions referenced only by refused text stay in source order.
-  assert.deepEqual(lines("**Rich**\n\n- [ ] A[^a]\n\n[^a]: Definition\n\nEnd text"),
-    [["paragraph", "Rich"], ["paragraph", "- [ ] A[^a]"], ["paragraph", "[^a]: Definition"], ["paragraph", "End text"]]);
-  // A fence inside a multi-line block is not a directive opener; a kept directive owns its lines
-  // from its opening to its closing fence.
-  assert.deepEqual(lines("**Rich**\n\n:::{note}\nKept\n:::\n\n```{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n| x | y |\n```\n\n:::{tip}\nLast\n:::\n\n- [ ] task"),
-    [["paragraph", "Rich"], ["admonition", "Kept"], ["paragraph", "```{table}"], ["paragraph", ":widths: 1 2"], ["paragraph", "| A | B |"],
-      ["paragraph", "| - | - |"], ["paragraph", "| x | y |"], ["paragraph", "```"], ["admonition", "Last"], ["paragraph", "- [ ] task"]]);
-  // The allow-list gate: source the parse consumes without editor content (link reference
-  // definitions, used or not and at any depth, MyST comments, block breaks) sends the whole text
-  // to literal lines. So does the last guard, when a line is explained by no located block or
-  // literal line (a guessed directive range that would take another line).
-  for (const text of [
-    "**[open][used]**\n\n[used]: https://example.com \"Used\"\n[unused]: https://example.com \"Unrelated title\"",
-    "> Quote\n>\n> [unused]: https://example.com \"Keep\"",
-    ":::{note}\nText\n\n[unused]: https://example.com \"Keep\"\n:::",
-    "**Rich**\n\n[unused]: /path\n\n```md\n+++\n```",
-    "**Rich**\n\n[url]: https://example.com/path \"first\n``` title with `\nlast\"\n\n:::{note}\nKept\n:::\n\n- [ ] [task][url]",
-    "**a** [x][r]\n\n[r]: https://example.com",
-    "**a**\n\n% hidden\n\nb", "> a\n>\n> % hidden", "**a**\n\n+++ {\"m\": 1}\n\nb",
-    "**b**\n\n:::{note}\nKept",
-  ]) {
-    const fragment = core.readMarkdownFragment(text);
-    assert.deepEqual(fragment.blocks.map(block => "text" in block ? block.text : block.block), text.split("\n").filter(line => line.trim()), text);
-    assert.deepEqual(fragment.literalBlocks, fragment.blocks.map((_block, index) => index), text);
-    assert.ok(fragment.literal > 0, text);
-  }
-  // Ordinary Markdown does not trip the gate or the guard.
+test("a Markdown fragment is read all or nothing", () => {
+  // Read only when the whole text opens as a native document body.
   for (const text of [":::{note}\nhi\n:::\n\n**b**", "[x](https://example.com) and T[^1]\n\n[^1]: Note.", "# 측정\n\n1. **a:** b\n2. **c:** d\n\n오늘은 **x**입니다."]) {
-    assert.equal(core.readMarkdownFragment(text).literal, 0, text);
+    assert.ok(core.readMarkdownFragment(text), text);
   }
-  // Callers can tell literal source lines from kept blocks.
-  assert.deepEqual(mixed.literalBlocks, [1, 2, 3]);
-  // Literal colon fences are writable text.
-  const colon = native("\\:::{note}\n");
-  assert.equal(serialize(parse(colon)), colon);
-  assert.deepEqual(getEditableDocument(parse(colon)).blocks.map(block => "text" in block ? block.text : ""), [":::{note}"]);
-  // Whole-document refusals (citation shorthand, an unreferenced endnote the parse omits) keep every line.
-  for (const text of ["**a** [@key]", "**a**\n\n[^x]: orphan"]) {
-    const fragment = core.readMarkdownFragment(text);
-    assert.deepEqual(fragment.blocks.map(block => "text" in block ? block.text : block.block), text.split("\n").filter(line => line), text);
-    assert.equal(fragment.formatted, true);
-    assert.ok(fragment.literal > 0);
+  for (const text of [
+    // Native admission or the canonical round-trip refuses part of it.
+    "# Kept\n\n- [ ] task", "**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::", "**a** [@key]", "**a**\n\n[^x]: orphan", "**a**\n\n<div>raw</div>",
+    // The parse consumes it without editable content: link reference definitions (used or not,
+    // at any depth), comments and block breaks.
+    "**a** [x][r]\n\n[r]: https://example.com", "> Quote\n>\n> [unused]: https://example.com \"Keep\"",
+    ":::{note}\nText\n\n[unused]: https://example.com \"Keep\"\n:::", "**a**\n\n% hidden\n\nb", "**a**\n\n+++ {\"m\": 1}\n\nb",
+    // A leading thematic break is read by the same parse as the rest, not as front matter.
+    "---\n[r]: https://example.com\n---\n\n**b**",
+  ]) {
+    assert.equal(core.readMarkdownFragment(text), undefined, text);
   }
 });
 
-test("canonical write escapes MyST block syntax only where it starts an output line", () => {
-  // Where a heading's #, a cell's |, a mark, a role or a link comes first, the bytes are the
-  // ones written before the escape existed.
+test("canonical write keeps its bytes for colon fences, block breaks and comments inside other syntax", () => {
+  // Pasting adds no writer rule: these bytes are what canonical write already produced.
   for (const body of ["# ::: heading\n", ":::{table}\n\n| A   |\n| --- |\n| ::: |\n:::\n", ":::{note}\n**::: body**\n:::\n",
-    "H{sub}`::: example`\n", "[:::x](https://e.com)\n", "x :::\n", "**a** :::b\n",
-    // A Table caption is written after the directive name on the fence line, not at a line start.
-    ":::{table} ::: Caption\n\n| A |\n| - |\n| x |\n:::\n", ":::{table} :::\n:name: tbl\n\n| A |\n| - |\n| x |\n:::\n",
-    ":::{figure} ./a.png\n:alt: A\n\ncap :::\n:::\n"]) {
+    "H{sub}`::: example`\n", "[:::x](https://e.com)\n", "x :::\n", "**a** :::b\n", ":::{table} ::: Caption\n\n| A |\n| - |\n| x |\n:::\n",
+    "# +++ heading\n", "# % heading\n", "**+++** x\n", "**% x**\n", "a % b +++ c (l)=\n", "(lab)= x\n", "cost \\$5 here\n"]) {
     assert.equal(serialize(parse(native(body))), native(body), body);
   }
-  // Text that starts an output line (a paragraph's start, after a soft or hard break) is written
-  // escaped and reopens as the same text.
-  for (const body of ["\\:::x\n", "a\n\\:::b\n", "*   a\n    \\:::b\n", "> \\:::x\n", "**a\n\\:::b**\n", "A\\\n\\:::colon\n",
-    // A Figure caption is a body line of its directive.
-    ":::{figure} ./a.png\n:alt: A\n\n\\::: cap\n:::\n"]) {
-    assert.equal(serialize(parse(native(body))), native(body), body);
-  }
-  // Text that starts an output line with MyST block syntax (a colon fence, a block break, a
-  // comment, a whole-line target) at a paragraph's start or after a soft or hard break is written
-  // with one escaped character and reopens as the same text.
-  for (const body of ["\\+++x\n", "\\% comment\n", "\\(lab)=\n", "a\n\\+++b\n", "a\n\\%b\n", "a\n\\(lab)=\n", "a\n\\$5\n",
-    "A\\\n\\+++b\n", "A\\\n\\%b\n", "A\\\n\\(lab)=\n", "*   \\%x\n", "> \\+++x\n", ":::{figure} ./a.png\n:alt: A\n\n\\% cap\n:::\n"]) {
-    assert.equal(serialize(parse(native(body))), native(body), body);
-  }
-  // Elsewhere the bytes are the ones written before: these forms are not block syntax there.
-  for (const body of ["# +++ heading\n", "# % heading\n", ":::{table}\n\n| A |\n| - |\n| % |\n:::\n", "**+++** x\n", "**% x**\n", "H{sub}`% x`\n",
-    "[%x](https://e.com)\n", "a % b +++ c (l)=\n", "(lab)= x\n", "(a b)=\n", ":::{table} % Cap\n\n| A |\n| - |\n| x |\n:::\n", "cost \\$5 here\n", "```md\n+++\n```\n"]) {
-    assert.equal(serialize(parse(native(body))), native(body), body);
-  }
-  // A hard break added by a Core operation keeps its line and its break.
-  const broken = insertHardBreak(parse(native("A::: colon\n")), [1], 1);
-  assert.equal(serialize(broken), native("A\\\n\\::: colon\n"));
-  assert.deepEqual(getEditableDocument(parse(serialize(broken))).blocks.map(block => "content" in block ? block.content : []),
-    [[{ kind: "text", text: "A" }, { kind: "break" }, { kind: "text", text: "::: colon" }]]);
 });
 
 test("native table directives reject source options before the parser can discard them", async (t) => {

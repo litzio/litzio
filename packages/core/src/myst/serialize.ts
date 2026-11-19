@@ -166,9 +166,6 @@ function render(value: MystNode): string {
  * The original fingerprint and the whole reparsed output still have to match. */
 function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: boolean): string {
   let prefix = "";
-  // Paragraphs written after a directive's name on its fence line (a Table caption): their
-  // text does not start an output line.
-  const fenceArguments = new Set<MystNode>();
   function visit(node: MystNode, index: number, parent?: MystNode, path: number[] = [], inLink = false): void {
     try { prepare(node, index, parent, path, inLink || node.type === "link"); }
     catch (error) {
@@ -187,7 +184,6 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: bo
     const mermaidFigure = figureKind === "mermaid";
     // Lifted roles can lack positions; diagnostics still identify their containing block.
     node.position ??= parent?.position;
-    if (isTableDirective(node)) { const caption = tableCaptionParagraph(node); if (caption) fenceArguments.add(caption); }
     if (node[FRONT_MATTER_FIELD] !== undefined) {
       if (parent !== tree || index !== 0 || node[FRONT_MATTER_FIELD] !== true) {
         throw new SemanticLossError(`Block ${index + 1}: front matter must be closed and remain at the start of the document`, {
@@ -211,24 +207,10 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: bo
     if (node.children?.some(child => child.type === "strong" || child.type === "emphasis")) {
       node.children = encodeEmphasisBoundaries(node.children, alternate);
     }
-    // myst-to-md does not protect literal dollars, citation-triggering @ text or text that starts
-    // an output line with MyST block syntax (`lineSyntax`). The writer emits these escaped `html`
-    // values verbatim.
-    if (node.children?.some(child => child.type === "text" && /[$@]|(?:^|\n)(?::::|\+\+\+|%|\()/.test(String(child.value)))) {
-      // An output line starts at a paragraph's first text and after a hard break; a heading's
-      // `#`, a cell's `|`, a mark's `**` or a role's name come first everywhere else.
-      const paragraph = node.type === "paragraph" && !fenceArguments.has(node);
-      const endsLine = (index: number, siblings: MystNode[]) => index === siblings.length - 1 || siblings[index + 1]!.type === "break";
-      // The writer turns a line ending before raw output into a space, so a hard break before
-      // block syntax is written raw together with the escaped first character.
-      const syntaxAfterBreak = (index: number, siblings: MystNode[]) => paragraph && siblings[index]?.type === "text" &&
-        siblings[index - 1]?.type === "break" && lineSyntax(String(siblings[index]!.value), 0, endsLine(index, siblings));
-      node.children = node.children.flatMap((child, index, siblings) => {
-        if (syntaxAfterBreak(index + 1, siblings)) return [{ type: "html", value: `\\\n\\${String(siblings[index + 1]!.value)[0]}` }];
-        if (child.type !== "text") return [child];
-        if (syntaxAfterBreak(index, siblings)) return escapeText({ ...child, value: String(child.value).slice(1) }, inLink, false, endsLine(index, siblings));
-        return escapeText(child, inLink, paragraph && index === 0, endsLine(index, siblings));
-      });
+    // myst-to-md does not protect literal dollars or citation-triggering @ text.
+    // The writer emits these escaped `html` values verbatim.
+    if (node.children?.some(child => child.type === "text" && /[$@]/.test(String(child.value)))) {
+      node.children = node.children.flatMap(child => child.type === "text" ? escapeText(child, inLink) : [child]);
     }
     // myst-to-md writes inline math as the `{math}` role; write MyST's usual `$...$`.
     if (node.children?.some(child => child.type === "inlineMath")) {
@@ -337,31 +319,18 @@ function isDollarMath(node: MystNode, previous: MystNode | undefined): boolean {
     previous?.type !== "break" && !(previous?.type === "text" && /[\r\n]$/.test(String(previous.value)));
 }
 
-/**
- * Whether the text at `index`, written at the start of an output line, is MyST block syntax
- * that the writer would not protect: a colon fence (`:::`), a block break (`+++`), a comment
- * (`%`) or a whole-line target (`(label)=`). `endsLine` says the text's end is its line's end.
- */
-function lineSyntax(value: string, index: number, endsLine: boolean): boolean {
-  const rest = value.slice(index), end = rest.indexOf("\n");
-  const line = end < 0 ? rest : rest.slice(0, end);
-  return /^(?::::|\+\+\+|%)/.test(line) || /^\([^\s()]+\)=$/.test(line) && (end >= 0 || endsLine);
-}
-
-function escapeText(text: MystNode, inLink: boolean, lineStart: boolean, endsLine: boolean): MystNode[] {
+function escapeText(text: MystNode, inLink: boolean): MystNode[] {
   const value = String(text.value);
   const state = new citationTokenizer.inline.State(value, citationTokenizer, {}, []);
   const result: MystNode[] = [];
   let start = 0;
   for (let index = 0; index < value.length; index++) {
-    // Block syntax opens only at the start of a line; one escaped character keeps the line text.
-    const syntax = (index === 0 ? lineStart : value[index - 1] === "\n") && lineSyntax(value, index, endsLine);
-    if (value[index] !== "$" && value[index] !== "@" && !syntax) continue;
+    if (value[index] !== "$" && value[index] !== "@") continue;
     state.pos = index;
     if (value[index] === "@" && (inLink || !citationRule(state, true))) continue;
     // mdast collapses a text node's trailing newline before raw inline output.
-    // Keep that newline with the escaped character so a soft line break stays text.
-    const boundary = index > start && value[index - 1] === "\n" ? index - 1 : index;
+    // Keep that newline with the escaped @ so a soft line break stays text.
+    const boundary = value[index] === "@" && index > start && value[index - 1] === "\n" ? index - 1 : index;
     if (boundary > start) result.push({ ...text, value: value.slice(start, boundary) });
     result.push({ type: "html", value: `${value.slice(boundary, index)}\\${value[index]}` });
     start = index + 1;

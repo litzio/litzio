@@ -149,7 +149,7 @@ test("Figure validity is enforced before Save and by the Core write path", () =>
     assert.throws(() => collectSupportedEdits(editable, next), message);
   }
   let writes = 0;
-  for (const to of [{ ...CHANGED, imageUrl: "" }, { ...CHANGED, caption: "a\n\nb" }]) {
+  for (const to of [{ ...CHANGED, imageUrl: "" }, { ...CHANGED, caption: "% comment" }]) {
     assert.throws(() => commitDocumentSave(() => source, () => writes++, {
       revision: documentRevision(source),
       figures: [{ path: [7], from: ORIGINAL, to }],
@@ -239,7 +239,7 @@ test("Figure draft state distinguishes applied content from unapplied input", ()
 
 test("the Host Figure validation endpoint returns Core's persistent validation", () => {
   assert.equal(validateFigureRequest(CHANGED), undefined);
-  assert.match(validateFigureRequest({ ...CHANGED, caption: "a\n\nb" }) ?? "", /canonical round-trip|not canonical/);
+  assert.match(validateFigureRequest({ ...CHANGED, caption: "% comment" }) ?? "", /canonical round-trip|not canonical/);
   assert.match(validateFigureRequest({ ...CHANGED, imageUrl: "" }) ?? "", /without an image cannot have alt text/);
   // A pending Figure Apply is valid with a label, a caption, both, or neither.
   const pending = { imageUrl: "", imageAlt: "", caption: "" };
@@ -251,7 +251,7 @@ test("the Host Figure validation endpoint returns Core's persistent validation",
   assert.throws(() => validateFigureRequest({ imageUrl: "./a.svg" } as never), /must be strings/);
   // The same value is rejected by the Save path, so Apply and Save agree.
   assert.throws(() => saveEdits(source, {
-    figures: [{ path: [7], from: ORIGINAL, to: { ...CHANGED, caption: "a\n\nb" } }],
+    figures: [{ path: [7], from: ORIGINAL, to: { ...CHANGED, caption: "% comment" } }],
   }), /canonical round-trip|not canonical/);
 });
 

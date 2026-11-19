@@ -472,7 +472,6 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
       let pastedFootnotes: FootnoteDefinition[] = [];
       // Only a paste reads clipboard text as Markdown; dropped text stays plain.
       let textPaste = false;
-      let markdownNotice: UiMessage | undefined;
       // Set by the text parse of a paste or drop; transformPasted of the same event consumes it.
       let linkPastedText = false;
       const fail = (message: UiMessage) => { reject(message); return true; };
@@ -646,8 +645,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           paste: view => {
             if (view.composing) return false;
             textPaste = true;
-            markdownNotice = undefined;
-            queueMicrotask(() => { textPaste = false; markdownNotice = undefined; });
+            queueMicrotask(() => { textPaste = false; });
             return false;
           },
           cut: (view, event) => {
@@ -689,7 +687,6 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           // The engine reopens a parsed text slice as it does parsed HTML; close its edges alike.
           external = true;
           pastedFootnotes = markdown.footnotes;
-          if (markdown.literal) markdownNotice = { key: "Unsupported Markdown was pasted as plain text." };
           return markdown.slice;
         },
         // Content parsed from clipboard or dropped text and external HTML links its URLs here, with
@@ -718,10 +715,9 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           const notes = pastedFootnotes;
           pastedFootnotes = [];
           const html = Boolean(event.clipboardData?.getData("text/html"));
-          const { error, notice } = html ? pasted ?? {} : { notice: markdownNotice };
+          const { error, notice } = html ? pasted ?? {} : {};
           pasted = undefined;
           textPaste = false;
-          markdownNotice = undefined;
           external = false;
           if (error) return fail(error);
           if (event.clipboardData?.files.length && !isInternalClipboard(event.clipboardData.getData("text/html"))) return fail(`Add one ${ASSET_FORMATS} image at a time. Your selection and clipboard are kept.`);
