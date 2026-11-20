@@ -9,6 +9,7 @@ import { completeFootnotes, endnotePlacement, footnoteWriteIssue } from "./footn
 import { isFigure, figureContentKind } from "./figure.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { encodeEmphasisBoundaries, hasAlternateBoundaries } from "./emphasis-boundary.ts";
+import { encodeLineStarts, hasLineStartSyntax } from "./line-start.ts";
 import { parse } from "./parse.ts";
 import { prepareReferences } from "./reference.ts";
 import { isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode } from "./table.ts";
@@ -71,18 +72,32 @@ export function repeatRoundTrip(result: RoundTrip): RoundTrip {
   return roundTrip(result.reparsed, result);
 }
 
-/** Return the same parsed snapshot that passed canonical semantic comparison. */
+/** How a write attempt differs from the plain write. */
+type Attempt = { alternate: boolean; lineStarts: boolean };
+
+/** Return the same parsed snapshot that passed canonical semantic comparison.
+ * The plain write is tried first and kept whenever it passes, so output it keeps never changes.
+ * Only a refused document takes the later attempts (see hasAlternateBoundaries and
+ * hasLineStartSyntax); when they are refused as well, the first refusal stands. */
 export function roundTrip(document: MystDocument, previous?: RoundTrip): RoundTrip {
-  try { return writeRoundTrip(document, previous, false); }
+  try { return writeRoundTrip(document, previous, { alternate: false, lineStarts: false }); }
   catch (error) {
-    if (!(error instanceof SemanticLossError) || error.location.code !== "round-trip-mismatch" || !hasAlternateBoundaries(document)) throw error;
-    // Output the plain write keeps never changes; see hasAlternateBoundaries.
-    try { return writeRoundTrip(document, previous, true); }
-    catch { throw error; }
+    if (!(error instanceof SemanticLossError) || error.location.code !== "round-trip-mismatch") throw error;
+    const alternate = hasAlternateBoundaries(document), lineStarts = hasLineStartSyntax(document);
+    const attempts = [
+      ...(alternate ? [{ alternate, lineStarts: false }] : []),
+      ...(lineStarts ? [{ alternate: false, lineStarts }] : []),
+      ...(alternate && lineStarts ? [{ alternate, lineStarts }] : []),
+    ];
+    for (const attempt of attempts) {
+      try { return writeRoundTrip(document, previous, attempt); }
+      catch { /* the first refusal stands */ }
+    }
+    throw error;
   }
 }
 
-function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined, alternate: boolean): RoundTrip {
+function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined, attempt: Attempt): RoundTrip {
   assertUnicode(document);
   // The fingerprint would also catch these, but not name the footnote.
   const footnotes = footnoteWriteIssue(document);
@@ -129,7 +144,7 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
       }, { cause: error });
     }
   });
-  const frontMatter = prepareWriter(tree, blockPaths, alternate);
+  const frontMatter = prepareWriter(tree, blockPaths, attempt);
   const file = new VFile();
   try {
     writeMd(file, tree as never);
@@ -164,8 +179,10 @@ function render(value: MystNode): string {
 
 /** Adapt the MyST representation to the existing mdast writer, on the write-only clone.
  * The original fingerprint and the whole reparsed output still have to match. */
-function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: boolean): string {
+function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, lineStarts }: Attempt): string {
   let prefix = "";
+  // A table caption is written into its directive's line, not at a line start.
+  const captions = new WeakSet<MystNode>();
   function visit(node: MystNode, index: number, parent?: MystNode, path: number[] = [], inLink = false): void {
     try { prepare(node, index, parent, path, inLink || node.type === "link"); }
     catch (error) {
@@ -182,6 +199,8 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: bo
     // Reference/inline writer adaptations change caption leaves, not the Figure's content kind.
     const figureKind = isFigure(node) ? figureContentKind(node) : undefined;
     const mermaidFigure = figureKind === "mermaid";
+    const tableCaption = tableCaptionParagraph(node);
+    if (tableCaption) captions.add(tableCaption);
     // Lifted roles can lack positions; diagnostics still identify their containing block.
     node.position ??= parent?.position;
     if (node[FRONT_MATTER_FIELD] !== undefined) {
@@ -219,6 +238,10 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], alternate: bo
     }
     node.children?.forEach((child, childIndex) => visit(child, childIndex, node,
       node === tree ? blockPaths[childIndex] : [...path, childIndex], inLink));
+    // After the inline content is prepared, so its remaining text is final.
+    if (lineStarts && node.type === "paragraph" && !captions.has(node) && node.children) {
+      node.children = encodeLineStarts(node.children, true);
+    }
     // MyST requires a body in {math}; dollar fences also preserve an empty equation
     // and its optional closing-line label. The full fingerprint still guards the label.
     if (node.type === "math" && node.enumerator !== undefined && !String(node.value ?? "").trim()) {

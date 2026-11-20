@@ -187,8 +187,14 @@ test("Figure validity rules reject values that canonical MyST cannot persist", (
   const dollars = insertFigure(parse("Intro"), 1, { ...valid, caption: "cost $5 and $x$" });
   assert.match(serialize(dollars), /\ncost \\\$5 and \\\$x\\\$\n/);
   assert.equal(serialize(parse(serialize(dollars))), serialize(dollars));
+  // A caption line that starts with MyST block syntax is escaped and stays caption text (#1846).
+  for (const [caption, written] of [["% comment", /\n\\% comment\n:::\n/], ["+++", /\n\\\+\+\+\n:::\n/], [":::", /\n\\:::\n:::\n/]] as const) {
+    const escaped = insertFigure(parse("Intro"), 1, { ...valid, caption });
+    assert.match(serialize(escaped), written);
+    assert.equal(serialize(parse(serialize(escaped))), serialize(escaped));
+  }
   // Captions that MyST would reinterpret fail the Core round-trip.
-  for (const caption of ["% comment", "+++", ":::"]) {
+  for (const caption of ["a\n\nb"]) {
     assert.throws(() => insertFigure(parse("Intro"), 1, { ...valid, caption }), /canonical round-trip|not canonical/);
     assert.throws(() => updateFigure(parse(source), FIGURE_PATH, { caption }), /canonical round-trip|not canonical/);
   }
@@ -206,7 +212,7 @@ test("validateFigure is the persistent validity used by insertFigure", () => {
   assert.equal(validateFigure({ ...pending, caption: "PFC Current Control Architecture" }), undefined);
   assert.match(validateFigure(pending, " fig") ?? "", /leading or trailing spaces/);
   // Field rules alone accept this caption; only the canonical round-trip rejects it.
-  const reinterpreted = { ...valid, caption: "% comment" };
+  const reinterpreted = { ...valid, caption: "a\n\nb" };
   assert.equal(figureContentError(reinterpreted), undefined);
   assert.match(validateFigure(reinterpreted) ?? "", /canonical round-trip|not canonical/);
   assert.throws(() => insertFigure(parse("Intro"), 1, reinterpreted), /canonical round-trip|not canonical/);
@@ -317,7 +323,7 @@ test("Figure captions keep supported inline semantics through updates, inserts a
   }
   const original = parse(source);
   const before = serialize(original);
-  for (const invalid of [[{ kind: "text", text: "% comment" }], [{ kind: "link", url: "", children: [] }], [{ kind: "unknown" }]]) {
+  for (const invalid of [[{ kind: "text", text: "a\n\nb" }], [{ kind: "link", url: "", children: [] }], [{ kind: "unknown" }]]) {
     assert.throws(() => updateFigure(original, FIGURE_PATH, { caption: invalid as never }));
     assert.equal(serialize(original), before);
   }
