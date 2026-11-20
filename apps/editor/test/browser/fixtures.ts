@@ -196,7 +196,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=", "base64") }], scenarios: ["image-assets"] },
   "external-html-paste": { files: [{ name: "external.md", create: () => nativeSource("# External\n\nAlpha.\n\nOmega.\n") },
     { name: "markdown.md", create: () => nativeSource("# Markdown\n\nAlpha.\n\nInline `mono` text.\n\n```\ncode\n```\n\n:::{table}\n\n| A | B |\n| - | - |\n| c | d |\n:::\n\nOmega.\n") },
-    { name: "places.md", create: () => nativeSource("# Places\n\nLeftRIGHT\n\nInline `mono` text.\n\n:::{table} CaptionText\n:name: tab-data\n\n| A        | B |\n| -------- | - |\n| CellText | d |\n:::\n\nSee[^n].\n\nOmega.\n\n[^n]: NoteText\n") }], scenarios: ["external-html-paste"] },
+    { name: "places.md", create: () => nativeSource("# Places\n\n(tab-sec)=\n### Section\n\nLeftRIGHT\n\nInline `mono` text.\n\n:::{table} CaptionText\n:name: tab-data\n\n| A        | B |\n| -------- | - |\n| CellText | d |\n:::\n\nSee[^n].\n\nOmega.\n\n[^n]: NoteText\n") }], scenarios: ["external-html-paste"] },
   "atom-boundaries": { files: [{ name: "boundaries.md", create: () => nativeSource(
     "# Atom boundaries\n\n" + ["equation", "figure", "table", "code", "divider", "admonition"].flatMap((kind, i) =>
       ["heading", "paragraph", "list", "quote"].flatMap((current, j) => ["Backspace", "Delete"].map(key => {

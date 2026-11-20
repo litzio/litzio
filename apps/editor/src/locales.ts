@@ -1285,7 +1285,7 @@ export const en = {
   "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept.": "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept.",
   "Only one line of text can be pasted here. Paste blocks into a paragraph. Nothing was pasted; the clipboard and selection are kept.": "Only one line of text can be pasted here. Paste blocks into a paragraph. Nothing was pasted; the clipboard and selection are kept.",
   "An endnote cannot contain another endnote. Nothing was pasted; the clipboard and selection are kept.": "An endnote cannot contain another endnote. Nothing was pasted; the clipboard and selection are kept.",
-  "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.": "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.",
+  "Pasting would reuse a label that already names another target. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.": "Pasting would reuse a label that already names another target. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.",
   "This document is read-only. No image was added.": "This document is read-only. No image was added.",
   "Wait for the current image to finish before adding another.": "Wait for the current image to finish before adding another.",
   "Home": "Home"
@@ -2574,7 +2574,7 @@ export const ko: Record<keyof typeof en, string> = {
   "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept.": "클립보드 내용을 보존할 수 없어 붙여 넣지 않았습니다. 클립보드와 선택 영역은 유지됩니다.",
   "Only one line of text can be pasted here. Paste blocks into a paragraph. Nothing was pasted; the clipboard and selection are kept.": "여기에는 한 줄의 글만 붙여 넣을 수 있습니다. 블록은 문단에 붙여 넣으세요. 붙여 넣지 않았으며 클립보드와 선택 영역은 유지됩니다.",
   "An endnote cannot contain another endnote. Nothing was pasted; the clipboard and selection are kept.": "미주 안에는 다른 미주를 넣을 수 없습니다. 붙여 넣지 않았으며 클립보드와 선택 영역은 유지됩니다.",
-  "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.": "붙여 넣으면 그림이나 수식 레이블이 중복됩니다. 원본을 잘라내어 이동하거나 복사 전에 다른 레이블을 지정하세요. 붙여 넣지 않았으며 클립보드는 유지됩니다.",
+  "Pasting would reuse a label that already names another target. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.": "붙여 넣으면 레이블이 다른 대상과 중복됩니다. 원본을 잘라내어 이동하거나 복사 전에 다른 레이블을 지정하세요. 붙여 넣지 않았으며 클립보드는 유지됩니다.",
   "This document is read-only. No image was added.": "읽기 전용 문서입니다. 이미지를 추가하지 않았습니다.",
   "Wait for the current image to finish before adding another.": "현재 이미지 추가가 끝난 후 다음 이미지를 추가하세요.",
   "Home": "홈"

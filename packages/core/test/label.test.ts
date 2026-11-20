@@ -16,7 +16,7 @@ import {
   type MystDocument,
 } from "./core-internal.ts";
 import { referenceTargetIndex } from "../src/myst/label.ts";
-import { planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "@litzio/core";
+import { assertPastedLabelsAvailable, planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "@litzio/core";
 
 const source = readFileSync(new URL("./fixtures/technical-document.md", import.meta.url), "utf8");
 const EQUATION = 9;
@@ -54,6 +54,18 @@ test("live label rename plans share updateLabel resolution, canonical refusal an
   assert.deepEqual(planLabelRename([{ block: "equation", label: "old" }, { block: "target", label: "trailing" }], 0, "new", [
     { kind: "reference", role: "eq", label: "old" }, { kind: "reference", role: "ref", label: "trailing" },
   ]), [{ index: 0, reference: { kind: "reference", role: "eq", label: "new" } }]);
+});
+
+test("pasted explicit labels must not repeat another explicit label; heading IDs and old duplicates are left to Save", () => {
+  const others = ["old", "OLD", "tab-sec"];
+  assert.doesNotThrow(() => assertPastedLabelsAvailable(["fresh", "data"], others));
+  assert.doesNotThrow(() => assertPastedLabelsAvailable([], others));
+  for (const label of ["Old", "tab-sec", "TAB-SEC"]) assert.throws(() => assertPastedLabelsAvailable([label], others), /already names another target/, label);
+  assert.throws(() => assertPastedLabelsAvailable(["twin", "TWIN"], others), /already names another target/);
+  // Labels of only quotes normalize to the empty identifier and still repeat each other.
+  assert.throws(() => assertPastedLabelsAvailable(["'", "”"], others), /already names another target/);
+  assert.throws(() => assertPastedLabelsAvailable(["'"], ["”"]), /already names another target/);
+  assert.doesNotThrow(() => assertPastedLabelsAvailable(["'"], others));
 });
 
 function block(document: MystDocument, index: number) {

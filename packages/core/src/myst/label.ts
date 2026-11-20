@@ -67,6 +67,27 @@ export function labelAvailability(document: MystDocument): (label: string, excep
 }
 
 /**
+ * Refuse a paste whose explicit labels repeat another explicit label: a label of a block the
+ * paste adds against `others` (the document's other Figure/Table/Equation and section labels)
+ * and against each other. Such a pair fails Save in any application order. Implicit heading
+ * IDs are left to Save, and duplicates among `others` alone never refuse the paste.
+ */
+export function assertPastedLabelsAvailable(pasted: readonly string[], others: readonly string[]): void {
+  // A label that normalizes to nothing (e.g. only quotes) compares as the empty identifier, so
+  // two of them are refused here, as before, rather than pasted for Save to refuse.
+  const key = (label: string) => labelIdentifier(label) ?? "";
+  const taken = new Set(others.map(key));
+  for (const label of pasted) {
+    const identifier = key(label);
+    if (taken.has(identifier)) {
+      throw new DocumentWriteError(`label ${JSON.stringify(label)} already names another target`, { code: "label-conflict",
+        action: "Choose a label not used by another target." });
+    }
+    taken.add(identifier);
+  }
+}
+
+/**
  * MyST's one-page reference targets: labeled blocks, `(label)=` targets and implicit
  * heading IDs. Lookup uses MyST's resolver; candidates retain duplicates for fail-closed
  * edits, and paths locate resolved nodes in the original snapshot. Transforms run on a clone.
