@@ -1,6 +1,5 @@
 import { figureCaptionContent } from "@litzio/core/figure";
 import {
-  labelApplicationOrder,
   updateDocumentStatus,
   endnotesInPlace,
   citationReport,
@@ -463,8 +462,8 @@ export function saveEdits(
     locators.splice(index, 1);
   }
   // Create heading destinations before their targets, including newly inserted headings.
-  // The Editor's paste check follows the same Core order (#1847).
-  const insertionOrder = edits.order ? labelApplicationOrder([...inserts.entries()], ([, item]) => item.block) : [...inserts.entries()];
+  const insertionOrder = [...inserts.entries()];
+  if (edits.order) insertionOrder.sort((a, b) => Number(a[1].block === "target") - Number(b[1].block === "target"));
   for (const [insert, item] of insertionOrder) {
     const target = { insert };
     // Other new blocks start at the end; the requested order places them.

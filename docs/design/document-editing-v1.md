@@ -3,7 +3,7 @@
 - Status: Implemented
 - Last verified: 2026-11-16 — #1658: 표 속성·Figure inline caption을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Plain-text Markdown paste: 2026-11-20 (#1843; all-or-nothing Core reading tests and the `external-html-paste` browser scenario: structure, one Undo/Redo, Save → Reload, Ctrl+Shift+V, plain-text fallback, code, one-line places, endnotes, URLs, history and composition).
-- Pasted label conflicts: 2026-11-20 (#1847; Core `assertPastedLabelsAvailable` tests and the `external-html-paste` browser scenario: a Table copied in the same document, a section label, a heading ID, a repeated label and a heading pasted before a Table or Equation with its ID are refused with the document and selection kept; plain text and external HTML still paste beside existing duplicate Table labels with one Undo; a Table or Equation followed by a heading with its ID, and a distinct Table label, paste and survive Save → Reload).
+- Pasted label conflicts: 2026-11-20 (#1847; Core `assertPastedLabelsAvailable` tests and the `external-html-paste` browser scenario: a Table copied in the same document, a Table label equal to a section or Equation label, an Equation taking a Table label and a label repeated within the paste are refused with the document and selection kept; plain text and external HTML still paste beside existing duplicate Table labels with one Undo; a Table after a paragraph moved between a section label and its heading pastes; a Table label equal to a heading's automatic ID pastes and Save refuses it; a Table or Equation followed by a heading with its ID, and a distinct Table label, paste and survive Save → Reload).
 - Paragraph tail normalization: 2026-11-04 (#1107; native Shift+Enter → Save/Reload and path-only assistant-send browser regressions).
 - Empty-title entry: 2026-10-30 (#786; small bilingual optional-title hint, preserved slot height and immediate title typography; document-title browser regression and [captures](figure-authoring-v1.md#empty-authoring-entry-786)).
 - Engine upgrade: 2026-11-20 (#1827: Tiptap 3.34.0 and the `prosemirror-view@1.42.9` patch; `focus-caret`, `citation-authoring` and `document-title` with and without the patch on Windows Chrome).
@@ -326,17 +326,15 @@ A changed document recomputes numbering; source semantics and canonical output a
   attributes for atoms and table alignment. Supported slices receive fresh
   session locators. Unsupported rich content is rejected before replacement or
   cut, retaining the source selection and clipboard with a visible reason.
-  Labels are preserved. A paste whose Figure, Table or Equation label would name
-  another target is rejected until the user chooses a distinct label or cuts the
-  original target to move it (#1847). Core `assertPastedLabelsAvailable` decides it
-  in Save's order: Save keeps the existing blocks and applies unsaved new blocks in
-  Core `labelApplicationOrder` (document order, section labels last), checking each
-  label with `updateLabel`'s target rules against what is there at that step: other
-  Figure/Table/Equation labels, section labels and unlabeled headings' automatic IDs.
-  So a pasted label followed by a pasted heading with the same automatic ID is
-  accepted, and one preceded by it is refused. A step refuses the paste when its block
-  was pasted, or when it fails only because of pasted blocks; conflicts the document
-  already has do not block other pastes.
+  Labels are preserved. A paste whose Figure, Table or Equation label repeats another
+  explicit label is rejected until the user chooses a distinct label or cuts the
+  original target to move it (#1847). Core `assertPastedLabelsAvailable` compares MyST
+  identifiers of the labels the paste adds with the document's other Figure/Table/Equation
+  and section labels, and with each other: such a pair fails Save in any order. Duplicates
+  already in the document do not block other pastes. Implicit heading IDs are not
+  checked on paste and are left to Save, as before: a label equal to an unlabeled
+  heading's automatic ID pastes, and Save refuses it with the duplicate-label error only
+  when the heading is already there when Save applies the label.
   Fixed Figure/Table/Equation enumerators travel with the typed attributes and the
   new-locator insertion payload; Host replay uses Core `updateEnumerator` so Cut/Paste,
   drop/copy and duplicate normalization preserve them through Save/Reload (#720).

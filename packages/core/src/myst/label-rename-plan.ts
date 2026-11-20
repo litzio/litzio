@@ -1,8 +1,8 @@
-import { DocumentDiagnosticError, DocumentWriteError } from "../write-error.ts";
+import { DocumentDiagnosticError } from "../write-error.ts";
 import type { InlineContent } from "../inline.ts";
 import { inlineContentToNodes, projectInlineContent } from "../inline.ts";
 import { updateLabel } from "../operations.ts";
-import { labelAvailability, labelIdentifier } from "./label.ts";
+import { labelIdentifier } from "./label.ts";
 import { createFigureNode } from "./figure.ts";
 import { createTableNode, tableBlockNode } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
@@ -24,7 +24,18 @@ export type LabelRenameReference = Extract<InlineContent, { kind: "reference" }>
  * The caller must supply every target block and role/link reference in the current snapshot. */
 export function planLabelRename(blocks: readonly LabelRenameBlock[], index: number, label: string,
   references: readonly LabelRenameReference[]): { index: number; reference: LabelRenameReference }[] {
-  const targets = targetContext(blocks);
+  const targets: MystNode[] = blocks.map(block => {
+    const name = block.label ?? "";
+    const attrs = name ? { label: name, identifier: labelIdentifier(name) } : {};
+    switch (block.block) {
+      case "heading": return { type: "heading", depth: block.level ?? 1, children: inlineContentToNodes(block.content ?? []) };
+      case "target": return { type: "mystTarget", label: name };
+      case "equation": return { type: "math", value: "x", ...attrs };
+      case "figure": return { ...createFigureNode({ imageUrl: "", imageAlt: "", caption: "" }), ...attrs };
+      case "table": return tableBlockNode(createTableNode([[[{ kind: "text", text: "x" }]]]), [], name, attrs.identifier);
+      default: return { type: "paragraph", children: [{ type: "text", value: "x" }] };
+    }
+  });
   const queries: MystNode[] = references.map(reference => {
     const content: InlineContent = reference.kind === "link"
       ? { ...reference, children: [{ kind: "text", text: "link" }] } : reference;
@@ -43,64 +54,4 @@ export function planLabelRename(blocks: readonly LabelRenameBlock[], index: numb
     }
     throw new DocumentDiagnosticError("invalid-reference", "label rename changed reference kind");
   });
-}
-
-/** The MyST target context of a live interface snapshot: headings keep their content for
- * implicit IDs, labeled blocks keep their label, other blocks only keep their place. */
-function targetContext(blocks: readonly LabelRenameBlock[]): MystNode[] {
-  return blocks.map(block => {
-    const name = block.label ?? "";
-    const attrs = name ? { label: name, identifier: labelIdentifier(name) } : {};
-    switch (block.block) {
-      case "heading": return { type: "heading", depth: block.level ?? 1, children: inlineContentToNodes(block.content ?? []) };
-      case "target": return { type: "mystTarget", label: name };
-      case "equation": return { type: "math", value: "x", ...attrs };
-      case "figure": return { ...createFigureNode({ imageUrl: "", imageAlt: "", caption: "" }), ...attrs };
-      case "table": return tableBlockNode(createTableNode([[[{ kind: "text", text: "x" }]]]), [], name, attrs.identifier);
-      default: return { type: "paragraph", children: [{ type: "text", value: "x" }] };
-    }
-  });
-}
-
-/** The order in which Save applies new blocks: new blocks in document order, with section
- * label targets last so their heading destinations exist first. Each new block's label is
- * checked when it is applied, against the existing blocks and the new blocks applied before it. */
-export function labelApplicationOrder<T>(items: readonly T[], block: (item: T) => string): T[] {
-  return [...items].sort((a, b) => Number(block(a) === "target") - Number(block(b) === "target"));
-}
-
-/** Refuse a paste whose labels Save would refuse. Save keeps the existing blocks and applies
- * the `inserted` (unsaved new) blocks in `labelApplicationOrder`, each label checked against
- * what is there at that step, appended at the end (a section label before its following block).
- * A step refuses the paste when it is a `pasted` block, or when it only fails because of pasted
- * blocks. Conflicts the snapshot already has, without this paste, do not refuse it. */
-export function assertPastedLabelsAvailable(blocks: readonly LabelRenameBlock[],
-  { inserted, pasted }: { inserted: readonly number[]; pasted: readonly number[] }): void {
-  const isInserted = new Set(inserted);
-  const isPasted = new Set(pasted);
-  const nodes = targetContext(blocks);
-  const existing = blocks.flatMap((_, index) => isInserted.has(index) ? [] : [index]);
-  const order = labelApplicationOrder([...isInserted].sort((a, b) => a - b), index => blocks[index].block);
-  const failure = (applied: readonly number[], step: number): DocumentWriteError | undefined => {
-    const context = [...existing, ...applied];
-    let at = context.length;
-    if (blocks[step].block === "target") {
-      const following = context.indexOf(step + 1);
-      if (following >= 0) at = following;
-    }
-    context.splice(at, 0, step);
-    try {
-      labelAvailability({ type: "root", children: context.map(index => nodes[index]) })(blocks[step].label!, [at]);
-      return undefined;
-    } catch (cause) {
-      if (cause instanceof DocumentWriteError) return cause;
-      throw cause;
-    }
-  };
-  for (const [position, step] of order.entries()) {
-    if (!blocks[step].label || !["equation", "figure", "table", "target"].includes(blocks[step].block)) continue;
-    const applied = order.slice(0, position);
-    const refused = failure(applied, step);
-    if (refused && (isPasted.has(step) || !failure(applied.filter(index => !isPasted.has(index)), step))) throw refused;
-  }
 }

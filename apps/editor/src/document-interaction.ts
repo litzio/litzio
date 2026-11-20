@@ -13,10 +13,8 @@ import { normalizeExternalHTML, type ExternalHTML } from "./external-html.ts";
 import { markdownPaste } from "./markdown-paste.ts";
 import { linkUrlsInNodes, type AutoLink } from "./pasted-url.ts";
 import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
-import { isNewBlockPath } from "./tiptap-projection.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
-import { labelTargetBlocks } from "./label-rename.ts";
 import { fromTiptapContent, toTiptapContent } from "./tiptap-inline.ts";
 
 const FOOTNOTES_ATTR = "data-litzio-footnotes";
@@ -80,10 +78,10 @@ function selectAllScope(state: EditorState): { from: number; to: number } | unde
   return { from: selection.$from.start(), to: selection.$from.end() };
 }
 
-// Product policy: turn off document-wide Mod-a expansion here; no settings UI.
-// Blocks whose label names a reference target and can travel through the clipboard.
-const LABELED_TARGETS = new Set(["equation", "figure", "table"]);
+// Blocks with an explicit reference label. Section labels never travel through the clipboard.
+const EXPLICIT_LABELS = new Set(["equation", "figure", "table", "labelTarget"]);
 const PASTE_LABEL_CONFLICT = "Pasting would reuse a label that already names another target. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.";
+// Product policy: turn off document-wide Mod-a expansion here; no settings UI.
 const EXPAND_SELECT_ALL_TO_DOCUMENT = true;
 
 export function selectAllTransaction(state: EditorState, previous?: EditorState,
@@ -749,23 +747,20 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           try {
             tr = pasteFootnotes(view.state, slice, notes, besideEquation ? paragraphBeside(view.state, true) : closeHistory(view.state.tr));
           } catch { return fail({ key: "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." }); }
-          // Core judges the labels this paste adds in Save's order: unsaved new blocks are applied
-          // after the existing ones, each checked against what is there at that step.
+          // Explicit labels the paste adds must not repeat another explicit label (Core). Implicit
+          // heading IDs are left to Save; duplicates already in the document do not block the paste.
           const existing = new Set<unknown>();
           view.state.doc.forEach(node => existing.add(node.attrs.sourcePath));
-          const inserted: number[] = [];
-          const added: number[] = [];
-          let targets = false;
-          tr.doc.forEach((node, _pos, index) => {
-            const path = node.attrs.sourcePath;
-            if (typeof path === "string" && isNewBlockPath(path)) inserted.push(index);
-            if (existing.has(path)) return;
-            added.push(index);
-            // Only labels and headings' automatic IDs name targets.
-            if (node.type.name === "heading" || LABELED_TARGETS.has(node.type.name) && node.attrs.label) targets = true;
+          const pastedLabels: string[] = [];
+          const otherLabels: string[] = [];
+          tr.doc.forEach(node => {
+            const label = node.attrs.label;
+            if (!EXPLICIT_LABELS.has(node.type.name) || typeof label !== "string" || !label) return;
+            if (existing.has(node.attrs.sourcePath) || node.type.name === "labelTarget") otherLabels.push(label);
+            else pastedLabels.push(label);
           });
-          if (targets) {
-            try { assertPastedLabelsAvailable(labelTargetBlocks(tr.doc), { inserted, pasted: added }); }
+          if (pastedLabels.length) {
+            try { assertPastedLabelsAvailable(pastedLabels, otherLabels); }
             catch (cause) {
               return fail({ key: writeIssueOf(cause).code === "label-conflict" ? PASTE_LABEL_CONFLICT
                 : "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." });

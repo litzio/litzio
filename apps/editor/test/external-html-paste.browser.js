@@ -355,9 +355,9 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await refusedAt('CaptionText', 4, () => textPaste('**bold**\nMore'), lineBreaks('table caption'));
   await refusedAt('CaptionText', 4, () => textPaste('# Pasted\n\nAfter'), oneLine);
   await refusedAt('CaptionText', 4, () => syntheticPaste('<h1>Pasted</h1><p>After</p>'), oneLine);
-  // Litzio's own clipboard keeps a Table label: a paste that would add a label Save refuses (a
-  // copy in the same document, a section label, a heading's automatic ID, or twice in the paste)
-  // is refused before it changes the document (#1847).
+  // Litzio's own clipboard keeps a Table label: a paste whose explicit label repeats another
+  // explicit label (a copy in the same document, a section label, an Equation label, or twice in
+  // the paste) is refused before it changes the document (#1847).
   const tableAt = () => editor.evaluate(el => {
     let at;
     el.editor.state.doc.forEach((node, offset) => { if (node.type.name === 'table' && at === undefined) at = offset; });
@@ -408,13 +408,53 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await page.keyboard.press('Control+c');
   await refusedTable(() => page.keyboard.press('Control+v'), 'same document copy');
   await refusedTable(labelRefusal('tab-sec'), 'section label');
-  await refusedTable(labelRefusal('places'), 'heading ID');
   await refusedTable(labelRefusal('tab-twin', 2), 'twice in the paste');
-  // Save applies a pasted label before the pasted heading that follows it, but after one that
-  // precedes it: only the second order is refused.
-  await refusedTable(async () => syntheticPaste(await clipboardOf([headingJSON('Earlier'), await tableJSON('earlier')])), 'heading before Table');
-  await refusedTable(async () => syntheticPaste(await clipboardOf([headingJSON('Eqearlier'), equationJSON('eqearlier')])), 'heading before Equation');
+  // An Equation label (here an unsaved one) and a Table label refuse each other the same way.
+  await notice.waitFor({state:'detached', timeout:10000});
+  await select('Omega.');
+  const beforeEquation = await state();
+  await syntheticPaste(await clipboardOf([equationJSON('eq-x')]));
+  await changedFrom(beforeEquation);
+  await refusedTable(labelRefusal('eq-x'), 'Equation label');
+  await refusedTable(async () => syntheticPaste(await clipboardOf([equationJSON('tab-data')])), 'Equation taking a Table label');
+  await editor.evaluate(el => el.editor.commands.undo());
+  assert((await state()).doc === beforeEquation.doc, 'One Undo removes the pasted Equation');
   assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data']), 'Refused Table pastes add no table');
+  // Only explicit labels are compared: a heading's automatic ID is left to Save, as on master.
+  // A Table followed by a heading with its ID, and a Table pasted after a paragraph moved between
+  // a section label and its heading, paste (the ordered pairs also save below).
+  await notice.waitFor({state:'detached', timeout:10000});
+  await select('Omega.');
+  const beforeMove = await state();
+  await editor.evaluate(el => {
+    const {state} = el.editor;
+    let target, paragraph, at;
+    state.doc.forEach((node, offset) => {
+      if (node.type.name === 'labelTarget') target = offset + node.nodeSize;
+      if (node.textContent === 'LeftRIGHT') { paragraph = node; at = offset; }
+    });
+    el.editor.view.dispatch(state.tr.delete(at, at + paragraph.nodeSize).insert(target, paragraph));
+  });
+  const moved = await editor.evaluate(el => { const types = []; el.editor.state.doc.forEach(node => types.push(node.type.name === 'paragraph' ? node.textContent : node.type.name)); return types.slice(0, 4).join('|'); });
+  assert(moved === 'heading|labelTarget|LeftRIGHT|heading', `The paragraph moves between the section label and its heading: ${moved}`);
+  await select('Omega.');
+  const beforeSection = await state();
+  await syntheticPaste(await tableClipboard('section'));
+  await changedFrom(beforeSection);
+  await editor.evaluate(el => el.editor.commands.undo());
+  await editor.evaluate(el => el.editor.commands.undo());
+  assert((await state()).doc === beforeMove.doc, 'Undo restores the moved paragraph and the pasted Table');
+  // A Table label equal to a heading's automatic ID pastes, and Save refuses it as on master.
+  await select('Omega.');
+  const beforeHeadingId = await state();
+  await syntheticPaste(await tableClipboard('places'));
+  await changedFrom(beforeHeadingId);
+  await page.getByRole('button', {name:'Save', exact:true}).click();
+  await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
+  assert(await page.getByTestId('status').getAttribute('data-operation') === 'save-failed', 'Save refuses a Table label equal to a heading ID');
+  assert((await page.locator('body').innerText()).includes('Duplicate label'), `Save names the duplicate label: ${await page.locator('body').innerText()}`);
+  await editor.evaluate(el => el.editor.commands.undo());
+  assert((await state()).doc === beforeHeadingId.doc, 'One Undo removes the Table Save refused');
   // A document that already holds two tables with one label still takes plain text and external
   // HTML, as before: only labels a paste adds are checked.
   await select('Omega.');
@@ -537,9 +577,9 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   assert((await state()).doc === beforeDrop2.doc, 'One Undo restores the drop');
   result.markdownComposition = true;
 
-  // Labels nothing else names when Save applies them paste with their labels, and the document
-  // saves and reloads: a Table or Equation followed by a heading whose automatic ID equals its
-  // label (as on master), and a Table with a distinct label.
+  // Labels no other explicit label names paste with their labels, and the document saves and
+  // reloads: a Table or Equation followed by a heading whose automatic ID equals its label (as
+  // on master), and a Table with a distinct label.
   await notice.waitFor({state:'detached', timeout:10000});
   for (const content of [[await tableJSON('later'), headingJSON('Later')], [equationJSON('eqlater'), headingJSON('Eqlater')]]) {
     await select('Omega.');
