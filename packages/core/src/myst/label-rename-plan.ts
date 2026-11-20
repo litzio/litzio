@@ -24,18 +24,7 @@ export type LabelRenameReference = Extract<InlineContent, { kind: "reference" }>
  * The caller must supply every target block and role/link reference in the current snapshot. */
 export function planLabelRename(blocks: readonly LabelRenameBlock[], index: number, label: string,
   references: readonly LabelRenameReference[]): { index: number; reference: LabelRenameReference }[] {
-  const targets: MystNode[] = blocks.map(block => {
-    const name = block.label ?? "";
-    const attrs = name ? { label: name, identifier: labelIdentifier(name) } : {};
-    switch (block.block) {
-      case "heading": return { type: "heading", depth: block.level ?? 1, children: inlineContentToNodes(block.content ?? []) };
-      case "target": return { type: "mystTarget", label: name };
-      case "equation": return { type: "math", value: "x", ...attrs };
-      case "figure": return { ...createFigureNode({ imageUrl: "", imageAlt: "", caption: "" }), ...attrs };
-      case "table": return tableBlockNode(createTableNode([[[{ kind: "text", text: "x" }]]]), [], name, attrs.identifier);
-      default: return { type: "paragraph", children: [{ type: "text", value: "x" }] };
-    }
-  });
+  const targets = targetContext(blocks);
   const queries: MystNode[] = references.map(reference => {
     const content: InlineContent = reference.kind === "link"
       ? { ...reference, children: [{ kind: "text", text: "link" }] } : reference;
@@ -55,3 +44,21 @@ export function planLabelRename(blocks: readonly LabelRenameBlock[], index: numb
     throw new DocumentDiagnosticError("invalid-reference", "label rename changed reference kind");
   });
 }
+
+/** The MyST target context of a live interface snapshot: headings keep their content for
+ * implicit IDs, labeled blocks keep their label, other blocks only keep their place. */
+function targetContext(blocks: readonly LabelRenameBlock[]): MystNode[] {
+  return blocks.map(block => {
+    const name = block.label ?? "";
+    const attrs = name ? { label: name, identifier: labelIdentifier(name) } : {};
+    switch (block.block) {
+      case "heading": return { type: "heading", depth: block.level ?? 1, children: inlineContentToNodes(block.content ?? []) };
+      case "target": return { type: "mystTarget", label: name };
+      case "equation": return { type: "math", value: "x", ...attrs };
+      case "figure": return { ...createFigureNode({ imageUrl: "", imageAlt: "", caption: "" }), ...attrs };
+      case "table": return tableBlockNode(createTableNode([[[{ kind: "text", text: "x" }]]]), [], name, attrs.identifier);
+      default: return { type: "paragraph", children: [{ type: "text", value: "x" }] };
+    }
+  });
+}
+

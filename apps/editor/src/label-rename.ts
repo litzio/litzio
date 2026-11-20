@@ -1,12 +1,23 @@
 import { writeIssueOf, planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "@litzio/core";
 import type { UiMessage } from "./ui-message.ts";
 import { closeHistory } from "@tiptap/pm/history";
-import type { Fragment } from "@tiptap/pm/model";
+import type { Fragment, Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { fromTiptapContent } from "./tiptap-inline.ts";
 
 /** Editor transaction carrying Core's plan for updating references to a renamed label. */
 export const LABEL_PROPERTIES_META = "labelProperties";
+
+/** The engine document's top-level blocks as Core's live target context. */
+export function labelTargetBlocks(doc: ProseMirrorNode): LabelRenameBlock[] {
+  const blocks: LabelRenameBlock[] = [];
+  doc.forEach(node => blocks.push({
+    block: node.type.name === "labelTarget" ? "target" : node.type.name,
+    label: node.attrs.label, level: node.attrs.level,
+    ...(node.type.name === "heading" ? { content: fromTiptapContent({ type: "doc", content: [{ type: "paragraph", content: node.toJSON().content }] }) } : {}),
+  }));
+  return blocks;
+}
 
 /** Apply properties and Core's reference plan in one engine transaction. Body text may still
  * be unfinished; only target context and reference attributes cross the Core boundary here. */
@@ -19,12 +30,7 @@ export function updateLabelProperties(state: EditorState, position: number, attr
   if (caption === undefined) tr.setNodeMarkup(position, undefined, attrs);
   else tr.replaceWith(position, position + current.nodeSize, current.type.create(attrs, caption));
   if (current.attrs.label && label && current.attrs.label !== label) {
-    const blocks: LabelRenameBlock[] = [];
-    tr.doc.forEach(node => blocks.push({
-      block: node.type.name === "labelTarget" ? "target" : node.type.name,
-      label: node.attrs.label, level: node.attrs.level,
-      ...(node.type.name === "heading" ? { content: fromTiptapContent({ type: "doc", content: [{ type: "paragraph", content: node.toJSON().content }] }) } : {}),
-    }));
+    const blocks = labelTargetBlocks(tr.doc);
     const references: LabelRenameReference[] = [];
     const apply: ((reference: LabelRenameReference) => void)[] = [];
     const add = (reference: LabelRenameReference, change: (reference: LabelRenameReference) => void) => {
