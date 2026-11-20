@@ -223,3 +223,5 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 - [v0.0.3-beta.4 배포·검증 기록](releases/v0.0.3-beta.4.md) — Historical. 공개 Beta·workflow·자산 해시와 한국어 본문. 실제 GitHub 설치·업데이트는 미실행·미검증.
 
 - [v0.0.3-beta.5 배포·검증 기록](releases/v0.0.3-beta.5.md) — Historical. 공개 Beta·workflow·자산 해시와 한국어 본문. 실제 GitHub 설치·업데이트는 미실행·미검증.
+
+- [v0.0.3-beta.6 게시 준비·검증 기록](releases/v0.0.3-beta.6.md) — Historical. 게시 대기 후보, 사용자 영향별 변경과 한국어 Release 본문 초안. 실제 GitHub 설치·업데이트는 미실행·미검증.

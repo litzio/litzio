@@ -42,8 +42,8 @@ const sharedData = path.join(os.homedir(), brand.folders.shared);
 process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
 process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
 // LIVE uses two public Beta releases; both must be published before this opt-in harness can run.
-const [OLD, NEW] = LIVE ? ["0.0.3-beta.4", "0.0.3-beta.5"]
-  : PUBLISHED_BASE ? ["0.0.2", "0.0.3-beta.5"]
+const [OLD, NEW] = LIVE ? ["0.0.3-beta.5", "0.0.3-beta.6"]
+  : PUBLISHED_BASE ? ["0.0.2", "0.0.3-beta.6"]
   : BETA ? ["0.1.0-beta.1", "0.1.0-beta.2"] : ["0.0.1", "0.0.2"];
 // The public beta.3 predates native documents (#232) and edits leading frontmatter as a body block.
 const NATIVE_PREFIX = LIVE && OLD === "0.0.1-beta.3" ? "" : "---\nlitzio: 1\n---\n\n";
