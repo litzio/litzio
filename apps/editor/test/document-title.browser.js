@@ -146,7 +146,7 @@ async (page, { openPath, reloadDocument, expect, screenshots, waitForEditorFocus
     const view = node.editor.view, probe = window.pointerFocusProbe = {};
     const schedule = window.setTimeout;
     window.setTimeout = (callback, ms, ...rest) => {
-      if (ms === 20 && String(callback).includes('domSel.sync')) { probe.check = callback; return 0; }
+      if (ms === 20 && String(callback).includes('selectionToDOM')) { probe.check = callback; return 0; }
       return schedule(callback, ms, ...rest);
     };
     // ProseMirror's focus listener was registered first; this one reads the state it leaves.

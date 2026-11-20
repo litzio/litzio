@@ -150,9 +150,7 @@ async (page, { openPath, withBlockHover }) => {
         else if (movement === 'keyboard') await page.keyboard.press('ArrowDown');
         else if (movement === 'programmatic-focus') await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(node => node.editor.view.focus());
         else {
-          // same-editor and round-trip are separate single clicks; ProseMirror classifies nearby
-          // rapid clicks as multi-clicks, so round-trip presses a different point of the paragraph.
-          await prose.click(movement === 'round-trip' ? {position:{x:24, y:8}} : undefined);
+          await prose.click();
           // Establish both the native caret and engine selection before releasing the held
           // frame; click-to-selection synchronization is separate from deferred form focus.
           await page.waitForFunction(path => {

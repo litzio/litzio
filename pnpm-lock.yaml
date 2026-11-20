@@ -170,7 +170,7 @@ patchedDependencies:
   markdown-it@13.0.2: 18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470
   myst-parser@1.7.4: 3ff8853c1313cffdfc29f35c069348dd41a577d8030211236e4d0af0f17bcb8e
   myst-to-md@1.0.17: 5e4cf2e0a19a18dea32cfcae63c35c1985361a47aa10139c604d9fe785015849
-  prosemirror-view@1.43.0: f0637a7f0a66a22bcf95b9b299a10a2d7f7ad76c9f8ba962b4ba9e570ab22fab
+  prosemirror-view@1.42.9: f0862ad3781ba585960de903f72c9369ac157aad350808681b7f67a896f2852b
 
 importers:
 
@@ -4102,8 +4102,8 @@ packages:
   prosemirror-transform@1.12.7:
     resolution: {integrity: sha512-/e87cbxcM5WJOJrL1IrM9gJqO3EK8LdQoPvs+r4ss1lRO5t5QeqkU0SlmDvcitCSDUbm8s/MxbBB6ds4pY6Xlg==}
 
-  prosemirror-view@1.43.0:
-    resolution: {integrity: sha512-MZOUuhD+Gv7Cp7UlgvyhptUfb920NkLBgymhyhaM8xp+JXQyLhkssS2EXZvMI3ZU3vRoz5z7mRC32udVgNYHqg==}
+  prosemirror-view@1.42.9:
+    resolution: {integrity: sha512-bKbfzeKZOu2H2JQU2TaJmYu6EBcor3VnGIR4jR31cbEt1ztUnfUB6bKGV1+fJzOJdrVWR+tRU0208zM3oQx4wA==}
 
   proxy-addr@2.0.8:
     resolution: {integrity: sha512-5nnx0yGyVUcY6t9RnWcARWtwT9F1D8O9rt08htPvnd49W1IgZtmLkhu9WfMzQj1cFxjHIO6connUNVW5k7AVyQ==}
@@ -5887,7 +5887,7 @@ snapshots:
       prosemirror-state: 1.4.4
       prosemirror-tables: 1.8.5
       prosemirror-transform: 1.12.7
-      prosemirror-view: 1.43.0(patch_hash=f0637a7f0a66a22bcf95b9b299a10a2d7f7ad76c9f8ba962b4ba9e570ab22fab)
+      prosemirror-view: 1.42.9(patch_hash=f0862ad3781ba585960de903f72c9369ac157aad350808681b7f67a896f2852b)
 
   '@tiptap/react@3.34.0(@floating-ui/dom@1.8.0)(@tiptap/core@3.34.0(@tiptap/pm@3.34.0))(@tiptap/pm@3.34.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
@@ -8661,20 +8661,20 @@ snapshots:
     dependencies:
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.12.7
-      prosemirror-view: 1.43.0(patch_hash=f0637a7f0a66a22bcf95b9b299a10a2d7f7ad76c9f8ba962b4ba9e570ab22fab)
+      prosemirror-view: 1.42.9(patch_hash=f0862ad3781ba585960de903f72c9369ac157aad350808681b7f67a896f2852b)
 
   prosemirror-gapcursor@1.4.1:
     dependencies:
       prosemirror-keymap: 1.2.3
       prosemirror-model: 1.25.13
       prosemirror-state: 1.4.4
-      prosemirror-view: 1.43.0(patch_hash=f0637a7f0a66a22bcf95b9b299a10a2d7f7ad76c9f8ba962b4ba9e570ab22fab)
+      prosemirror-view: 1.42.9(patch_hash=f0862ad3781ba585960de903f72c9369ac157aad350808681b7f67a896f2852b)
 
   prosemirror-history@1.5.2:
     dependencies:
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.12.7
-      prosemirror-view: 1.43.0(patch_hash=f0637a7f0a66a22bcf95b9b299a10a2d7f7ad76c9f8ba962b4ba9e570ab22fab)
+      prosemirror-view: 1.42.9(patch_hash=f0862ad3781ba585960de903f72c9369ac157aad350808681b7f67a896f2852b)
       rope-sequence: 1.3.4
 
   prosemirror-inputrules@1.7.0:
@@ -8701,7 +8701,7 @@ snapshots:
     dependencies:
       prosemirror-model: 1.25.13
       prosemirror-transform: 1.12.7
-      prosemirror-view: 1.43.0(patch_hash=f0637a7f0a66a22bcf95b9b299a10a2d7f7ad76c9f8ba962b4ba9e570ab22fab)
+      prosemirror-view: 1.42.9(patch_hash=f0862ad3781ba585960de903f72c9369ac157aad350808681b7f67a896f2852b)
 
   prosemirror-tables@1.8.5:
     dependencies:
@@ -8709,13 +8709,13 @@ snapshots:
       prosemirror-model: 1.25.13
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.12.7
-      prosemirror-view: 1.43.0(patch_hash=f0637a7f0a66a22bcf95b9b299a10a2d7f7ad76c9f8ba962b4ba9e570ab22fab)
+      prosemirror-view: 1.42.9(patch_hash=f0862ad3781ba585960de903f72c9369ac157aad350808681b7f67a896f2852b)
 
   prosemirror-transform@1.12.7:
     dependencies:
       prosemirror-model: 1.25.13
 
-  prosemirror-view@1.43.0(patch_hash=f0637a7f0a66a22bcf95b9b299a10a2d7f7ad76c9f8ba962b4ba9e570ab22fab):
+  prosemirror-view@1.42.9(patch_hash=f0862ad3781ba585960de903f72c9369ac157aad350808681b7f67a896f2852b):
     dependencies:
       prosemirror-model: 1.25.13
       prosemirror-state: 1.4.4

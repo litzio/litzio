@@ -190,14 +190,10 @@ async (page, { openPath, screenshots, expect }) => {
   await page.mouse.up();
   await page.keyboard.up('Control');
   await assertOpens(2);
-  // A real IME marks its keys as composing, and ProseMirror ends a composition at a key that is
-  // not. Hold Control before the synthetic composition starts, so the press carries it without a key.
-  await page.keyboard.down('Control');
   await editor.locator('.ProseMirror').dispatchEvent('compositionstart', {data:'한'});
   await existingLink.click({modifiers:['Control']});
   await assertOpens(2);
   await editor.locator('.ProseMirror').dispatchEvent('compositionend', {data:'한'});
-  await page.keyboard.up('Control');
   // A fragment is still editable but never opens or navigates.
   await editor.locator('a[href="#eq-a"]').click({modifiers:['Control']});
   await assertOpens(2);

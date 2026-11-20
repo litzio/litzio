@@ -178,9 +178,7 @@ async (page, { openPath, expect, reloadDocument }) => {
       await cdp.send('Input.imeSetComposition', {text, selectionStart:text.length, selectionEnd:text.length});
     if (mode.startsWith('escape')) await page.keyboard.press('Escape');
     if (mode.startsWith('backspace')) {
-      // A Windows IME delivers the Backspace it consumes as Process (229) while composing.
-      await cdp.send('Input.dispatchKeyEvent', {type:'rawKeyDown', key:'Process', code:'Backspace', windowsVirtualKeyCode:229});
-      await cdp.send('Input.dispatchKeyEvent', {type:'keyUp', key:'Process', code:'Backspace', windowsVirtualKeyCode:229});
+      await page.keyboard.press('Backspace');
       // Supply the IME result of Backspace, separately from the physical key event.
       await cdp.send('Input.imeSetComposition', {text:'한', selectionStart:1, selectionEnd:1});
     }

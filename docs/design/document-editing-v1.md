@@ -6,7 +6,7 @@
 - Pasted label conflicts: 2026-11-20 (#1847; Core `assertPastedLabelsAvailable` tests and the `external-html-paste` browser scenario: a Table copied in the same document, a Table label equal to a section or Equation label, an Equation taking a Table label and a label repeated within the paste are refused with the document and selection kept; plain text and external HTML still paste beside existing duplicate Table labels with one Undo; a Table after a paragraph moved between a section label and its heading pastes; a Table label equal to a heading's automatic ID pastes and Save refuses it; a Table or Equation followed by a heading with its ID, and a distinct Table label, paste and survive Save → Reload).
 - Paragraph tail normalization: 2026-11-04 (#1107; native Shift+Enter → Save/Reload and path-only assistant-send browser regressions).
 - Empty-title entry: 2026-10-30 (#786; small bilingual optional-title hint, preserved slot height and immediate title typography; document-title browser regression and [captures](figure-authoring-v1.md#empty-authoring-entry-786)).
-- Engine upgrade: 2026-11-21 (#1841: `prosemirror-view` 1.43.0 with its re-ported patch, `prosemirror-history` 1.5.2; `focus-caret`, `citation-authoring` and `document-title` with and without the patch, and the pointer-selection scenarios `selection-toolbar`, `caption-selection`, `block-move`, `table-authoring`, `table-cell-editing`, `inline-math-authoring`, `link-authoring` and `continuous-editing` on Windows Chrome).
+- Engine upgrade: 2026-11-20 (#1827: Tiptap 3.34.0 and the `prosemirror-view@1.42.9` patch; `focus-caret`, `citation-authoring` and `document-title` with and without the patch on Windows Chrome).
 - Native focus selection: 2026-10-26 (#542: restore the retained selection before the observer can accept Chromium's native focus caret; real-click Command center and held-check browser regressions. #502 remains separate).
 - Selection-race scope: 2026-10-26 (#489: citation-form focus, closing Reload focus and empty-title pointer selection. The separate table selection investigation is #502. Per-scenario evidence and the #421/#416 boundary are recorded in the [test guide](../reviews/verification-history-2026-11.md#focus-and-selection-race-investigation-489)).
 - Scope: Supported continuous editing and Core-backed persistence; [ADR-0001](../adr/0001-single-document-editor-architecture.md).
@@ -364,14 +364,8 @@ A changed document recomputes numbering; source semantics and canonical output a
   typing even when the check runs before the native `selectionchange` is read.
   `prosemirror-view` 1.42.9 provides this without the patch: its delayed check restores the old
   caret only while the DOM caret is still where focus left it. `document-title` forces that
-  order for a pointer click (unpatched 1.42.4 fails it; 1.42.9 and 1.43.0 pass with and without
-  the patch). Touch is not exercised separately.
-- A pointer press whose caret is already visible does not scroll the document, as with a native
-  click; a drag past the viewport edge still scrolls. Since `prosemirror-view` 1.43 the engine
-  places pointer selections itself and scrolls them into view through the editor's caret
-  clearance (the writing end space), which would move the text under the pointer between the
-  presses of a double or triple click in the lower part of the window. `pointer-selection-scroll.ts`
-  skips that scroll (#1841; `caption-selection` endnote triple clicks fail without it).
+  order for a pointer click (unpatched 1.42.4 fails it; 1.42.9 passes with and without the
+  patch). Touch is not exercised separately.
 
 Core `insertParagraph` accepts InlineContent directly (CLI `insert-block --content`)
 so rich content is never staged as flattened text. Core `insertTable` accepts optional
@@ -743,7 +737,7 @@ at `compositionstart` or routing through gapcursor's `beforeinput` produced
 `ㅎ한글`: Chromium restarted its composing range after the first update. These
 approaches were discarded. The #314 adapter prepared the caret at the initial
 IME keydown, before that range existed; #714's input-ignore policy now supersedes
-that placement. In pinned `prosemirror-view` 1.43.0, `input.ts` invokes custom DOM
+that placement. In pinned `prosemirror-view` 1.42.9, `input.ts` invokes custom DOM
 handlers before its own keydown handler skips key code 229, while `domchange.ts`
 can invoke `handleTextInput` during composition. Tiptap is pinned at 3.34.0.
 
