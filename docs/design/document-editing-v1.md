@@ -331,7 +331,9 @@ A changed document recomputes numbering; source semantics and canonical output a
   original target to move it (#1847). Core `assertPastedLabelsAvailable` compares MyST
   identifiers of the labels the paste adds with the document's other Figure/Table/Equation
   and section labels, and with each other: such a pair fails Save in any order. Duplicates
-  already in the document do not block other pastes. Implicit heading IDs are not
+  already in the document do not block other pastes. A copy drop (Ctrl-drag, or Litzio's
+  clipboard dropped from elsewhere) adds labels and is checked the same way with the same
+  notice; a block move drop keeps its labels and is not checked (#1851). Implicit heading IDs are not
   checked on paste and are left to Save, as before: a label equal to an unlabeled
   heading's automatic ID pastes, and Save refuses it with the duplicate-label error only
   when the heading is already there when Save applies the label.
