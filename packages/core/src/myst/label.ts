@@ -73,10 +73,12 @@ export function labelAvailability(document: MystDocument): (label: string, excep
  * IDs are left to Save, and duplicates among `others` alone never refuse the paste.
  */
 export function assertPastedLabelsAvailable(pasted: readonly string[], others: readonly string[]): void {
-  const taken = new Set(others.map(labelIdentifier).filter(Boolean));
+  // A label that normalizes to nothing (e.g. only quotes) compares as the empty identifier, so
+  // two of them are refused here, as before, rather than pasted for Save to refuse.
+  const key = (label: string) => labelIdentifier(label) ?? "";
+  const taken = new Set(others.map(key));
   for (const label of pasted) {
-    const identifier = labelIdentifier(label);
-    if (!identifier) continue; // Syntax/addressability validation belongs to Save.
+    const identifier = key(label);
     if (taken.has(identifier)) {
       throw new DocumentWriteError(`label ${JSON.stringify(label)} already names another target`, { code: "label-conflict",
         action: "Choose a label not used by another target." });

@@ -62,6 +62,10 @@ test("pasted explicit labels must not repeat another explicit label; heading IDs
   assert.doesNotThrow(() => assertPastedLabelsAvailable([], others));
   for (const label of ["Old", "tab-sec", "TAB-SEC"]) assert.throws(() => assertPastedLabelsAvailable([label], others), /already names another target/, label);
   assert.throws(() => assertPastedLabelsAvailable(["twin", "TWIN"], others), /already names another target/);
+  // Labels of only quotes normalize to the empty identifier and still repeat each other.
+  assert.throws(() => assertPastedLabelsAvailable(["'", "”"], others), /already names another target/);
+  assert.throws(() => assertPastedLabelsAvailable(["'"], ["”"]), /already names another target/);
+  assert.doesNotThrow(() => assertPastedLabelsAvailable(["'"], others));
 });
 
 function block(document: MystDocument, index: number) {

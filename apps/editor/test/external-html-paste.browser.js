@@ -449,7 +449,12 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   const beforeHeadingId = await state();
   await syntheticPaste(await tableClipboard('places'));
   await changedFrom(beforeHeadingId);
+  // The scenario's only expected HTTP 400 (console-errors.ts): this Save of places.md.
+  const refusedSave = page.waitForResponse(response => response.url().split('?')[0].endsWith('/api/document') && response.request().method() !== 'GET');
   await page.getByRole('button', {name:'Save', exact:true}).click();
+  const refusedResponse = await refusedSave;
+  assert(refusedResponse.status() === 400 && (refusedResponse.request().postData() ?? '').includes(JSON.stringify(placesFile).slice(1, -1)),
+    `The refused Save is places.md's: ${refusedResponse.status()} ${(refusedResponse.request().postData() ?? '').slice(0, 300)}`);
   await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
   assert(await page.getByTestId('status').getAttribute('data-operation') === 'save-failed', 'Save refuses a Table label equal to a heading ID');
   assert((await page.locator('body').innerText()).includes('Duplicate label'), `Save names the duplicate label: ${await page.locator('body').innerText()}`);
