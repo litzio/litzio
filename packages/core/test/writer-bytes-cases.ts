@@ -9,7 +9,7 @@
  * edits of other packages' fixtures.
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { MystDocument, MystNode } from "../src/myst/tree.ts";
@@ -88,7 +88,8 @@ async function generate(source: string): Promise<void> {
   const files = execFileSync("git", ["ls-files", "*/fixtures/*.md"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
   const expected: Expected = { fixtures: {}, generated: {} };
   for (const file of files) {
-    const input = readFileSync(resolve(root, file), "utf8");
+    // The committed bytes, not a checkout's line-ending conversion.
+    const input = execFileSync("git", ["show", `HEAD:${file}`], { cwd: root, encoding: "utf8" });
     expected.fixtures[file] = { input, output: attempt(serialize, () => parse(input)) };
   }
   for (const [name, make] of generatedCases(parse)) expected.generated[name] = attempt(serialize, make);
