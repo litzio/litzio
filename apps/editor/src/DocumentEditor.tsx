@@ -8,6 +8,7 @@ import { NumberingNotice, editorNumberingReport, changeEditorNumbering } from ".
 import { documentScrollContainer } from "./document-scroll.ts";
 import type { OverlayAnchor } from "./ui/use-overlay-bounds.ts";
 import { handleLinkClick, handleLinkMouseDown } from "./link-opening.ts";
+import { PointerSelectionScroll } from "./pointer-selection-scroll.ts";
 import { ReadingPreview } from "./ReadingPreview.tsx";
 import { ImageRenameContext, imageRenameKey, renameSnapshot, type ImageRenamer } from "./image-rename.ts";
 import type { MediaReplacement } from "../shared/file-operations.ts";
@@ -253,6 +254,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         // editable:false stops native input. Explicit keymaps, commands and async form
         // completions also dispatch transactions, so reject every content change here.
         ReadOnlyBoundary,
+        PointerSelectionScroll,
         Placeholder.configure({ placeholder: () => i18n.t("Start writing, or type / to add a block.") }),
         // Tab from a text selection enters its formatting toolbar, after table and list Tab keys.
         Extension.create({
