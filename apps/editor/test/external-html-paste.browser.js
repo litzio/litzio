@@ -32,6 +32,15 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     data.setData('text/html', html); data.setData('text/plain', 'Plain fallback');
     el.dispatchEvent(new ClipboardEvent('paste', {clipboardData:data, bubbles:true, cancelable:true}));
   }, html);
+  // A drop at the start of the "Omega." paragraph, from outside the editor's own drag.
+  const syntheticDrop = async (type, value) => {
+    const box = await editor.locator('p').filter({hasText:'Omega.'}).boundingBox();
+    await editor.evaluate((el, args) => {
+      const data = new DataTransfer();
+      data.setData(args.type, args.value);
+      el.dispatchEvent(new DragEvent('drop', {dataTransfer:data, clientX:args.x, clientY:args.y, bubbles:true, cancelable:true}));
+    }, {type, value, x:box.x + 1, y:box.y + box.height / 2});
+  };
   const source = async marker => {
     await page.getByTestId('view-source').click();
     await page.waitForFunction(marker => document.querySelector('[data-testid="source-view"] pre')?.textContent.includes(marker), marker);
@@ -420,6 +429,45 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await editor.evaluate(el => el.editor.commands.undo());
   assert((await state()).doc === beforeEquation.doc, 'One Undo removes the pasted Equation');
   assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data']), 'Refused Table pastes add no table');
+  // A copy drop adds labels as a paste does and is refused the same way (#1851): an actual
+  // Ctrl drag of a selection holding the labelled Table, and Litzio's clipboard HTML dropped
+  // with a section label. A move drop (no Ctrl) keeps one Table and is not refused.
+  const outlineTypes = () => editor.evaluate(el => { const types = []; el.editor.state.doc.forEach(node => types.push(node.type.name === 'paragraph' ? node.textContent : node.type.name)); return types.join('|'); });
+  const dragTableRange = async copy => {
+    await editor.evaluate(el => {
+      let from, to;
+      el.editor.state.doc.forEach((node, offset) => {
+        if (node.textContent === 'LeftRIGHT') from = offset + 1;
+        if (node.type.name === 'paragraph' && node.textContent === 'See.') to = offset + 4;
+      });
+      el.editor.commands.setTextSelection({from, to}); el.editor.view.focus();
+    });
+    await page.evaluate(() => { window.__tableDrops = []; document.addEventListener('drop', event => window.__tableDrops.push({trusted: event.isTrusted, ctrl: event.ctrlKey}), {capture: true, once: true}); });
+    const from = await editor.locator('p').filter({hasText:'LeftRIGHT'}).boundingBox();
+    const to = await editor.locator('p').filter({hasText:'Omega.'}).boundingBox();
+    const before = await state();
+    await page.mouse.move(from.x + 10, from.y + from.height / 2); await page.mouse.down();
+    if (copy) await page.keyboard.down('Control');
+    await page.mouse.move(to.x + 3, to.y + to.height / 2, {steps: 20}); await page.mouse.up();
+    if (copy) await page.keyboard.up('Control');
+    const drops = await page.evaluate(() => window.__tableDrops);
+    assert(drops.length === 1 && drops[0].trusted && drops[0].ctrl === copy, `Expected an actual ${copy ? 'copy' : 'move'} drop: ${JSON.stringify(drops)}`);
+    return before;
+  };
+  await notice.waitFor({state:'detached', timeout:10000});
+  const beforeCopyDrop = await dragTableRange(true);
+  const afterCopyDrop = await state();
+  assert(afterCopyDrop.doc === beforeCopyDrop.doc && afterCopyDrop.selection.join() === beforeCopyDrop.selection.join(), 'A refused copy drop keeps the document and selection');
+  await showNotifications(page);
+  await notice.filter({hasText:'Pasting would reuse a label that already names another target.'}).waitFor({state:'visible'});
+  await refusedTable(async () => syntheticDrop('text/html', await tableClipboard('tab-sec')), 'dropped clipboard with a section label');
+  await notice.waitFor({state:'detached', timeout:10000});
+  const beforeMoveDrop = await dragTableRange(false);
+  await changedFrom(beforeMoveDrop);
+  assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data']), 'A move drop keeps one labelled Table');
+  assert((await outlineTypes()).includes('|table|SeeOmega.|'), `The move drop moves the Table: ${await outlineTypes()}`);
+  await editor.evaluate(el => el.editor.commands.undo());
+  assert((await state()).doc === beforeMoveDrop.doc, 'One Undo restores the move drop');
   // Only explicit labels are compared: a heading's automatic ID is left to Save, as on master.
   // A Table followed by a heading with its ID, and a Table pasted after a paragraph moved between
   // a section label and its heading, paste (the ordered pairs also save below).
@@ -474,7 +522,8 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     el.editor.commands.insertContentAt(omega, table);
   });
   assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data', 'tab-data']), 'The setup holds two tables with one label');
-  for (const paste of [() => textPaste('plain words'), () => syntheticPaste('<p>html words</p>')]) {
+  for (const paste of [() => textPaste('plain words'), () => syntheticPaste('<p>html words</p>'),
+    () => syntheticDrop('text/plain', 'dropped words'), async () => syntheticDrop('text/html', await tableClipboard('tab-other'))]) {
     await select('Omega.');
     const before = await state();
     await paste();
@@ -596,13 +645,18 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   const beforeTableNew = await state();
   await syntheticPaste(await tableClipboard('tab-new'));
   await changedFrom(beforeTableNew);
-  assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data', 'later', 'tab-new']), `The pasted Tables keep their labels: ${JSON.stringify(await tableLabels())}`);
+  // A dropped Table whose label nothing else names keeps it (#1851).
+  await select('Omega.');
+  const beforeTableDrop = await state();
+  await syntheticDrop('text/html', await tableClipboard('tab-drop'));
+  await changedFrom(beforeTableDrop);
+  assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data', 'later', 'tab-new', 'tab-drop']), `The pasted Tables keep their labels: ${JSON.stringify(await tableLabels())}`);
   const tablePasted = await state();
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
   assert(await page.getByTestId('status').getAttribute('data-operation') === 'saved', `Labelled Table paste Save failed: ${await page.locator('body').innerText()}`);
   const placesDisk = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(placesFile)}`, { headers: { Connection: "close" } })).json()).source;
-  assert(['tab-data', 'later', 'tab-new', 'eqlater'].every(label => placesDisk.includes(`:label: ${label}`) || placesDisk.includes(`:name: ${label}`)) &&
+  assert(['tab-data', 'later', 'tab-new', 'tab-drop', 'eqlater'].every(label => placesDisk.includes(`:label: ${label}`) || placesDisk.includes(`:name: ${label}`)) &&
     placesDisk.includes('## Later') && placesDisk.includes('## Eqlater'), `Pasted labels and headings are saved: ${JSON.stringify(placesDisk)}`);
   await reloadDocument(page);
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});

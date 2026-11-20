@@ -135,6 +135,21 @@ function portable(node: PMNode): boolean {
 }
 
 /** Session locators never travel with clipboard content. Engine Slice openness is retained. */
+function explicitLabel(node: PMNode): boolean {
+  return EXPLICIT_LABELS.has(node.type.name) && typeof node.attrs.label === "string" && !!node.attrs.label;
+}
+
+/** Explicit labels pasted or copy-dropped must not repeat another explicit label (Core).
+ * Implicit heading IDs are left to Save; duplicates already in the document do not block. */
+function labelConflict(added: string[], others: string[]): UiMessage | undefined {
+  if (!added.length) return undefined;
+  try { assertPastedLabelsAvailable(added, others); return undefined; }
+  catch (cause) {
+    return { key: writeIssueOf(cause).code === "label-conflict" ? PASTE_LABEL_CONFLICT
+      : "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." };
+  }
+}
+
 function freshSlice(slice: Slice): Slice {
   const copy = (node: PMNode): PMNode => {
     if (node.isText) return node;
@@ -699,13 +714,22 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           linkPastedText = false;
           return freshSlice(external ? closeExternalSlice(linked) : linked);
         },
-        handleDrop: (_view, _event, _slice, moved) => {
+        handleDrop: (view, _event, slice, moved) => {
           textPaste = false;
           pastedFootnotes = [];
           const { error, notice } = moved ? {} : pasted ?? {};
           pasted = undefined;
           external = false;
           if (error) return fail(error);
+          // A copy drop adds its blocks' labels as a paste does; a move keeps them.
+          if (!moved) {
+            const otherLabels: string[] = [];
+            view.state.doc.forEach(node => { if (explicitLabel(node)) otherLabels.push(node.attrs.label); });
+            const droppedLabels: string[] = [];
+            slice.content.descendants(node => { if (explicitLabel(node)) droppedLabels.push(node.attrs.label); });
+            const conflict = labelConflict(droppedLabels, otherLabels);
+            if (conflict) return fail(conflict);
+          }
           pastedNotice = notice;
           return false;
         },
@@ -754,18 +778,12 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           const pastedLabels: string[] = [];
           const otherLabels: string[] = [];
           tr.doc.forEach(node => {
-            const label = node.attrs.label;
-            if (!EXPLICIT_LABELS.has(node.type.name) || typeof label !== "string" || !label) return;
-            if (existing.has(node.attrs.sourcePath) || node.type.name === "labelTarget") otherLabels.push(label);
-            else pastedLabels.push(label);
+            if (!explicitLabel(node)) return;
+            if (existing.has(node.attrs.sourcePath) || node.type.name === "labelTarget") otherLabels.push(node.attrs.label);
+            else pastedLabels.push(node.attrs.label);
           });
-          if (pastedLabels.length) {
-            try { assertPastedLabelsAvailable(pastedLabels, otherLabels); }
-            catch (cause) {
-              return fail({ key: writeIssueOf(cause).code === "label-conflict" ? PASTE_LABEL_CONFLICT
-                : "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." });
-            }
-          }
+          const conflict = labelConflict(pastedLabels, otherLabels);
+          if (conflict) return fail(conflict);
           if (besideEquation || notes.length || referenceLabels(slice.content).length) {
             pastedNotice = notice;
             view.dispatch(tr.scrollIntoView().setMeta("paste", true).setMeta("uiEvent", "paste"));
