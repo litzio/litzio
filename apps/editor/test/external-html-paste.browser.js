@@ -355,19 +355,63 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await refusedAt('CaptionText', 4, () => textPaste('**bold**\nMore'), lineBreaks('table caption'));
   await refusedAt('CaptionText', 4, () => textPaste('# Pasted\n\nAfter'), oneLine);
   await refusedAt('CaptionText', 4, () => syntheticPaste('<h1>Pasted</h1><p>After</p>'), oneLine);
-  // A document that already holds two tables with one label (Litzio's own clipboard copies the
-  // label) still takes plain text and external HTML, as before.
-  await editor.evaluate(el => {
+  // Litzio's own clipboard keeps a Table label: a paste that would add a label Save refuses (a
+  // copy in the same document, a section label, a heading's automatic ID, or twice in the paste)
+  // is refused before it changes the document (#1847).
+  const tableAt = () => editor.evaluate(el => {
     let at;
-    el.editor.state.doc.forEach((node, offset) => { if (node.type.name === 'table') at = offset; });
-    el.editor.commands.setNodeSelection(at); el.editor.view.focus();
+    el.editor.state.doc.forEach((node, offset) => { if (node.type.name === 'table' && at === undefined) at = offset; });
+    return at;
   });
+  const tableLabels = () => editor.evaluate(el => {
+    const labels = [];
+    el.editor.state.doc.forEach(node => { if (node.type.name === 'table') labels.push(node.attrs.label); });
+    return labels;
+  });
+  // The engine's own clipboard HTML for the labelled table, with another label.
+  const tableClipboard = (label, times = 1) => editor.evaluate((el, args) => {
+    const view = el.editor.view;
+    let from, to;
+    view.state.doc.forEach((node, offset) => { if (node.type.name === 'table' && from === undefined) { from = offset; to = offset + node.nodeSize; } });
+    const one = view.serializeForClipboard(view.state.doc.slice(from, to)).dom.innerHTML;
+    return one.replaceAll('tab-data', args.label).repeat(args.times);
+  }, {label, times});
+  const refusedTable = async (paste, message) => {
+    await notice.waitFor({state:'detached', timeout:10000});
+    await select('Omega.');
+    const before = await state();
+    await paste();
+    const after = await state();
+    assert(after.doc === before.doc && after.selection.join() === before.selection.join(), `${message}: a refused Table paste keeps the document and selection`);
+    await showNotifications(page);
+    await notice.filter({hasText:'Pasting would reuse a label that already names another target.'}).waitFor({state:'visible'});
+  };
+  const labelRefusal = (label, times) => async () => {
+    const html = await tableClipboard(label, times);
+    assert(html.includes(`${label}`) && html.includes('data-litzio-type'), `Typed clipboard HTML carries the label: ${html}`);
+    await syntheticPaste(html);
+  };
+  await editor.evaluate((el, at) => { el.editor.commands.setNodeSelection(at); el.editor.view.focus(); }, await tableAt());
   await page.keyboard.press('Control+c');
+  await refusedTable(() => page.keyboard.press('Control+v'), 'same document copy');
+  await refusedTable(labelRefusal('tab-sec'), 'section label');
+  await refusedTable(labelRefusal('places'), 'heading ID');
+  await refusedTable(labelRefusal('tab-twin', 2), 'twice in the paste');
+  assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data']), 'Refused Table pastes add no table');
+  // A document that already holds two tables with one label still takes plain text and external
+  // HTML, as before: only labels a paste adds are checked.
   await select('Omega.');
-  const beforeCopy = await state();
-  await page.keyboard.press('Control+v');
-  await changedFrom(beforeCopy);
-  assert((await outline()).filter(block => block.startsWith('table|')).length === 2, 'The labelled table is copied once');
+  const beforeDuplicate = await state();
+  await editor.evaluate(el => {
+    let table, omega;
+    el.editor.state.doc.forEach((node, offset) => {
+      // A copy without session locators, as the engine's own clipboard makes it.
+      if (node.type.name === 'table' && !table) table = JSON.parse(JSON.stringify(node.toJSON(), (key, value) => key === 'sourcePath' ? null : key === 'sourceCell' ? '' : value));
+      if (node.textContent === 'Omega.') omega = offset;
+    });
+    el.editor.commands.insertContentAt(omega, table);
+  });
+  assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data', 'tab-data']), 'The setup holds two tables with one label');
   for (const paste of [() => textPaste('plain words'), () => syntheticPaste('<p>html words</p>')]) {
     await select('Omega.');
     const before = await state();
@@ -377,7 +421,7 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     assert((await state()).doc === before.doc, 'One Undo restores a paste beside duplicate labels');
   }
   await editor.evaluate(el => el.editor.commands.undo());
-  assert((await state()).doc === beforeCopy.doc, 'One Undo restores the table copy');
+  assert((await state()).doc === beforeDuplicate.doc, 'One Undo removes the duplicate setup');
   // A definition being edited does not take another endnote.
   await editor.locator('[data-testid="footnote-definition"]').getByTestId('endnote-edit').click();
   await refusedAt('NoteText', 4, () => textPaste('Other[^a].\n\n[^a]: Definition'), 'An endnote cannot contain another endnote.');
@@ -475,6 +519,24 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await editor.evaluate(el => el.editor.commands.undo());
   assert((await state()).doc === beforeDrop2.doc, 'One Undo restores the drop');
   result.markdownComposition = true;
+
+  // A Table label nothing else names pastes with its label, and the document saves and reloads.
+  await notice.waitFor({state:'detached', timeout:10000});
+  await select('Omega.');
+  const beforeTable = await state();
+  await syntheticPaste(await tableClipboard('tab-new'));
+  await changedFrom(beforeTable);
+  assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data', 'tab-new']), `The pasted Table keeps its label: ${JSON.stringify(await tableLabels())}`);
+  const tablePasted = await state();
+  await page.getByRole('button', {name:'Save', exact:true}).click();
+  await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
+  assert(await page.getByTestId('status').getAttribute('data-operation') === 'saved', `Labelled Table paste Save failed: ${await page.locator('body').innerText()}`);
+  const placesDisk = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(placesFile)}`, { headers: { Connection: "close" } })).json()).source;
+  assert(placesDisk.includes(':name: tab-data') && placesDisk.includes(':name: tab-new'), `Both Table labels are saved: ${JSON.stringify(placesDisk)}`);
+  await reloadDocument(page);
+  await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+  assert((await state()).doc === tablePasted.doc, 'Reload must retain the pasted labelled Table');
+  result.tableLabelPaste = true;
 
   return result;
 }

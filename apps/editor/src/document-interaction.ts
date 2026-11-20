@@ -1,6 +1,5 @@
 import type { UiMessage } from "./ui-message.ts";
-import { footnoteDefinitionsMarkdown, inlineContentText, planFootnotePaste, type FootnoteDefinition } from "@litzio/core";
-import { labelKey } from "@litzio/core/label";
+import { assertPastedLabelsAvailable, footnoteDefinitionsMarkdown, inlineContentText, planFootnotePaste, writeIssueOf, type FootnoteDefinition } from "@litzio/core";
 import { Extension, isMacOS } from "@tiptap/core";
 import { splitBlockAs } from "@tiptap/pm/commands";
 import { closeHistory } from "@tiptap/pm/history";
@@ -16,6 +15,7 @@ import { linkUrlsInNodes, type AutoLink } from "./pasted-url.ts";
 import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
+import { labelTargetBlocks } from "./label-rename.ts";
 import { fromTiptapContent, toTiptapContent } from "./tiptap-inline.ts";
 
 const FOOTNOTES_ATTR = "data-litzio-footnotes";
@@ -80,6 +80,9 @@ function selectAllScope(state: EditorState): { from: number; to: number } | unde
 }
 
 // Product policy: turn off document-wide Mod-a expansion here; no settings UI.
+// Blocks whose label names a reference target and can travel through the clipboard.
+const LABELED_TARGETS = new Set(["equation", "figure", "table"]);
+const PASTE_LABEL_CONFLICT = "Pasting would reuse a label that already names another target. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.";
 const EXPAND_SELECT_ALL_TO_DOCUMENT = true;
 
 export function selectAllTransaction(state: EditorState, previous?: EditorState,
@@ -745,15 +748,21 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           try {
             tr = pasteFootnotes(view.state, slice, notes, besideEquation ? paragraphBeside(view.state, true) : closeHistory(view.state.tr));
           } catch { return fail({ key: "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." }); }
-          const labels = new Set<string>();
-          let duplicate = false;
-          tr.doc.forEach(node => {
-            if (!["equation", "figure"].includes(node.type.name) || !node.attrs.label) return;
-            const label = labelKey(String(node.attrs.label));
-            if (labels.has(label)) duplicate = true;
-            labels.add(label);
+          // Only labels this paste adds are checked, with Save's target rules (Core). Duplicates
+          // already in the document do not block the paste.
+          const existing = new Set<unknown>();
+          view.state.doc.forEach(node => existing.add(node.attrs.sourcePath));
+          const added: number[] = [];
+          tr.doc.forEach((node, _pos, index) => {
+            if (LABELED_TARGETS.has(node.type.name) && node.attrs.label && !existing.has(node.attrs.sourcePath)) added.push(index);
           });
-          if (duplicate) return fail({ key: "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept." });
+          if (added.length) {
+            try { assertPastedLabelsAvailable(labelTargetBlocks(tr.doc), added); }
+            catch (cause) {
+              return fail({ key: writeIssueOf(cause).code === "label-conflict" ? PASTE_LABEL_CONFLICT
+                : "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." });
+            }
+          }
           if (besideEquation || notes.length || referenceLabels(slice.content).length) {
             pastedNotice = notice;
             view.dispatch(tr.scrollIntoView().setMeta("paste", true).setMeta("uiEvent", "paste"));

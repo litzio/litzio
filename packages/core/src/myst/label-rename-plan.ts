@@ -2,7 +2,7 @@ import { DocumentDiagnosticError } from "../write-error.ts";
 import type { InlineContent } from "../inline.ts";
 import { inlineContentToNodes, projectInlineContent } from "../inline.ts";
 import { updateLabel } from "../operations.ts";
-import { labelIdentifier } from "./label.ts";
+import { labelAvailability, labelIdentifier } from "./label.ts";
 import { createFigureNode } from "./figure.ts";
 import { createTableNode, tableBlockNode } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
@@ -62,3 +62,13 @@ function targetContext(blocks: readonly LabelRenameBlock[]): MystNode[] {
   });
 }
 
+/** Refuse labels a paste would add to a live interface snapshot when they name another target,
+ * with the same MyST target availability as updateLabel (and Save). `pasted` indexes the
+ * labeled blocks the paste adds; other blocks' existing duplicates never refuse the paste. */
+export function assertPastedLabelsAvailable(blocks: readonly LabelRenameBlock[], pasted: readonly number[]): void {
+  const available = labelAvailability({ type: "root", children: targetContext(blocks) });
+  for (const index of pasted) {
+    const label = blocks[index]?.label;
+    if (label) available(label, [index]);
+  }
+}

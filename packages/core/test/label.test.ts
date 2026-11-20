@@ -16,7 +16,7 @@ import {
   type MystDocument,
 } from "./core-internal.ts";
 import { referenceTargetIndex } from "../src/myst/label.ts";
-import { planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "@litzio/core";
+import { assertPastedLabelsAvailable, planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "@litzio/core";
 
 const source = readFileSync(new URL("./fixtures/technical-document.md", import.meta.url), "utf8");
 const EQUATION = 9;
@@ -54,6 +54,20 @@ test("live label rename plans share updateLabel resolution, canonical refusal an
   assert.deepEqual(planLabelRename([{ block: "equation", label: "old" }, { block: "target", label: "trailing" }], 0, "new", [
     { kind: "reference", role: "eq", label: "old" }, { kind: "reference", role: "ref", label: "trailing" },
   ]), [{ index: 0, reference: { kind: "reference", role: "eq", label: "new" } }]);
+});
+
+test("pasted labels use updateLabel's target rules and ignore duplicates the snapshot already has", () => {
+  const heading = (text: string): LabelRenameBlock => ({ block: "heading", level: 1, content: [{ kind: "text", text }] });
+  const existing: LabelRenameBlock[] = [{ block: "table", label: "old" }, { block: "figure", label: "OLD" },
+    { block: "target", label: "tab-sec" }, heading("Section"), heading("Data")];
+  const paste = (...pasted: LabelRenameBlock[]) => () =>
+    assertPastedLabelsAvailable([...existing, ...pasted], pasted.map((_, index) => existing.length + index));
+  assert.doesNotThrow(paste({ block: "table", label: "fresh" }, { block: "paragraph" }, heading("Old")));
+  assert.doesNotThrow(() => assertPastedLabelsAvailable(existing, []));
+  for (const block of ["equation", "figure", "table"]) {
+    for (const label of ["Old", "tab-sec", "data"]) assert.throws(paste({ block, label }), /already names another target/, `${block} ${label}`);
+    assert.throws(paste({ block, label: "twin" }, { block: "table", label: "TWIN" }), /already names another target/);
+  }
 });
 
 function block(document: MystDocument, index: number) {
