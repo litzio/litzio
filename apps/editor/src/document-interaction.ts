@@ -13,6 +13,7 @@ import { normalizeExternalHTML, type ExternalHTML } from "./external-html.ts";
 import { markdownPaste } from "./markdown-paste.ts";
 import { linkUrlsInNodes, type AutoLink } from "./pasted-url.ts";
 import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
+import { isNewBlockPath } from "./tiptap-projection.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
 import { labelTargetBlocks } from "./label-rename.ts";
@@ -748,16 +749,23 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           try {
             tr = pasteFootnotes(view.state, slice, notes, besideEquation ? paragraphBeside(view.state, true) : closeHistory(view.state.tr));
           } catch { return fail({ key: "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." }); }
-          // Only labels this paste adds are checked, with Save's target rules (Core). Duplicates
-          // already in the document do not block the paste.
+          // Core judges the labels this paste adds in Save's order: unsaved new blocks are applied
+          // after the existing ones, each checked against what is there at that step.
           const existing = new Set<unknown>();
           view.state.doc.forEach(node => existing.add(node.attrs.sourcePath));
+          const inserted: number[] = [];
           const added: number[] = [];
+          let targets = false;
           tr.doc.forEach((node, _pos, index) => {
-            if (LABELED_TARGETS.has(node.type.name) && node.attrs.label && !existing.has(node.attrs.sourcePath)) added.push(index);
+            const path = node.attrs.sourcePath;
+            if (typeof path === "string" && isNewBlockPath(path)) inserted.push(index);
+            if (existing.has(path)) return;
+            added.push(index);
+            // Only labels and headings' automatic IDs name targets.
+            if (node.type.name === "heading" || LABELED_TARGETS.has(node.type.name) && node.attrs.label) targets = true;
           });
-          if (added.length) {
-            try { assertPastedLabelsAvailable(labelTargetBlocks(tr.doc), added); }
+          if (targets) {
+            try { assertPastedLabelsAvailable(labelTargetBlocks(tr.doc), { inserted, pasted: added }); }
             catch (cause) {
               return fail({ key: writeIssueOf(cause).code === "label-conflict" ? PASTE_LABEL_CONFLICT
                 : "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." });

@@ -56,17 +56,25 @@ test("live label rename plans share updateLabel resolution, canonical refusal an
   ]), [{ index: 0, reference: { kind: "reference", role: "eq", label: "new" } }]);
 });
 
-test("pasted labels use updateLabel's target rules and ignore duplicates the snapshot already has", () => {
+test("pasted labels follow Save's label order and ignore conflicts the snapshot already has", () => {
   const heading = (text: string): LabelRenameBlock => ({ block: "heading", level: 1, content: [{ kind: "text", text }] });
   const existing: LabelRenameBlock[] = [{ block: "table", label: "old" }, { block: "figure", label: "OLD" },
     { block: "target", label: "tab-sec" }, heading("Section"), heading("Data")];
-  const paste = (...pasted: LabelRenameBlock[]) => () =>
-    assertPastedLabelsAvailable([...existing, ...pasted], pasted.map((_, index) => existing.length + index));
-  assert.doesNotThrow(paste({ block: "table", label: "fresh" }, { block: "paragraph" }, heading("Old")));
-  assert.doesNotThrow(() => assertPastedLabelsAvailable(existing, []));
+  // `unsaved` blocks were added before this paste and are also applied by Save, after the existing ones.
+  const paste = (pasted: LabelRenameBlock[], unsaved: LabelRenameBlock[] = [], before = false) => () => {
+    const blocks = before ? [...existing, ...pasted, ...unsaved] : [...existing, ...unsaved, ...pasted];
+    const at = (part: LabelRenameBlock[]) => part.map(block => blocks.indexOf(block));
+    assertPastedLabelsAvailable(blocks, { inserted: [...at(unsaved), ...at(pasted)], pasted: at(pasted) });
+  };
+  assert.doesNotThrow(paste([{ block: "table", label: "fresh" }, { block: "paragraph" }, heading("Old")]));
+  assert.doesNotThrow(paste([{ block: "table", label: "fresh" }], [{ block: "table", label: "data" }]));
   for (const block of ["equation", "figure", "table"]) {
-    for (const label of ["Old", "tab-sec", "data"]) assert.throws(paste({ block, label }), /already names another target/, `${block} ${label}`);
-    assert.throws(paste({ block, label: "twin" }, { block: "table", label: "TWIN" }), /already names another target/);
+    for (const label of ["Old", "tab-sec", "data"]) assert.throws(paste([{ block, label }]), /already names another target/, `${block} ${label}`);
+    assert.throws(paste([{ block, label: "twin" }, { block: "table", label: "TWIN" }]), /already names another target/);
+    // Save applies a label before a heading that follows it, but after one that precedes it.
+    assert.doesNotThrow(paste([{ block, label: "later" }, heading("Later")]), block);
+    assert.throws(paste([heading("Earlier"), { block, label: "earlier" }]), /already names another target/, block);
+    assert.throws(paste([heading("Late")], [{ block, label: "late" }], true), /already names another target/, block);
   }
 });
 

@@ -1,4 +1,4 @@
-import { DocumentDiagnosticError } from "../write-error.ts";
+import { DocumentDiagnosticError, DocumentWriteError } from "../write-error.ts";
 import type { InlineContent } from "../inline.ts";
 import { inlineContentToNodes, projectInlineContent } from "../inline.ts";
 import { updateLabel } from "../operations.ts";
@@ -62,13 +62,45 @@ function targetContext(blocks: readonly LabelRenameBlock[]): MystNode[] {
   });
 }
 
-/** Refuse labels a paste would add to a live interface snapshot when they name another target,
- * with the same MyST target availability as updateLabel (and Save). `pasted` indexes the
- * labeled blocks the paste adds; other blocks' existing duplicates never refuse the paste. */
-export function assertPastedLabelsAvailable(blocks: readonly LabelRenameBlock[], pasted: readonly number[]): void {
-  const available = labelAvailability({ type: "root", children: targetContext(blocks) });
-  for (const index of pasted) {
-    const label = blocks[index]?.label;
-    if (label) available(label, [index]);
+/** The order in which Save applies new blocks: new blocks in document order, with section
+ * label targets last so their heading destinations exist first. Each new block's label is
+ * checked when it is applied, against the existing blocks and the new blocks applied before it. */
+export function labelApplicationOrder<T>(items: readonly T[], block: (item: T) => string): T[] {
+  return [...items].sort((a, b) => Number(block(a) === "target") - Number(block(b) === "target"));
+}
+
+/** Refuse a paste whose labels Save would refuse. Save keeps the existing blocks and applies
+ * the `inserted` (unsaved new) blocks in `labelApplicationOrder`, each label checked against
+ * what is there at that step, appended at the end (a section label before its following block).
+ * A step refuses the paste when it is a `pasted` block, or when it only fails because of pasted
+ * blocks. Conflicts the snapshot already has, without this paste, do not refuse it. */
+export function assertPastedLabelsAvailable(blocks: readonly LabelRenameBlock[],
+  { inserted, pasted }: { inserted: readonly number[]; pasted: readonly number[] }): void {
+  const isInserted = new Set(inserted);
+  const isPasted = new Set(pasted);
+  const nodes = targetContext(blocks);
+  const existing = blocks.flatMap((_, index) => isInserted.has(index) ? [] : [index]);
+  const order = labelApplicationOrder([...isInserted].sort((a, b) => a - b), index => blocks[index].block);
+  const failure = (applied: readonly number[], step: number): DocumentWriteError | undefined => {
+    const context = [...existing, ...applied];
+    let at = context.length;
+    if (blocks[step].block === "target") {
+      const following = context.indexOf(step + 1);
+      if (following >= 0) at = following;
+    }
+    context.splice(at, 0, step);
+    try {
+      labelAvailability({ type: "root", children: context.map(index => nodes[index]) })(blocks[step].label!, [at]);
+      return undefined;
+    } catch (cause) {
+      if (cause instanceof DocumentWriteError) return cause;
+      throw cause;
+    }
+  };
+  for (const [position, step] of order.entries()) {
+    if (!blocks[step].label || !["equation", "figure", "table", "target"].includes(blocks[step].block)) continue;
+    const applied = order.slice(0, position);
+    const refused = failure(applied, step);
+    if (refused && (isPasted.has(step) || !failure(applied.filter(index => !isPasted.has(index)), step))) throw refused;
   }
 }

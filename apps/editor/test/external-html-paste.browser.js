@@ -376,6 +376,19 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     const one = view.serializeForClipboard(view.state.doc.slice(from, to)).dom.innerHTML;
     return one.replaceAll('tab-data', args.label).repeat(args.times);
   }, {label, times});
+  // The engine's own clipboard HTML for blocks built from JSON, without touching the document.
+  const clipboardOf = content => editor.evaluate((el, content) => {
+    const view = el.editor.view, doc = view.state.doc;
+    const Slice = doc.slice(0, 0).constructor, Fragment = doc.content.constructor;
+    return view.serializeForClipboard(new Slice(Fragment.fromArray(content.map(json => view.state.schema.nodeFromJSON(json))), 0, 0)).dom.innerHTML;
+  }, content);
+  const tableJSON = label => editor.evaluate((el, label) => {
+    let table;
+    el.editor.state.doc.forEach(node => { if (node.type.name === 'table' && !table) table = node.toJSON(); });
+    return JSON.parse(JSON.stringify({...table, attrs: {...table.attrs, label}}, (key, value) => key === 'sourcePath' ? null : key === 'sourceCell' ? '' : value));
+  }, label);
+  const headingJSON = text => ({type: 'heading', attrs: {level: 2}, content: [{type: 'text', text}]});
+  const equationJSON = label => ({type: 'equation', attrs: {latex: 'x', label}});
   const refusedTable = async (paste, message) => {
     await notice.waitFor({state:'detached', timeout:10000});
     await select('Omega.');
@@ -397,6 +410,10 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await refusedTable(labelRefusal('tab-sec'), 'section label');
   await refusedTable(labelRefusal('places'), 'heading ID');
   await refusedTable(labelRefusal('tab-twin', 2), 'twice in the paste');
+  // Save applies a pasted label before the pasted heading that follows it, but after one that
+  // precedes it: only the second order is refused.
+  await refusedTable(async () => syntheticPaste(await clipboardOf([headingJSON('Earlier'), await tableJSON('earlier')])), 'heading before Table');
+  await refusedTable(async () => syntheticPaste(await clipboardOf([headingJSON('Eqearlier'), equationJSON('eqearlier')])), 'heading before Equation');
   assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data']), 'Refused Table pastes add no table');
   // A document that already holds two tables with one label still takes plain text and external
   // HTML, as before: only labels a paste adds are checked.
@@ -520,19 +537,28 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   assert((await state()).doc === beforeDrop2.doc, 'One Undo restores the drop');
   result.markdownComposition = true;
 
-  // A Table label nothing else names pastes with its label, and the document saves and reloads.
+  // Labels nothing else names when Save applies them paste with their labels, and the document
+  // saves and reloads: a Table or Equation followed by a heading whose automatic ID equals its
+  // label (as on master), and a Table with a distinct label.
   await notice.waitFor({state:'detached', timeout:10000});
+  for (const content of [[await tableJSON('later'), headingJSON('Later')], [equationJSON('eqlater'), headingJSON('Eqlater')]]) {
+    await select('Omega.');
+    const before = await state();
+    await syntheticPaste(await clipboardOf(content));
+    await changedFrom(before);
+  }
   await select('Omega.');
-  const beforeTable = await state();
+  const beforeTableNew = await state();
   await syntheticPaste(await tableClipboard('tab-new'));
-  await changedFrom(beforeTable);
-  assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data', 'tab-new']), `The pasted Table keeps its label: ${JSON.stringify(await tableLabels())}`);
+  await changedFrom(beforeTableNew);
+  assert(JSON.stringify(await tableLabels()) === JSON.stringify(['tab-data', 'later', 'tab-new']), `The pasted Tables keep their labels: ${JSON.stringify(await tableLabels())}`);
   const tablePasted = await state();
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
   assert(await page.getByTestId('status').getAttribute('data-operation') === 'saved', `Labelled Table paste Save failed: ${await page.locator('body').innerText()}`);
   const placesDisk = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(placesFile)}`, { headers: { Connection: "close" } })).json()).source;
-  assert(placesDisk.includes(':name: tab-data') && placesDisk.includes(':name: tab-new'), `Both Table labels are saved: ${JSON.stringify(placesDisk)}`);
+  assert(['tab-data', 'later', 'tab-new', 'eqlater'].every(label => placesDisk.includes(`:label: ${label}`) || placesDisk.includes(`:name: ${label}`)) &&
+    placesDisk.includes('## Later') && placesDisk.includes('## Eqlater'), `Pasted labels and headings are saved: ${JSON.stringify(placesDisk)}`);
   await reloadDocument(page);
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   assert((await state()).doc === tablePasted.doc, 'Reload must retain the pasted labelled Table');
