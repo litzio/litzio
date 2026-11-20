@@ -320,11 +320,12 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
 
   // All or nothing: text Core does not read as a whole (a task list line, link reference
   // definitions, comments, block breaks, a leading thematic break before a definition), or whose
-  // conversion the editor's paste cannot carry (a section label), pastes exactly as Ctrl+Shift+V
+  // conversion names a cross-reference target (a section or Table label), pastes exactly as Ctrl+Shift+V
   // does, without a notice; never as nothing.
   await notice.waitFor({state:'detached', timeout:10000});
   for (const text of ['**지원** 문단\n\n- [ ] 할 일', '**a** [x][r]\n\n[r]: https://example.com/r', '**a**\n\n% 주석\n\nb', '**a**\n\n+++\n\nb',
-    '---\n> [r]: https://example.com/r\n---\n\n**b**', '(clause)=\n# Power quality\n\nSee {ref}`clause`.']) {
+    '---\n> [r]: https://example.com/r\n---\n\n**b**', '(clause)=\n# Power quality\n\nSee {ref}`clause`.',
+    ':::{table}\n:name: tab-data\n\n| B |\n| - |\n| y |\n:::']) {
     const both = await pasteBoth(text);
     assert(JSON.stringify(both.auto) === JSON.stringify(both.plain) && both.auto.some(block => block.includes(text.split('\n')[0])),
       `Text Core does not read as a whole pastes as plain text: ${JSON.stringify(both)}`);
@@ -354,9 +355,29 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await refusedAt('CaptionText', 4, () => textPaste('**bold**\nMore'), lineBreaks('table caption'));
   await refusedAt('CaptionText', 4, () => textPaste('# Pasted\n\nAfter'), oneLine);
   await refusedAt('CaptionText', 4, () => syntheticPaste('<h1>Pasted</h1><p>After</p>'), oneLine);
-  // A table whose label the document already has is refused like a duplicate Figure or Equation label.
-  await refusedAt('Omega.', 0, () => textPaste(':::{table}\n:name: tab-data\n\n| B |\n| - |\n| y |\n:::'),
-    'Pasting would duplicate a Figure, Table or Equation label.');
+  // A document that already holds two tables with one label (Litzio's own clipboard copies the
+  // label) still takes plain text and external HTML, as before.
+  await editor.evaluate(el => {
+    let at;
+    el.editor.state.doc.forEach((node, offset) => { if (node.type.name === 'table') at = offset; });
+    el.editor.commands.setNodeSelection(at); el.editor.view.focus();
+  });
+  await page.keyboard.press('Control+c');
+  await select('Omega.');
+  const beforeCopy = await state();
+  await page.keyboard.press('Control+v');
+  await changedFrom(beforeCopy);
+  assert((await outline()).filter(block => block.startsWith('table|')).length === 2, 'The labelled table is copied once');
+  for (const paste of [() => textPaste('plain words'), () => syntheticPaste('<p>html words</p>')]) {
+    await select('Omega.');
+    const before = await state();
+    await paste();
+    await changedFrom(before);
+    await editor.evaluate(el => el.editor.commands.undo());
+    assert((await state()).doc === before.doc, 'One Undo restores a paste beside duplicate labels');
+  }
+  await editor.evaluate(el => el.editor.commands.undo());
+  assert((await state()).doc === beforeCopy.doc, 'One Undo restores the table copy');
   // A definition being edited does not take another endnote.
   await editor.locator('[data-testid="footnote-definition"]').getByTestId('endnote-edit').click();
   await refusedAt('NoteText', 4, () => textPaste('Other[^a].\n\n[^a]: Definition'), 'An endnote cannot contain another endnote.');

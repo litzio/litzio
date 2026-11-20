@@ -616,7 +616,7 @@ async (page, { expect, showNotifications, openDocument }) => {
   await page.keyboard.press('Control+v');
   assert(semantic(await doc()) === beforeDuplicate, 'Duplicate label paste must preserve the existing document');
   await showNotifications(page);
-  assert((await page.locator('body').innerText()).includes('duplicate a Figure, Table or Equation label'), 'Duplicate label needs an explicit restriction');
+  assert((await page.locator('body').innerText()).includes('duplicate a Figure or Equation label'), 'Duplicate label needs an explicit restriction');
   await selectEquation();
   await page.keyboard.press('Control+x');
   await end();

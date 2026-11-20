@@ -195,17 +195,18 @@ test("Source preview shows unsaved label edits; rejected labels fail closed befo
   }
 });
 
-test("Markdown paste gives up conversion when its result cannot be built or pasted", () => {
+test("Markdown paste gives up conversion when its result names a target or cannot be built", () => {
   const schema = getSchema(editorExtensions());
-  // The paste's own rule for what it carries; a section label is not among it.
-  const accepts = (node: PMNode): boolean => node.type.name !== "labelTarget" && node.content.content.every(accepts);
+  const accepts = (node: PMNode): boolean => node.content.content.every(accepts);
   const autoLink = () => true;
-  // Ordinary Markdown converts, also a labelled table (a duplicate label is the paste's
-  // duplicate-label rule to refuse, as for any paste).
+  // Markdown without labels converts, an unlabelled table included.
   assert.ok(markdownPaste(schema, "# Title\n\n**bold**", autoLink, accepts));
-  assert.ok(markdownPaste(schema, ":::{table}\n:name: tab-data\n\n| B |\n| - |\n| y |\n:::", autoLink, accepts));
-  // A section label the paste cannot carry, or a failing projection: the caller keeps the
-  // plain-text paste instead of inserting nothing.
-  assert.equal(markdownPaste(schema, "(clause)=\n# Power quality\n\nSee {ref}`clause`.", autoLink, accepts), undefined);
+  assert.ok(markdownPaste(schema, ":::{table}\n\n| B |\n| - |\n| y |\n:::", autoLink, accepts));
+  // A Table, Equation or section label, or a failing projection: the caller keeps the
+  // plain-text paste instead of formatting that could collide with a target, or nothing.
+  for (const text of [":::{table}\n:name: tab-data\n\n| B |\n| - |\n| y |\n:::", "$$\nx\n$$ (eq-x)\n\n**bold**",
+    "(clause)=\n# Power quality\n\nSee {ref}`clause`."]) {
+    assert.equal(markdownPaste(schema, text, autoLink, accepts), undefined, text);
+  }
   assert.equal(markdownPaste(schema, "# Title\n\n**bold**", autoLink, accepts, () => { throw new Error("projection failed"); }), undefined);
 });

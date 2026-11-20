@@ -209,7 +209,7 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     await page.keyboard.press('Control+c');
     await page.keyboard.press('Control+v');
     await showNotifications(page);
-    await page.getByText('Pasting would duplicate a Figure, Table or Equation label.', {exact:false}).waitFor();
+    await page.getByText('Pasting would duplicate a Figure or Equation label.', {exact:false}).waitFor();
     check(same(await snapshot(),beforeRejectedPaste), 'Rejected paste changed Equation or inserted a paragraph');
 
     // Explicit removal remains an engine operation, unlike typing/paste.

@@ -748,12 +748,12 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           const labels = new Set<string>();
           let duplicate = false;
           tr.doc.forEach(node => {
-            if (!["equation", "figure", "table"].includes(node.type.name) || !node.attrs.label) return;
+            if (!["equation", "figure"].includes(node.type.name) || !node.attrs.label) return;
             const label = labelKey(String(node.attrs.label));
             if (labels.has(label)) duplicate = true;
             labels.add(label);
           });
-          if (duplicate) return fail({ key: "Pasting would duplicate a Figure, Table or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept." });
+          if (duplicate) return fail({ key: "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept." });
           if (besideEquation || notes.length || referenceLabels(slice.content).length) {
             pastedNotice = notice;
             view.dispatch(tr.scrollIntoView().setMeta("paste", true).setMeta("uiEvent", "paste"));
