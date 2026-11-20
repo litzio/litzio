@@ -247,6 +247,53 @@ test("native admission rejects unsupported structure instead of projecting parti
   }
 });
 
+test("a Markdown fragment reads as the body of an opened document, with endnotes apart", () => {
+  const body = "# 측정시스템 분석\n\n## 발표 흐름\n\n1. **MSA 목적:** 측정값 신뢰\n2. **반복성:** 같은 사람\n\n| A | B |\n|---|:-:|\n| `x` | [y](https://example.com) |\n\n오늘은 **측정**을 설명합니다[^n].\n\n[^n]: 주석.\n";
+  const fragment = core.readMarkdownFragment(body.replace(/\n/g, "\r\n"));
+  const opened = getEditableDocument(parse(native(body))).blocks;
+  assert.ok(fragment);
+  assert.deepEqual(fragment.blocks, opened.filter(block => block.block !== "footnote"));
+  assert.deepEqual(fragment.footnotes, [{ label: "n", content: [{ kind: "text", text: "주석." }] }]);
+  assert.equal(fragment.formatted, true);
+});
+
+test("a Markdown fragment counts as formatted only from visible Markdown syntax", () => {
+  for (const text of ["First line\nsecond line\n\nThird & last", "Intro\n\n    four-space indented text", "Trailing spaces  \nbreak the line"]) {
+    assert.equal(core.readMarkdownFragment(text)?.formatted, false, text);
+  }
+  for (const text of ["# Title", "- item", "2. item", "> quote", "```\ncode\n```", "---", "a **b**", "a *b*", "a `b`", "[a](https://example.com)"]) {
+    assert.equal(core.readMarkdownFragment(text)?.formatted, true, text);
+  }
+});
+
+test("a Markdown fragment is read all or nothing", () => {
+  // Read only when the whole text opens as a native document body.
+  for (const text of [":::{note}\nhi\n:::\n\n**b**", "[x](https://example.com) and T[^1]\n\n[^1]: Note.", "# 측정\n\n1. **a:** b\n2. **c:** d\n\n오늘은 **x**입니다."]) {
+    assert.ok(core.readMarkdownFragment(text), text);
+  }
+  for (const text of [
+    // Native admission or the canonical round-trip refuses part of it.
+    "# Kept\n\n- [ ] task", "**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::", "**a** [@key]", "**a**\n\n[^x]: orphan", "**a**\n\n<div>raw</div>",
+    // The parse consumes it without editable content: link reference definitions (used or not,
+    // at any depth), comments and block breaks.
+    "**a** [x][r]\n\n[r]: https://example.com", "> Quote\n>\n> [unused]: https://example.com \"Keep\"",
+    ":::{note}\nText\n\n[unused]: https://example.com \"Keep\"\n:::", "**a**\n\n% hidden\n\nb", "**a**\n\n+++ {\"m\": 1}\n\nb",
+    // A leading thematic break is read by the same parse as the rest, not as front matter.
+    "---\n[r]: https://example.com\n---\n\n**b**",
+  ]) {
+    assert.equal(core.readMarkdownFragment(text), undefined, text);
+  }
+});
+
+test("canonical write keeps its bytes for colon fences, block breaks and comments inside other syntax", () => {
+  // Pasting adds no writer rule: these bytes are what canonical write already produced.
+  for (const body of ["# ::: heading\n", ":::{table}\n\n| A   |\n| --- |\n| ::: |\n:::\n", ":::{note}\n**::: body**\n:::\n",
+    "H{sub}`::: example`\n", "[:::x](https://e.com)\n", "x :::\n", "**a** :::b\n", ":::{table} ::: Caption\n\n| A |\n| - |\n| x |\n:::\n",
+    "# +++ heading\n", "# % heading\n", "**+++** x\n", "**% x**\n", "a % b +++ c (l)=\n", "(lab)= x\n", "cost \\$5 here\n"]) {
+    assert.equal(serialize(parse(native(body))), native(body), body);
+  }
+});
+
 test("native table directives reject source options before the parser can discard them", async (t) => {
   for (const caption of ["", " Values"]) {
     for (const options of [":align: left", ":widths: 1 2", ":unknown: value", "---\nalign: left\n---",

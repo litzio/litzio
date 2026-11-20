@@ -8,6 +8,7 @@ export {
   isNewBlockPath,
   paragraphContent,
   TABLE_CELL_SOURCE_ATTR,
+  toTiptapBlock,
   toTiptapDocument,
 } from "./tiptap-projection.ts";
 export {

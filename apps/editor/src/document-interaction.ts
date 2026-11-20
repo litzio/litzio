@@ -11,6 +11,8 @@ import type { EditorView } from "@tiptap/pm/view";
 import { ASSET_FORMATS } from "../shared/asset-policy.ts";
 import { addTableRowBelow, changeHeadingLevel, TABLE_DELETE_META } from "./block-commands.ts";
 import { normalizeExternalHTML, type ExternalHTML } from "./external-html.ts";
+import { markdownPaste } from "./markdown-paste.ts";
+import { linkUrlsInNodes, type AutoLink } from "./pasted-url.ts";
 import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
@@ -146,6 +148,22 @@ function freshSlice(slice: Slice): Slice {
 function closeExternalSlice(slice: Slice): Slice {
   const open = (node: PMNode | null, depth: number) => depth === 1 && node?.type.name === "paragraph" ? 1 : 0;
   return new Slice(slice.content, open(slice.content.firstChild, slice.openStart), open(slice.content.lastChild, slice.openEnd));
+}
+
+/** Textblocks that hold one line of a larger structure: their content is never split into blocks. */
+const ONE_LINE_PLACES = new Set(["tableCell", "tableCaption", "figure", "footnoteDefinition"]);
+
+/** The slice as the inline content of one textblock, or undefined when it holds blocks. Open
+ * wrappers (a copied cell's table and row) are descended; a closed block is a block. */
+function inlineContentOf(slice: Slice): Fragment | undefined {
+  let content = slice.content;
+  for (let open = Math.min(slice.openStart, slice.openEnd); ; open--) {
+    if (content.content.every(node => node.isInline)) return content;
+    const node = content.firstChild;
+    if (content.childCount !== 1 || open < 1 || !node) return undefined;
+    if (node.isTextblock) return node.content;
+    content = node.content;
+  }
 }
 
 function paragraphBeside(state: EditorState, after: boolean): Transaction {
@@ -421,6 +439,11 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
     },
     addProseMirrorPlugins() {
       const schema = this.editor.schema;
+      // Pasted URLs link as the Link extension judges typed ones; its own paste rules are off.
+      const autoLink: AutoLink = value => {
+        const shouldAutoLink = this.editor.extensionManager.extensions.find(extension => extension.name === "link")?.options.shouldAutoLink;
+        return typeof shouldAutoLink === "function" ? Boolean(shouldAutoLink(value)) : true;
+      };
       const serializers = DOMSerializer.nodesFromSchema(schema);
       for (const [type, serialize] of Object.entries(serializers)) {
         if (type === "text") continue;
@@ -445,8 +468,12 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
       let pasted: (Omit<ExternalHTML, "error"> & { error?: UiMessage }) | undefined;
       let external = false;
       // Shown once the engine's paste transaction is applied; the structure guard may still refuse it.
-      let pastedNotice: string | undefined;
+      let pastedNotice: UiMessage | undefined;
       let pastedFootnotes: FootnoteDefinition[] = [];
+      // Only a paste reads clipboard text as Markdown; dropped text stays plain.
+      let textPaste = false;
+      // Set by the text parse of a paste or drop; transformPasted of the same event consumes it.
+      let linkPastedText = false;
       const fail = (message: UiMessage) => { reject(message); return true; };
       const copyWithFootnotes = (view: EditorView, event: ClipboardEvent, cut: boolean): boolean => {
         const slice = view.state.selection.content();
@@ -612,14 +639,26 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           copy: (view, event) => {
             return copyWithFootnotes(view, event, false);
           },
+          // Runs before the engine's own paste handler, which reads the text in this same event.
+          // The state ends with the event: a paste skipped during composition must not leak into
+          // a later drop.
+          paste: view => {
+            if (view.composing) return false;
+            textPaste = true;
+            queueMicrotask(() => { textPaste = false; });
+            return false;
+          },
           cut: (view, event) => {
             return copyWithFootnotes(view, event, true);
           },
         },
         // Litzio's typed clipboard is pasted as is; other HTML is normalized to supported structure first.
         transformPastedHTML: html => {
+          textPaste = false;
           pastedFootnotes = [];
           external = !isInternalClipboard(html);
+          // External HTML text links its URLs like pasted text; Litzio's own clipboard is not changed.
+          linkPastedText = external;
           pasted = external ? normalizeExternalHTML(html) : { html, error: internalPasteError(html, schema) };
           if (!external) {
             try {
@@ -634,8 +673,32 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           }
           return pasted.html;
         },
-        transformPasted: slice => freshSlice(external ? closeExternalSlice(slice) : slice),
+        // Clipboard text with Markdown formatting is read by Core as when opening a document.
+        // Code, inline code, Ctrl+Shift+V (plain) and dropped text keep the engine's text paste.
+        clipboardTextParser: (text, $context, plain) => {
+          const paste = textPaste;
+          textPaste = false;
+          pastedFootnotes = [];
+          const literalPlace = $context.parent.type.spec.code || $context.marks().some(mark => mark.type.spec.code);
+          const markdown = paste && !plain && !literalPlace
+            ? markdownPaste(schema, text, autoLink, portable) : undefined;
+          // The engine's own text slice links its URLs in transformPasted; Markdown linked them already.
+          linkPastedText = !markdown;
+          if (!markdown) return null as unknown as Slice;
+          // The engine reopens a parsed text slice as it does parsed HTML; close its edges alike.
+          external = true;
+          pastedFootnotes = markdown.footnotes;
+          return markdown.slice;
+        },
+        // Content parsed from clipboard or dropped text and external HTML links its URLs here, with
+        // one function; Litzio's own clipboard and block moves are pasted as they are.
+        transformPasted: slice => {
+          const linked = linkPastedText ? new Slice(Fragment.fromArray(linkUrlsInNodes(slice.content.content, schema.marks.link!, autoLink)), slice.openStart, slice.openEnd) : slice;
+          linkPastedText = false;
+          return freshSlice(external ? closeExternalSlice(linked) : linked);
+        },
         handleDrop: (_view, _event, _slice, moved) => {
+          textPaste = false;
           pastedFootnotes = [];
           const { error, notice } = moved ? {} : pasted ?? {};
           pasted = undefined;
@@ -652,8 +715,10 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
         handlePaste: (view, event, slice) => {
           const notes = pastedFootnotes;
           pastedFootnotes = [];
-          const { error, notice } = event.clipboardData?.getData("text/html") ? pasted ?? {} : {};
+          const html = Boolean(event.clipboardData?.getData("text/html"));
+          const { error, notice } = html ? pasted ?? {} : {};
           pasted = undefined;
+          textPaste = false;
           external = false;
           if (error) return fail(error);
           if (event.clipboardData?.files.length && !isInternalClipboard(event.clipboardData.getData("text/html"))) return fail(`Add one ${ASSET_FORMATS} image at a time. Your selection and clipboard are kept.`);
@@ -661,8 +726,16 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           const target = view.state.selection.$from.parent.type.name;
           if (target === "heading" || target === "tableCell" || target === "tableCaption") {
             let lineBreak = false;
-            slice.content.descendants(node => { if (node.type.name === "hardBreak") lineBreak = true; });
+            // A soft line break read from Markdown is a newline inside text.
+            slice.content.descendants(node => { if (node.type.name === "hardBreak" || node.isText && node.text!.includes("\n")) lineBreak = true; });
             if (lineBreak) return fail(`A ${target === "heading" ? "heading" : target === "tableCaption" ? "table caption" : "table cell"} cannot contain line breaks. Paste into a paragraph to keep them. The clipboard and selection are kept.`);
+          }
+          // One-line places take inline content only. The engine would otherwise split the place
+          // and carry the text after the caret into the body.
+          if (ONE_LINE_PLACES.has(target)) {
+            const inline = inlineContentOf(slice);
+            if (!inline) return fail({ key: "Only one line of text can be pasted here. Paste blocks into a paragraph. Nothing was pasted; the clipboard and selection are kept." });
+            if (target === "footnoteDefinition" && referenceLabels(inline).length) return fail({ key: "An endnote cannot contain another endnote. Nothing was pasted; the clipboard and selection are kept." });
           }
           const { selection } = view.state;
           const besideEquation = selection instanceof NodeSelection && selection.node.type.name === "equation";
@@ -681,11 +754,15 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
             labels.add(label);
           });
           if (duplicate) return fail({ key: "Pasting would duplicate a Figure or Equation label. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept." });
-          pastedNotice = notice;
           if (besideEquation || notes.length || referenceLabels(slice.content).length) {
+            pastedNotice = notice;
             view.dispatch(tr.scrollIntoView().setMeta("paste", true).setMeta("uiEvent", "paste"));
             return true;
           }
+          // The engine's own paste transaction follows. Close history first so it is its own
+          // Undo step, never merged with typing just before it.
+          view.dispatch(closeHistory(view.state.tr));
+          pastedNotice = notice;
           return false;
         },
       } })];

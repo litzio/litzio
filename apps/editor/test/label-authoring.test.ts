@@ -18,6 +18,8 @@ import { history, undo, redo } from "@tiptap/pm/history";
 import { editorExtensions, editorDocumentJSON, structureGuardPlugin } from "../src/editor-schema.tsx";
 import { updateLabelProperties } from "../src/label-rename.ts";
 import { updateFigure } from "../src/block-commands.ts";
+import { markdownPaste } from "../src/markdown-paste.ts";
+import type { Node as PMNode } from "@tiptap/pm/model";
 
 test("property Apply collects final references once, preserves them through replay and undoes atomically", () => {
   const source = nativeSource("# Rename\n\nSee **{eq}`eq-a`**, {numref}`tbl-a`, {numref}`fig-a`, {ref}`sec-a` and [detail](#eq-a).\n\n" +
@@ -191,4 +193,20 @@ test("Source preview shows unsaved label edits; rejected labels fail closed befo
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("Markdown paste gives up conversion when its result names a target or cannot be built", () => {
+  const schema = getSchema(editorExtensions());
+  const accepts = (node: PMNode): boolean => node.content.content.every(accepts);
+  const autoLink = () => true;
+  // Markdown without labels converts, an unlabelled table included.
+  assert.ok(markdownPaste(schema, "# Title\n\n**bold**", autoLink, accepts));
+  assert.ok(markdownPaste(schema, ":::{table}\n\n| B |\n| - |\n| y |\n:::", autoLink, accepts));
+  // A Table, Equation or section label, or a failing projection: the caller keeps the
+  // plain-text paste instead of formatting that could collide with a target, or nothing.
+  for (const text of [":::{table}\n:name: tab-data\n\n| B |\n| - |\n| y |\n:::", "$$\nx\n$$ (eq-x)\n\n**bold**",
+    "(clause)=\n# Power quality\n\nSee {ref}`clause`."]) {
+    assert.equal(markdownPaste(schema, text, autoLink, accepts), undefined, text);
+  }
+  assert.equal(markdownPaste(schema, "# Title\n\n**bold**", autoLink, accepts, () => { throw new Error("projection failed"); }), undefined);
 });
