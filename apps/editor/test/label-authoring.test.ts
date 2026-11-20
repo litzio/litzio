@@ -18,6 +18,8 @@ import { history, undo, redo } from "@tiptap/pm/history";
 import { editorExtensions, editorDocumentJSON, structureGuardPlugin } from "../src/editor-schema.tsx";
 import { updateLabelProperties } from "../src/label-rename.ts";
 import { updateFigure } from "../src/block-commands.ts";
+import { markdownPaste } from "../src/markdown-paste.ts";
+import type { Node as PMNode } from "@tiptap/pm/model";
 
 test("property Apply collects final references once, preserves them through replay and undoes atomically", () => {
   const source = nativeSource("# Rename\n\nSee **{eq}`eq-a`**, {numref}`tbl-a`, {numref}`fig-a`, {ref}`sec-a` and [detail](#eq-a).\n\n" +
@@ -191,4 +193,19 @@ test("Source preview shows unsaved label edits; rejected labels fail closed befo
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("Markdown paste gives up conversion when its result cannot be built or pasted", () => {
+  const schema = getSchema(editorExtensions());
+  // The paste's own rule for what it carries; a section label is not among it.
+  const accepts = (node: PMNode): boolean => node.type.name !== "labelTarget" && node.content.content.every(accepts);
+  const autoLink = () => true;
+  // Ordinary Markdown converts, also a labelled table (a duplicate label is the paste's
+  // duplicate-label rule to refuse, as for any paste).
+  assert.ok(markdownPaste(schema, "# Title\n\n**bold**", autoLink, accepts));
+  assert.ok(markdownPaste(schema, ":::{table}\n:name: tab-data\n\n| B |\n| - |\n| y |\n:::", autoLink, accepts));
+  // A section label the paste cannot carry, or a failing projection: the caller keeps the
+  // plain-text paste instead of inserting nothing.
+  assert.equal(markdownPaste(schema, "(clause)=\n# Power quality\n\nSee {ref}`clause`.", autoLink, accepts), undefined);
+  assert.equal(markdownPaste(schema, "# Title\n\n**bold**", autoLink, accepts, () => { throw new Error("projection failed"); }), undefined);
 });

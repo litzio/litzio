@@ -564,6 +564,11 @@ with the Core → editor projection that opening uses. No Markdown is read in th
   the engine's plain-text paste, the same result as Ctrl+Shift+V (one paragraph per line), with
   no notice, as before. Consumed source is judged on the same source and parser options as the
   parse, so a leading `---` is read alike by both.
+- Gate: when the converted content cannot be built or holds a node the editor's paste does not
+  carry (a section label `(label)=`), the conversion is given up at one point and the text takes
+  the plain-text paste; a paste never ends with nothing inserted. A Figure, Table or Equation
+  label the document already has is refused at paste time by the duplicate-label rule, as for
+  any paste, so Save stays possible.
 - Formatting evidence: a converted text must hold a block other than a paragraph or inline
   content other than text and line breaks (bold, italic, inline code, links, math, references).
   Indented code and trailing-space line breaks do not count, because plain text indented by four
