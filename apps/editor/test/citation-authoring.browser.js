@@ -201,7 +201,12 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, wa
         if ((event.ctrlKey || event.metaKey) && event.key === '/') probe.openClickAge = performance.now() - probe.clicked;
       }, { signal: probe.events.signal });
     });
-    await editor.locator('pre').filter({ hasText: 'Code.' }).click();
+    // Both cases are separate single clicks right of the text. prosemirror-view 1.43 selects pointer
+    // ranges itself and takes a press within 500ms and 10px of the previous one for a double click
+    // (word selection), so the second case clicks 40px to the right of the first.
+    const code = editor.locator('pre').filter({ hasText: 'Code.' });
+    const codeBox = await code.boundingBox();
+    await code.click({ position: { x: codeBox.width / 2 + (holdCheck ? 40 : 0), y: codeBox.height / 2 } });
     await page.waitForFunction(() => {
       const e = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
       const native = getSelection();
@@ -236,7 +241,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, wa
       const schedule = window.setTimeout;
       window.codeFocusProbe.restore = () => { window.setTimeout = schedule; };
       window.setTimeout = (callback, ms, ...args) => {
-        if (ms === 20 && String(callback).includes('selectionToDOM')) {
+        if (ms === 20 && String(callback).includes('domSel.sync')) {
           window.codeFocusProbe.check = callback;
           return 0;
         }
@@ -285,7 +290,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, wa
   assert(codeFocusCases.every(c => c.afterFocus?.native === c.clickedCaret &&
     c.afterFocus.parent === 'codeBlock' && c.afterFocus.from === c.clickedCaret && c.afterFocus.to === c.clickedCaret),
     'The same focus event must synchronously restore native/engine code-caret agreement: ' + JSON.stringify(codeFocusCases));
-  // prosemirror-view 1.42.9 schedules the post-focus check only while focus leaves the native and
+  // Since 1.42.9, prosemirror-view schedules the post-focus check only while focus leaves the native and
   // engine selections apart. The agreement asserted above means none is scheduled here; the held
   // case still holds any check that is (checkHeld in the results) until typing has been read.
   assert(codeFocusCases.every(c => c.retained && c.parent === 'codeBlock' && c.text === 'Code. /' && c.menus === 0),
