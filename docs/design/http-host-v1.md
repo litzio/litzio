@@ -347,7 +347,7 @@ the same executor in its own process, rather than contacting the running daemon.
 Node.js `>=24.22.3 <25` is required: 24.22.1 is the first 24.x release fixing
 [CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases), and
 [24.22.3](https://nodejs.org/en/blog/release/v24.22.3) adds the November 2026 security fixes.
-CI uses 24.22.3; Desktop pins [Electron 45.3.4](https://releases.electronjs.org/release/v45.3.4)
+CI uses 24.22.3; Desktop pins [Electron 45.4.1](https://releases.electronjs.org/release/v45.4.1)
 with Node 24.22.3. Updating Desktop does not update a separately installed system Node
 or an already running shared daemon. Operators must update system Node and restart those daemons.
 
@@ -377,6 +377,11 @@ The direct `undici` dependency stays at 7.30.1, matching the
 A package-only update cannot replace Node's native Brotli decoder. Electron release notes
 44.8.0–44.11.1 and the [45.0 breaking changes](https://www.electronjs.org/docs/latest/breaking-changes#breaking-api-changes-450) were reviewed. The owner selected stable 45.3.0; application migration was not required for the paths below.
 45.3.4 is a patch release on the same 45.3 line that bundles Node 24.22.3.
+45.4.1 keeps Node 24.22.3 and Chromium 156.0.8078.100 and adds upstream ANGLE, Chromium, Dawn,
+FFmpeg, PDFium and V8 backports. Its other v45.3.4...v45.4.1 changes need no application migration:
+the Windows tray tooltip is restored after Explorer restarts (`main.ts` sets it), and the remaining
+fixes cover macOS menus, extensions, service-worker preloads, `WebContentsView` drag regions,
+proxy/webRequest sessions and folder uploads, which Desktop does not use.
 
 Of the Node 24.22.3 changes, the llhttp 9.4.4 update applies to the Host's plain HTTP/1
 parser path (`node:http`), and the bundled undici 7.30.2 and Brotli 1.2.1 updates apply to
