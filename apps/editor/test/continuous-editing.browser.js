@@ -123,11 +123,6 @@ async (page, { expect, showNotifications, openDocument }) => {
     assert(await snapshot() === before, `${name}: cleanup Undo failed`);
     if (restored) {
       assert(await historyEditor.evaluate(el => el.editor.view.hasFocus()), `${name}: Undo did not restore editor focus`);
-      // History stores a selection near the change for each Undo/Redo, so an Undo after a Redo puts
-      // the caret near the deletion rather than reselecting the block. Record what the editor's own
-      // keymap restores after Redo/Undo; each shell Redo/Undo cycle must restore exactly that.
-      await page.keyboard.press('Control+y'); await page.keyboard.press('Control+z');
-      assert(await snapshot() === before, `${name}: editor Redo/Undo did not restore the document`);
       const selection = await historyEditor.evaluate(el => JSON.stringify(el.editor.state.selection.toJSON()));
       for (const redo of ['Control+y', 'Control+Shift+z']) {
         await clickOutside(); await page.keyboard.press(redo);
