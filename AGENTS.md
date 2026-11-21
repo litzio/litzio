@@ -66,10 +66,11 @@
 - `packages/plugin-sdk/` — 플러그인의 공통 manifest·schema·Host SDK와 제작 계약.
 - `apps/editor/src/views/` — 플러그인의 React 화면 코드·단일 연결의 화면 수명·공통 부품·새 문서 저장. [화면 코드 계약](docs/design/plugin-screens-v1.md)을 따른다.
 - `packages/file-commit/` — CLI와 Editor Host가 공유하는 Node 전용 파일 교체(revision 확인, temporary sibling, rename). 문서 의미를 알지 않는다.
-- `apps/editor/server` — 공용 HTTP Host handler. [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)에 따라 AI는 daemon 공식 기능이며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. `plugins/`는 대상 Host의 플러그인 실행·reload·secret·제작 작업을 소유한다.
+- `apps/editor/server` — 공용 HTTP Host handler. [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)에 따라 AI는 daemon 공식 기능이며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. `plugins/`는 대상 Host의 플러그인 실행·reload·secret·제작 작업을 소유한다. 자산·비서 모듈은 라우터인 `document-api.ts`를 가져오지 않고 `document-reader.ts`·`document-path.ts`에서 가져온다.
 - `apps/editor/server/assistant-conversations.ts` — 대화·제출·질문·권한 scope와 이벤트 처리의 메모리 수명. `assistant-provider-items.ts`·`assistant-conversation-display.ts`·`assistant-references.ts`·`assistant-conversation-index.ts`는 각각 공급자 값 변환·표시용 축약·참조 검증·metadata 파일 I/O를 소유한다.
 - `apps/editor/` — Core-backed Visual Editor. MyST AST를 직접 다루지 않고 Core read model과 Core operations만 사용한다.
-- `apps/editor/src/App.tsx` — 창의 탭·세션·복구·파일 action·닫기 보호와 화면 handoff를 소유한다. `shell/folder-requests.ts`는 상태 없는 폴더 HTTP 요청과 응답 검증, `shell/DocumentOperationDialogs.tsx`는 문서 열기 거절·Reload 확인의 표시를 소유한다.
+- `apps/editor/src/App.tsx` — 창의 탭·세션·복구·파일 action 결과의 탭 반영·닫기 보호와 화면 handoff를 소유한다. `shell/useShellLayout.ts`는 창 배치(도킹·오버레이 전환, 열림 기억, 패널 폭), `shell/file-actions.ts`는 파일 작업이 시작할 때 캡처한 값으로 하는 Host 요청과 응답 해석, `shell/folder-requests.ts`는 상태 없는 폴더 HTTP 요청과 응답 검증, `shell/DocumentOperationDialogs.tsx`는 문서 열기 거절·Reload 확인의 표시를 소유한다.
+- `apps/editor/src/shell/AssistantPanel.tsx` — 비서 패널의 화면 조립과 이미지 업로드. `useAssistantConversation.ts`는 대화 재개·전송·관찰·영수증 귀속과 적용할 선택값, `useAssistantProviderOptions.ts`는 모델 목록·진단 조회, `AssistantComposer.tsx`는 입력창 초안·참조·후보, `useTranscriptScroll.ts`는 대화록 따라가기·안 읽음을 소유한다. 로컬 제출 목록은 App이 소유한다.
 - `apps/desktop/` — Electron Windows shell, NSIS 패키징과 Stable/Beta 업데이트. ADR-0016의 공유 로컬 daemon 수명을 따르고 ADR-0017에 따른 앱 번들 UI + 대상 Host를 아는 HTTP 클라이언트를 사용한다. 문서 의미를 구현하지 않는다.
 - [DESIGN.md](DESIGN.md) — UI 작업의 진입점. 승인된 원칙과 규칙을 토큰·공통 부품·패턴별 기준 화면에 연결한다.
 - [UI 결정표와 갤러리](docs/design/ui-decision-table-v1.md) — 표면과 공통 구현을 고르는 표. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.
