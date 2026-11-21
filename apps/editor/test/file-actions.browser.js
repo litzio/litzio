@@ -447,6 +447,47 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
       await expect(activeDocument(page)).toContainText('Rename race');
     } finally {releaseOpen();releaseRename();await page.unroute('**/api/document?**',delayedOpen);await page.unroute('**/api/file',delayedRename);}
   }
+  // A document outside the opened folders is checked only on window focus. Its outside Save during
+  // a Rename in an opened folder is still detected by the focus check that lands before the reply.
+  {
+    await closeFolder(root);
+    await openFolderPicker(page);
+    await page.getByTestId('folder-path').fill(root+sep+'nested');
+    await page.getByTestId('folder-open').click(); await row('ref.md').waitFor();
+    const outsidePanel=page.locator('#'+await page.getByRole('tab',{name:'b.md',exact:true}).getAttribute('aria-controls'));
+    await expect(outsidePanel).toContainText('Beta.'); await expect(outsidePanel).not.toContainText('Outside save.');
+    let releaseRename,renameArrived;
+    const renameGate=new Promise(resolve=>{releaseRename=resolve;}), renameStarted=new Promise(resolve=>{renameArrived=resolve;});
+    const delayedRename=async route=>{
+      if(route.request().method()!=='PATCH')return route.fallback();
+      const response=await route.fetch({headers:{...route.request().headers(),Connection:'close'}});
+      renameArrived();await renameGate;await route.fulfill({response});
+    };
+    await page.route('**/api/file',delayedRename);
+    const other=await page.context().newPage();
+    try {
+      await context('ref.md','Rename…');
+      await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('ref-late');
+      await dialog.getByRole('button',{name:'Rename',exact:true}).click();await renameStarted;
+      await other.goto(origin+'/?path='+encodeURIComponent(file('b.md')));
+      await expect(other.getByTestId('current-file')).toHaveText('b.md');
+      await activeDocument(other).locator('.document-editor p').first().click();
+      await other.keyboard.press('End'); await other.keyboard.type(' Outside save.');
+      await other.getByTestId('save').click(); await other.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
+      let observed=false;
+      const observe=async response=>{
+        if(!response.url().includes('/api/folder-version?')||response.url().includes('root='))return;
+        if((await response.json().catch(()=>({}))).revisions?.some(item=>item.path===file('b.md')))observed=true;
+      };
+      page.on('response',observe);
+      try {
+        // Focus checks are throttled to one per 2 seconds; keep returning focus until one lands.
+        await expect.poll(async()=>{await page.evaluate(()=>window.dispatchEvent(new Event('focus')));return observed;},{timeout:10000}).toBe(true);
+      } finally {page.off('response',observe);}
+      releaseRename();await dialog.waitFor({state:'hidden'}); await row('ref-late.md').waitFor();
+      await expect(outsidePanel).toContainText('Outside save.');
+    } finally {releaseRename();await other.close();await page.unroute('**/api/file',delayedRename);}
+  }
   return {metadata,root,renamedWithoutRead:true,undoPreserved:true,recoveryMovedAndDeleted:true,otherWindowFirstWriteRevoked:true,
     dirtyReferenceRefused:true,draftReferenceRefused:true,cleanReferenceTabsReloaded:true,otherWindowSaveConflict:true};
 }
