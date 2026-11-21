@@ -9,8 +9,8 @@ import { AssistantUsageTooltip } from "./AssistantUsageTooltip.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, History, ExternalLink, FolderOpen, Ellipsis, Paperclip, TextCursorInput, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks, LoaderCircle } from "lucide-react";
-import { ASSISTANT, type AiProvider, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
+import { Plus, History, ExternalLink, FolderOpen, Ellipsis, Paperclip, TextCursorInput, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks } from "lucide-react";
+import { ASSISTANT, type AiProvider, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantDiagnostics } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { PanelHeader } from "@/components/ui/panel-header.tsx";
 import { EmptyState } from "@/components/ui/screen-parts.tsx";
@@ -29,6 +29,8 @@ import { splitDocumentPath } from "./document-path.ts";
 import { isScreenPath } from "../views/screen-path.ts";
 import type { FolderPlace } from "../../shared/document-protocol.ts";
 import { AssistantHistory, pathName, providerLabel } from "./AssistantHistory.tsx";
+import { AssistantComposer, ReferenceChips, hasSkillToken, useComposerDraft } from "./AssistantComposer.tsx";
+import { useTranscriptScroll } from "./useTranscriptScroll.ts";
 
 function lastConversation(conversationKey: string) { try { return localStorage.getItem(conversationKey) || undefined; } catch { return undefined; } }
 function rememberConversation(conversationKey: string, id?: string) { try { if (id) localStorage.setItem(conversationKey, id); else localStorage.removeItem(conversationKey); } catch { /* In-page state remains usable. */ } }
@@ -73,12 +75,6 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const [effort, setEffort] = useState("");
   const [mode, setMode] = useState("");
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
-  const [references, setReferences] = useState<AssistantFileReference[]>([]);
-  const [mention, setMention] = useState<{ start: number; end: number; query: string } | null>(null);
-  const [skillCatalog, setSkillCatalog] = useState<AssistantSkills>();
-  const [skillProblem, setSkillProblem] = useState("");
-  const [candidateIndex, setCandidateIndex] = useState(0);
-  const [message, setMessage] = useState("");
   const [problem, setProblem] = useState("");
   const [setup, setSetup] = useState("");
   const [providerProblem, setProviderProblem] = useState("");
@@ -106,58 +102,12 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     if (result.conversation && updateConversation) { setConversation(result.conversation); setPermissionMode(result.conversation.permissionMode ?? permissionMode); rememberConversation(conversationKey, result.conversation.id); }
   };
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
-  const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
-  const transcriptContent = useRef<HTMLDivElement>(null);
-  const following = useRef(true);
-  const [away, setAway] = useState(false), [unread, setUnread] = useState(false);
-  const jumpToBottom = () => {
-    following.current = true; setAway(false); setUnread(false);
-    if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight;
-  };
-  const readPosition = () => {
-    const element = transcript.current;
-    if (!element) return;
-    const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight <= 2;
-    following.current = atBottom; setAway(!atBottom);
-    if (atBottom) setUnread(false);
-  };
-  const holdDisclosure = () => {
-    // A reader opening details owns the viewport, including when previously following.
-    following.current = false;
-    requestAnimationFrame(readPosition);
-  };
+  const panel = useRef<HTMLElement>(null);
   const historyOpen = history !== null;
-  const readingScope = `${conversation?.id ?? ""}:${historyOpen}`;
-  useLayoutEffect(() => {
-    if (historyOpen && transcript.current) transcript.current.scrollTop = 0;
-    else jumpToBottom();
-  }, [readingScope]);
-  // Compare visible content, not snapshot identity: unchanged polls are not new output.
-  const transcriptRevision = JSON.stringify([conversation?.turns, conversation?.userInput, visibleSubmissions]);
-  useLayoutEffect(() => {
-    if (historyOpen) return;
-    if (following.current) jumpToBottom();
-    else setUnread(true);
-  }, [transcriptRevision]);
-  useLayoutEffect(() => {
-    if (!open || historyOpen) return;
-    // Markdown/math and viewport resizing can change height after the snapshot commit.
-    let frame = 0;
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => { if (following.current) jumpToBottom(); });
-    });
-    if (transcript.current) observer.observe(transcript.current);
-    if (transcriptContent.current) observer.observe(transcriptContent.current);
-    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
-  }, [open, historyOpen]);
-  const referenceCaret = useRef<number | null>(null);
-  useLayoutEffect(() => {
-    if (referenceCaret.current === null) return;
-    // Apply selection with the controlled value, before another input can arrive.
-    const position = referenceCaret.current; referenceCaret.current = null;
-    input.current?.setSelectionRange(position, position);
-  }, [message]);
+  const { transcript, transcriptContent, away, unread, jumpToBottom, readPosition, holdDisclosure, followLayout, releaseOnWheel } =
+    useTranscriptScroll({ open, historyOpen, conversationId: conversation?.id, content: [conversation?.turns, conversation?.userInput, visibleSubmissions] });
+  const draft = useComposerDraft({ request, open, provider });
+  const { input, message, references } = draft;
   const initialFocus = useRef(false);
   const current = useRef(conversation); current.current = conversation;
   const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
@@ -184,10 +134,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const chooseProvider = (selected: AiProvider) => {
     if (selected !== provider) setProviderProblem("");
     setProvider(selected);
-    if (selected === "copilot") {
-      setReferences(previous => previous.filter(file => file.kind !== "skill"));
-      setMention(null);
-    }
+    if (selected === "copilot") draft.dropSkills();
   };
   const defaults = (value: AssistantSettings) => { chooseProvider(value.provider); setPermissionMode(value.permissionMode); setModel(value.model); setEffort(value.reasoningEffort); setMode(models?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); };
   useEffect(() => {
@@ -247,6 +194,33 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     imageUploads.current = Promise.resolve(); pendingImageUploads.current = 0; setUploadingImages(false);
     setSubmissions(previous => previous.map(value => value.receipt.status === "pending" ? { ...value, receipt: { ...value.receipt, status: "unknown" } } : value));
   }, [settingsRevision]);
+  // The upload queue and its provider-change invalidation stay together with `providerVersion`.
+  const pasteImages = (images: File[]) => {
+    const version = providerVersion.current, isCurrent = () => version === providerVersion.current;
+    pendingImageUploads.current++;
+    setUploadingImages(true); setProblem("");
+    // Chain paste batches separately from other actions; never discard an accepted paste.
+    imageUploads.current = imageUploads.current.then(async () => {
+      for (const image of images) {
+        if (!isCurrent()) return;
+        const data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result).split(",")[1]);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(image);
+        });
+        const file = await request<AssistantFileReference>(ASSISTANT.conversationsRoute, { action: "upload-image", mime: image.type, data });
+        if (isCurrent()) {
+          setImagePreviews(previous => ({ ...previous, [file.path]: `data:${image.type};base64,${data}` }));
+          draft.addReference(file);
+        }
+      }
+    }).catch(error => {
+      if (isCurrent()) setProblem(i18n.t(error.message, { defaultValue: error.message }));
+    }).finally(() => {
+      if (isCurrent() && --pendingImageUploads.current === 0) setUploadingImages(false);
+    });
+  };
   useLayoutEffect(() => {
     if (open && ready && enabled && !setup && initialFocus.current) {
       initialFocus.current = false;
@@ -326,7 +300,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
     setSubmissions(previous => [...previous, { provider, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
-    setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
+    draft.clear(); setHistory(null); input.current?.focus();
     jumpToBottom();
     try {
       const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, id: conversation?.id, message: value,
@@ -336,14 +310,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       if (isCurrent()) setSubmissions(previous => previous.map(item => item.receipt.id === submissionId && item.receipt.status !== "accepted" ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
     }
   });
-  const addReference = (file: AssistantFileReference) => {
-    setReferences(previous => {
-      if (previous.some(value => samePath(value.path, file.path))) return previous;
-      return [...previous, file];
-    });
-  };
   // Explorer "Add to chat" and the composer file picker attach the same explicit file chip.
-  const addFileReference = (path: string) => { addReference({ path, name: pathName(path), kind: "file" }); setHistory(null); };
+  const addFileReference = (path: string) => { draft.addReference({ path, name: pathName(path), kind: "file" }); setHistory(null); };
   useEffect(() => {
     if (!referenceRequest) return;
     addFileReference(referenceRequest.path);
@@ -362,39 +330,6 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     if (!entry || entry.kind === "folder") return i18n.t("Unavailable");
     filePicked.current = true; addFileReference(entry.path);
     return "";
-  };
-  const reuseMessage = (text: string) => {
-    const next = message.trim() ? `${message.replace(/\s+$/, "")}\n${text}` : text;
-    referenceCaret.current = next.length; setMessage(next); setMention(null);
-    input.current?.focus();
-  };
-  const mentionOpen = mention !== null;
-  useEffect(() => {
-    if (!mentionOpen || !open) return;
-    let alive = true;
-    setSkillCatalog(undefined); setSkillProblem("");
-    void request<AssistantSkills>(`${ASSISTANT.skillsRoute}?provider=${provider}`).then(value => { if (alive) setSkillCatalog(value); }).catch(error => { if (alive) setSkillProblem(error.message); });
-    return () => { alive = false; };
-  }, [mentionOpen, open, provider]);
-  const matches = mention ? (skillCatalog?.skills ?? []).map(skill => ({ ...skill, kind: "skill" })).filter(file => `${file.displayName ?? ""} ${file.name} ${file.description}`.toLocaleLowerCase().includes(mention.query.toLocaleLowerCase())) : [];
-  useEffect(() => { if (mention) document.getElementById(`assistant-reference-${candidateIndex}`)?.scrollIntoView({ block: "nearest" }); }, [candidateIndex, mention?.query]);
-  const chooseReference = (file: AssistantFileReference) => {
-    addReference(file);
-    if (mention) {
-      const replacement = file.kind === "skill" ? `$${file.name} ` : "";
-      referenceCaret.current = mention.start + replacement.length;
-      setMessage(message.slice(0, mention.start) + replacement + message.slice(mention.end));
-    }
-    setMention(null); input.current?.focus();
-  };
-  const removeReference = (path: string) => {
-    const skill = references.find(file => file.path === path && file.kind === "skill");
-    if (skill) setMessage(value => value.split(/(\s+)/).filter(part => part !== `$${skill.name}`).join(""));
-    setReferences(previous => {
-      const remaining = previous.filter(file => file.path !== path && !(skill && file.kind === "skill" && file.name === skill.name));
-
-      return remaining;
-    });
   };
   const copilot = conversation?.copilot ?? models?.copilot;
   const effortHelp = copilot?.reasoningEffortSource === "cli"
@@ -437,7 +372,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     let catalog = models;
     if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
     if (!isCurrent()) return false;
-    setConversation(undefined); leaveSubmissionScope(); rememberConversation(conversationKey); setMention(null);
+    setConversation(undefined); leaveSubmissionScope(); rememberConversation(conversationKey); draft.closeMention();
     setModels(catalog); if (settings) defaults(settings);
     setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
     return true;
@@ -589,17 +524,17 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     </Dialog> : null}
     <div className="assistant-reading">
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")} onScroll={readPosition}
-      onWheel={event => { if (event.deltaY < 0 && event.currentTarget.scrollTop > 0) following.current = false; }}>
+      onWheel={releaseOnWheel}>
     <div ref={transcriptContent}>
       {history ? <AssistantHistory entries={history} pending={pending} notices={notices} onResume={entry => void resumeHistory(entry)}
         archiveUnavailable={entry => entry.id === conversation?.id && active ? i18n.t("Stop the Assistant response before archiving the conversation.") : undefined}
         onRename={renameHistory} onArchive={archiveHistory} />
         : conversation?.turns.map(turn => <section key={`${conversation.id}:${turn.id}`} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user" && !item.questionAnswer).map(item => <div key={item.id}>
-            <UserMessage text={item.text} references={item.references ?? []} previews={imagePreviews} reuseDisabled={!ready || !enabled || !!setup} onReuse={reuseMessage} />
+            <UserMessage text={item.text} references={item.references ?? []} previews={imagePreviews} reuseDisabled={!ready || !enabled || !!setup} onReuse={draft.reuse} />
           </div>)}
           <div role="group" aria-label={i18n.t("Assistant response")}>
-            {turn.items.map(item => item.kind === "assistant" ? <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={() => { if (following.current) jumpToBottom(); }} /> : isWorkDetail(item) ? <AssistantWorkStep key={item.id} item={item} running={turn.status === "inProgress"} active={turn.status === "inProgress" && (item.status === "inProgress" || item.status === "pending" || !item.status && item === turn.items.at(-1))} onDisclosure={holdDisclosure} actions={item.fileChanges?.map(path => <div className="flex flex-wrap items-center gap-2" data-testid="assistant-file-change" data-path={path} key={path}>
+            {turn.items.map(item => item.kind === "assistant" ? <AssistantAnswer key={item.id} source={item.text} streaming={turn.status === "inProgress"} onLayout={followLayout} /> : isWorkDetail(item) ? <AssistantWorkStep key={item.id} item={item} running={turn.status === "inProgress"} active={turn.status === "inProgress" && (item.status === "inProgress" || item.status === "pending" || !item.status && item === turn.items.at(-1))} onDisclosure={holdDisclosure} actions={item.fileChanges?.map(path => <div className="flex flex-wrap items-center gap-2" data-testid="assistant-file-change" data-path={path} key={path}>
               <span className="min-w-0 break-all flex-1" title={path}>{pathName(path)}</span>
               <Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || turn.status === "inProgress"} />} onClick={event => {
                 changeFocus.current = event.currentTarget;
@@ -644,7 +579,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         </section>)}
       {!history && visibleSubmissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))).map(value =>
         <div key={value.receipt.id} className="assistant-submission">
-          <UserMessage text={value.text} references={value.references} previews={imagePreviews} reuseDisabled={!ready || !enabled || !!setup} onReuse={reuseMessage} />
+          <UserMessage text={value.text} references={value.references} previews={imagePreviews} reuseDisabled={!ready || !enabled || !!setup} onReuse={draft.reuse} />
           {submissionActions(value)}
         </div>)}
       {!history && !conversation && !visibleSubmissions.length ? <div className="assistant-welcome"><EmptyState title={i18n.t("Ask about your document")} description={i18n.t("With edit access, documents are edited directly.")} /></div> : null}
@@ -657,58 +592,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning type-helper">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
-      <ReferenceChips composer uploading={uploadingImages} previews={imagePreviews} references={references} remove={removeReference} />
-      {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t("Codex skills")}>
-        {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.displayName ?? file.name}<small className="type-helper">{file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}</small></Button>)}
-        {!skillCatalog && !skillProblem ? <p role="status">{i18n.t("Loading skills…")}</p> : null}
-        {(skillProblem || skillCatalog?.errors.length) ? <p role="alert">{i18n.t("Could not load some skills.")} {skillProblem || skillCatalog?.errors.map(error => `${error.path}: ${error.message}`).join("; ")}</p> : null}
-        {!matches.length && skillCatalog ? <p>{i18n.t("No matching skills.")}</p> : null}
-      </div> : null}
-      <textarea onPaste={event => {
-        const images = Array.from(event.clipboardData.items).filter(item => item.kind === "file" && item.type.startsWith("image/")).map(item => item.getAsFile()).filter((file): file is File => !!file);
-        if (!images.length) return;
-        event.preventDefault();
-        const version = providerVersion.current, isCurrent = () => version === providerVersion.current;
-        pendingImageUploads.current++;
-        setUploadingImages(true); setProblem("");
-        // Chain paste batches separately from other actions; never discard an accepted paste.
-        imageUploads.current = imageUploads.current.then(async () => {
-          for (const image of images) {
-            if (!isCurrent()) return;
-            const data = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(String(reader.result).split(",")[1]);
-              reader.onerror = () => reject(reader.error);
-              reader.readAsDataURL(image);
-            });
-            const file = await request<AssistantFileReference>(ASSISTANT.conversationsRoute, { action: "upload-image", mime: image.type, data });
-            if (isCurrent()) {
-              setImagePreviews(previous => ({ ...previous, [file.path]: `data:${image.type};base64,${data}` }));
-              addReference(file);
-            }
-          }
-        }).catch(error => {
-          if (isCurrent()) setProblem(i18n.t(error.message, { defaultValue: error.message }));
-        }).finally(() => {
-          if (isCurrent() && --pendingImageUploads.current === 0) setUploadingImages(false);
-        });
-      }} ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
-        const value = event.target.value, end = event.target.selectionStart;
-        setReferences(previous => {
-          const remaining = previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name));
-          return remaining;
-        });
-        setMessage(value); const match = /(?:^|\s)\/([^\s]*)$/.exec(value.slice(0, end));
-        if (match && !mentionOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
-        setMention(match && provider === "codex" ? { start: end - match[1].length - 1, end, query: match[1] } : null); setCandidateIndex(0);
-      }}
-        disabled={!ready || !enabled || !!setup} onKeyDown={event => {
-          if (mention && !event.nativeEvent.isComposing) {
-            if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setMention(null); return; }
-            if (["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); setCandidateIndex(index => matches.length ? (index + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length : 0); return; }
-            if (event.key === "Enter") { event.preventDefault(); if (matches[candidateIndex]) chooseReference(matches[candidateIndex]); return; }
-          }
-          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
+      <AssistantComposer draft={draft} previews={imagePreviews} uploading={uploadingImages} disabled={!ready || !enabled || !!setup}
+        placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} onSend={() => void send()} onPasteImages={pasteImages} />
       <div className="assistant-controls">
         <AssistantChoice label={i18n.t("Provider")} value={providerLabel(provider)}
           help={i18n.t(conversation ? "Provider is fixed after a conversation starts. Start a new conversation to change it." : "These choices apply only to this conversation. Defaults are in Assistant settings.")}
@@ -722,7 +607,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
               leaveSubmissionScope(); chooseProvider(selected); setModels(catalog);
               const first = catalog.models.find(model => selected === settings?.provider && model.model === settings.model) ?? catalog.models[0]; setModel(first?.model ?? ""); setEffort(selected === settings?.provider ? settings.reasoningEffort : first?.defaultReasoningEffort ?? "");
               setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
-              setMention(null); setHistory(null);
+              draft.closeMention(); setHistory(null);
             });
           }} />
 
@@ -791,38 +676,6 @@ function isWorkDetail(item: AssistantConversation["turns"][number]["items"][numb
   return !["user", "assistant", "question"].includes(item.kind) && (item.kind !== "reasoning" || item.text.trim().length > 0);
 }
 
-function samePath(a: string, b: string) {
-  const normalize = (value: string) => /^[a-z]:|^\\\\/i.test(value) ? value.replaceAll("\\", "/").toLowerCase() : value;
-  return normalize(a) === normalize(b);
-}
-
-function ReferenceChips({ references, remove, previews, composer = false, uploading = false }: { references: AssistantFileReference[]; remove?(path: string): void; previews: Record<string, string>; composer?: boolean; uploading?: boolean }) {
-  let imageNumber = 0;
-  const files = references.map(file => {
-    const number = file.pastedImage ? ++imageNumber : 0;
-    return { file, number, name: number ? i18n.t("Image {{number}}", { number }) : file.kind === "skill" ? `$${file.name}` : file.name,
-      preview: file.pastedImage ? previews[file.path] : undefined };
-  });
-  const thumbnails = composer ? files.filter(({ preview }) => preview) : [];
-  const chips = composer ? files.filter(({ preview }) => !preview) : files;
-  return <>
-    {chips.length ? <span className="assistant-references">{chips.map(({ file, name, preview }) => <span className="assistant-reference type-helper" key={file.path}>
-      <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{preview ? <img className="assistant-reference-preview" src={preview} alt="" /> : null}{name}{file.unavailable ? ` · ${i18n.t("Unavailable")}` : ""}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
-      {remove ? <Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Remove reference: {{name}}", { name: file.pastedImage ? name : file.name })} onClick={() => remove(file.path)}><X /></Button> : null}
-    </span>)}</span> : null}
-    {thumbnails.length || uploading ? <div className="assistant-image-previews">
-      {thumbnails.map(({ file, name, number, preview }) => <Tooltip key={file.path}>
-        <TooltipTrigger render={<span className="assistant-image-preview" tabIndex={0} />}>
-          <img src={preview} alt={name} />
-          <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Remove image {{number}}", { number })} onClick={() => remove?.(file.path)}><X /></Button>
-        </TooltipTrigger>
-        <TooltipContent>{name}</TooltipContent>
-      </Tooltip>)}
-      {uploading ? <span className="assistant-image-upload type-helper" role="status"><LoaderCircle className="animate-spin" aria-hidden="true" /><span aria-hidden="true">{i18n.t("In progress")}</span><span className="sr-only">{i18n.t("Uploading images…")}</span></span> : null}
-    </div> : null}
-  </>;
-}
-
 /** A sent message can be copied or reused as new composer text; it is never edited in place. */
 function UserMessage({ text, references, previews, reuseDisabled, onReuse }: { text: string; references: AssistantFileReference[]; previews: Record<string, string>; reuseDisabled: boolean; onReuse(text: string): void }) {
   return <div className="assistant-user-message">
@@ -834,8 +687,6 @@ function UserMessage({ text, references, previews, reuseDisabled, onReuse }: { t
     </div> : null}
   </div>;
 }
-
-function hasSkillToken(text: string, name: string) { return text.split(/\s+/).includes(`$${name}`); }
 
 /** Direct choices reuse the existing menu and item interaction. */
 function AssistantChoice({ label, value, help, disabled, visible, choiceOpen, onOpenChange, selected, options, onSelect }: {
