@@ -1,7 +1,7 @@
 import type { HostClient } from "../host-client.ts";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
-import { createAssistantRequest, observeAssistantProvider } from "../assistant-api.ts";
+import { createAssistantRequest } from "../assistant-api.ts";
 import { useHostClient } from "../host-context.tsx";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
@@ -10,7 +10,7 @@ import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, History, ExternalLink, FolderOpen, Ellipsis, Paperclip, TextCursorInput, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks } from "lucide-react";
-import { ASSISTANT, type AiProvider, type AssistantUserInput, type AssistantSubmissionResult, type AssistantSubmission, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantDiagnostics } from "../../shared/assistant.ts";
+import { ASSISTANT, type AiProvider, type AssistantUserInput, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { PanelHeader } from "@/components/ui/panel-header.tsx";
 import { EmptyState } from "@/components/ui/screen-parts.tsx";
@@ -31,20 +31,14 @@ import type { FolderPlace } from "../../shared/document-protocol.ts";
 import { AssistantHistory, pathName, providerLabel } from "./AssistantHistory.tsx";
 import { AssistantComposer, ReferenceChips, hasSkillToken, useComposerDraft } from "./AssistantComposer.tsx";
 import { useTranscriptScroll } from "./useTranscriptScroll.ts";
+import { errorText, useAssistantConversation, type AssistantLocalSubmission } from "./useAssistantConversation.ts";
+import { useAssistantProviderOptions } from "./useAssistantProviderOptions.ts";
 
-function lastConversation(conversationKey: string) { try { return localStorage.getItem(conversationKey) || undefined; } catch { return undefined; } }
-function rememberConversation(conversationKey: string, id?: string) { try { if (id) localStorage.setItem(conversationKey, id); else localStorage.removeItem(conversationKey); } catch { /* In-page state remains usable. */ } }
-const errorText = (error: unknown) => i18n.t((error as Error).message, { defaultValue: (error as Error).message });
-function providerIssue(status: AssistantDiagnostics) {
-  if (!status.connected) return status.error ?? (status.provider === "copilot" ? "GitHub Copilot is unavailable on the Host." : "Codex CLI is unavailable on the Host.");
-  if (status.provider === "codex" && !status.account) return "Sign in to Codex to start a conversation.";
-  return "";
-}
 const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 
-export type AssistantLocalSubmission = { provider: AssistantSettings["provider"]; conversationId?: string; receipt: AssistantSubmission; text: string; references: AssistantFileReference[] };
+export type { AssistantLocalSubmission };
 export type AssistantButtonStatus = "working" | "completed" | "attention" | undefined;
 
 type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch<SetStateAction<AssistantLocalSubmission[]>>; onStatus: Dispatch<SetStateAction<AssistantButtonStatus>>; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
@@ -59,48 +53,25 @@ type Props = { submissions: AssistantLocalSubmission[]; setSubmissions: Dispatch
 export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onStatus, settingsRevision, providerReadRevision, onProviderRecheck, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed }: Props) {
   useTranslation();
   const client = useHostClient();
-  const conversationKey = `${brand.storagePrefix}.assistantConversation.v2`;
   const request = createAssistantRequest(client);
   const changeFocus = useRef<HTMLElement | null>(null);
   const [changeComparison, setChangeComparison] = useState<{ path: string; load(signal: AbortSignal): Promise<Comparison> }>();
   const [removed, setRemoved] = useState<string[]>([]);
-  const [settings, setSettings] = useState<AssistantSettings>();
-  const [catalog, setModels] = useState<AiModels>();
-  const [conversation, setConversation] = useState<AssistantConversation>();
   const [history, setHistory] = useState<AssistantConversationInfo[] | null>(null);
-  const [provider, setProvider] = useState<AiProvider>("codex");
-  const models = catalog?.provider === provider ? catalog : undefined;
-  const [permissionMode, setPermissionMode] = useState<AssistantSettings["permissionMode"]>("full-access");
-  const [model, setModel] = useState("");
-  const [effort, setEffort] = useState("");
-  const [mode, setMode] = useState("");
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState("");
-  const [setup, setSetup] = useState("");
-  const [providerProblem, setProviderProblem] = useState("");
-  const [resumeProblem, setResumeProblem] = useState<{ message: string; providerUnavailable?: boolean }>();
-  const [ready, setReady] = useState(false);
   const [actionPending, setPending] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const pending = actionPending || uploadingImages;
   const imageUploads = useRef(Promise.resolve());
   const pendingImageUploads = useRef(0);
   const busy = useRef(false);
-  const submissionScope = useRef(0);
-  const leaveSubmissionScope = () => { submissionScope.current++; };
-  // Navigation hides other owners' rows without discarding their only local copy.
-  const visibleSubmissions = submissions.filter(value => value.provider === provider &&
-    (conversation ? (value.conversationId ?? value.receipt.conversationId) === conversation.id : value.conversationId === undefined));
-  const submitted = useRef(visibleSubmissions); submitted.current = visibleSubmissions;
-  const applySubmission = (result: AssistantSubmissionResult, updateConversation = true) => {
-    if (result.submission.status === "rejected") onProviderRecheck();
-    setSubmissions(previous => {
-      return previous.map(value => value.receipt.id === result.submission.id ? { ...value,
-        conversationId: value.conversationId ?? result.submission.conversationId ?? result.conversation?.id,
-        receipt: value.receipt.status === "accepted" ? value.receipt : result.submission } : value);
-    });
-    if (result.conversation && updateConversation) { setConversation(result.conversation); setPermissionMode(result.conversation.permissionMode ?? permissionMode); rememberConversation(conversationKey, result.conversation.id); }
-  };
+  // `models`, `clearProviderProblem` and `draft` come from the hooks below; these callbacks run only after this render.
+  const { settings, ready, setup, resumeProblem, clearResumeProblem, conversation, setConversation, current, provider, permissionMode, model, effort, mode,
+    setPermissionMode, setModel, setEffort, setMode, active, unresolved, visibleSubmissions, leaveSubmissionScope, leaveConversation, applyDefaults, switchProvider,
+    catalogArrived, send: sendMessage, retry, discard, resume } = useAssistantConversation({ request, open, settingsRevision, submissions, setSubmissions, onProviderRecheck, setProblem,
+    folders, documentPath, catalog: () => models, onChooseProvider: (selected, changed) => { if (changed) clearProviderProblem(); if (selected === "copilot") draft.dropSkills(); } });
+  const { models, setModels, providerProblem, clearProviderProblem } = useAssistantProviderOptions({ request, open, ready, provider, providerReadRevision, setProblem, onModels: catalogArrived });
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null);
   const historyOpen = history !== null;
@@ -109,10 +80,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const draft = useComposerDraft({ request, open, provider });
   const { input, message, references } = draft;
   const initialFocus = useRef(false);
-  const current = useRef(conversation); current.current = conversation;
-  const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
+  const openedSettings = useRef(settingsRevision), providerVersion = useRef(0);
   const enabled = !!settings;
-  const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
   const showStop = active && (provider === "copilot" || (!message.trim() && !references.length));
   const composerAction = i18n.t(showStop ? "Stop response" : active ? "Steer conversation" : "Send message");
   // Read acknowledgement is local presentation state; conversation/submission owners stay unchanged.
@@ -120,74 +89,26 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const completion = lastTurn?.status === "completed" ? `${conversation!.id}:${lastTurn.id}` : undefined;
   const [seenCompletion, setSeenCompletion] = useState<string>();
   useEffect(() => { if (open) setSeenCompletion(completion); }, [open, completion]);
-  const unresolved = visibleSubmissions.filter(value => !conversation?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id)));
   const needsAttention = !!conversation?.userInput || conversation?.turns.some(turn => turn.items.some(item => item.question?.status === "unknown")) || lastTurn?.status === "failed" || unresolved.some(value => ["rejected", "unknown"].includes(value.receipt.status));
   const working = active || unresolved.some(value => value.receipt.status === "pending");
   const buttonStatus: AssistantButtonStatus = open ? undefined : needsAttention ? "attention" : working ? "working" : completion && completion !== seenCompletion ? "completed" : undefined;
   useEffect(() => { onStatus(buttonStatus); }, [buttonStatus, onStatus]);
   useEffect(() => () => { onStatus(undefined); }, [onStatus]);
-  // Keep the same nonoverlapping observer for hidden work, then stop at rest.
-  const observe = open || active || !!conversation?.userInput || unresolved.some(value => value.receipt.status === "pending");
-  // Closing a setup refresh must not strand an already-admitted turn/send.
-  // Failed setup is still blocked by `setup` below.
-  const observationReady = ready || !open && (active || unresolved.length > 0);
-  const chooseProvider = (selected: AiProvider) => {
-    if (selected !== provider) setProviderProblem("");
-    setProvider(selected);
-    if (selected === "copilot") draft.dropSkills();
-  };
-  const defaults = (value: AssistantSettings) => { chooseProvider(value.provider); setPermissionMode(value.permissionMode); setModel(value.model); setEffort(value.reasoningEffort); setMode(models?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); };
+  // Each opening or settings refresh starts a fresh setup in `useAssistantConversation`; the panel surface resets with it.
   useEffect(() => {
-    const refreshingSettings = initializedSettings.current !== settingsRevision;
-    initializedSettings.current = settingsRevision;
-    if (!open) { setReady(false); return; }
+    const refreshingSettings = openedSettings.current !== settingsRevision;
+    openedSettings.current = settingsRevision;
+    if (!open) return;
     initialFocus.current = !refreshingSettings;
     // A later focus move belongs to the user or another UI, even if setup is slow.
     const cancelInitialFocus = () => { initialFocus.current = false; };
     document.addEventListener("focusin", cancelInitialFocus);
-    let alive = true;
-    setReady(false); setSetup(""); setProblem(""); setResumeProblem(undefined); setHistory(null);
-    void request<AssistantSettings>(ASSISTANT.settingsRoute).then(async value => {
-      if (!alive) return;
-      setSettings(value); if (!current.current && (!settings || refreshingSettings)) defaults(value);
-      const id = current.current?.id ?? lastConversation(conversationKey);
-      let resumed: AssistantConversation | undefined;
-      if (id) {
-        try { resumed = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id }); }
-        catch (error) {
-          // A missing or unavailable last thread must not block a fresh conversation.
-          if (alive) {
-            current.current = undefined; setConversation(undefined); rememberConversation(conversationKey); defaults(value);
-            setResumeProblem({ message: i18n.t("Could not reopen the previous conversation. {{reason}}", { reason: errorText(error) }) });
-          }
-        }
-      }
-      if (!alive) return;
-      if (resumed) {
-        if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); setMode(resumed.copilot?.currentMode ?? ""); chooseProvider(resumed.provider ?? "codex"); setPermissionMode(resumed.permissionMode ?? value.permissionMode); }
-        setConversation(resumed); rememberConversation(conversationKey, resumed.id);
-      }
-      setReady(true);
-    }).catch(error => { if (alive) setSetup(error.message); });
+    setProblem(""); setHistory(null);
     return () => {
-      alive = false; initialFocus.current = false;
+      initialFocus.current = false;
       document.removeEventListener("focusin", cancelInitialFocus);
     };
   }, [open, settingsRevision]);
-  useEffect(() => {
-    if (!open || !ready) return;
-    let alive = true;
-    void observeAssistantProvider(request<AiModels>, ASSISTANT.modelsRoute, provider, value => {
-      if (!alive) return;
-      setModels(value);
-      if (!current.current) setMode(previous => previous || (value.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""));
-    }).catch(error => { if (alive) setProblem(error.message); });
-    void observeAssistantProvider(request<AssistantDiagnostics>, ASSISTANT.diagnosticsRoute, provider, value => {
-      if (!alive) return;
-      setProviderProblem(providerIssue(value));
-    }).catch(error => { if (alive) setProviderProblem(error.message); });
-    return () => { alive = false; };
-  }, [open, ready, provider, providerReadRevision]);
   // Hiding the panel is not a provider/scope change: a late send reply still belongs here.
   useEffect(() => () => {
     providerVersion.current++; busy.current = false; setPending(false);
@@ -227,59 +148,6 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
       input.current?.focus();
     }
   }, [open, ready, enabled, setup]);
-  useEffect(() => {
-    if (!conversation) return;
-    // Admission is enough; provider history remains provider-owned.
-    const observed = new Set(conversation.turns.flatMap(turn => turn.items.filter(item => item.kind === "user").map(item => item.submissionId)));
-    setSubmissions(previous => {
-      const retained = previous.filter(value => !observed.has(value.receipt.id));
-      return retained.length === previous.length ? previous : retained;
-    });
-  }, [conversation, setSubmissions]);
-  const snapshotPending = useRef(false), receiptsPending = useRef(false);
-  useEffect(() => {
-    if (!observe || !observationReady || !enabled || setup) return;
-    let alive = true, timer: ReturnType<typeof setTimeout> | undefined;
-    let startedAt = 0;
-    const schedule = () => {
-      const running = current.current?.turns.some(turn => turn.status === "inProgress") || submitted.current.some(value => value.receipt.status === "pending");
-      const delay = running ? Math.max(0, 100 - (performance.now() - startedAt)) : 600;
-      if (alive && timer === undefined) timer = setTimeout(poll, delay);
-    };
-    const poll = async () => {
-      timer = undefined;
-      if (!alive) return;
-      if (snapshotPending.current) { startedAt = performance.now(); schedule(); return; }
-      startedAt = performance.now();
-      const scope = submissionScope.current;
-      const valid = () => alive && scope === submissionScope.current;
-      // Receipt lookup never blocks text or replaces a newer same-conversation snapshot.
-      if (!receiptsPending.current) {
-        receiptsPending.current = true;
-        void (async () => {
-          for (const value of submitted.current) {
-            if (value.receipt.status !== "pending" || current.current?.turns.some(turn => turn.items.some(item => item.submissionId === value.receipt.id))) continue;
-            try {
-              const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`);
-              if (valid()) applySubmission(result, !current.current);
-            } catch { /* Acceptance stays uncertain; never replay the message. */ }
-            if (!valid()) return;
-          }
-        })().finally(() => { receiptsPending.current = false; });
-      }
-      const id = current.current?.id;
-      if (!id || !valid()) { schedule(); return; }
-      snapshotPending.current = true;
-      try { const next = await request<AssistantConversation>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}`);
-        if (valid()) setConversation(next);
-      }
-      catch (error) { if (valid()) setProblem(i18n.t((error as Error).message, { defaultValue: (error as Error).message })); }
-      snapshotPending.current = false;
-      schedule();
-    };
-    schedule();
-    return () => { alive = false; clearTimeout(timer); };
-  }, [observe, conversation?.id, observationReady, enabled, setup, settingsRevision]);
   const resultFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!pending && resultFocus.current) {
@@ -291,24 +159,16 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     if (busy.current) return;
     busy.current = true;
     const version = providerVersion.current, isCurrent = () => version === providerVersion.current;
-    setPending(true); setProblem(""); setResumeProblem(undefined);
+    setPending(true); setProblem(""); clearResumeProblem();
     try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem(errorText(error)); } finally { if (isCurrent()) { busy.current = false; setPending(false); } }
   };
   const send = () => run(async isCurrent => {
     if (pendingImageUploads.current || !ready || !catalogModel || active && provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
-    const submissionId = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
-    setSubmissions(previous => [...previous, { provider, conversationId: conversation?.id, receipt: { id: submissionId, status: "pending", conversationId: conversation?.id }, text: value, references: files }]);
     draft.clear(); setHistory(null); input.current?.focus();
     jumpToBottom();
-    try {
-      const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId, id: conversation?.id, message: value,
-        provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path), skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(10_000));
-      if (isCurrent()) applySubmission(result, current.current === conversation);
-    } catch (error) {
-      if (isCurrent()) setSubmissions(previous => previous.map(item => item.receipt.id === submissionId && item.receipt.status !== "accepted" ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
-    }
+    await sendMessage(value, files, isCurrent);
   });
   // Explorer "Add to chat" and the composer file picker attach the same explicit file chip.
   const addFileReference = (path: string) => { draft.addReference({ path, name: pathName(path), kind: "file" }); setHistory(null); };
@@ -372,9 +232,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     let catalog = models;
     if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
     if (!isCurrent()) return false;
-    setConversation(undefined); leaveSubmissionScope(); rememberConversation(conversationKey); draft.closeMention();
-    setModels(catalog); if (settings) defaults(settings);
-    setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
+    leaveConversation(); draft.closeMention();
+    setModels(catalog); applyDefaults(catalog);
     return true;
   };
   const historyEntry = (info: AssistantConversationInfo) => setHistory(previous => previous?.map(entry => entry.id === info.id ? info : entry) ?? null);
@@ -389,27 +248,13 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     historyEntry(info);
     if (!archived || current.current?.id !== info.id) return;
     // Leave the archived conversation before reading the default catalog, which may fail.
-    setConversation(undefined); leaveSubmissionScope(); rememberConversation(conversationKey);
+    leaveConversation();
     await startConversation(isCurrent);
   });
   const resumeHistory = (entry: AssistantConversationInfo) => run(async isCurrent => {
-    let next: AssistantConversation;
-    try { next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id: entry.id }); }
-    catch (error) {
-      if (!isCurrent()) return;
-      const selected = entry.provider ?? "codex";
-      const issue = await request<AssistantDiagnostics>(`${ASSISTANT.diagnosticsRoute}?provider=${selected}`)
-        .then(providerIssue, (failure: Error) => failure.message);
-      if (!isCurrent()) return;
-      setResumeProblem({ message: issue || errorText(error), providerUnavailable: !!issue });
-      transcript.current?.scrollTo(0, 0);
-      return;
-    }
-    if (!isCurrent()) return;
-    setConversation(next); leaveSubmissionScope(); rememberConversation(conversationKey, next.id);
-    chooseProvider(next.provider ?? "codex");
-    setPermissionMode(next.permissionMode ?? settings!.permissionMode);
-    setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? "");
+    const result = await resume(entry, isCurrent);
+    if (result === "failed") transcript.current?.scrollTo(0, 0);
+    if (result !== "resumed") return;
     setHistory(null); input.current?.focus();
   });
   const usage = conversation?.tokenUsage, percent = usage?.limit ? Math.min(100, Math.round(usage.used / usage.limit * 100)) : null;
@@ -417,32 +262,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "answer", id: conversation!.id, turnId: question.turnId, requestId: question.requestId, answers });
     if (isCurrent()) setConversation(next);
   });
-  const retrySubmission = (value: AssistantLocalSubmission, sendAsNew = false) => run(async isCurrent => {
-    const before = current.current;
-    if (!sendAsNew && value.receipt.status === "unknown") {
-      const result = await request<AssistantSubmissionResult>(`${ASSISTANT.conversationsRoute}?submissionId=${encodeURIComponent(value.receipt.id)}`, undefined, AbortSignal.timeout(10_000));
-      if (!isCurrent()) return;
-      if (result.submission.status !== "rejected") {
-        if (result.submission.status === "unknown") result.submission.error = "Unable to confirm acceptance";
-        applySubmission(result, current.current === before);
-        return;
-      }
-    }
-    const submissionId = sendAsNew ? crypto.getRandomValues(new Uint32Array(4)).join("-") : value.receipt.id;
-    setSubmissions(previous => previous.map(item => item.receipt.id === value.receipt.id
-      ? { ...value, receipt: { id: submissionId, status: "pending", conversationId: value.conversationId } } : item));
-    try {
-      const result = await request<AssistantSubmissionResult>(ASSISTANT.conversationsRoute, { action: "send", submissionId,
-        id: value.conversationId, message: value.text, provider: value.provider, permissionMode, model, reasoningEffort: effort,
-        ...(provider === "copilot" && mode ? { mode } : {}), references: value.references.filter(file => file.kind !== "skill").map(file => file.path),
-        skills: value.references.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders,
-        document: documentPath ? { path: documentPath } : undefined }, AbortSignal.timeout(10_000));
-      if (isCurrent()) applySubmission(result, current.current === before);
-    } catch (error) {
-      if (isCurrent()) setSubmissions(previous => previous.map(item => item.receipt.id === submissionId && item.receipt.status !== "accepted"
-        ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
-    }
-  });
+  const retrySubmission = (value: AssistantLocalSubmission, sendAsNew = false) => run(isCurrent => retry(value, sendAsNew, isCurrent));
   const submissionActions = (value: AssistantLocalSubmission) => {
     const status = value.receipt.status;
     if (status === "accepted") return null;
@@ -454,10 +274,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         render={<Button variant="outline" size="sm" disabled={pending} />} onClick={() => void retrySubmission(value, true)}>{i18n.t("Send as new")}</TooltipTrigger>
         <TooltipContent>{i18n.t("Send the original message as a new request. The previous request may already have run.")}</TooltipContent>
       </Tooltip> : null}
-      {status !== "pending" ? <Button variant="ghost" size="sm" disabled={pending} onClick={() => {
-        submissionScope.current++;
-        setSubmissions(previous => previous.filter(item => item.receipt.id !== value.receipt.id));
-      }}>{i18n.t("Discard message")}</Button> : null}
+      {status !== "pending" ? <Button variant="ghost" size="sm" disabled={pending} onClick={() => discard(value)}>{i18n.t("Discard message")}</Button> : null}
     </div>;
   };
   return <aside ref={panel} hidden={!open} className={`assistant-panel type-body${overlay ? " assistant-panel--overlay" : ""}`} aria-label={i18n.t("Assistant")}
@@ -604,9 +421,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
             void run(async isCurrent => {
               const catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${selected}&cache=prefer`);
               if (!isCurrent()) return;
-              leaveSubmissionScope(); chooseProvider(selected); setModels(catalog);
-              const first = catalog.models.find(model => selected === settings?.provider && model.model === settings.model) ?? catalog.models[0]; setModel(first?.model ?? ""); setEffort(selected === settings?.provider ? settings.reasoningEffort : first?.defaultReasoningEffort ?? "");
-              setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
+              leaveSubmissionScope(); switchProvider(selected, catalog); setModels(catalog);
               draft.closeMention(); setHistory(null);
             });
           }} />
