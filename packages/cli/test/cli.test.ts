@@ -3146,6 +3146,45 @@ test("plugin CLI forwards authoring and registration consent without implicit ap
 
 });
 
+test("plugin CLI forwards management requests and refuses malformed arguments before the Host", async t => {
+  const settings = path.join(fixtures, "plugin-settings.json"); writeFileSync(settings, JSON.stringify({ folder: "notes" }));
+  const host = ["--host", "http://127.0.0.1:5180", "--json"], bodies: unknown[] = [];
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (url: URL, init?: RequestInit) => {
+    calls++;
+    if (url.pathname === "/daemon/health") return new Response(JSON.stringify({ protocolVersion: DAEMON_PROTOCOL }));
+    bodies.push(JSON.parse(init!.body as string));
+    return new Response(JSON.stringify({ receipt: { outcome: "success" } }));
+  });
+  let output = ""; t.mock.method(process.stdout, "write", (chunk: string) => { output += chunk; return true; });
+  const forwarded: [string[], unknown][] = [
+    [["list"], { action: "list" }], [["register", "C:/host/example"], { action: "register", directory: "C:/host/example" }],
+    [["bundle", "C:/host/example"], { action: "bundle", directory: "C:/host/example" }],
+    [["dependencies", "C:/host/example"], { action: "dependencies", directory: "C:/host/example" }],
+    ...["enable", "disable", "reload", "unregister", "secret-status", "settings"].map(action => [[action, "local.example"], { action, id: "local.example" }] as [string[], unknown]),
+    [["secret-delete", "local.example", "token"], { action: "secret-delete", id: "local.example", name: "token" }],
+    [["settings", "local.example", "--file", settings], { action: "settings", id: "local.example", settings: { folder: "notes" } }]];
+  for (const [args, body] of forwarded) {
+    assert.equal(await runCliAsync(["plugins", ...args, ...host]), 0, args.join(" "));
+    assert.deepEqual(bodies.at(-1), body);
+  }
+  const usage = /^Error: plugins list\|install <directory-or-id>\|/;
+  const registrationId = "62fbf782-043e-4c03-8b20-60aaaf34b6da";
+  calls = 0;
+  for (const [args, reason] of [
+    [["plugins"], usage], [["plugins", "list", "extra"], usage], [["plugins", "constructor", "x"], usage], [["plugins", "secret-delete", "local.example"], usage],
+    [["plugins", "settings", "local.example", "--input", settings], usage], [["operation", "list"], usage],
+    [["operation", "invoke", "local.example.read"], /^Error: operation invoke <id> --input <json-file>$/],
+    [["plugins", "trust", "local.example", "--registration", registrationId, "--registration", registrationId], /^Error: Duplicate plugin trust option$/],
+    [["plugins", "enable", "local.example", "--digest", "abc"], /^Error: Invalid plugin trust option$/]] as [string[], RegExp][]) {
+    output = "";
+    assert.equal(await runCliAsync([...args, ...host]), 1, args.join(" "));
+    const result = JSON.parse(output);
+    assert.equal(result.outcome, "failure"); assert.match(result.reason, reason);
+  }
+  assert.equal(calls, 0, "malformed arguments never reach the Host");
+});
+
 
 test("operation CLI preserves Host failure kind and read advice without replay", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-operation-cli-"));
