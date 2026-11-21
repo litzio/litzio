@@ -261,7 +261,8 @@ function EditorApp() {
   // Restore folder context before opening tabs, including their bibliography resources.
   const revisionChecks = () => [...sessions.current.values()].filter(owner => !owner.busyRef.current).map(owner => {
     const path = owner.openedPath, expected = owner.acknowledgedRevision;
-    return { path, accept: (revision: string | null) => owner.observeRevision(revision, expected) };
+    // A file operation's own disk change lands before its reply updates the tabs; the next check rereads.
+    return { path, accept: (revision: string | null) => { if (!operationRef.current) owner.observeRevision(revision, expected); } };
   });
   const folders = useFolderTrees(requestFolder, setError, revisionChecks);
   const openedFolderPaths = folders.trees.map(tree => tree.root);

@@ -404,7 +404,7 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
     await expect(row('pending-renamed.md')).toHaveCount(1);
   } finally {await page.unroute('**/api/file');}
   // Rename starts on tab A; an earlier open of B lands and selects B before A's reply.
-  // The reply renames A only; B stays selected with its own content.
+  // The reply renames A only; B stays selected with its own content, and A shows no outside change.
   {
     const later=file('race-renamed.md');
     let releaseOpen,openArrived,openDone,releaseRename,renameArrived;
@@ -431,7 +431,12 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
       releaseOpen();await opened;
       // The Rename dialog is modal, so the tab strip is outside the accessibility tree until it closes.
       await expect(page.locator('[role="tab"][aria-selected="true"]',{hasText:'race-renamed.md'})).toHaveCount(1);
+      // The periodic revision check sees A's old path gone before the reply reaches the Editor.
+      // That is this window's own Rename, not an outside change.
+      await page.waitForResponse(async response=>response.url().includes('/api/folder-version?')&&
+        (await response.json().catch(()=>({}))).revisions?.some(item=>item.path===file('pending-renamed.md')&&item.revision===null));
       releaseRename();await dialog.waitFor({state:'hidden'});
+      expect(await page.getByTestId('external-change').count()).toBe(0);
       await expect(row('late-renamed.md')).toHaveCount(1);
       await expect(page.getByRole('tab',{name:'pending-renamed.md',exact:true})).toHaveCount(0);
       const renamedTab=page.getByRole('tab',{name:'late-renamed.md',exact:true});
