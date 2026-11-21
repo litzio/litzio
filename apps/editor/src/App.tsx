@@ -1,5 +1,6 @@
 import { OpenRefusalDialog, ReloadChangesDialog } from "./shell/DocumentOperationDialogs.tsx";
 import { requestFolder, browseHostFolder, requestCreateFolder, folderPlaces } from "./shell/folder-requests.ts";
+import { checkCreatedFile, fileActionFailure, requestFileAction, saveFirstRefusal, trashedPaths } from "./shell/file-actions.ts";
 import { ScreenBoundary } from "./views/PluginScreenCode.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
@@ -513,6 +514,8 @@ function EditorApp() {
     const tab = tabs.find(tab => tab.path === entry.path);
     const owner = tab && sessions.current.get(tab.id);
     const client = formSession ? formSession.client : owner?.client ?? capturedClient ?? getHostClient();
+    // Targets are fixed here, before the first await. Replies apply to these tabs and sessions,
+    // never to whichever tab is active when they arrive.
     owner?.suspendRecovery();
     if (isFolder) affectedSessions.forEach(session => session.suspendRecovery());
     let completed = false;
@@ -521,26 +524,19 @@ function EditorApp() {
       client.assertCurrent();
       affectedSessions.forEach(session => session.client.assertCurrent());
       if (figure && !formSession) throw new Error("Editor is not ready");
-      const interrupted = (cause: unknown): never => {
-        if (isFolder) throw new Error(i18n.t("The Trash operation did not complete reliably. Some items may have moved. Check the source folder and OS Trash before trying again."));
-        if (figure) throw new Error(i18n.t("The image rename response was interrupted. Files may have changed. Keep your edits and check the files before Reloading."));
-        throw cause;
-      };
       const root = figure ? chosenRoot : folders.trees.map(tree => tree.root).filter(root => folderChain(root, entry.path).length > 0).sort((a, b) => a.length - b.length)[0] ?? chosenRoot;
       let expectedRevision: string | undefined;
       let checkedRecovery: RecoveryRecord[] | undefined;
       if (creation !== undefined) {
         if (!creation.identity) throw new Error("This creation receipt has no file identity. Undo is unavailable.");
-        const check = await client.request(`/api/file`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ root, path: entry.path, checkOnly: true, expectedIdentity: creation.identity }) });
-        const state = await check.json();
-        if (!check.ok || typeof state.revision !== "string") throw new Error(state.error ?? "Could not check file.");
-        expectedRevision = state.revision;
+        const revision = await checkCreatedFile(client, root, entry.path, creation.identity);
+        expectedRevision = revision;
         const dirty = () => openSessions().some(current => current.openedPath === entry.path && current.editorRef.current?.hasUnsavedChanges());
         const tabState = () => JSON.stringify(openSessions().filter(current => current.openedPath === entry.path).map(current => [current.getSnapshot(), current.editorRef.current?.hasUnsavedChanges()]));
         const recoveryForPath = async () => (await recoveryStorage.list()).filter(record => record.path === entry.path).sort((a, b) => a.id.localeCompare(b.id));
         checkedRecovery = await recoveryForPath();
         const checkedTabState = tabState();
-        if (creationUndoNeedsConfirmation(creation.revision, state.revision, dirty() || checkedRecovery.length > 0)) {
+        if (creationUndoNeedsConfirmation(creation.revision, revision, dirty() || checkedRecovery.length > 0)) {
           const confirmed = await new Promise<boolean>(resolve => setUndoConfirmation({ name: entry.name, resolve }));
           setUndoConfirmation(undefined);
           if (!confirmed) return "";
@@ -575,45 +571,47 @@ function EditorApp() {
           }
         }
       }
-      const response = await client.request(isFolder ? "/api/folder-trash" : `/api/file`, {
-        method: isFolder ? "POST" : action === "delete" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ root, path: entry.path, ...(isFolder ? { expectedIdentity: folderConfirmation?.identity, expectedRevision: folderConfirmation?.revision, openDocuments: protectedPaths, cleanupPaths } : {}), ...(expectedRevision !== undefined ? { expectedRevision, expectedIdentity: creation!.identity } : {}), ...(action === "rename" ? { name, openDocuments } : {}),
-          ...(figure && formSession ? { figureDocument: { path: figure.documentPath, imageUrl: figure.imageUrl,
-            historicalSources: formSession.imageRenameSources(),
-            revision: formSession.imageRenameRevision(), source: await formSession.appliedSource() } } : {}) }),
-      }).catch(interrupted);
-      const result = await response.json().catch(interrupted);
-      if (response.ok && formSession && result.figureDocument) formSession.acceptImageRename(result.figureDocument);
-      if (isFolder && result.unsavedDocuments?.length) throw new Error(i18n.t("Save these documents before moving the folder to Trash: {{documents}}", { documents: result.unsavedDocuments.map((path: string) => splitDocumentPath(path).name).join(", ") }));
-      if (Array.isArray(result.references)) throw new Error(i18n.t("Save these documents before renaming the image: {{documents}}", { documents: result.references.join(", ") }));
+      const reply = await requestFileAction(client, { action, root, path: entry.path,
+        ...(isFolder ? { folder: { confirmation: folderConfirmation, openDocuments: protectedPaths, cleanupPaths } } : {}),
+        ...(expectedRevision !== undefined ? { created: { revision: expectedRevision, identity: creation!.identity } } : {}),
+        ...(action === "rename" ? { rename: { name, openDocuments } } : {}),
+        ...(figure && formSession ? { figureDocument: { path: figure.documentPath, imageUrl: figure.imageUrl,
+          historicalSources: formSession.imageRenameSources(),
+          revision: formSession.imageRenameRevision(), source: await formSession.appliedSource() } } : {}) });
+      const { result } = reply;
+      if (reply.ok && formSession && result.figureDocument) formSession.acceptImageRename(result.figureDocument);
+      const refusal = saveFirstRefusal(result, isFolder);
+      if (refusal) throw refusal;
       // The rename dialog remains modal throughout the request and reloads. No tab can
       // accept new input between the dirty check and installing the new disk checkpoint.
       const reloadErrors: string[] = [];
       for (const current of openSessions()) {
-        if (current.openedPath === figure?.documentPath && response.ok) continue;
+        if (current.openedPath === figure?.documentPath && reply.ok) continue;
         if (!result.updatedDocuments?.includes(current.openedPath)) continue;
         const message = await current.load(current.openedPath);
         if (message) reloadErrors.push(`${splitDocumentPath(current.openedPath).name}: ${message}`);
       }
       if (reloadErrors.length) setError({ key: "The files changed, but these tabs could not be reloaded: {{documents}}", values: { documents: reloadErrors.join(", ") } });
       if (result.skippedDocuments?.length) setNotice({ key: "Skipped unreadable or non-{{product}} documents: {{documents}}", values: { documents: result.skippedDocuments.join(", ") } });
-      if (!response.ok || typeof result.path !== "string") { folders.refreshParents(entry.path); throw new Error(result.error ? i18n.t(result.error) : `File operation failed (${response.status})`); }
+      const failure = fileActionFailure(reply);
+      if (failure) { folders.refreshParents(entry.path); throw failure; }
+      const path = result.path as string;
       completed = true;
-      const confirmedPaths: string[] = isFolder && Array.isArray(result.containedPaths) ? result.containedPaths.filter((path: unknown): path is string => typeof path === "string") : [];
+      const confirmedPaths = isFolder ? trashedPaths(result) : [];
       if (isFolder) affected = affected.filter(tab => confirmedPaths.includes(tab.path));
       try {
         if (isFolder && folderRecovery) await recoveryStorage.discardFolderSnapshot(folderRecovery, confirmedPaths);
-        else await recoveryStorage.changePath(entry.path, action === "rename" ? result.path : null, checkedRecovery);
+        else await recoveryStorage.changePath(entry.path, action === "rename" ? path : null, checkedRecovery);
       }
       catch { setError({ key: "The file changed, but local recovery could not be updated. Review local recovery in Settings." }); }
       if (action === "rename") {
-        relocateTableWrap(entry.path, result.path);
-        owner?.relocate(result.path);
+        relocateTableWrap(entry.path, path);
+        owner?.relocate(path);
         setTabs(previous => previous.map(tab => {
           if (tab.path !== entry.path) return tab;
           const restored = tab.restored && structuredClone(tab.restored);
-          if (restored) restored.file.path = result.path;
-          return { ...tab, path: result.path, file: { ...tab.file, path: result.path }, ...(restored ? { restored } : {}) };
+          if (restored) restored.file.path = path;
+          return { ...tab, path, file: { ...tab.file, path }, ...(restored ? { restored } : {}) };
         }));
       } else {
         for (const closed of affected) { sessions.current.delete(closed.id); navigate({ type: "close", id: closed.id }); }
@@ -622,7 +620,7 @@ function EditorApp() {
       rememberTabs();
       folders.refreshParents(entry.path);
       await refreshRecovery();
-      return result.path;
+      return path;
     } finally {
       if (!completed) owner?.resumeRecovery();
       if (isFolder) {
