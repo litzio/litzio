@@ -608,8 +608,6 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
 }
 
 export function resolveFigureSource(imageUrl: string, documentPath?: string | (() => string), client = getHostClient()): string {
-  // Host-owned review identities are not browser URLs; only the verified context resolves them.
-  if (imageUrl.startsWith("review-asset:")) return "";
   const locator = typeof documentPath === "function" ? documentPath() : documentPath;
   const encodedPath = figureMediaPath(imageUrl);
   if (encodedPath === undefined) return imageUrl;
