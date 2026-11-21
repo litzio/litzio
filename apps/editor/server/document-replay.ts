@@ -58,6 +58,7 @@ import {
   updateParagraphInlineContent,
   validateFigure,
   validateStructure,
+  type Document as CoreDocument,
   type EditableBlock,
   type EditableDocument,
   type FigureContent,
@@ -102,127 +103,63 @@ export function saveEdits(
   const original = parse(source);
   let document = original;
   const editable = getEditableDocument(document);
-  for (const edit of edits.headings ?? []) {
-    const target = { path: [edit.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(edit.path, "heading");
-      const block = blockAt(editable, edit.path);
-      if (block?.block !== "heading" || !block.editable) {
-        throw new Error(`heading edit is not allowed at [${edit.path.join(",")}]`);
-      }
-      document = editAt(target, () => updateHeadingInlineContent(document, edit.path, edit.content));
-    });
-  }
-  for (const edit of edits.headingLevels ?? []) {
-    const target = { path: [edit.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(edit.path, "heading");
-      const block = blockAt(editable, edit.path);
-      if (block?.block !== "heading" || !block.editable) {
-        throw new Error(`heading level change is not allowed at [${edit.path.join(",")}]`);
-      }
-      if (edit.from !== block.level) {
-        throw new Error(`heading level does not match at [${edit.path.join(",")}]`);
-      }
-      document = editAt(target, () => updateHeadingLevel(document, edit.path, edit.from, edit.to));
-    });
-  }
-  for (const paragraph of edits.paragraphs ?? []) {
-    const target = { path: [paragraph.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(paragraph.path, "paragraph");
-      const block = blockAt(editable, paragraph.path);
-      if (block?.block !== "paragraph" || !block.editable) {
-        throw new Error(`paragraph edit is not allowed at [${paragraph.path.join(",")}]`);
-      }
-      if (inlineText(paragraph.content).length === 0) {
-        throw new SaveContentError("empty paragraph cannot be saved", undefined, { code: "empty-content", action: "Enter text or delete this block." });
-      }
-      document = editAt(target, () => updateParagraphInlineContent(document, paragraph.path, paragraph.content));
-    });
-  }
-  for (const admonition of edits.admonitions ?? []) {
-    const target = { path: [admonition.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(admonition.path, "admonition");
-      const block = blockAt(editable, admonition.path);
-      if (block?.block !== "admonition" || !block.editable) {
-        throw new Error(`admonition edit is not allowed at [${admonition.path.join(",")}]`);
-      }
-      const { variant, content } = admonition;
-      if (variant !== undefined) document = editAt(target, () => updateAdmonitionVariant(document, admonition.path, variant));
-      if (content !== undefined) document = editAt(target, () => updateAdmonitionInlineContent(document, admonition.path, content));
-    });
-  }
-  for (const quote of edits.quotes ?? []) {
-    const target = { path: [quote.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(quote.path, "quote");
-      const block = blockAt(editable, quote.path);
-      if (block?.block !== "quote" || !block.editable) {
-        throw new Error(`quote edit is not allowed at [${quote.path.join(",")}]`);
-      }
-      document = editAt(target, () => updateQuoteInlineContent(document, quote.path, quote.content));
-    });
-  }
-  for (const footnote of edits.footnotes ?? []) {
-    const target = { path: [footnote.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(footnote.path, "footnote");
-      const block = blockAt(editable, footnote.path);
-      if (block?.block !== "footnote" || !block.editable) {
-        throw new Error(`footnote edit is not allowed at [${footnote.path.join(",")}]`);
-      }
-      document = editAt(target, () => updateFootnoteDefinition(document, footnote.path, footnote.content));
-    });
-  }
-  for (const edit of edits.lists ?? []) {
-    const target = { path: [edit.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(edit.path, "list");
-      if (edit.path.length !== 1 || blockAt(editable, edit.path)?.block !== "list") {
-        throw new Error(`list edit is not allowed at [${edit.path.join(",")}]`);
-      }
-      document = editAt(target, () => updateList(document, edit.path, edit.list));
-    });
-  }
-  for (const edit of edits.codes ?? []) {
-    const target = { path: [edit.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(edit.path, "code block");
-      if (edit.path.length !== 1 || blockAt(editable, edit.path)?.block !== "code") {
-        throw new Error(`code block edit is not allowed at [${edit.path.join(",")}]`);
-      }
-      document = editAt(target, () => updateCodeBlock(document, edit.path, edit.code));
-    });
-  }
-  for (const equation of edits.equations ?? []) {
-    const target = { path: [equation.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(equation.path, "equation");
-      const block = blockAt(editable, equation.path);
-      if (block?.block !== "equation") {
-        throw new Error(`equation edit is not allowed at [${equation.path.join(",")}]`);
-      }
-      document = editAt(target, () => updateEquationLatex(document, equation.path, equation.from, equation.to));
-    });
-  }
-  for (const figure of edits.figures ?? []) {
-    const target = { path: [figure.path[0]], part: 0 };
-    editAt(target, () => {
-      assertPath(figure.path, "figure");
-      const block = blockAt(editable, figure.path);
-      if (block?.block !== "figure" || !block.editable) {
-        throw new Error(`figure edit is not allowed at [${figure.path.join(",")}]`);
-      }
-      if (figure.from?.imageUrl !== block.imageUrl || figure.from.imageAlt !== block.imageAlt ||
-          figure.from.mermaidSource !== block.mermaidSource ||
-          JSON.stringify(figureCaptionContent(figure.from.caption)) !== JSON.stringify(block.caption.content)) {
-        throw new Error(`figure does not match at [${figure.path.join(",")}]`);
-      }
-      document = editAt(target, () => updateFigure(document, figure.path, figureContent(figure.to)));
-    });
-  }
+  /** Simple block edits of one kind, in request order: each checks its block in the opening
+   * snapshot (`editable`), then applies Core operations to the document being changed. Errors
+   * name the edit's top-level block. */
+  const replayBlockEdits = <E extends { path: NodePath }, K extends EditableBlock["block"]>(
+    list: E[] | undefined,
+    kind: K,
+    rule: { name: string; denied?: string; editable?: true; topLevel?: true },
+    apply: (current: CoreDocument, edit: E, block: Extract<EditableBlock, { block: K }>) => CoreDocument,
+  ) => {
+    for (const edit of list ?? []) {
+      const target = { path: [edit.path[0]], part: 0 };
+      editAt(target, () => {
+        assertPath(edit.path, rule.name);
+        const block = blockAt(editable, edit.path);
+        if ((rule.topLevel && edit.path.length !== 1) || block?.block !== kind ||
+            (rule.editable && !(block as { editable?: boolean }).editable)) {
+          throw new Error(`${rule.denied ?? `${rule.name} edit`} is not allowed at [${edit.path.join(",")}]`);
+        }
+        document = editAt(target, () => apply(document, edit, block as Extract<EditableBlock, { block: K }>));
+      });
+    }
+  };
+  replayBlockEdits(edits.headings, "heading", { name: "heading", editable: true },
+    (current, edit) => updateHeadingInlineContent(current, edit.path, edit.content));
+  replayBlockEdits(edits.headingLevels, "heading", { name: "heading", denied: "heading level change", editable: true }, (current, edit, block) => {
+    if (edit.from !== block.level) throw new Error(`heading level does not match at [${edit.path.join(",")}]`);
+    return updateHeadingLevel(current, edit.path, edit.from, edit.to);
+  });
+  replayBlockEdits(edits.paragraphs, "paragraph", { name: "paragraph", editable: true }, (current, edit) => {
+    if (inlineText(edit.content).length === 0) {
+      throw new SaveContentError("empty paragraph cannot be saved", undefined, { code: "empty-content", action: "Enter text or delete this block." });
+    }
+    return updateParagraphInlineContent(current, edit.path, edit.content);
+  });
+  replayBlockEdits(edits.admonitions, "admonition", { name: "admonition", editable: true }, (current, { path, variant, content }) => {
+    if (variant !== undefined) current = updateAdmonitionVariant(current, path, variant);
+    if (content !== undefined) current = updateAdmonitionInlineContent(current, path, content);
+    return current;
+  });
+  replayBlockEdits(edits.quotes, "quote", { name: "quote", editable: true },
+    (current, edit) => updateQuoteInlineContent(current, edit.path, edit.content));
+  replayBlockEdits(edits.footnotes, "footnote", { name: "footnote", editable: true },
+    (current, edit) => updateFootnoteDefinition(current, edit.path, edit.content));
+  replayBlockEdits(edits.lists, "list", { name: "list", topLevel: true },
+    (current, edit) => updateList(current, edit.path, edit.list));
+  replayBlockEdits(edits.codes, "code", { name: "code block", topLevel: true },
+    (current, edit) => updateCodeBlock(current, edit.path, edit.code));
+  replayBlockEdits(edits.equations, "equation", { name: "equation" },
+    (current, edit) => updateEquationLatex(current, edit.path, edit.from, edit.to));
+  replayBlockEdits(edits.figures, "figure", { name: "figure", editable: true }, (current, figure, block) => {
+    if (figure.from?.imageUrl !== block.imageUrl || figure.from.imageAlt !== block.imageAlt ||
+        figure.from.mermaidSource !== block.mermaidSource ||
+        JSON.stringify(figureCaptionContent(figure.from.caption)) !== JSON.stringify(block.caption.content)) {
+      throw new Error(`figure does not match at [${figure.path.join(",")}]`);
+    }
+    return updateFigure(current, figure.path, figureContent(figure.to));
+  });
   for (const edit of edits.cells ?? []) {
     const target = { path: edit.path, part: 0 };
     editAt(target, () => {

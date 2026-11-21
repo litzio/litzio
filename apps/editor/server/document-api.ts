@@ -1,8 +1,8 @@
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 // Use the published ESM entry: its UMD factory leaves dynamic relative require calls in CLI bundles.
 
-import { documentRevision, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
-export { documentRevision, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
+import { browseFolder, documentRevision, listFolder, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
+export { browseFolder, documentRevision, listFolder, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
 import { executeCompareOperation } from "./document-compare.ts";
 import { ASSISTANT_TRANSPORT_LIMITS } from "../shared/assistant-limits.ts";
 import { VIEW_TRANSPORT_LIMITS } from "../shared/view-limits.ts";
@@ -22,9 +22,9 @@ import fs, { readFileSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { createDocument, hasNativeMarker, serialize, NativeDocumentError, writeIssueOf } from "@litzio/core";
+import { createDocument, serialize, NativeDocumentError, writeIssueOf } from "@litzio/core";
 import { assertUnicode, commitFile, decodeUtf8, FileChangedError } from "@litzio/file-commit";
-import { rootIdentity, accessPath, FileAccessError, fileErrorMessage, fileErrorStatus, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { accessPath, FileAccessError, fileErrorMessage, fileErrorStatus, inside, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { readRequestBody, RequestBodyError } from "./request-body.ts";
 import { requestQuery } from "./request-query.ts";
 import { executeFolderTrash, deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "./file-operations.ts";
@@ -49,12 +49,8 @@ import type {
   SourceResponse,
   RecoveryPreviewResponse,
   DocumentErrorResponse,
-  FolderBrowseResponse,
   FolderCreateResponse,
-  FolderCrumb,
-  FolderEntry,
   FolderPlacesResponse,
-  FolderResponse,
 } from "../shared/document-protocol.ts";
 import type { SaveFailure } from "../shared/save-error.ts";
 
@@ -524,65 +520,6 @@ function supportedEditsOf(value: unknown): SupportedEdits {
   return value as SupportedEdits;
 }
 
-const entryOrder = new Intl.Collator(undefined, { numeric: true });
-
-/**
- * One level of a folder the user chose. Regular folders and files of every extension are listed:
- * hidden entries and symlinks are left out, and a requested folder must stay inside the chosen
- * one, symlinks resolved. Each document says whether its leading frontmatter carries the native
- * marker, so the tree can set apart files Litzio will not open. Nothing is remembered between requests.
- */
-export function listFolder(requestedRoot: string | undefined, requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): FolderResponse {
-  if (!requestedRoot?.trim()) throw new Error("folder path is required");
-  const root = path.resolve(accessPath(requestedRoot.trim(), access));
-  const folder = path.resolve(accessPath(requestedPath?.trim() || root, access));
-  if (!isInside(root, folder)) throw new Error("folder is outside the chosen folder");
-  const listed = readFolder(folder, "all", () => {
-    if (!isInside(fs.realpathSync(root), fs.realpathSync(folder))) throw new Error("folder symlink escapes the chosen folder");
-    return { rootId: rootIdentity(root, access), root, path: folder, ...(path.relative(root, folder) === "" ? {} : { parent: path.dirname(folder) }) };
-  });
-  return { ...listed, entries: listed.entries.map(entry => entry.kind === "document" ? withNativeMarker(entry) : entry) };
-}
-
-// Native frontmatter holds only `litzio` and `numbering`, so its start is enough to find the marker.
-const MARKER_PREFIX_BYTES = 4096;
-
-/** Reads the start of a listed document for its marker; an unreadable file stays unmarked either way. */
-function withNativeMarker(entry: FolderEntry): FolderEntry {
-  if (path.extname(entry.path).toLowerCase() === ".txt") return { ...entry, native: false };
-  let descriptor: number | undefined;
-  try {
-    descriptor = fs.openSync(entry.path, "r");
-    const prefix = Buffer.alloc(MARKER_PREFIX_BYTES);
-    const length = fs.readSync(descriptor, prefix, 0, MARKER_PREFIX_BYTES, 0);
-    return { ...entry, native: hasNativeMarker(new TextDecoder().decode(prefix.subarray(0, length))) };
-  } catch {
-    return entry;
-  } finally {
-    if (descriptor !== undefined) fs.closeSync(descriptor);
-  }
-}
-
-/**
- * One level of any folder, for choosing which folder to open: folders and Markdown names,
- * and the folders from the filesystem root down to it. Choosing an image lists images instead of
- * Markdown files. Only names are returned, never content.
- */
-export function browseFolder(requestedPath: string | undefined, access: FileAccess = LOCAL_FILE_ACCESS, files: FileKind = "document"): FolderBrowseResponse {
-  if (!requestedPath?.trim()) throw new Error("folder path is required");
-  const folder = path.resolve(accessPath(requestedPath.trim(), access));
-  const boundary = access?.boundary(folder);
-  return readFolder(folder, files, () => {
-    const crumbs: FolderCrumb[] = [];
-    for (let current = folder; ; current = path.dirname(current)) {
-      const root = boundary ? path.relative(boundary, current) === "" : path.dirname(current) === current;
-      crumbs.unshift({ name: root && !boundary ? current.replace(/[\\/]+$/, "") || current : path.basename(current) || current, path: current });
-      if (root) break;
-    }
-    return { path: folder, crumbs };
-  });
-}
-
 /** Where choosing a folder can start: the home and Documents folders, then each drive or `/`. */
 export function folderPlaces(access: FileAccess = LOCAL_FILE_ACCESS): FolderPlacesResponse {
   if (access) return { places: access.roots.map(root => ({ kind: "root", name: path.basename(root) || root, path: access.resolve(root) })) };
@@ -639,49 +576,6 @@ function isDirectory(candidate: string): boolean {
   }
 }
 
-type FileKind = "document" | "image" | "pdf";
-const fileKinds: Record<FileKind, (extension: string) => boolean> = {
-  document: extension => extension === ".md" || extension === ".txt",
-  image: extension => Object.hasOwn(MEDIA_TYPES, extension),
-  pdf: extension => extension === ".pdf",
-};
-
-/** Reads one level after `check` accepts the folder; filesystem failures become plain messages. */
-function readFolder<T>(folder: string, files: FileKind | "all", check: () => T): T & { entries: FolderEntry[] } {
-  try {
-    if (!statSync(folder).isDirectory()) throw new Error("folder path must point to a directory");
-    const result = check();
-    const entries = fs.readdirSync(folder, { withFileTypes: true }).flatMap((entry): FolderEntry[] => {
-      if (entry.name.startsWith(".")) return [];
-      const extension = path.extname(entry.name).toLowerCase();
-      const kind = entry.isDirectory() ? "folder" : !entry.isFile() ? undefined : files === "all"
-        ? extension === ".md" || extension === ".txt" ? "document" : Object.hasOwn(MEDIA_TYPES, extension) ? "image" : "file"
-        : fileKinds[files](extension) ? files === "pdf" ? "file" : files : undefined;
-      if (!kind) return [];
-      const item: FolderEntry = { name: entry.name, kind, path: path.join(folder, entry.name) };
-      try {
-        const metadata = statSync(item.path);
-        item.modifiedAt = metadata.mtime.toISOString();
-        if (kind !== "folder") item.size = metadata.size;
-      } catch { /* Optional metadata must not fail the listing. */ }
-      return [item];
-    });
-    entries.sort((a, b) => (a.kind === "folder" && b.kind !== "folder" ? -1 : b.kind === "folder" && a.kind !== "folder" ? 1 : entryOrder.compare(a.name, b.name)));
-    return { ...result, entries };
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") throw new Error("folder does not exist");
-    if (code === "ENOTDIR") throw new Error("folder path must point to a directory");
-    if (code === "EACCES" || code === "EPERM") throw new Error("folder cannot be read: permission denied");
-    throw error;
-  }
-}
-
-function isInside(root: string, target: string): boolean {
-  const relative = path.relative(root, target);
-  return !(relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative));
-}
-
 function serveMedia(assetPath: string, res: ServerResponse, documentPath?: string, access: FileAccess = LOCAL_FILE_ACCESS, head = false): void {
   let file: string;
   try {
@@ -715,8 +609,8 @@ export function readFilePreview(requestedRoot: string | undefined, requestedPath
   const root = path.resolve(accessPath(requestedRoot, access));
   const file = path.resolve(accessPath(requestedPath, access));
   const verify = () => {
-    if (!statSync(root).isDirectory() || !isInside(root, file) || root === file) throw new FileAccessError();
-    if (!isInside(fs.realpathSync(root), fs.realpathSync(file))) throw new FileAccessError();
+    if (!statSync(root).isDirectory() || !inside(root, file) || root === file) throw new FileAccessError();
+    if (!inside(fs.realpathSync(root), fs.realpathSync(file))) throw new FileAccessError();
     // Unlike document media, preview accepts no symlink below the selected root, even within it.
     for (let current = file; path.relative(root, current) !== ""; current = path.dirname(current)) {
       if (fs.lstatSync(current).isSymbolicLink()) throw new FileAccessError();

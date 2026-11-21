@@ -6,7 +6,7 @@ import { createDocumentSourceFile } from "./document-create.ts";
 import { executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { accessPath, FileAccessError, RootAccess, type FileAccess } from "./file-access.ts";
 import { figureReadiness } from "./figure-readiness.ts";
-import { loadEditorFile, listFolder } from "./document-api.ts";
+import { loadEditorFile, listFolder } from "./document-reader.ts";
 
 export type DocumentToolScope = { folders: RootAccess | null; permissionMode: string; access: FileAccess; directory?: string };
 const string = { type: "string" };
