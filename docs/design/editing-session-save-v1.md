@@ -729,6 +729,10 @@ path (#1565 decision 2). Unsaved content, unapplied property drafts or pending o
 before accepting the read, so input arriving after detection or during the read is retained.
 A missing path (null revision, including rename/delete detection) retains the open document
 and uses the existing Reload/Compare notification without an automatic document read.
+An opened-folder check (every 2 seconds) that lands while this window's own file operation
+(Rename, Delete, folder Trash, creation or Undo) or tab restore is in progress is ignored, so that
+operation's disk change is not reported as an outside change; the next check reads the paths again.
+Focus checks for documents outside the opened folders are not affected.
 Reload failure uses the existing failure display and retains the open document.
 
 For tabs with local work, a notification offers Reload from disk and Compare with disk. Native comparison reuses
