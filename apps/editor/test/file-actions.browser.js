@@ -403,6 +403,45 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
     await expect(page.getByRole('tab',{name:'pending-renamed.md',exact:true})).toHaveCount(1);
     await expect(row('pending-renamed.md')).toHaveCount(1);
   } finally {await page.unroute('**/api/file');}
+  // Rename starts on tab A; an earlier open of B lands and selects B before A's reply.
+  // The reply renames A only; B stays selected with its own content.
+  {
+    const later=file('race-renamed.md');
+    let releaseOpen,openArrived,openDone,releaseRename,renameArrived;
+    const openGate=new Promise(resolve=>{releaseOpen=resolve;}), openStarted=new Promise(resolve=>{openArrived=resolve;}), opened=new Promise(resolve=>{openDone=resolve;});
+    const renameGate=new Promise(resolve=>{releaseRename=resolve;}), renameStarted=new Promise(resolve=>{renameArrived=resolve;});
+    const delayedOpen=async route=>{
+      if(decodeURIComponent(route.request().url().split('?path=')[1]??'')!==later)return route.fallback();
+      const response=await route.fetch({headers:{...route.request().headers(),Connection:'close'}});
+      openArrived();await openGate;await route.fulfill({response});openDone();
+    };
+    const delayedRename=async route=>{
+      if(route.request().method()!=='PATCH')return route.fallback();
+      const response=await route.fetch({headers:{...route.request().headers(),Connection:'close'}});
+      renameArrived();await renameGate;await route.fulfill({response});
+    };
+    await page.route('**/api/document?**',delayedOpen);
+    await page.route('**/api/file',delayedRename);
+    try {
+      await expect(page.getByTestId('current-file')).toHaveText('pending-renamed.md');
+      await row('race-renamed.md').click();await openStarted;
+      await context('pending-renamed.md','Rename…');
+      await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('late-renamed');
+      await dialog.getByRole('button',{name:'Rename',exact:true}).click();await renameStarted;
+      releaseOpen();await opened;
+      // The Rename dialog is modal, so the tab strip is outside the accessibility tree until it closes.
+      await expect(page.locator('[role="tab"][aria-selected="true"]',{hasText:'race-renamed.md'})).toHaveCount(1);
+      releaseRename();await dialog.waitFor({state:'hidden'});
+      await expect(row('late-renamed.md')).toHaveCount(1);
+      await expect(page.getByRole('tab',{name:'pending-renamed.md',exact:true})).toHaveCount(0);
+      const renamedTab=page.getByRole('tab',{name:'late-renamed.md',exact:true});
+      await expect(renamedTab).toHaveAttribute('aria-selected','false');
+      await expect(page.locator('#'+await renamedTab.getAttribute('aria-controls'))).toContainText('Keep the other tab.');
+      await expect(page.getByRole('tab',{name:'race-renamed.md',exact:true})).toHaveAttribute('aria-selected','true');
+      await expect(page.getByTestId('current-file')).toHaveText('race-renamed.md');
+      await expect(activeDocument(page)).toContainText('Rename race');
+    } finally {releaseOpen();releaseRename();await page.unroute('**/api/document?**',delayedOpen);await page.unroute('**/api/file',delayedRename);}
+  }
   return {metadata,root,renamedWithoutRead:true,undoPreserved:true,recoveryMovedAndDeleted:true,otherWindowFirstWriteRevoked:true,
     dirtyReferenceRefused:true,draftReferenceRefused:true,cleanReferenceTabsReloaded:true,otherWindowSaveConflict:true};
 }
