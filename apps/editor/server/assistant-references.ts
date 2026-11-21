@@ -2,7 +2,7 @@ import { statSync, lstatSync } from "node:fs";
 import path from "node:path";
 import type { AssistantAttachments } from "./assistant-attachments.ts";
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
-import { listFolder, MEDIA_TYPES } from "./document-api.ts";
+import { listFolder, MEDIA_TYPES } from "./document-reader.ts";
 
 /** Restricted turns reuse Explorer visibility; full access still rejects links and respects Host Roots. */
 export function checkedReferences(value: string[], folders: string[], access: FileAccess, permissionMode: string | undefined, attachments?: AssistantAttachments, owner?: string) {

@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
+import fs, { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { hasNativeMarker } from "@litzio/core";
 import { decodeUtf8, textRevision } from "@litzio/file-commit";
-import { LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { accessPath, inside, LOCAL_FILE_ACCESS, rootIdentity, type FileAccess } from "./file-access.ts";
 import { resolveDocumentPath, resolveEditorPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
-import type { DocumentFileResponse, EditorFileResponse } from "../shared/document-protocol.ts";
+import type { DocumentFileResponse, EditorFileResponse, FolderBrowseResponse, FolderCrumb, FolderEntry, FolderResponse } from "../shared/document-protocol.ts";
 
 /** Media a document can show from beside it, by extension; also what choosing an image lists. */
 export const MEDIA_TYPES: Record<string, string> = {
@@ -31,4 +32,101 @@ export function editorFile(filePath: string, source: string): EditorFileResponse
 export function loadEditorFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): EditorFileResponse {
   const filePath = resolveEditorPath(requestedPath, access);
   return { ...editorFile(filePath, decodeUtf8(readFileSync(filePath))) };
+}
+
+const entryOrder = new Intl.Collator(undefined, { numeric: true });
+
+/**
+ * One level of a folder the user chose. Regular folders and files of every extension are listed:
+ * hidden entries and symlinks are left out, and a requested folder must stay inside the chosen
+ * one, symlinks resolved. Each document says whether its leading frontmatter carries the native
+ * marker, so the tree can set apart files Litzio will not open. Nothing is remembered between requests.
+ */
+export function listFolder(requestedRoot: string | undefined, requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): FolderResponse {
+  if (!requestedRoot?.trim()) throw new Error("folder path is required");
+  const root = path.resolve(accessPath(requestedRoot.trim(), access));
+  const folder = path.resolve(accessPath(requestedPath?.trim() || root, access));
+  if (!inside(root, folder)) throw new Error("folder is outside the chosen folder");
+  const listed = readFolder(folder, "all", () => {
+    if (!inside(fs.realpathSync(root), fs.realpathSync(folder))) throw new Error("folder symlink escapes the chosen folder");
+    return { rootId: rootIdentity(root, access), root, path: folder, ...(path.relative(root, folder) === "" ? {} : { parent: path.dirname(folder) }) };
+  });
+  return { ...listed, entries: listed.entries.map(entry => entry.kind === "document" ? withNativeMarker(entry) : entry) };
+}
+
+// Native frontmatter holds only `litzio` and `numbering`, so its start is enough to find the marker.
+const MARKER_PREFIX_BYTES = 4096;
+
+/** Reads the start of a listed document for its marker; an unreadable file stays unmarked either way. */
+function withNativeMarker(entry: FolderEntry): FolderEntry {
+  if (path.extname(entry.path).toLowerCase() === ".txt") return { ...entry, native: false };
+  let descriptor: number | undefined;
+  try {
+    descriptor = fs.openSync(entry.path, "r");
+    const prefix = Buffer.alloc(MARKER_PREFIX_BYTES);
+    const length = fs.readSync(descriptor, prefix, 0, MARKER_PREFIX_BYTES, 0);
+    return { ...entry, native: hasNativeMarker(new TextDecoder().decode(prefix.subarray(0, length))) };
+  } catch {
+    return entry;
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+  }
+}
+
+/**
+ * One level of any folder, for choosing which folder to open: folders and Markdown names,
+ * and the folders from the filesystem root down to it. Choosing an image lists images instead of
+ * Markdown files. Only names are returned, never content.
+ */
+export function browseFolder(requestedPath: string | undefined, access: FileAccess = LOCAL_FILE_ACCESS, files: FileKind = "document"): FolderBrowseResponse {
+  if (!requestedPath?.trim()) throw new Error("folder path is required");
+  const folder = path.resolve(accessPath(requestedPath.trim(), access));
+  const boundary = access?.boundary(folder);
+  return readFolder(folder, files, () => {
+    const crumbs: FolderCrumb[] = [];
+    for (let current = folder; ; current = path.dirname(current)) {
+      const root = boundary ? path.relative(boundary, current) === "" : path.dirname(current) === current;
+      crumbs.unshift({ name: root && !boundary ? current.replace(/[\\/]+$/, "") || current : path.basename(current) || current, path: current });
+      if (root) break;
+    }
+    return { path: folder, crumbs };
+  });
+}
+
+type FileKind = "document" | "image" | "pdf";
+const fileKinds: Record<FileKind, (extension: string) => boolean> = {
+  document: extension => extension === ".md" || extension === ".txt",
+  image: extension => Object.hasOwn(MEDIA_TYPES, extension),
+  pdf: extension => extension === ".pdf",
+};
+
+/** Reads one level after `check` accepts the folder; filesystem failures become plain messages. */
+function readFolder<T>(folder: string, files: FileKind | "all", check: () => T): T & { entries: FolderEntry[] } {
+  try {
+    if (!statSync(folder).isDirectory()) throw new Error("folder path must point to a directory");
+    const result = check();
+    const entries = fs.readdirSync(folder, { withFileTypes: true }).flatMap((entry): FolderEntry[] => {
+      if (entry.name.startsWith(".")) return [];
+      const extension = path.extname(entry.name).toLowerCase();
+      const kind = entry.isDirectory() ? "folder" : !entry.isFile() ? undefined : files === "all"
+        ? extension === ".md" || extension === ".txt" ? "document" : Object.hasOwn(MEDIA_TYPES, extension) ? "image" : "file"
+        : fileKinds[files](extension) ? files === "pdf" ? "file" : files : undefined;
+      if (!kind) return [];
+      const item: FolderEntry = { name: entry.name, kind, path: path.join(folder, entry.name) };
+      try {
+        const metadata = statSync(item.path);
+        item.modifiedAt = metadata.mtime.toISOString();
+        if (kind !== "folder") item.size = metadata.size;
+      } catch { /* Optional metadata must not fail the listing. */ }
+      return [item];
+    });
+    entries.sort((a, b) => (a.kind === "folder" && b.kind !== "folder" ? -1 : b.kind === "folder" && a.kind !== "folder" ? 1 : entryOrder.compare(a.name, b.name)));
+    return { ...result, entries };
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") throw new Error("folder does not exist");
+    if (code === "ENOTDIR") throw new Error("folder path must point to a directory");
+    if (code === "EACCES" || code === "EPERM") throw new Error("folder cannot be read: permission denied");
+    throw error;
+  }
 }
