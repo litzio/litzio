@@ -1573,6 +1573,41 @@ test("empty paragraph and empty heading saves are rejected", () => {
   });
 });
 
+test("simple block edits reject another block kind at that block, in replay order", () => {
+  const source = nativeSource("# Heading\n\nParagraph.\n");
+  const blocks = loadEditableDocument(source).blocks;
+  const heading = blocks.find(block => block.block === "heading")!.path;
+  const paragraph = blocks.find(block => block.block === "paragraph")!.path;
+  const content = [{ kind: "text", text: "x" }];
+  const cases: [string, string, Record<string, unknown>, RegExp][] = [
+    ["headings", "heading", { content }, /^heading edit is not allowed/],
+    ["headingLevels", "heading", { from: 1, to: 2 }, /^heading level change is not allowed/],
+    ["paragraphs", "paragraph", { content }, /^paragraph edit is not allowed/],
+    ["admonitions", "admonition", { content }, /^admonition edit is not allowed/],
+    ["quotes", "quote", { content }, /^quote edit is not allowed/],
+    ["footnotes", "footnote", { content }, /^footnote edit is not allowed/],
+    ["lists", "list", { list: { ordered: false, items: [] } }, /^list edit is not allowed/],
+    ["codes", "code block", { code: { language: "", code: "x" } }, /^code block edit is not allowed/],
+    ["equations", "equation", { from: "", to: "x" }, /^equation edit is not allowed/],
+    ["figures", "figure", { from: {}, to: {} }, /^figure edit is not allowed/],
+  ];
+  const rejects = (edits: Record<string, unknown>, reason: RegExp, path: readonly number[]) =>
+    assert.throws(() => saveEdits(source, edits as never), (error: unknown) => {
+      assert.ok(error instanceof SaveContentError);
+      assert.match(error.message, reason);
+      assert.deepEqual(error.target, { path: [path[0]], part: 0 });
+      return true;
+    });
+  for (const [kind, name, edit, reason] of cases) {
+    const other = kind === "paragraphs" ? heading : paragraph;
+    rejects({ [kind]: [{ path: other, ...edit }] }, reason, other);
+    rejects({ [kind]: [{ path: [other[0], 0], ...edit }] }, kind === "headingLevels" ? /^heading level change/ : new RegExp(`^${name} edit`), other);
+    rejects({ [kind]: [{ path: [-1], ...edit }] }, new RegExp(`^${name} path is invalid`), [-1]);
+  }
+  // Headings replay before equations: the first error is the heading edit's, whatever the key order.
+  rejects({ equations: [{ path: heading, from: "", to: "x" }], headings: [{ path: paragraph, content }] }, /^heading edit/, paragraph);
+});
+
 test("save error locations follow submitted split blocks and moved table cells", () => {
   const submitted: TiptapJSON = { type: "doc", content: [
     { type: "paragraph", attrs: { sourcePath: "1" } },
