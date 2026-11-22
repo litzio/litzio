@@ -109,6 +109,7 @@ nested lists), quotes, simple admonitions, endnote definitions, table cells, Fig
 headings. Only top-level paragraphs also offer block commands; the [location matrix](editor-ux-shell-v1.md#nested-inline-slash-menu-377)
 records the existing Core save paths. **Citation…** opens a form at the caret. `/Citation`,
 `/cite` and `/인용` select this item first in either UI language, including in an empty paragraph;
+`/dlsdyd` (인용 typed with a Korean IME left in English mode) does the same when no entry matches it;
 applying the form inserts an inline citation and keeps the paragraph. These queries do not offer
 Quote; use `/quote`, `/blockquote` or `/인용문` for that block. A query
 also lists up to 20 readable entries whose key or display words start with it, inserted directly as

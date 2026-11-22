@@ -332,6 +332,12 @@ test("command center searches document paths and translated commands, with an ex
   assert.deepEqual(ids("> 경로 복사"), ["copy"]);
   assert.deepEqual(ids("unknown"), []);
   assert.equal(filterCommandCenterItems(items, "> save")[0]?.disabled, true);
+  // Hangul typed in English mode matches by jamo anywhere, only when the query finds nothing.
+  assert.deepEqual(ids("wjwkd"), ["save"]);
+  assert.deepEqual(ids("> qhr"), ["copy"]);
+  assert.deepEqual(ids("anstj"), ["document"]);
+  assert.deepEqual(ids("Qhr"), []);
+  assert.deepEqual(ids("copy"), ["copy"]);
   const ranked: CommandCenterItem[] = [
     { id: "path", kind: "file", label: "guide.md", detail: "C:/settings/guide.md", icon: FileText, run() {} },
     { id: "refresh", kind: "command", label: "Refresh folder", detail: "C:/settings", icon: FileText, run() {} },
