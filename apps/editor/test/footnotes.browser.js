@@ -89,9 +89,11 @@ async (page, { screenshots = false, openPath, reloadDocument, expect, recoveryRe
   // #1880: the hover extent and handle wrap only the endnote text, never the region's label and
   // rule above the first endnote; while editing, the hover matches the editing outline.
   const hoverMatchesNote = async (definition, what) => {
-    await page.mouse.move(0, 0);
-    await definition.locator('p').hover();
+    // Measure the new hover, not the previous block's outline before React re-renders.
     const extent = page.getByTestId('block-hover-outline');
+    await page.mouse.move(0, 0);
+    await extent.waitFor({state: 'detached'});
+    await definition.locator('p').hover();
     await extent.waitFor();
     const outline = await extent.boundingBox();
     const handle = await page.locator('.block-controls.visible').boundingBox();
