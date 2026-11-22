@@ -874,7 +874,7 @@ function EditorApp() {
     // Own Settings Escape here only: child surfaces must receive the same event first.
     if (event.key === "Escape" && !event.isComposing && activeId === "settings" &&
         !(event.target instanceof Element && event.target.closest('.assistant-panel, .notification-center')) &&
-        !globalThis.document.querySelector('[data-slot="dialog-content"], [role="menu"], [data-slot="popover-content"]')) {
+        !globalThis.document.querySelector('[data-slot="dialog-content"], [role="menu"], [data-slot="popover-content"][data-open]')) {
       event.preventDefault(); event.stopPropagation(); closeSettingsTab(); return;
     }
     if (ASSISTANT_SHORTCUT.matches(event) && event.key !== "Process" && event.keyCode !== 229 && assistantAvailable) {

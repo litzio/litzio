@@ -22,6 +22,14 @@ async (page, { expect, waitForEditorFocus }) => {
     const cards = gallery.locator('.template-card-preview');
     await expect(cards).toHaveCount(2);
     await expect(gallery.getByText('사용자 템플릿이 없습니다.')).toBeVisible();
+    // The kept-mounted but closed preview must not hold back Settings' own Escape (#1881).
+    const openSettings = page.getByTestId('activity-bar').locator('[data-open-settings]');
+    const settingsTab = page.locator('[data-tab-id="settings"]');
+    await openSettings.click();
+    await expect(settingsTab).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(settingsTab).toHaveCount(0);
+    await expect(gallery).toBeVisible();
     await cards.first().hover();
     const preview = page.getByRole('dialog', { name: '문서 미리보기', exact: true });
     await expect(preview).toBeVisible();
@@ -149,6 +157,21 @@ async (page, { expect, waitForEditorFocus }) => {
       page.off('request', countCreates);
       await page.evaluate(async () => (await import('/src/host-client.ts')).setDesktopHost('/'));
     }
+    // An actually open preview still takes Escape before the focused Settings tab of the other group.
+    await page.locator('#tab-templates').click({ button: 'right' });
+    await page.getByRole('menuitem', { name: '오른쪽에 열기', exact: true }).click();
+    const groups = page.locator('[data-editor-group]');
+    await expect(groups).toHaveCount(2);
+    await groups.first().getByRole('tab').first().click();
+    await openSettings.click();
+    await expect(groups.first().locator('[data-tab-id="settings"]')).toHaveCount(1);
+    await gallery.locator('.template-card-preview').first().hover();
+    await expect(preview).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(preview).toBeHidden();
+    await expect(page.getByRole('tab', { name: '설정', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await page.keyboard.press('Escape');
+    await expect(settingsTab).toHaveCount(0);
   } finally {
     await page.evaluate(value => {
       if (value === null) localStorage.removeItem('litzio.uiLanguage');
