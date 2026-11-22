@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { hangulJamo, qwertyHangulJamo } from "../qwerty-hangul.ts";
 
 /** A view of existing shell actions, rebuilt from the current tab and operation state. */
 export type CommandCenterItem = {
@@ -21,13 +22,17 @@ export function filterCommandCenterItems(items: readonly CommandCenterItem[], qu
   const trimmed = query.trim();
   const commandsOnly = trimmed.startsWith(">");
   const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase();
-  const words = normalize(commandsOnly ? trimmed.slice(1) : trimmed).split(/\s+/).filter(Boolean);
-  const matches = items.filter(item => {
-    if (commandsOnly && item.kind !== "command") return false;
-    const text = normalize([item.label, item.detail, ...(item.keywords ?? [])].join(" "));
-    return words.every(word => text.includes(word));
-  });
-  // Stable sort preserves tab/tree/command order inside each match grade.
-  const labelMatches = (item: CommandCenterItem) => words.every(word => normalize(item.label).includes(word));
-  return matches.sort((a, b) => Number(labelMatches(b)) - Number(labelMatches(a)));
+  const typed = (commandsOnly ? trimmed.slice(1) : trimmed).normalize("NFKC").split(/\s+/).filter(Boolean);
+  const candidates = commandsOnly ? items.filter(item => item.kind === "command") : items;
+  const search = (words: string[], text: (value: string) => string) => {
+    const containsAll = (value: string) => { const haystack = text(value); return words.every(word => haystack.includes(word)); };
+    const matches = candidates.filter(item => containsAll([item.label, item.detail, ...(item.keywords ?? [])].join(" ")));
+    // Stable sort preserves tab/tree/command order inside each match grade.
+    return matches.sort((a, b) => Number(containsAll(b.label)) - Number(containsAll(a.label)));
+  };
+  const matches = search(typed.map(word => word.toLocaleLowerCase()), normalize);
+  // Hangul typed in English mode is tried only when the query as typed found nothing.
+  const jamo = typed.map(qwertyHangulJamo).filter(word => word !== undefined);
+  if (matches.length || !typed.length || jamo.length !== typed.length) return matches;
+  return search(jamo, value => hangulJamo(normalize(value)));
 }

@@ -12,6 +12,7 @@ import { endnoteLabel } from "./endnotes.ts";
 import { updateLabelProperties } from "./label-rename.ts";
 import { AUTHORABLE_ADMONITION_KINDS, admonitionAppearance, admonitionSearchTerms } from "./admonition-kinds.ts";
 import { blockMoveTarget, blockMoveBlockedHint, reorderBlock } from "./block-reorder.ts";
+import { hangulJamo, qwertyHangulJamo } from "./qwerty-hangul.ts";
 
 // Editor commands for block insert/delete and table rows/columns. Each command is one engine
 // transaction; Save maps the result to Core insertParagraph/insertHeading/insertEquation/
@@ -321,16 +322,20 @@ export function filterInsertCommands(query: string): InsertCommand[] {
   if (!needle) return INSERT_COMMANDS;
   // Reserve /인용 for Citation; /인용문 still finds Quote in either UI language.
   if (needle === "인용") return [];
-  return INSERT_COMMANDS.filter(command =>
-    [command.label, command.id, ...command.keywords, ...(KOREAN_SEARCH[command.id] ?? [])].some(word => word.toLowerCase().startsWith(needle)));
+  const words = (command: InsertCommand) => [command.label, command.id, ...command.keywords, ...(KOREAN_SEARCH[command.id] ?? [])];
+  const matches = INSERT_COMMANDS.filter(command => words(command).some(word => word.toLowerCase().startsWith(needle)));
+  const jamo = matches.length ? undefined : qwertyHangulJamo(query.trim());
+  // /인용 typed in English mode is reserved the same way.
+  if (!jamo || jamo === hangulJamo("인용")) return matches;
+  return INSERT_COMMANDS.filter(command => words(command).some(word => hangulJamo(word).startsWith(jamo)));
 }
 
 /** Search aliases remain available in both display languages. */
-const KOREAN_SEARCH: Record<string, string[]> = {
+export const KOREAN_SEARCH: Record<string, string[]> = {
   paragraph: ["문단", "텍스트"], "bulleted-list": ["목록", "글머리"], "numbered-list": ["번호", "목록"],
   ...Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`heading-${i + 1}`, ["제목", `제목 ${i + 1}`]])),
   quote: ["인용", "인용문"], divider: ["구분선"],
-  code: ["코드"], equation: ["수식"], figure: ["그림", "이미지"], table: ["표"],
+  "code-block": ["코드"], equation: ["수식"], figure: ["그림", "이미지"], table: ["표"],
 };
 
 /** An empty target paragraph is reused; otherwise a new paragraph follows the target block. */

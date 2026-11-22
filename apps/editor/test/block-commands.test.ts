@@ -15,6 +15,7 @@ import {
   filterInsertCommands,
   formattableSelection,
   INSERT_COMMANDS,
+  KOREAN_SEARCH,
   slashQueryAt,
   insertEquationAfter,
   insertFigureAfter,
@@ -46,7 +47,8 @@ test("Citation slash aliases select the citation form before block commands in e
   try {
     for (const locale of ["en", "ko"]) {
       await i18n.changeLanguage(locale);
-      for (const query of ["Citation", "cite", "인용"]) {
+      // dlsdyd is 인용 typed while a Korean IME is in English mode.
+      for (const query of ["Citation", "cite", "인용", "dlsdyd"]) {
         const doc = schema.nodes.doc.create(null, schema.nodes.paragraph.create(null, schema.text(`/${query}`)));
         const state = EditorState.create({ schema, doc, selection: TextSelection.create(doc, query.length + 2) });
         const slash = slashQueryAt(state);
@@ -61,13 +63,36 @@ test("Citation slash aliases select the citation form before block commands in e
         assert.equal(items[0]?.id, CITATION_COMMAND, `${locale}: /${query}`);
         assert.ok(!items.some(item => item.id === "quote"), `${locale}: /${query} must not offer Quote`);
       }
-      for (const query of ["quote", "blockquote", "인용문"]) {
+      for (const query of ["quote", "blockquote", "인용문", "dlsdydans"]) {
         assert.equal(filterInsertCommands(query)[0]?.id, "quote", `${locale}: /${query}`);
       }
     }
   } finally {
     await i18n.changeLanguage(language);
   }
+});
+
+test("Korean insert aliases belong to existing insert commands", () => {
+  const ids = new Set(INSERT_COMMANDS.map(command => command.id));
+  for (const id of Object.keys(KOREAN_SEARCH)) assert.ok(ids.has(id), id);
+  assert.deepEqual(filterInsertCommands("코드").map(command => command.id), ["code-block"]);
+});
+
+test("insert search falls back to Hangul typed in English mode only when the query finds nothing", () => {
+  const ids = (query: string) => filterInsertCommands(query).map(command => command.id);
+  assert.deepEqual(ids("vy"), ["table"]);
+  assert.deepEqual(ids("tntlr"), ["equation"]);
+  assert.deepEqual(ids("zhem"), ["code-block"]);
+  // A syllable still being typed compares by jamo, as 수시 within 수식.
+  assert.deepEqual(ids("tntl"), ["equation"]);
+  // Shift gives double consonants: ㄲ is not the ㄱ of 글머리 and 그림.
+  assert.deepEqual(ids("Rm"), []);
+  assert.deepEqual(ids("rm"), ["bulleted-list", "figure"]);
+  // English queries keep their own results without converted additions.
+  assert.deepEqual(ids("table"), ["table"]);
+  // t is also ㅅ (수식), but its English matches stand alone.
+  assert.ok(ids("t").includes("table"));
+  assert.ok(!ids("t").includes("equation"));
 });
 
 function docOf(markdown: string): ProseMirrorNode {
