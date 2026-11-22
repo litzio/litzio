@@ -1994,8 +1994,11 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   margin-bottom: var(--space-document-endnote-gap);
 }
 
+/* The label and rule sit in the first definition's top margin, outside its block rectangle, so the
+ * hover extent and handle follow the endnote text. Body blocks end with at most this 24px, so the
+ * collapsed gap above the rule stays 24px. */
 .document-editor > [data-footnote-definition="true"]:not([data-footnote-definition="true"] + [data-footnote-definition="true"]) {
-  padding-top: calc(var(--border-width) + var(--space-3) + var(--line-height-meta) + var(--space-document-endnote-gap));
+  margin-top: calc(var(--space-document-endnotes) + var(--border-width) + var(--space-3) + var(--line-height-meta) + var(--space-document-endnote-gap));
 }
 
 .document-editor > [data-footnote-definition="true"]:not([data-footnote-definition="true"] + [data-footnote-definition="true"]) > .footnote-definition::before {

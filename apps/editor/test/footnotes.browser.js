@@ -86,6 +86,30 @@ async (page, { screenshots = false, openPath, reloadDocument, expect, recoveryRe
     await page.setViewportSize({width: 1280, height: 720});
   }
   assert(await firstDefinition.getAttribute('aria-readonly') === 'true', 'Endnotes start read-only');
+  // #1880: the hover extent and handle wrap only the endnote text, never the region's label and
+  // rule above the first endnote; while editing, the hover matches the editing outline.
+  const hoverMatchesNote = async (definition, what) => {
+    // Measure the new hover, not the previous block's outline before React re-renders.
+    const extent = page.getByTestId('block-hover-outline');
+    await page.mouse.move(0, 0);
+    await extent.waitFor({state: 'detached'});
+    await definition.locator('p').hover();
+    await extent.waitFor();
+    const outline = await extent.boundingBox();
+    const handle = await page.locator('.block-controls.visible').boundingBox();
+    const note = await definition.boundingBox();
+    // The same block expansion above and below the endnote text.
+    const above = note.y - outline.y, below = outline.y + outline.height - (note.y + note.height);
+    assert(above > 0 && above < 9 && Math.abs(above - below) < 1,
+      `${what}: hover extent ${JSON.stringify(outline)} does not wrap the endnote ${JSON.stringify(note)}`);
+    assert(Math.abs(handle.y - note.y) < 1, `${what}: handle at ${handle.y}, endnote text at ${note.y}`);
+  };
+  await hoverMatchesNote(firstDefinition, 'First endnote');
+  await hoverMatchesNote(editor.locator('[data-testid="footnote-definition"][data-label="a"]'), 'Second endnote');
+  await firstDefinition.getByTestId('endnote-edit').click();
+  await hoverMatchesNote(firstDefinition, 'Editing endnote');
+  await firstDefinition.getByTestId('endnote-cancel').click();
+  assert(await firstDefinition.getAttribute('aria-readonly') === 'true', 'Cancel ends editing after the hover check');
   await editor.locator('p.paragraph', {hasText: 'Middle paragraph.'}).click();
   await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.textContent === 'Middle paragraph.');
   await page.keyboard.press('End');
@@ -505,7 +529,10 @@ async (page, { screenshots = false, openPath, reloadDocument, expect, recoveryRe
         heading: heading.content, border: heading.borderTopWidth,
         fontSize: style.fontSize, lineHeight: style.lineHeight,
         numberSize: numberStyle.fontSize, numberAlign: numberStyle.verticalAlign,
-        marginTop: style.marginTop, marginBottom: style.marginBottom,
+        // The region's visible gap: from the last body block to the rule drawn above the first endnote.
+        marginTop: index === 0 || isDefinition(state.doc.child(index - 1)) ? style.marginTop
+          : `${Math.round(dom.querySelector('.footnote-definition').getBoundingClientRect().top + parseFloat(heading.top) - view.nodeDOM(pos - state.doc.child(index - 1).nodeSize).getBoundingClientRect().bottom)}px`,
+        marginBottom: style.marginBottom,
         indent: definitionStyle.paddingLeft,
         bounds: {left: dom.getBoundingClientRect().left, right: dom.getBoundingClientRect().right},
       });
