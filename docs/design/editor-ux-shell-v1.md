@@ -433,8 +433,8 @@ Current document settings examples:
 
 ## Dedicated Settings screen (#594)
 
-Settings opens at Appearance; an update notice's View opens About. Theme, page style, language and
-accent changes apply immediately, with profile-local preference storage and failure notices.
+Settings opens at Appearance; an update notice's View opens About. Theme, page style, language,
+accent and [Activity bar labels](#activity-bar-671--1817) changes apply immediately, with profile-local preference storage and failure notices.
 Theme/page roles, startup choice and display transitions follow [Visual Language](editor-visual-language-v1.md#surfaces-and-themes); preference storage and failure behavior follow [Adjustable values and preferences](editor-visual-language-v1.md#adjustable-values-and-preferences).
 Recovery retains its explanation, count and confirmed Clear all; individual records stay
 on the start screen. Desktop channel, status, release notes and update actions keep their
@@ -1331,7 +1331,7 @@ App Settings has no document-settings entry. The inline document disclosure and 
 The owner decisions are recorded in [#671](https://github.com/litzio/litzio/issues/671) and
 [#1812](https://github.com/litzio/litzio/issues/1812). The Activity bar (**작업 막대**) is always visible
 at the window's left edge, from below the title strip to the bottom, at `--layout-activity-bar-width`
-(72px) in every window width and Explorer state. Explorer opens beside it.
+(72px; 48px with names hidden) in every window width and Explorer state. Explorer opens beside it.
 
 - **Top group:** Explorer. Choosing it expands a collapsed Explorer and collapses an open one
   (`aria-expanded`, `aria-controls="sidebar-files"`); while open it uses the selected surface/text and the
@@ -1349,6 +1349,19 @@ compact icon-only buttons with Tooltips. Icons in the bar use one color: plugin 
 as its shape in the bar's text color. A fully opaque picture has no shape to draw, so the bar uses the
 manifest's named icon (or the default) instead. Tabs, Settings and other surfaces keep the plugin's own
 artwork.
+
+Settings → Appearance & language → **Activity bar labels / 작업 막대 이름** chooses **Show / 표시**
+(default) or **Hide / 숨기기** (#1877). Hide removes the names below the icons: the bar narrows to
+`--layout-activity-bar-width-icons` (48px), top and middle items become icon-only items of the same icon,
+spacing and selected surface/marker, centered in the bar, and the name stays in each item's Tooltip on
+hover and keyboard focus and in its accessible name. Every geometry that follows the bar width (title-strip
+brand, Explorer and its overlay, document area, split availability, notifications) follows the narrower
+bar, and the shorter items let more of the middle group fit before More. The choice is a device
+preference like theme and accent ([preferences](editor-visual-language-v1.md#adjustable-values-and-preferences));
+Show changes nothing in the bar. Captures (Korean, synthetic plugins):
+[1440 Show](assets/activity-bar-1877/1440-show-light.png), [1440 Hide](assets/activity-bar-1877/1440-hide-light.png),
+[1440 Hide dark](assets/activity-bar-1877/1440-hide-dark.png), [Hide tooltip](assets/activity-bar-1877/1440-hide-tooltip.png)
+and [640 Hide dark overlay](assets/activity-bar-1877/640-hide-dark-overlay.png).
 
 When the window height cannot hold every middle item, the items that fit stay and a **More / 더 보기**
 item replaces the rest. It opens a Popover beside the bar with a **Search screens / 화면 검색** Input and

@@ -43,7 +43,8 @@ export function ActivityBar({ explorerOpen, onExplorer, explorerRef, items, item
   const [fit, setFit] = useState(items.length);
   const [current, setCurrent] = useState("explorer");
   const itemKey = items.map(item => `${item.id}\u0000${item.label}`).join("\u0001");
-  // Items that do not fit the window height move into More. Heights differ by label lines.
+  // Items that do not fit the window height move into More. Heights differ by label lines. Hiding the
+  // names in Settings (root dataset) shrinks the Explorer item, so this group grows and is measured again.
   useLayoutEffect(() => {
     const element = group.current;
     if (!element) return;

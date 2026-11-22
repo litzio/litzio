@@ -151,6 +151,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
         localStorage.removeItem("litzio.accentColor");
         localStorage.removeItem("litzio.theme");
         localStorage.removeItem("litzio.pageBackground");
+        localStorage.removeItem("litzio.activityLabels");
 
         localStorage.removeItem("litzio.tableWrapDefault");
         localStorage.removeItem("litzio.tableWrapDocuments.v2");

@@ -1,7 +1,7 @@
 // Activity bar overflow (#1817): items that do not fit move into More, whose searchable list runs any
 // screen entry; plugin artwork is drawn in the bar's one color, an opaque picture keeps its named icon.
 // Plugin screens and icons are synthetic responses. Shell toggling, keyboard order and overlay geometry
-// stay in editor-shell, layout-rules and folder-navigation.
+// stay in editor-shell, layout-rules and folder-navigation. Settings can hide the names (#1877).
 async (page, { expect }) => {
   const svg = body => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${body}</svg>`;
   const artwork = {
@@ -94,7 +94,45 @@ async (page, { expect }) => {
     await page.setViewportSize({width:1440, height:1200});
     await expect(more).toHaveCount(0);
     await expect(bar.getByRole('button', {name:'Change history', exact:true})).toBeVisible();
+    // Names hidden in Settings: a narrower icon-only bar keeps accessible names, shows each name as a
+    // tooltip on hover and keyboard focus, fits more entries before More at once, and survives reload.
+    await page.setViewportSize({width:1440, height:700});
+    const barState = () => bar.evaluate(node => {
+      const box = node.getBoundingClientRect(), icon = node.querySelector('[data-activity-id="explorer"] .activity-bar-icon').getBoundingClientRect();
+      return {width:box.width, labels:[...node.querySelectorAll('.activity-bar-label')].filter(label => label.getClientRects().length).length,
+        hidden:node.querySelectorAll('.activity-bar-screens > [data-activity-item][data-overflow]').length, iconOffset:Math.abs(icon.x + icon.width / 2 - (box.x + box.width / 2))};
+    });
+    const chooseLabels = async choice => {
+      await bar.getByRole('button', {name:'Settings', exact:true}).click();
+      await page.getByTestId('activity-labels').selectOption(choice);
+      await page.getByRole('button', {name:'Close Settings', exact:true}).click();
+      await page.getByTestId('settings-dialog').waitFor({state:'detached'});
+    };
+    await expect(more).toBeVisible();
+    const named = await barState();
+    await chooseLabels('hidden');
+    await expect.poll(barState).toMatchObject({width:48, labels:0});
+    // Measured again without a window resize: shorter items fit more entries in the same height.
+    const iconOnly = await barState();
+    expect(iconOnly.hidden).toBeLessThan(named.hidden);
+    expect(iconOnly.iconOffset).toBeLessThanOrEqual(0.5);
+    const gallery = bar.getByRole('button', {name:'Template gallery', exact:true});
+    const tooltip = page.locator('[data-slot="tooltip-content"][data-open]');
+    await gallery.hover();
+    await expect(tooltip).toHaveText('Template gallery');
+    await page.mouse.move(720, 400);
+    await expect(tooltip).toHaveCount(0);
+    await bar.getByRole('button', {name:/^(Collapse|Expand) Explorer$/}).focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(gallery).toBeFocused();
+    await expect(tooltip).toHaveText('Template gallery');
+    await page.reload();
+    await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await expect.poll(barState).toMatchObject({width:48, labels:0, hidden:iconOnly.hidden});
+    await chooseLabels('shown');
+    await expect.poll(barState).toEqual(named);
   } finally {
+    await page.evaluate(() => { for (const key of Object.keys(localStorage)) if (key.endsWith('.activityLabels')) localStorage.removeItem(key); document.documentElement.dataset.activityLabels = 'shown'; });
     await page.unroute('**/api/plugin-screens');
     await page.unroute('**/api/plugins/icon?*');
     await page.setViewportSize({width:1440, height:1000});

@@ -19,7 +19,7 @@ function accentPalettes(tokens: string): Map<string, Map<string, string>> {
   const scopes = new Map<string, Map<string, string>>();
   for (const [, selector, body] of tokens.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const key = selector!.trim();
-    assert.match(key, /^:root(?:\[data-theme="dark"\])?(?:\[data-accent="[\w-]+"\])?(?:\[data-page="flat"\])?$/, `unexpected product-token scope: ${key}`);
+    assert.match(key, /^:root(?:\[data-theme="dark"\])?(?:\[data-accent="[\w-]+"\])?(?:\[data-page="flat"\])?$|^:root\[data-activity-labels="hidden"\]$/, `unexpected product-token scope: ${key}`);
     assert.ok(!scopes.has(key), `duplicate scope: ${key}`);
     const values = definitions(body!);
     if (key.includes("data-accent")) {

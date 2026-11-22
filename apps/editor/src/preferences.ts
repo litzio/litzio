@@ -66,6 +66,25 @@ export function writeAccentColor(color: AccentColor): boolean {
   } catch { return false; }
 }
 
+/** Names under the Activity bar icons; hidden leaves icons whose names stay in tooltips and accessible names. */
+export const ACTIVITY_LABELS = ["shown", "hidden"] as const;
+export type ActivityLabels = typeof ACTIVITY_LABELS[number];
+export const ACTIVITY_LABELS_KEY = `${brand.storagePrefix}.activityLabels`;
+
+export function readActivityLabels(): ActivityLabels {
+  try { return globalThis.localStorage?.getItem(ACTIVITY_LABELS_KEY) === "hidden" ? "hidden" : "shown"; }
+  catch { return "shown"; }
+}
+
+/** The live choice still applies when preference persistence is unavailable. */
+export function writeActivityLabels(labels: ActivityLabels): boolean {
+  try {
+    if (!globalThis.localStorage) return false;
+    globalThis.localStorage.setItem(ACTIVITY_LABELS_KEY, labels);
+    return true;
+  } catch { return false; }
+}
+
 export type UiLanguage = "ko" | "en";
 export const UI_LANGUAGE_KEY = `${brand.storagePrefix}.uiLanguage`;
 
