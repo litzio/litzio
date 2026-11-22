@@ -211,6 +211,9 @@ button {
   background: var(--id-color-text-selected);
 }
 .activity-bar-item[data-overflow] { visibility: hidden; }
+/* Names hidden in Settings: icon-only items, named by their tooltip and accessible name. */
+:root[data-activity-labels="hidden"] .activity-bar-label { display: none; }
+:root[data-activity-labels="hidden"] .activity-bar-screens { min-height: calc(var(--activity-icon) + 2 * var(--space-1) + 2 * var(--border-width)); }
 .activity-bar-status { display: flex; align-items: center; justify-content: center; height: var(--size-control-compact); }
 .activity-more { width: var(--layout-sidebar-width); gap: var(--space-2); padding: var(--space-2); }
 .activity-more-list { display: flex; flex-direction: column; gap: var(--space-1); min-height: 0; margin: 0; padding: 0; list-style: none; overflow-y: auto; }

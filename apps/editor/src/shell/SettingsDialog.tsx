@@ -18,7 +18,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import type { CliIntegrationState, DesktopBridge, DesktopInfo, OfferedUpdate, ReleaseChannel, UpdateState } from "../../shared/desktop-bridge.ts";
 import { RecoveryDeleteDialog } from "./Recovery.tsx";
 import { Notice } from "../ui/primitives.tsx";
-import { PAGE_BACKGROUNDS, readPageBackground, writePageBackground, type PageBackground, ACCENT_COLORS, readAccentColor, writeAccentColor, writeUiLanguage, THEME_LABELS, THEMES, type UiLanguage, type ThemePreference } from "../preferences.ts";
+import { PAGE_BACKGROUNDS, readPageBackground, writePageBackground, type PageBackground, ACCENT_COLORS, readAccentColor, writeAccentColor, ACTIVITY_LABELS, readActivityLabels, writeActivityLabels, type ActivityLabels, writeUiLanguage, THEME_LABELS, THEMES, type UiLanguage, type ThemePreference } from "../preferences.ts";
 import { applyPageBackground } from "../theme.ts";
 
 /** Explanations stay reachable by hover and keyboard focus beside the row name. */
@@ -28,6 +28,7 @@ function DetailsTip({ label, children }: { label: string; children: ReactNode })
 
 const ACCENT_LABELS = { blue: "Blue", violet: "Violet", plum: "Plum", teal: "Teal", green: "Green", graphite: "Graphite" } as const;
 const PAGE_LABELS = { paper: "Paper", flat: "Flat" } as const;
+const ACTIVITY_LABEL_CHOICES = { shown: "Show", hidden: "Hide" } as const;
 
 const CHANNELS: { value: ReleaseChannel; label: string; hint: string }[] = [
   { value: "stable", get label() { return i18n.t("Stable"); }, get hint() { return i18n.t("Tested releases."); } },
@@ -155,6 +156,8 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
   const [accentProblem, setAccentProblem] = useState(false);
   const [page, setPage] = useState(() => PAGE_BACKGROUNDS.find(page => page === document.documentElement.dataset.page) ?? readPageBackground());
   const [pageProblem, setPageProblem] = useState(false);
+  const [activityLabels, setActivityLabels] = useState(() => ACTIVITY_LABELS.find(labels => labels === document.documentElement.dataset.activityLabels) ?? readActivityLabels());
+  const [activityLabelsProblem, setActivityLabelsProblem] = useState(false);
   const tableWrapDefault = useTableWrapDefault();
   const [tableWrapProblem, setTableWrapProblem] = useState(false);
   const [logBusy, setLogBusy] = useState(false);
@@ -238,6 +241,15 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
                   </div>
                 </SettingsRow>
                   {accentProblem ? <p role="alert">{i18n.t("Accent color could not be saved. This choice applies until you close this page.")}</p> : null}
+
+                <SettingsSelect label={i18n.t("Activity bar labels")} testId="activity-labels"
+                  value={activityLabels} onChange={value => {
+                      const choice = value as ActivityLabels;
+                      document.documentElement.dataset.activityLabels = choice;
+                      setActivityLabels(choice);
+                      setActivityLabelsProblem(!writeActivityLabels(choice));
+                    }} options={ACTIVITY_LABELS.map(value => ({ value, label: i18n.t(ACTIVITY_LABEL_CHOICES[value]) }))} />
+                  {activityLabelsProblem ? <p role="alert">{i18n.t("Activity bar labels could not be saved. This choice applies until you close this page.")}</p> : null}
 
               </> : null}
               {category === "recovery" ? <Section title={i18n.t("Local recovery")}>

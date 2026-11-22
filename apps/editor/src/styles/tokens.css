@@ -87,6 +87,8 @@
   /* Activity bar, always shown left of Explorer: 72px (--space-16 + --space-2) fits a 64px item
    * whose name below the icon takes about five 12px Korean characters per line. */
   --layout-activity-bar-width: 4.5rem;
+  /* The same bar with its names hidden in Settings: a 40px icon item between --space-1 insets. */
+  --layout-activity-bar-width-icons: 3rem;
   /* Expanded sidebar: its width, and its width at window widths of 1024px and below. */
   --layout-sidebar-width: 15rem;
   /* Explorer and Assistant reuse the existing Assistant docking boundary. */
@@ -453,6 +455,11 @@
   --id-color-accent-hover: #d4e0e8;
   --id-color-surface-selected: #303b43;
   --id-color-surface-selected-hover: #3a4751;
+}
+
+/* Activity bar names hidden in Settings: every consumer of the bar width follows the narrower bar. */
+:root[data-activity-labels="hidden"] {
+  --layout-activity-bar-width: var(--layout-activity-bar-width-icons);
 }
 
 /* Page presentation only: keep document geometry and floating surfaces unchanged. */
