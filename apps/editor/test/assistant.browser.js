@@ -470,7 +470,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     await expect(panel.locator('.assistant-composer .assistant-reference')).toHaveText(['document.md']);
     for (let n = 1; n <= 3; n++) {
       await expect(draftImages.nth(n - 1).getByRole('img')).toHaveAttribute('alt', `${korean ? '이미지' : 'Image'} ${n}`);
-      await expect(draftImages.nth(n - 1).getByRole('button')).toHaveAccessibleName(korean ? `이미지 ${n} 빼기` : `Remove image ${n}`);
+      await expect(draftImages.nth(n - 1).getByRole('button')).toHaveAccessibleName(korean ? `이미지 ${n} 제거` : `Remove image ${n}`);
     }
   };
   await expect(draftChips).toHaveCount(1);
@@ -1492,7 +1492,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const koreanComposer = panel.getByRole('textbox', { name: '비서에게 메시지' });
   await koreanComposer.fill('Draft with an image');
   expect(await pasteImages(1, 0, koreanComposer)).toBe(true);
-  const draftImage = panel.getByRole('button', { name: '이미지 1 빼기' });
+  const draftImage = panel.getByRole('button', { name: '이미지 1 제거' });
   await expect(draftImage).toBeVisible();
   await panel.getByRole('button', { name: '새 대화' }).click();
   await expect(koreanComposer).toHaveValue('Draft with an image');

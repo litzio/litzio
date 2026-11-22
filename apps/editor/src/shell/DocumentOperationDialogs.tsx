@@ -29,7 +29,7 @@ export function OpenRefusalDialog({ openRefusal, setOpenRefusal, openRefusalRetu
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button size="sm" onClick={() => setOpenRefusal(null)}>OK</Button>
+            <Button size="sm" onClick={() => setOpenRefusal(null)}>{i18n.t("OK")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>);

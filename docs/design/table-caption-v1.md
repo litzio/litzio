@@ -5,7 +5,7 @@
 - Fixed numbering: 2026-10-29 (#720 Core/CLI and Editor property controls/warnings); [shared number contract](heading-numbering-v1.md#fixed-numbers-720).
 - Empty-caption surface (#577): every editable table exposes its inline caption without
   an Add caption action. An empty surface uses the caption typography and a muted
-  italic `Enter a table caption…` / `표 캡션을 입력하세요...` hint while the ProseMirror
+  italic `Enter a table caption…` / `표 캡션을 입력하세요…` hint while the ProseMirror
   selection is outside it; clicking it starts normal inline input and hides the hint.
   Clearing the text and moving the selection away restores it. Opening alone creates
   neither dirty state nor Undo history, and empty captions are omitted on Save.
