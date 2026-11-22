@@ -331,11 +331,11 @@ export function filterInsertCommands(query: string): InsertCommand[] {
 }
 
 /** Search aliases remain available in both display languages. */
-const KOREAN_SEARCH: Record<string, string[]> = {
+export const KOREAN_SEARCH: Record<string, string[]> = {
   paragraph: ["문단", "텍스트"], "bulleted-list": ["목록", "글머리"], "numbered-list": ["번호", "목록"],
   ...Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`heading-${i + 1}`, ["제목", `제목 ${i + 1}`]])),
   quote: ["인용", "인용문"], divider: ["구분선"],
-  code: ["코드"], equation: ["수식"], figure: ["그림", "이미지"], table: ["표"],
+  "code-block": ["코드"], equation: ["수식"], figure: ["그림", "이미지"], table: ["표"],
 };
 
 /** An empty target paragraph is reused; otherwise a new paragraph follows the target block. */

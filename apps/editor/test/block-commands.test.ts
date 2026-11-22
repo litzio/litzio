@@ -15,6 +15,7 @@ import {
   filterInsertCommands,
   formattableSelection,
   INSERT_COMMANDS,
+  KOREAN_SEARCH,
   slashQueryAt,
   insertEquationAfter,
   insertFigureAfter,
@@ -71,10 +72,17 @@ test("Citation slash aliases select the citation form before block commands in e
   }
 });
 
+test("Korean insert aliases belong to existing insert commands", () => {
+  const ids = new Set(INSERT_COMMANDS.map(command => command.id));
+  for (const id of Object.keys(KOREAN_SEARCH)) assert.ok(ids.has(id), id);
+  assert.deepEqual(filterInsertCommands("코드").map(command => command.id), ["code-block"]);
+});
+
 test("insert search falls back to Hangul typed in English mode only when the query finds nothing", () => {
   const ids = (query: string) => filterInsertCommands(query).map(command => command.id);
   assert.deepEqual(ids("vy"), ["table"]);
   assert.deepEqual(ids("tntlr"), ["equation"]);
+  assert.deepEqual(ids("zhem"), ["code-block"]);
   // A syllable still being typed compares by jamo, as 수시 within 수식.
   assert.deepEqual(ids("tntl"), ["equation"]);
   // Shift gives double consonants: ㄲ is not the ㄱ of 글머리 and 그림.
