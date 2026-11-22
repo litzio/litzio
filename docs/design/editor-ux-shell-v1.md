@@ -1535,7 +1535,7 @@ document meaning or CLI interaction is introduced.
 
 작업 막대 맨 아래 상태 점은 단일 연결의 상태를 표시한다. 여러 Host의 라벨·Local 탭 배지는 표시하지 않는다. 관측 대상은 같은 PC의 로컬 Host다. 설정·색 모드·Desktop 메뉴는 그 바로 위에 둔다. Host 선택기는 제공하지 않는다.
 
-Desktop의 로컬 Host 상태도  관측 완료 5초 뒤 읽기 전용 health/capability 검사를 반복한다(#1487). 시작 시 한 번 실패한 관측이 계속 남지 않으며, 다음 성공에서 상태·실행 계정을 복원한다. 첫 실패의 닿지 않음/이유 표시는 유지한다. daemon 탐색·spawn·수동 다시 연결과 별개의 상태 관측이며 상세 계약은 [Desktop distribution](desktop-distribution-v1.md)을 따른다.
+Desktop의 로컬 Host 상태도  관측 완료 5초 뒤 읽기 전용 health/capability 검사를 반복한다(#1487). 시작 시 한 번 실패한 관측이 계속 남지 않으며, 다음 성공에서 상태·실행 계정을 복원한다. 첫 실패의 연결 끊김/이유 표시는 유지한다. daemon 탐색·spawn·수동 다시 연결과 별개의 상태 관측이며 상세 계약은 [Desktop distribution](desktop-distribution-v1.md)을 따른다.
 
 연결됨 상태의 점은 정상 의미 색(`--id-color-success`)을 쓴다. 공통 HostStatus 상태 점과 기존 control 높이·문자색 토큰을 사용하며, 상태 점의 가운데는 작업 막대 아래 묶음의 아이콘 가운데와 같은 세로선에 둔다. 실행 계정은 화면에 글자로 표시하지 않는다. 상태 점은 바로 위 설정 진입을 가리지 않도록 툴팁·`title`을 띄우지 않고 막대 항목·Tab 정지점도 아니다. 백그라운드 서비스와 연결된 Host의 실행 계정(`identity.runAs`)은 보조기술 이름으로 제공하며, 연결되지 않거나 계정이 없는 Host는 상태만 제공한다. 설명은 Desktop 설정 정보·업데이트의 로컬 백그라운드 서비스 절에 실행 계정 사실 행으로 둔다. 한국어 명칭은 **실행 계정**, 설명은 “이 Host의 파일 작업과 비서 실행은 이 계정 권한으로 수행됩니다”이다. 기준 캡처(1440px 밝음): [설정 정보](assets/sidebar-host-row-1766/after-settings-about-1440-light.png). 접속자 신원은 제공하지 않는다. 공통 구현은 HostStatus이며 별도 아이콘·팔레트·상호작용 예외는 없다.
 

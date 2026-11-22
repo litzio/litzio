@@ -84,7 +84,7 @@ export function Sidebar({
           // Keep this menu's provider beside the tree: file dialogs must not inherit a closed menu's focus scope.
           blankTrigger.current?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: event.clientX, clientY: event.clientY }));
         }}>
-        <section className="sidebar-host" data-host-id="local" aria-label="Local">
+        <section className="sidebar-host" data-host-id="local" aria-label={i18n.t("Local")}>
         {folders.length > 0 ? folders.map(tree => {
           return <FolderTree onCopyPath={onCopyPath}
             key={tree.root}

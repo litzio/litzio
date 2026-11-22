@@ -299,7 +299,7 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   for (const language of ['en', 'ko']) {
     await page.evaluate(async language => (await import('/src/i18n.ts')).i18n.changeLanguage(language), language);
-    const hint = language === 'ko' ? '그림 캡션을 입력하세요...' : 'Enter a figure caption…';
+    const hint = language === 'ko' ? '그림 캡션을 입력하세요…' : 'Enter a figure caption…';
     const accessibleName = language === 'ko' ? '그림 캡션' : 'Figure caption';
     const allFigures = active.locator('[data-block="figure"]');
     const originalCaptions = ['Signal flow', 'Image caption'];

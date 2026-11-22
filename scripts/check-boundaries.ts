@@ -29,7 +29,7 @@ console.log("Core and official application boundaries passed.");
 // External product/protocol names are allowed; historical documents are outside this scope.
 const locales = fs.readFileSync(path.join(root, "apps/editor/src/locales.ts"), "utf8");
 for (const match of locales.matchAll(/^\s*"[^"\n]+": "((?:\\.|[^"\\])*)"/gm)) {
-  if (/프로바이더|쓰기 범위|AI 에이전트|AI agent|main agent|AI settings|Write access/i.test(match[1])) {
+  if (/프로바이더|쓰기 범위|AI 에이전트|AI agent|main agent|AI settings|Write access|자격 증명|원본 대조|시각적 비교|비주얼|재시작|백그라운드 서비스[이을과](?![가-힣])/i.test(match[1])) {
     throw new Error(`Obsolete UI terminology: ${match[1]}`);
   }
 }

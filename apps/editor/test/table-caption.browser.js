@@ -312,7 +312,7 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
     for (let index = 0; index < surfaces.length; index++) {
       const surface = surfaces[index];
       const hint = language === 'en' ? (index ? 'Enter a figure caption…' : 'Enter a table caption…') :
-        (index ? '그림 캡션을 입력하세요...' : '표 캡션을 입력하세요...');
+        (index ? '그림 캡션을 입력하세요…' : '표 캡션을 입력하세요…');
       await expect(surface).toHaveAttribute('data-placeholder', hint);
       await expect(surface).toHaveAccessibleName(language === 'en' ? (index ? 'Figure caption' : 'Table caption') : (index ? '그림 캡션' : '표 캡션'));
       expect(await surface.evaluate(element => getComputedStyle(element, '::before').fontStyle)).toBe('italic');

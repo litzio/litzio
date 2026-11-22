@@ -42,7 +42,7 @@ intentional MyST difference, spaces, history and CLI inspect contract. Labels ar
 written into caption Markdown.
 
 Empty editable image, pending and Mermaid captions show the UI-language
-italic `Enter a figure caption…` / `그림 캡션을 입력하세요...` hint while the
+italic `Enter a figure caption…` / `그림 캡션을 입력하세요…` hint while the
 ProseMirror selection is outside, in the same minimum 8em inline input area as
 table captions (#677). The existing computed prefix leads that area. The shared
 `data-placeholder` CSS generates the hint with empty accessibility alternative

@@ -910,7 +910,7 @@ releases both preview editors; reopening Visual resets fold/navigation state.
 Descriptions format Core-selected properties from the neutral read models: heading
 level, text/marks/link destinations, image path, equation/Mermaid source and captions.
 Each changed pair has one short shared summary; detailed before/after values use
-the existing Tooltip. Above 800px, column names appear only in the headers. At 800px and below, column headers are hidden and each changed block shows its side label directly above its content. Unchanged context has no side label, and identical document titles are displayed once. The Korean Visual choice reads “시각적 비교” (#1499). Before and after
+the existing Tooltip. Above 800px, column names appear only in the headers. At 800px and below, column headers are hidden and each changed block shows its side label directly above its content. Unchanged context has no side label, and identical document titles are displayed once. The Korean Visual choice reads “Visual 비교” (#1499). Before and after
 reuse Source's removed/added surface colors and explicit `−`/`+` markers; navigation
 outlines both corresponding blocks. The change count uses locale plural rules and
 incorporates the current position when there is more than one change.
