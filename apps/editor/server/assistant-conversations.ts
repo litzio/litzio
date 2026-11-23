@@ -23,7 +23,7 @@ import { accessPath, type FileAccess } from "./file-access.ts";
 import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
 import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
-import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copilotModelOption } from "./copilot-acp.ts";
+import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copilotModelOption, sameOllama, type CopilotOllama } from "./copilot-acp.ts";
 
 import { questionTool } from "./assistant-question-tool.ts";
 
@@ -277,7 +277,7 @@ export class AssistantConversations {
     const restored = stored >= 0 && stored <= grants.indexOf(settings.permissionMode) ? info.permissionMode! : settings.permissionMode;
     settings = { ...settings, provider: info.provider ?? "codex", permissionMode: turnPermissionMode ?? this.conversations.get(id)?.permissionMode ?? restored };
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
-    if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
+    if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings, (await this.connection.copilotOllama())?.launch);
     if (info.provider === "copilot" && this.loaded.has(id)) return this.current(id);
     const conversation: AssistantConversation = { ...info, permissionMode: settings.permissionMode, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage, copilotUsage: this.conversations.get(id)?.copilotUsage };
@@ -528,7 +528,9 @@ export class AssistantConversations {
     }
     const effort = source === "cli" ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.permissionMode === "full-access";
-    await this.prepareCopilotLaunch(effort, settings);
+    // A local model source serves one model per process: the selected model is a launch setting.
+    const ollamaUrl = this.connection.copilotOllamaUrl();
+    await this.prepareCopilotLaunch(effort, settings, ollamaUrl ? { url: ollamaUrl, model: input.model } : undefined);
     if (conversation && !this.loaded.has(conversation.id)) {
       // A running ACP process already owns the session and its MCP endpoint.
       // Retain the snapshot object held by callers while rebuilding provider-owned content.
@@ -629,10 +631,10 @@ export class AssistantConversations {
       throw error;
     }
   }
-  private async prepareCopilotLaunch(effort: string, settings: AssistantSettings) {
+  private async prepareCopilotLaunch(effort: string, settings: AssistantSettings, ollama: CopilotOllama | undefined) {
     const acp = this.connection.copilot, fullAccess = settings.permissionMode === "full-access";
-    if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess) && [...this.conversations.values()].some(value => value.provider === "copilot" && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
-    await acp.useLaunchSettings(effort, fullAccess);
+    if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess || !sameOllama(acp.ollama, ollama)) && [...this.conversations.values()].some(value => value.provider === "copilot" && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
+    await acp.useLaunchSettings(effort, fullAccess, ollama);
   }
   private blockingCard(id: string, turnId: string, requestId: string | number, questions: AssistantQuestionRecord["questions"], respond: (answers: AssistantUserInputAnswers) => void, cancel: () => void, validate?: (answers: AssistantUserInputAnswers) => unknown, approval = true) {
     const conversation = this.current(id), turn = conversation.turns.find(t => t.id === turnId && t.status === "inProgress");

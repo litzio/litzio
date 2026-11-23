@@ -134,8 +134,16 @@ loopback(127.* 또는 ::1) HTTP Host는 listen을 완료한 자신의 정규화�
 비서 CLI의 자동 주소 전달은 기존 HTTP 허용 목록을 바꾸지 않는다. non-loopback·wildcard·IPv4-mapped IPv6 bind에는 주소를 전달하지 않는다. 이 개발/검사용 구성에서는 자동 주소를 필요로 하는 비서의 Host 대상 CLI 호출만 주소 없음으로 분명히 실패하며, public-origin이나 다른 loopback 주소를 추측하지 않는다. 수동으로 명시한 CLI --host와 기존 HTTP 허용 판정은 유지한다.
 
 Codex는 `codex app-server`, Copilot은 `copilot --acp`를 Host가 필요할 때 시작한다.
-설정은 대상 Host의 공급자·현재 카탈로그 모델·추론 강도·기본 언어·권한을 저장한다.
+설정은 대상 Host의 공급자·현재 카탈로그 모델·추론 강도·기본 언어·권한과 Copilot 모델 출처·Ollama 주소를 저장한다.
 설정 UI는 변경을 순차 자동 저장하며, 대화별 선택은 전역 기본값을 바꾸지 않는다.
+
+Copilot 연결의 모델 출처는 ‘GitHub 계정’(기본)과 ‘로컬 (Ollama)’ 가운데 고른다. 설정 필드는 `copilotModelSource`(`account`·`ollama`)와 `ollamaUrl`(기본 `http://localhost:11434`; http·https, 자격 증명·쿼리·조각 없음, 끝의 `/` 제거)이며 CLI `assistant configure`가 같은 Host 작업으로 바꾼다. 주소 칸은 로컬 출처일 때만 보이고 입력을 마치면(focus 이동·Enter) 저장하며, 형식 오류는 칸 아래에 표시하고 값을 유지한다.
+로컬 출처이면 Host는 Copilot 프로세스 환경 변수 `COPILOT_PROVIDER_BASE_URL`(`<주소>/v1`)·빈 `COPILOT_PROVIDER_API_KEY`·`COPILOT_PROVIDER_WIRE_API=responses`·`COPILOT_MODEL`만 더한다. 사용자 홈의 Copilot 설정은 쓰거나 바꾸지 않는다. 오프라인 모드는 켜지 않으므로 계정 출처에서 쓸 수 있는 GitHub·웹 도구는 그대로 남고, GitHub 로그인 없이도 연결한다.
+Copilot의 로컬 모델 연결은 프로세스마다 모델 하나만 제공하므로, 모델 목록은 Host가 Ollama의 모델 목록(`/api/tags`)에서 채우고 GitHub 계정 라우팅인 `auto`는 넣지 않는다. 고른 로컬 모델은 추론 강도·전체 접근과 같은 Copilot 실행 설정이다. 출처·주소·로컬 모델이 바뀌면 그 뒤에 시작하는 Copilot 연결부터 적용하고, 다른 Copilot 응답이 진행 중이면 기존 실행 설정 규칙대로 전송을 거절하며 진행 중인 턴을 끊지 않는다. 대화는 공급자만 고정하고 모델 출처는 고정하지 않는다.
+출처·주소만 바꾸는 설정 변경은 모델을 검증하지 않는다. 공급자·모델·추론 강도를 함께 바꾸면 새 출처의 목록으로 검증한다. 설정 화면은 출처·주소를 바꾼 뒤 기본 공급자가 Copilot이고 기본 모델이 새 목록에 없으면 첫 모델을 고른다. Ollama에 연결할 수 없거나 받아 둔 모델이 없으면 Copilot 진단이 연결 안 됨과 주소를 포함한 이유를 보고하며, 설정의 상태는 사용 불가로 보인다. 리치오는 Ollama의 설정·모델을 바꾸지 않는다. 컨텍스트 길이 안내(64k 이상)는 주소 칸의 hover·keyboard focus 안내에 둔다.
+
+모델 출처: 계정 [전](assets/assistant-model-source-1891/before-account-1440-light-ko.png) / [후](assets/assistant-model-source-1891/after-account-1440-light-ko.png) · 로컬 [밝음](assets/assistant-model-source-1891/after-local-1440-light-ko.png) / [어두움](assets/assistant-model-source-1891/after-local-1440-dark-ko.png) · [주소 형식 오류](assets/assistant-model-source-1891/after-local-invalid-1440-light-ko.png) · [Ollama 연결 불가](assets/assistant-model-source-1891/after-local-unavailable-1440-light-ko.png)
+
 연결됨은 전송 준비 상태이며 로그인·모델 사용 자격·잔여 한도를 증명하지 않는다.
 Host는 마지막 모델 목록·진단 결과를 공급자별로 daemon 메모리에 보관한다. 설정과 사이드바는 진입 시 마지막 결과를 먼저 표시하고 백그라운드에서 확인한 뒤 갱신한다. 같은 확인은 진행 중인 요청을 공유하며, 3초 이내에 완료된 결과도 재사용해 두 화면을 연달아 열 때 공급자를 반복 실행하지 않는다.
 설정의 상태에 마우스를 올리거나 키보드로 포커스하면 마지막 확인 시각을 볼 수 있다. 모델 목록의 새로고침과 진단 실행은 공급자를 다시 조회하며 확인 중에도 기존 결과를 표시한다. Copilot 진단은 진행 대화와 분리된 짧은 연결을 사용한다. 끊기거나 초기화에 실패한 Copilot 프로세스와 초기화에 실패한 Codex 프로세스의 종료를 확인하지 못하면 그 시점에 기다리던 요청만 실패하고, 다음 요청은 새 프로세스로 연결한다.
@@ -239,6 +247,8 @@ Copilot MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻�
 14. 제한 권한에서는 `litzio` 쓰기 명령이 app-reset guard에 참여하지 못해 실행되지 않으며 비서는 본문 직접 편집을 쓴다(읽기 전용의 편집 제한은 유지). guard 보호를 유지하기 위한 현재 한계다.
 
 15. 이미지 붙여넣기는 기존 HTTP 요청 바이트 한도를 따르며 드래그 앤 드롭·파일 선택은 지원하지 않는다.
+
+16. Copilot 로컬 출처에서 Host는 Ollama가 실제로 쓸 컨텍스트 길이를 읽지 않는다. 모델 파일의 `num_ctx`만 API로 보이고 서버 기본값·환경 변수 값은 모델을 적재하기 전에는 보이지 않기 때문이다. Copilot은 자체 기본 한도로 사용량을 표시하며, Ollama의 컨텍스트가 요청보다 작으면 Ollama가 요청을 잘라 답이 틀어질 수 있다. 로컬 모델 세션에는 추론 강도 설정 항목이 없어, 고른 값은 세션에 적용되지 않고 기존 동작대로 Copilot 실행 인자의 값만 전달된다. 그 값을 Ollama가 거절하지 않는 것(high·max)만 확인했다.
 
 ## 검증
 

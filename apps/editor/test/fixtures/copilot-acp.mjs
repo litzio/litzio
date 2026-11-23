@@ -2,7 +2,10 @@ import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 const log = process.argv[2];
-if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, startedAt: Date.now(), args: process.argv.slice(3), hostOrigin: process.env.LITZIO_HOST_ORIGIN ?? null }) + "\n");
+// Copilot CLI 1.0.114 BYOK: COPILOT_PROVIDER_BASE_URL needs COPILOT_MODEL, and a session lists only auto and that model.
+const byok = process.env.COPILOT_PROVIDER_BASE_URL === undefined ? null : { baseUrl: process.env.COPILOT_PROVIDER_BASE_URL, apiKey: process.env.COPILOT_PROVIDER_API_KEY ?? null,
+  wireApi: process.env.COPILOT_PROVIDER_WIRE_API ?? null, model: process.env.COPILOT_MODEL ?? null, offline: process.env.COPILOT_OFFLINE ?? null };
+if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, startedAt: Date.now(), args: process.argv.slice(3), hostOrigin: process.env.LITZIO_HOST_ORIGIN ?? null, byok }) + "\n");
 process.once("exit", () => {
   if (log && existsSync(log)) appendFileSync(log, JSON.stringify({ exitedPid: process.pid, exitedAt: Date.now() }) + "\n");
 });
@@ -20,7 +23,8 @@ if (process.argv.includes("--fixture-orphan-stdout-once") && !existsSync(log + "
 const modes = { currentModeId: "agent", availableModes: ["agent", "plan", "autopilot", "allow-all"].map(id => ({ id, name: id === "agent" ? "Agent" : id === "plan" ? "Plan" : id })) };
 const configOptions = [{ id: "allow_all", name: "Allow All", type: "select", currentValue: "off", options: ["on", "off"].map(value => ({ value, name: value })) },
   ...(process.argv.includes("--fixture-config") ? [{ id: "model", category: "model", name: "Model", type: "select", currentValue: "copilot-model", options: ["auto", "copilot-model", "max-only"].map(value => ({ value, name: value })) }, { id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
-const sessionState = () => ({ models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }, ...(process.argv.includes("--fixture-config") ? [{ modelId: "max-only", name: "Max only" }] : [])] }, modes, configOptions });
+const sessionState = () => byok ? { models: { currentModelId: byok.model, availableModels: [{ modelId: "auto", name: "Auto" }, { modelId: byok.model, name: byok.model }] }, modes, configOptions }
+  : { models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }, ...(process.argv.includes("--fixture-config") ? [{ modelId: "max-only", name: "Max only" }] : [])] }, modes, configOptions };
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
 let session = 0, pending, delayedLoad;
 const prompts = new Map();
@@ -80,6 +84,7 @@ createInterface({ input: process.stdin }).on("line", line => {
   else if (method === "session/set_model") {
     if (params.modelId === "EXIT PROCESS") process.exit(23);
     if (params.modelId === "HANG REQUEST") return;
+    if (byok && params.modelId !== byok.model && params.modelId !== "auto") { send({ id, error: { code: -32602, message: `Invalid modelId '${params.modelId}': not one of this session's models.` } }); return; }
     selectedModels.set(params.sessionId, params.modelId);
     if (process.argv.includes("--fixture-config")) {
       const reasoning = configOptions.find(option => option.id === "reasoning");

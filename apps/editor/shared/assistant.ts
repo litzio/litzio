@@ -5,7 +5,19 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantExecutionSettings = { model: "
 /** Fallback for tasks started without a conversation; never a conversation override. */
 export type AssistantResponseLanguage = "ko" | "en" | "ja";
 export type AiProvider = "codex" | "copilot";
-export type AssistantSettings = AssistantExecutionSettings & { provider: AiProvider; permissionMode: "opened-folders" | "read-only" | "full-access" };
+export type AssistantSettings = AssistantExecutionSettings & { provider: AiProvider; permissionMode: "opened-folders" | "read-only" | "full-access";
+  /** Copilot connection only: GitHub account routing, or an Ollama server reached by the Host. */
+  copilotModelSource?: "account" | "ollama"; ollamaUrl?: string };
+export const DEFAULT_OLLAMA_URL = "http://localhost:11434";
+/** Host-relative base address; the Copilot provider path (/v1) is added at launch. */
+export function checkedOllamaUrl(value: unknown): string {
+  const invalid = () => new Error("AI ollamaUrl: expected an http:// or https:// address without credentials, query or fragment, such as http://localhost:11434.");
+  if (typeof value !== "string" || /[\r\n\t\x00]/u.test(value)) throw invalid();
+  let url: URL;
+  try { url = new URL(value.trim()); } catch { throw invalid(); }
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw invalid();
+  return (url.origin + url.pathname).replace(/\/+$/u, "");
+}
 export const ASSISTANT = {
   settingsRoute: "/api/assistant/settings",
   skillsRoute: "/api/assistant/skills", modelsRoute: "/api/assistant/models", diagnosticsRoute: "/api/assistant/diagnostics", environmentRoute: "/api/assistant/environment",
