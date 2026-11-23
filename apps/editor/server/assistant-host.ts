@@ -5,7 +5,7 @@ import { hostPaths, type HostRun } from "./host-paths.ts";
 import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { ASSISTANT, type AiProvider } from "../shared/assistant.ts";
 import { createAssistantSettings, checkedAssistantSettings } from "./assistant-settings.ts";
-import { ProviderConnections } from "./provider-connections.ts";
+import { ProviderConnections, SPIKE_OLLAMA_MODEL } from "./provider-connections.ts";
 import { AssistantConversations, AssistantModelUnavailable, conversationForDisplay } from "./assistant-conversations.ts";
 
 const PROVIDER_RECHECK_INTERVAL_MS = 3_000;
@@ -140,7 +140,8 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         // Steering and cancellation retain their admitted turn and connection.
         if (!existing?.turns.some(turn => turn.status === "inProgress")) {
           const status = await readDiagnostics.read(selected).catch(error => { recheckProvider(selected); throw error; });
-          if (!status.connected || selected === "codex" && !status.account) {
+          // SPIKE: a local Codex provider reports account null (requiresOpenaiAuth false).
+          if (!status.connected || selected === "codex" && !status.account && !SPIKE_OLLAMA_MODEL) {
             recheckProvider(selected);
             throw new Error(`AI provider ${selected} is unavailable: ${status.error ?? status.accountError ?? "Sign in on the Host."}`);
           }

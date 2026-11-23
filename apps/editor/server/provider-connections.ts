@@ -16,6 +16,31 @@ export const ASSISTANT_INSTRUCTIONS = typeof __LITZIO_ASSISTANT_INSTRUCTIONS__ =
 export function assistantDirectory() {
   return hostPaths().assistant;
 }
+// SPIKE (spike/ollama-local-model): one switch routes both existing connections to an Ollama model.
+// LITZIO_SPIKE_OLLAMA_MODEL names the Ollama model; LITZIO_SPIKE_OLLAMA_URL optionally overrides
+// the OpenAI-compatible base URL. The context values match the 64k derived model used in the spike.
+export const SPIKE_OLLAMA_MODEL = process.env.LITZIO_SPIKE_OLLAMA_MODEL || undefined;
+const SPIKE_OLLAMA_URL = (process.env.LITZIO_SPIKE_OLLAMA_URL || "http://localhost:11434/v1").replace(/\/$/, "");
+const SPIKE_CONTEXT = 65536;
+function spikeCodexArgs(): string[] | undefined {
+  if (!SPIKE_OLLAMA_MODEL) return undefined;
+  return ["app-server", "-c", "features.default_mode_request_user_input=true",
+    "-c", 'model_provider="litzio-ollama"', "-c", 'model_providers.litzio-ollama.name="Ollama"',
+    "-c", `model_providers.litzio-ollama.base_url="${SPIKE_OLLAMA_URL}/"`, "-c", 'model_providers.litzio-ollama.wire_api="responses"',
+    "-c", `model_context_window=${SPIKE_CONTEXT}`,
+    // The user's ChatGPT connectors and memories alone exceed a local context window.
+    "--disable", "apps", "--disable", "memories"];
+}
+function spikeCopilotEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (!SPIKE_OLLAMA_MODEL) return env;
+  return { ...env, COPILOT_PROVIDER_BASE_URL: SPIKE_OLLAMA_URL, COPILOT_PROVIDER_API_KEY: "", COPILOT_PROVIDER_WIRE_API: "responses",
+    COPILOT_MODEL: SPIKE_OLLAMA_MODEL, COPILOT_OFFLINE: "true", COPILOT_PROVIDER_MAX_PROMPT_TOKENS: String(SPIKE_CONTEXT - 4096) };
+}
+function spikeCodexModel(): AiModel {
+  const efforts = ["low", "medium", "high"].map(reasoningEffort => ({ reasoningEffort, description: "" }));
+  return { id: SPIKE_OLLAMA_MODEL!, model: SPIKE_OLLAMA_MODEL!, displayName: `${SPIKE_OLLAMA_MODEL} (Ollama)`, description: "Local Ollama model (spike)",
+    supportedReasoningEfforts: efforts, defaultReasoningEffort: "low" };
+}
 /** Provider connections share the official Assistant Host's daemon lifetime. */
 export class ProviderConnections {
   readonly client: CodexAppServer;
@@ -26,7 +51,7 @@ export class ProviderConnections {
   private accountRevision = 0;
   constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}, hostOrigin?: () => string | undefined) {
     this.templatesDirectory = hostPaths(run).templates;
-    this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()) }); this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: () => assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.()) });
+    this.client = new CodexAppServer(cwd, { ...(spikeCodexArgs() ? { args: spikeCodexArgs() } : {}), ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()) }); this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: () => spikeCopilotEnv(assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.())) });
     this.client.on("notification", method => {
       // Rate-limit notifications carry only one bucket. Refetch the full snapshot.
       if (method === "account/updated" || method === "account/rateLimits/updated") this.invalidateUsage();
@@ -100,6 +125,8 @@ export class ProviderConnections {
       const result: { data: AiModel[]; nextCursor: string | null } = await this.client.request("model/list", { cursor, includeHidden: false });
       models.push(...result.data); cursor = result.nextCursor;
     } while (cursor);
+    // SPIKE: Codex model/list returns the bundled OpenAI catalog even for a local provider.
+    if (SPIKE_OLLAMA_MODEL) models.splice(0, models.length, spikeCodexModel());
     const fullAccessAllowed = await this.fullAccessAllowed();
     return { provider: "codex", models, updatedAt: Date.now(), ...(fullAccessAllowed !== undefined ? { fullAccessAllowed } : {}) };
   }
