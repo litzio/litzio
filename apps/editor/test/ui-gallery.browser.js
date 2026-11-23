@@ -247,7 +247,35 @@ async (page, { expect, screenshots, withBlockHover }) => {
   await page.setViewportSize({width:1440,height:1000});
   await navigation.getByRole('button',{name:'Screen parts',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'Target measurement',exact:true})).toBeVisible();
-  const taskHeader = await page.locator('.task-header').evaluate(n => { const s = getComputedStyle(n); return { paddingTop: s.paddingTop, paddingBottom: s.paddingBottom, paddingLeft: s.paddingLeft, border: s.borderBottom }; });
+  // Item list rows: name first with the hidden status still named, one column per details position,
+  // outline-style arrows, Enter opens, and collapsing keeps focus on the group title.
+  const itemList = page.locator('.task-surface').filter({has:page.getByRole('heading',{name:'Item list',exact:true})});
+  const reviewTitle = itemList.getByRole('button',{name:/^검토 중/});
+  const reviewRows = itemList.getByRole('list',{name:'검토 중',exact:true}).getByRole('button');
+  await expect(reviewRows.first()).toHaveAccessibleName(/^설비 점검 절차서\s*검토 중\s*25쪽\s*변환 경고 1개\s*어제$/);
+  const lastDetails = await itemList.locator('.item-list-row').evaluateAll(rows => rows.map(row => [...row.querySelectorAll('.item-list-cell')].at(-1).getBoundingClientRect().left));
+  expect(lastDetails.every(left => Math.abs(left - lastDetails[0]) < 1)).toBe(true);
+  await itemList.locator('.item-list-row').first().focus();
+  await page.keyboard.press('ArrowDown'); await expect(reviewTitle).toBeFocused();
+  await page.keyboard.press('ArrowDown'); await expect(reviewRows.first()).toBeFocused();
+  await page.keyboard.press('Enter'); await expect(itemList.locator('output')).toHaveText('설비 점검 절차서');
+  await reviewRows.nth(1).focus();
+  await reviewTitle.evaluate(title => title.click());
+  await expect(reviewTitle).toHaveAttribute('aria-expanded','false'); await expect(reviewTitle).toBeFocused();
+  await expect(reviewTitle).toHaveAccessibleName(/^검토 중\s*2$/);
+  const draftTitle = itemList.getByRole('button',{name:/^초안/});
+  await page.keyboard.press('ArrowDown'); await expect(draftTitle).toBeFocused();
+  await page.keyboard.press('Enter'); await expect(draftTitle).toHaveAttribute('aria-expanded','false');
+  await page.keyboard.press('Home');
+  await expect(itemList.getByRole('button',{name:'변환 중',exact:true})).toBeFocused();
+  await reviewTitle.click(); await expect(reviewRows).toHaveCount(2);
+  await page.setViewportSize({width:640,height:1000});
+  expect(await itemList.locator('.item-list-row').first().evaluate(row => {
+    const name = row.querySelector('.item-list-name').getBoundingClientRect(), cell = row.querySelector('.item-list-cell').getBoundingClientRect();
+    return {below:cell.top >= name.bottom - 1, start:Math.abs(cell.left - name.left) < 1, contained:row.scrollWidth <= row.clientWidth};
+  })).toEqual({below:true,start:true,contained:true});
+  await page.setViewportSize({width:1440,height:1000});
+  const taskHeader = await page.locator('.task-header').first().evaluate(n => { const s = getComputedStyle(n); return { paddingTop: s.paddingTop, paddingBottom: s.paddingBottom, paddingLeft: s.paddingLeft, border: s.borderBottom }; });
   expect(taskHeader.paddingTop).toBe(taskHeader.paddingLeft);
   expect(taskHeader.paddingBottom).toBe(taskHeader.paddingTop);
   expect(taskHeader.paddingLeft).toBe(panelHeader.paddingLeft);

@@ -74,6 +74,25 @@ export interface ScreenSliderProps {
   min: number; max: number; step?: number; disabled?: boolean;
 }
 export interface ScreenSummaryProps { label: string; value: string | number; description?: string }
+export interface ScreenItemListItem {
+  id: string;
+  label: string;
+  /** Same tones as ui.Status; label is human language. */
+  status?: { tone: "ok" | "progress" | "warning" | "error" | "neutral"; label: string };
+  /** Short texts; the same index lines up in every row. Use null to leave a position empty. */
+  details?: readonly (string | null)[];
+  /** Group id from groups. */
+  group?: string;
+}
+export interface ScreenItemListGroup { id: string; title: string; collapsed?: boolean }
+export interface ScreenItemListProps {
+  items: readonly ScreenItemListItem[];
+  /** Shown in this order. Only the initial collapsed state is an input; the list remembers later changes. */
+  groups?: readonly ScreenItemListGroup[];
+  onOpen(item: ScreenItemListItem): void;
+  /** Keeps the status mark and its accessible name, hiding the status text when group titles already state it. */
+  hideStatusLabel?: boolean;
+}
 /** Shared by the client binding and bundled authoring guidance. No renderer dependency. */
 export const SCREEN_UI = {
   LinkedDocumentView: 'document:DocumentView props, revision:string (paths refer to this saved revision), source:ReactNode, sourceLabel:string, sourceRef?:(viewport:HTMLDivElement|null)=>void, sourceScale?:number (outline scale, defaults to 1), items:{id:string,label:string,path:top-level Core NodePath,boxes:{left:number,top:number,width:number,height:number}[],colorToken:--id-color-*}[], selectedId?:string, onSelect:(id:string)=>void. Supply source boxes in post-scale scroll content CSS px and mark named source buttons with data-linked-item={id}. Source buttons, mapped document blocks and pointer hit areas of bands report the item ID; document blocks also provide a named keyboard action. Set selectedId in your screen and use document.target or sourceRef to move either viewport; document.target.top = box.top - source scrollTop brings the document pair level with a chosen source box; increment document.target.request on each choice. Mapping and bands are only active for the saved revision. document.height: "fill" fills the parent height, including as a direct child of ScreenLayout with fillHeight. Narrow layouts stack the panes.',
@@ -84,6 +103,7 @@ export const SCREEN_UI = {
   Select: 'label:string, value:string, onValueChange(value:string), options:{value:string,label:string}[], optional disabled:boolean, placeholder:string. Single selection with label above the control by default. hideLabel?:boolean visually hides the required accessible label for inline toolbar buttons.',
   Notice: 'children, optional tone="error"; catch async/event failures here.',
   DataTable: 'title:string, rows:object[], columns:string[], optional labels:{field:"Label"}, fields:{field:{type:"number"}}, rowKey:string (identity field), selectedKey?:string|number, onSelectRow?:(row)=>void. With onSelectRow, click or focus a row and press Enter/Space to select; links do not select. Caller owns selectedKey across sorting/filtering/pages.',
+  ItemList: 'items:{id:string,label:string,status?:{tone:"ok"|"progress"|"warning"|"error"|"neutral",label:string},details?:(string|null)[],group?:string}[], groups?:{id:string,title:string,collapsed?:boolean}[] (shown in this order; collapsed is only the initial state), onOpen:(item)=>void, hideStatusLabel?:boolean. Rows of items people open, such as documents or tasks: status mark, name, then short details; use ui.DataTable instead for data compared by value. The same details index lines up in every row; use null for an empty position. Whole rows open on click or Enter; Arrow keys/Home/End move between rows and group titles. Group titles collapse and show the item count while collapsed. Items without a known group come first, untitled. hideStatusLabel keeps the mark and its accessible name when group titles already state the status. Renders nothing when items is empty; show ui.EmptyState yourself. Fills its parent width; narrow parents move details below the name.',
   Row: 'label:ReactNode, description?:ReactNode, children:ReactNode, kind?:"item"|"fact" (item by default). Name left, values/controls right; stacks in narrow containers. fact is a semantic definition pair; use code for paths/identifiers.',
   Section: 'title:string, description?:string, children:ReactNode. Group multiple Rows; description only when it changes the result. Do not repeat an item name or wrap a single item.',
   Status: 'tone:"ok"|"progress"|"warning"|"error"|"neutral", label:string, variant?:"pill"|"plain" (pill by default), hideIndicator?:boolean (false by default; omit the indicator for quiet completed work). Human language only, never raw state identifiers. A label pill on a quiet surface; ok uses a success-colored dot, progress uses an accent-colored spinning open ring (static with reduced motion); usable in header or body.',
@@ -110,7 +130,7 @@ Design rules:
 - Choose files with pickPath; do not use native file inputs.
 - Use ui.Select for choices instead of native select. hideLabel is only for toolbars alongside buttons; show labels in settings/forms. When no value is selected, supply a placeholder describing the choice.
 - Menus are never the only entry to a main action; provide the same action as a screen button.
-- Use ui.DataTable row selection for picking an item; do not stack buttons.
+- Use ui.ItemList for items people open, such as documents or tasks, and ui.DataTable (row selection for picking a row) for data compared by value; do not stack buttons.
 - Use shared parts for headings and summaries. Keep ordinary values and prose normal.
 - Use ui.DataTable at default density, fitting content within the screen width; declare numeric columns with fields type:"number".
 - Put controls in ui.Toolbar; group summary cards in a separate ui.Toolbar.
