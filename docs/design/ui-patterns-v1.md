@@ -205,6 +205,8 @@ ContextMenu 항목 실행 뒤 닫힐 때 focus가 메뉴 안이나 body에 남�
 
 행의 스위치나 동작이 실패하면 해당 행의 오류 Status plain과 자세히 보기 Tooltip에 표시한다. 설치본이 바뀐 행은 식별자와 복구에 사용하는 출처를 표시하고, 오른쪽 동작 맨 앞의 테두리 [다시 설치]로 Host의 reload를 요청한다. 대기 중인 버튼에는 “다시 설치 중…”을 표시한다. 폴더 경로 입력과 GitHub 주소 찾기의 오류는 입력 곁에 둔다. 출처를 선택한 뒤 추가가 거절되거나 전체 목록을 읽는 작업이 실패하면 단추 줄 아래에 기존 간격 토큰을 두고 Notice로 한 번 표시한다.
 
+기준 화면은 [설치본 불일치 행](assets/plugin-error-row-1909/after-1440-light.png), [추가 실패](assets/plugin-error-row-1909/after-add-error-1440-light.png), [정상 목록](assets/plugin-error-row-1909/after-alignment-list-1440-dark-ko.png), [설정 대화 상자](assets/plugin-error-row-1909/after-alignment-dialog-1440-dark-ko.png)다.
+
 일반 설정은 Dialog 안의 Row·Input·SettingsSwitch·FieldError를 사용한다. 필드별 저장 중·저장됨·실패를 가까이에 표시하고 실패 시 초안을 보존한다. 연결 확인은 순차 저장 완료 뒤 저장값으로 실행하며 저장 실패·꺼짐·미실행이면 막고 이유를 Tooltip으로 보인다. secret은 password Input에 명시적으로 저장한 뒤 비우며 값을 재조회하거나 비서에 입력하지 않는다. 목록 갱신은 picker 초안·focus를 초기화하지 않으며 선택한 등록이 외부에서 제거될 때만 Dialog를 닫고 Notice를 보인다.
 
 첫 켜기 확인의 registrationId·신뢰 수명과 secret 저장은 [플러그인 계약](plugin-stage1-v1.md#수명과-공용-작업), [설정·비밀값 계약](plugin-stage1-v1.md#설정비밀값비서-지침)이 소유한다. PluginIcon은 탭·제목 행의 장식용 16px img를 공유하고 비율을 contain하며 기존 화면 아이콘으로 fallback한다. 작업 막대에서는 그림의 모양을 막대 글자색 한 가지로 칠하고(mask), 투명한 부분이 없는 그림은 manifest의 아이콘 이름(없으면 기본 아이콘)으로 보인다. 형식·크기·Host 전달은 [신분증 계약](plugin-stage1-v1.md#신분증), 화면 부품은 [화면 계약](plugin-screens-v1.md#화면-부품)이 소유한다.
