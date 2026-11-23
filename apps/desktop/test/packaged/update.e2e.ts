@@ -41,9 +41,10 @@ const BETA = LIVE || PUBLISHED_BASE || process.env.LITZIO_TEST_UPDATE_CHANNEL ==
 const sharedData = path.join(os.homedir(), brand.folders.shared);
 process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
 process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
-// LIVE uses two public Beta releases; both must be published before this opt-in harness can run.
-const [OLD, NEW] = LIVE ? ["0.0.3-beta.5", "0.0.3-beta.6"]
-  : PUBLISHED_BASE ? ["0.0.2", "0.0.3-beta.6"]
+// LIVE updates the latest public Beta to the Stable candidate on the Beta channel; both releases
+// must be published before this opt-in harness can run. PUBLISHED_BASE expects a Beta candidate
+// (Beta daemon namespace and beta.yml), so a Stable candidate uses the same-source Beta fixture.
+const [OLD, NEW] = LIVE ? ["0.0.3-beta.6", "0.0.3"]
   : BETA ? ["0.1.0-beta.1", "0.1.0-beta.2"] : ["0.0.1", "0.0.2"];
 // The public beta.3 predates native documents (#232) and edits leading frontmatter as a body block.
 const NATIVE_PREFIX = LIVE && OLD === "0.0.1-beta.3" ? "" : "---\nlitzio: 1\n---\n\n";
@@ -327,7 +328,7 @@ test("installs per user, then updates from Settings only after the open document
     // which replaces Check for updates with Download update; manual checking is exercised
     // after relaunch below. All offer/no-download/consent assertions remain the same.
     await page.getByRole("button", { name: "Download update" }).waitFor({ timeout: 30_000 });
-    assert.match(await page.getByTestId("update-status").innerText(), new RegExp(`${brand.name.en.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} ${NEW.replaceAll(".", "\\.")} \\(${BETA ? "Beta" : "Stable"}\\) is available`));
+    assert.match(await page.getByTestId("update-status").innerText(), new RegExp(`${brand.name.en.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} ${NEW.replaceAll(".", "\\.")} \\(${NEW.includes("-beta.") ? "Beta" : "Stable"}\\) is available`));
     if (!LIVE) {
       assert.ok(requests.some((url) => url.endsWith(`/${CHANNEL_FILE}`)), "the installed channel fetched its update metadata");
       assert.equal(requests.some((url) => url.endsWith(".exe")), false, "finding the update downloaded nothing");
