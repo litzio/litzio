@@ -20,6 +20,8 @@ const groups: { label: MessageKey; entries: Entry[] }[] = [
     { label: "Heading level / list indent", shortcuts: [keys.tab, keys.shiftTab] },
     { label: "Bullet list", shortcuts: [keys.bulletList] },
     { label: "Numbered list", shortcuts: [keys.orderedList] },
+    { label: "Checklist", shortcuts: [keys.checklist] },
+    { label: "Check or uncheck checklist item", shortcuts: [keys.checkItem] },
     { label: "Code block", shortcuts: [keys.codeBlock] },
     { label: "Go to document end", shortcuts: [keys.documentEnd] },
   ] },

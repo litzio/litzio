@@ -111,6 +111,10 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
       `<table class=MsoTableGrid border=1><tr><td width=200 valign=top><p class=MsoNormal><b>Name</b><o:p></o:p></p></td><td><p class=MsoNormal>Size</p></td></tr><tr><td><p class=MsoNormal>A</p></td><td><p class=MsoNormal>1</p></td></tr></table><!--EndFragment--></body></html>`,
       '# Word heading\n\n*   First\n\n    *   Second\n\n:::{table}\n\n| **Name** | Size |\n| -------- | ---- |\n| A        | 1    |\n:::\n\nOmega.\n',
       'Pasted with normalization: unsupported visual styles were removed; table headers now use the first row only.'],
+    // A rendered GFM checklist (GitHub's markup) keeps each item's check state.
+    checklist: ['<ul class="contains-task-list"><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> Todo</li>' +
+      '<li class="task-list-item"><p><input type="checkbox" class="task-list-item-checkbox" checked disabled> Done</p></li></ul>',
+      '*   [ ] Todo\n*   [x] Done\n\nOmega.\n', ''],
     // A fragment link stays an ordinary link, never a cross-reference. Sub/superscript tags
     // and Word's vertical-align spans are kept.
     styled: ['<p><span style="font-family:Georgia;color:rgb(200,0,0)">Styled</span> x<sup>2</sup> H<span style="vertical-align:sub">2</span>O <a href="javascript:alert(1)">unsafe</a> <a href="#local">local</a></p>',
@@ -143,7 +147,8 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     'merged table cells are not supported': '<table><tr><th colspan="2">Merged</th></tr><tr><td>a</td><td>b</td></tr></table>',
     'nested tables are not supported': '<table><tr><th><table><tr><td>x</td></tr></table></th></tr></table>',
     'embedded media and objects are not supported': '<p>Clip</p><iframe src="about:blank"></iframe>',
-    'form controls and task lists are not supported': '<ul><li><input type="checkbox" checked> Done</li></ul>',
+    'form controls are not supported': '<p>Name <input type="text"></p>',
+    'checkboxes are supported only on every item of a bullet list': '<ul><li><input type="checkbox" checked> Done</li><li>Plain</li></ul>',
     'a list item holds one paragraph, optionally followed by one nested list': '<ul><li><p>One</p><p>Two</p></li></ul>',
     'a heading holds one line of inline content': '<h2>Line<br>break</h2>',
     'ruby annotations cannot become plain text': '<p><ruby>漢<rt>kan</rt></ruby></p>',
@@ -327,12 +332,12 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   assert((await state()).doc === beforeNotes.doc, 'Two Undo steps restore two endnote pastes');
   result.markdownEndnotes = true;
 
-  // All or nothing: text Core does not read as a whole (a task list line, link reference
+  // All or nothing: text Core does not read as a whole (a checkbox on a numbered item, link reference
   // definitions, comments, block breaks, a leading thematic break before a definition), or whose
   // conversion names a cross-reference target (a section or Table label), pastes exactly as Ctrl+Shift+V
   // does, without a notice; never as nothing.
   await notice.waitFor({state:'detached', timeout:10000});
-  for (const text of ['**지원** 문단\n\n- [ ] 할 일', '**a** [x][r]\n\n[r]: https://example.com/r', '**a**\n\n% 주석\n\nb', '**a**\n\n+++\n\nb',
+  for (const text of ['**지원** 문단\n\n1. [ ] 할 일', '**a** [x][r]\n\n[r]: https://example.com/r', '**a**\n\n% 주석\n\nb', '**a**\n\n+++\n\nb',
     '---\n> [r]: https://example.com/r\n---\n\n**b**', '(clause)=\n# Power quality\n\nSee {ref}`clause`.',
     ':::{table}\n:name: tab-data\n\n| B |\n| - |\n| y |\n:::']) {
     const both = await pasteBoth(text);

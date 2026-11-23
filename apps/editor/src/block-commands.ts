@@ -70,7 +70,7 @@ export const INSERT_COMMANDS: InsertCommand[] = [
     get group() { return i18n.t("Lists"); },
     hint: "-",
     keywords: ["list", "bullet", "ul"],
-    run: (state, index, slash) => insertListAfter(state, index, false, slash),
+    run: (state, index, slash) => insertListAfter(state, index, "bullet", slash),
   },
   {
     id: "numbered-list",
@@ -78,7 +78,15 @@ export const INSERT_COMMANDS: InsertCommand[] = [
     get group() { return i18n.t("Lists"); },
     hint: "1.",
     keywords: ["list", "numbered", "ordered", "ol"],
-    run: (state, index, slash) => insertListAfter(state, index, true, slash),
+    run: (state, index, slash) => insertListAfter(state, index, "ordered", slash),
+  },
+  {
+    id: "checklist",
+    get label() { return i18n.t("Checklist"); },
+    get group() { return i18n.t("Lists"); },
+    hint: "[ ]",
+    keywords: ["checklist", "todo", "task", "checkbox"],
+    run: (state, index, slash) => insertListAfter(state, index, "checklist", slash),
   },
   ...AUTHORABLE_ADMONITION_KINDS.map((variant): InsertCommand => ({
     id: variant,
@@ -332,7 +340,7 @@ export function filterInsertCommands(query: string): InsertCommand[] {
 
 /** Search aliases remain available in both display languages. */
 export const KOREAN_SEARCH: Record<string, string[]> = {
-  paragraph: ["문단", "텍스트"], "bulleted-list": ["목록", "글머리"], "numbered-list": ["번호", "목록"],
+  paragraph: ["문단", "텍스트"], "bulleted-list": ["목록", "글머리"], "numbered-list": ["번호", "목록"], checklist: ["체크", "할 일", "목록"],
   ...Object.fromEntries(Array.from({ length: 6 }, (_, i) => [`heading-${i + 1}`, ["제목", `제목 ${i + 1}`]])),
   quote: ["인용", "인용문"], divider: ["구분선"],
   "code-block": ["코드"], equation: ["수식"], figure: ["그림", "이미지"], table: ["표"],
@@ -458,18 +466,18 @@ function insertHeadingAfter(
   return tr.setSelection(TextSelection.create(tr.doc, at + 1)).setMeta(BLOCK_COMMAND_META, true).scrollIntoView();
 }
 
-/** Insert a list with one empty item after the target, reusing a transient empty paragraph; the caret goes into the item. */
-export function insertListAfter(state: EditorState, index: number, ordered: boolean, slash?: SlashRange): Transaction {
+/** Insert a list with one empty (unchecked) item after the target, reusing a transient empty paragraph; the caret goes into the item. */
+export function insertListAfter(state: EditorState, index: number, kind: "bullet" | "ordered" | "checklist", slash?: SlashRange): Transaction {
   if (!Number.isInteger(index) || index < 0 || index >= state.doc.childCount) throw new Error("invalid block index");
   const tr = closeHistory(state.tr);
   if (slash) tr.delete(slash.from, slash.to);
   const pos = blockPos(state, index);
   const target = tr.doc.child(index);
   const reuse = target.type.name === "paragraph" && target.content.size === 0 && isNewBlockPath(String(target.attrs.sourcePath ?? ""));
-  const { bulletList, orderedList, listItem, paragraph } = state.schema.nodes;
-  const list = (ordered ? orderedList : bulletList).create(
+  const { bulletList, orderedList, listItem, taskList, taskItem, paragraph } = state.schema.nodes;
+  const list = (kind === "ordered" ? orderedList : kind === "checklist" ? taskList : bulletList).create(
     { sourcePath: reuse ? target.attrs.sourcePath : allocateBlockPath("command") },
-    listItem.create(null, paragraph.create()),
+    (kind === "checklist" ? taskItem : listItem).create(null, paragraph.create()),
   );
   const at = reuse ? pos : pos + target.nodeSize;
   if (reuse) tr.replaceWith(pos, pos + target.nodeSize, list);

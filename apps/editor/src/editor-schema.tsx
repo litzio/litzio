@@ -4,7 +4,7 @@ import type { UiMessage } from "./ui-message.ts";
 import { i18n } from "./i18n.ts";
 import { allocateBlockPath } from "./block-locators.ts";
 import { Extension, Node, type Attribute, type Extensions, type NodeViewRenderer } from "@tiptap/core";
-import { BulletList, ListItem, ListKeymap, OrderedList } from "@tiptap/extension-list";
+import { BulletList, ListItem, ListKeymap, OrderedList, TaskItem, TaskList } from "@tiptap/extension-list";
 import { Code } from "@tiptap/extension-code";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Subscript } from "@tiptap/extension-subscript";
@@ -149,7 +149,10 @@ const SourcedParagraph = Node.create({
 // optionally followed by one nested list. Enter, Tab/Shift-Tab and Backspace edit items.
 // Backspace at the start of a paragraph after a list joins it into the last item (ParagraphMerge).
 // List input shortcuts (`- `, `1. `) are MarkdownInputRules, not Tiptap's list rules.
+// A checklist is Tiptap's task list: its items keep their check state as the `checked` attribute.
 const listHTML = { class: "list", "data-block": "list" };
+const NESTED_LISTS = "(bulletList | orderedList | taskList)?";
+export const LIST_TYPES = ["bulletList", "orderedList", "taskList"];
 
 const SourcedBulletList = BulletList.extend({
   addAttributes() {
@@ -185,7 +188,59 @@ const SourcedOrderedList = OrderedList.extend({
 }).configure({ HTMLAttributes: listHTML });
 
 const SimpleListItem = ListItem.extend({
-  content: "paragraph (bulletList | orderedList)?",
+  content: `paragraph ${NESTED_LISTS}`,
+});
+
+const SourcedTaskList = TaskList.extend({
+  addAttributes() {
+    return blockAttrs({});
+  },
+}).configure({ HTMLAttributes: listHTML });
+
+// Tiptap's checkbox node view: a click changes `checked` only while the editor is editable.
+const SimpleTaskItem = TaskItem.extend({
+  content: `paragraph ${NESTED_LISTS}`,
+  addInputRules() {
+    return [];
+  },
+  addNodeView() {
+    const render = this.parent!()!;
+    return props => {
+      const view = render(props);
+      // A check is its own Undo step, also right after typing: close history before and after it.
+      const close = () => { if (props.editor.isEditable) props.editor.view.dispatch(closeHistory(props.editor.state.tr)); };
+      view.dom.addEventListener("change", close, true);
+      view.dom.addEventListener("change", close);
+      return view;
+    };
+  },
+}).configure({
+  nested: true,
+  a11y: { checkboxLabel: node => node.textContent || i18n.t("Empty checklist item") },
+});
+
+/** Mod-Enter checks or unchecks the checklist item holding the caret (its own text, not a nested list's). */
+const ChecklistToggle = Extension.create({
+  name: "checklistToggle",
+  // Ahead of ParagraphHardBreak, which keeps Mod-Enter everywhere else.
+  priority: 120,
+  addKeyboardShortcuts() {
+    return {
+      "Mod-Enter": () => {
+        const { $from } = this.editor.state.selection;
+        for (let depth = $from.depth; depth > 0; depth--) {
+          const node = $from.node(depth);
+          if (node.type.name === "listItem") return false;
+          if (node.type.name !== "taskItem") continue;
+          if (!this.editor.isEditable) return true;
+          const tr = closeHistory(this.editor.state.tr).setNodeMarkup($from.before(depth), undefined, { ...node.attrs, checked: !node.attrs.checked });
+          this.editor.view.dispatch(closeHistory(tr));
+          return true;
+        }
+        return false;
+      },
+    };
+  },
 });
 
 // Decorations are view-only: guidance cannot enter copied or saved document content.
@@ -199,7 +254,7 @@ const EmptyElementGuidance = Extension.create({
           state.doc.descendants((node, pos, parent) => {
             if (node.content.size !== 0) return;
             const prompt = node.type.name === "quote" ? i18n.t("Enter a quote")
-              : node.type.name === "paragraph" && parent?.type.name === "listItem" ? i18n.t("Enter a list item") : undefined;
+              : node.type.name === "paragraph" && (parent?.type.name === "listItem" || parent?.type.name === "taskItem") ? i18n.t("Enter a list item") : undefined;
             if (prompt) decorations.push(Decoration.node(pos, pos + node.nodeSize, { "data-empty-prompt": prompt }));
           });
           return DecorationSet.create(state.doc, decorations);
@@ -623,7 +678,7 @@ const ParagraphMerge = Extension.create({
         if (selection.$from.depth !== 1 || selection.$from.parent.type.name !== "paragraph") return false;
         const pos = selection.$from.before();
         const previous = state.doc.resolve(pos).nodeBefore;
-        if (previous && ["bulletList", "orderedList"].includes(previous.type.name)) {
+        if (previous && LIST_TYPES.includes(previous.type.name)) {
           // List v1 items hold one paragraph, so the paragraph's text continues the visually
           // last item instead of becoming a new item (#1821). One replacement removes only the
           // boundary between the two text blocks, so the inline content and its atoms move as
@@ -706,6 +761,9 @@ export function editorExtensions(
     SourcedBulletList,
     SourcedOrderedList,
     SimpleListItem,
+    SourcedTaskList,
+    SimpleTaskItem,
+    ChecklistToggle,
     ListKeymap,
     Admonition,
     Quote,

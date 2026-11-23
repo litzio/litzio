@@ -1,6 +1,6 @@
 // Run with pnpm browser:test list-authoring.
 // Edits list items with the keyboard (Enter, Tab, Enter on an empty item), inserts a numbered
-// list from the slash menu, joins the line after a list into its last item with Backspace
+// list and a checklist from the slash menu, checks items by click and Ctrl+Enter, joins the line after a list into its last item with Backspace
 // (#1821), also right after Home on a paragraph with inline atoms, saves the scratch Markdown
 // files, and reloads them.
 async (page, { openDocument, withBlockHover }) => {
@@ -180,6 +180,70 @@ async (page, { openDocument, withBlockHover }) => {
   const reopened = await shape();
   const reloadedNested = await reloaded.locator('ul[data-block="list"] ul[data-block="list"] > li').innerText() === 'Check';
 
+  // Checklist (#1893), typed at a person's speed: the slash menu inserts one, Enter adds an
+  // unchecked item, Hangul composed in an item stays its text, Tab nests, Enter on empty items
+  // leaves the list. A click and Ctrl+Enter check items, each its own Undo step. Save and
+  // reopen keep every state; a read-only editor does not change a check.
+  const engine = page.locator('[data-document-tab][data-active=true] .document-editor');
+  const checks = async () => engine.evaluate(element => {
+    const found = [];
+    element.editor.state.doc.descendants(node => { if (node.type.name === 'taskItem') found.push(`${node.firstChild.textContent}=${node.attrs.checked}`); });
+    return found.join(' ');
+  });
+  // An item's own checkbox, found from its own paragraph (an outer item also contains nested text).
+  const box = name => reloaded.locator('ul[data-type="taskList"] > li > div > p', {hasText:name}).first().locator('xpath=../../label/input');
+  await caretAtEnd('Done.');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('/checklist', {delay:80});
+  await page.getByRole('menu', {name:'Insert block'}).getByRole('menuitem', {name:'Checklist', exact:true}).waitFor({state:'visible'});
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Cable', {delay:80});
+  await page.keyboard.press('Enter');
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    for (const text of ['ㅈ', '저', '점', '점ㄱ', '점거', '점검']) await cdp.send('Input.imeSetComposition', {text, selectionStart:text.length, selectionEnd:text.length});
+    await cdp.send('Input.insertText', {text:'점검'});
+  } finally { await cdp.detach(); }
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Sub', {delay:80});
+  await page.keyboard.press('Tab');
+  const typedChecklist = await checks();
+  const checklistNested = (await shape()).doc.endsWith('taskList[taskItem["Cable"],taskItem["점검",taskList[taskItem["Sub"]]]]');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Enter');
+  await page.keyboard.type('After checklist', {delay:80});
+  const leftChecklist = await reloaded.locator(':scope .document-editor > p', {hasText:'After checklist'}).count() === 1;
+  await box('Cable').click();
+  const clicked = await checks();
+  await page.keyboard.press('Control+z');
+  const clickUndone = await checks();
+  await page.keyboard.press('Control+Shift+z');
+  const clickRedone = await checks();
+  await caretAtEnd('점검');
+  await page.keyboard.press('Control+Enter');
+  const keyChecked = await checks();
+  const keyboardChecked = await box('점검').isChecked();
+  await page.getByRole('button', {name:'Save', exact:true}).click();
+  await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor({state:'attached'});
+  const checklistSaved = await markdown();
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.getAttribute('data-operation') === 'ready');
+  await openScratch();
+  await reloaded.locator('ul[data-type="taskList"]').first().waitFor({state:'visible'});
+  const checklistReopened = await checks();
+  await engine.evaluate(element => element.editor.setEditable(false));
+  await box('Sub').click({force:true});
+  const readOnlyKept = await checks() === checklistReopened && !await box('Sub').isChecked();
+  await engine.evaluate(element => element.editor.setEditable(true));
+  // The list shortcuts switch kinds like bullets and numbers: Ctrl+Shift+9 makes the bullet list a
+  // checklist (nested list included), Ctrl+Shift+8 makes the checklist bullets again.
+  await caretAtEnd('Wire');
+  await page.keyboard.press('Control+Shift+9');
+  await caretAtEnd('Cable');
+  await page.keyboard.press('Control+Shift+8');
+  await page.getByRole('button', {name:'Save', exact:true}).click();
+  await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor({state:'attached'});
+  const kindsSwitched = await markdown();
+
   // A click in a paragraph holding inline atoms, then Home and Backspace with no pause: the
   // Backspace can arrive before Home's selectionchange. The join still uses the moved caret
   // and keeps every inline node and the endnote definition through Save and reopen (#1821).
@@ -216,12 +280,20 @@ async (page, { openDocument, withBlockHover }) => {
     savedAsCanonicalMarkdown: saved === expected,
     reopenedSameLists: reopened.doc === redone.doc,
     reloadedNested,
+    checklistTyped: typedChecklist === 'Cable=false 점검=false Sub=false' && checklistNested && leftChecklist,
+    checklistClickUndoRedo: clicked === 'Cable=true 점검=false Sub=false' && clickUndone === typedChecklist && clickRedone === clicked,
+    checklistKeyboard: keyChecked === 'Cable=true 점검=true Sub=false' && keyboardChecked,
+    checklistSaved: checklistSaved === `${expected.replace('Done.\n', 'Done.\n\n*   [x] Cable\n*   [x] 점검\n    *   [ ] Sub\n\nAfter checklist\n')}`,
+    checklistReopened: checklistReopened === keyChecked,
+    readOnlyKept,
+    kindsSwitched: kindsSwitched === checklistSaved.replace('*   Wire\n\n    *   Check\n*   Power', '*   [ ] Wire\n    *   [ ] Check\n*   [ ] Power')
+      .replace('*   [x] Cable\n*   [x] 점검\n    *   [ ] Sub', '*   Cable\n*   점검\n\n    *   Sub'),
     inlineAtomsKept: inlineAtoms === 'inlineMath,footnoteReference,citation,crossReference' &&
       inlineJoined.caret.startsWith('"DeepBold and italic') && inlineJoined.caret.endsWith('@4'),
     inlineSavedCanonical: inlineSaved === inlineExpected,
     inlineReopenedSame: inlineReopened.doc === inlineJoined.doc,
   };
   const failed = Object.entries(result).filter(([, value]) => value !== true);
-  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, emptyLine, backspacedEmptyLine, writtenLine, joined, typedAfterJoin, undoneTyping, undone, redone, reopened, inlineJoined, inlineAtoms, inlineSaved, inlineReopened})}`);
+  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, typedChecklist, clicked, clickUndone, clickRedone, keyChecked, checklistSaved, checklistReopened, kindsSwitched, emptyLine, backspacedEmptyLine, writtenLine, joined, typedAfterJoin, undoneTyping, undone, redone, reopened, inlineJoined, inlineAtoms, inlineSaved, inlineReopened})}`);
   return result;
 }

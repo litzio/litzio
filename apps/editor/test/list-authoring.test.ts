@@ -108,7 +108,7 @@ test("new lists and empty items save from insertion", () => {
   const markdown = nativeSource("Intro.\n");
   try {
     const { editable, state } = editorState(markdown);
-    const inserted = state.apply(insertListAfter(state, 0, true));
+    const inserted = state.apply(insertListAfter(state, 0, "ordered"));
     assert.deepEqual(inserted.doc.content.content.map((node) => node.type.name), ["paragraph", "orderedList"]);
     assert.notDeepEqual(appliedDocument(editorDocumentJSON(inserted)), appliedDocument(editorDocumentJSON(state)));
     assert.deepEqual(collectSupportedEdits(editable, editorDocumentJSON(inserted)).inserts, [
@@ -124,6 +124,37 @@ test("new lists and empty items save from insertion", () => {
 
     const withEmptyItem = run(written, splitListItem(written.schema.nodes.listItem));
     assert.equal(saveFile(dir, markdown, withEmptyItem, editable), nativeSource("Intro.\n\n1.  First\n2.\n"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a checklist opens with its check states, saves a changed check and new unchecked item, and reopens", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-editor-checklist-"));
+  const markdown = nativeSource("Intro.\n\n*   [ ] Wire\n    *   [x] Input\n*   [x] Power\n");
+  try {
+    let { editable, state } = editorState(markdown);
+    const list = state.doc.child(1);
+    assert.equal(list.type.name, "taskList");
+    assert.deepEqual([list.child(0).attrs.checked, list.child(0).lastChild!.firstChild!.attrs.checked, list.child(1).attrs.checked], [false, true, true]);
+    // Check "Wire" as its checkbox does, then Enter after "Power" adds an unchecked item.
+    state = state.apply(state.tr.setNodeMarkup(state.doc.child(0).nodeSize + 1, undefined, { checked: true }));
+    // Tiptap's Enter splits without keeping the check (the browser scenario presses the key).
+    state = run(caretAfter(state, "Power"), splitListItem(state.schema.nodes.taskItem, { checked: false }));
+    state = state.apply(state.tr.insertText("Close"));
+    const edits = collectSupportedEdits(editable, editorDocumentJSON(state)).lists;
+    assert.deepEqual(edits, [{ path: [2], list: { ordered: false, checklist: true, items: [
+      { content: text("Wire"), checked: true, list: { ordered: false, checklist: true, items: [{ content: text("Input"), checked: true }] } },
+      { content: text("Power"), checked: true },
+      { content: text("Close"), checked: false },
+    ] } }]);
+    const disk = saveFile(dir, markdown, state, editable);
+    assert.equal(disk, nativeSource("Intro.\n\n*   [x] Wire\n    *   [x] Input\n*   [x] Power\n*   [ ] Close\n"));
+    assert.deepEqual(loadEditableDocument(disk).blocks[1], { block: "list", path: [2], ...edits![0].list });
+
+    const inserted = editorState(nativeSource("Intro.\n")).state;
+    const checklist = inserted.apply(insertListAfter(inserted, 0, "checklist"));
+    assert.equal(saveFile(dir, nativeSource("Intro.\n"), checklist, loadEditableDocument(nativeSource("Intro.\n"))), nativeSource("Intro.\n\n*   [ ]\n"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

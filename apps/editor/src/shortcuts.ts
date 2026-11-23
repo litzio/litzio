@@ -69,6 +69,8 @@ export const EDITOR_SHORTCUTS = {
   shiftTab: editorShortcut("Shift-Tab"),
   bulletList: editorShortcut("Mod-Shift-8"),
   orderedList: editorShortcut("Mod-Shift-7"),
+  checklist: editorShortcut("Mod-Shift-9"),
+  checkItem: editorShortcut("Mod-Enter"),
   codeBlock: editorShortcut("Mod-Alt-c"),
   documentEnd: editorShortcut("Mod-End"),
 };
