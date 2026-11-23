@@ -39,7 +39,7 @@
 .screen-step-number { display: inline-grid; place-items: center; flex-shrink: 0; width: var(--size-control-compact); height: var(--size-control-compact); border: var(--border-width) solid var(--id-color-border); border-radius: 50%; }
 .screen-steps [data-state="past"] .screen-step-number { background: var(--id-color-surface-selected); color: var(--id-color-accent); }
 .screen-steps [aria-current="step"] .screen-step-number { background: var(--id-color-accent); color: var(--id-color-text-on-accent); border-color: var(--id-color-accent); }
-.screen-empty { display: grid; justify-items: center; gap: var(--space-4); padding: var(--space-8) var(--space-6); text-align: center; border: var(--border-width) dashed var(--id-color-border); border-radius: var(--id-radius-md); background: var(--id-color-surface-subtle); }
+.screen-empty { display: grid; justify-items: center; gap: var(--space-4); padding: var(--space-8) var(--space-6); text-align: center; }
 .screen-progress { display: grid; gap: var(--space-2); min-width: 0; }
 
 .task-surface .screen-layout :where(h2, h3, h4):not(:where(.task-surface-title, .screen-document-view *, .shared-section > h2, .settings-heading)) { margin: var(--space-4) 0 var(--space-2); }

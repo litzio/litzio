@@ -74,7 +74,7 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 - `ui.Status({tone,label,variant?,hideIndicator?})`: tone은 ok/progress/warning/error/neutral. 표시와 사람의 말로 된 글자의 알약이다. 원래 상태 식별자는 label로 넘기지 않는다. variant는 기본 pill이며 plain은 바탕과 안쪽 여백 없이 같은 점·색·고리를 쓴다. HostStatus도 이 부품의 plain을 쓴다. progress는 작게 도는 열린 고리이며 움직임 줄이기 설정에서는 정지한다. 다른 tone은 채운 점을 쓴다. hideIndicator는 기본 false이며 반복되는 완료 줄은 neutral/plain과 true를 함께 써 점 없이 보조 글씨로 표시한다. ok는 정상 의미 색(`--id-color-success`), neutral은 보조 글씨 색, progress는 포인트, warning/error는 기존 의미 색으로 표시와 글씨를 그린다. 바탕은 조용한 표면(`--id-color-surface-subtle`)을 유지한다. 본문에서도 쓸 수 있다.
 - `ui.Steps({steps,current})`: 문자열 목록과 0부터 시작하는 현재 단계. 지난·현재·남은 단계를 구별하고 목록의 현재 항목은 aria-current="step"이다. 기본 위치는 머리 아래 내용 맨 위이며 클릭 이동은 없다.
-- `ui.EmptyState({title,description?,action?})`: 보조 표면·점선 테두리·가운데 정렬로 다음에 할 한 가지를 안내한다.
+- `ui.EmptyState({title,description?,action?})`: 화면 바탕 위에 제목, 필요한 설명과 다음 행동 하나를 테두리 없이 가운데 정렬한다. [공용 빈 화면 안내](ui-patterns-v1.md#p06-빈-상태와-작성-시작)를 따른다.
 - `ui.Progress({value?,label?})`: 기존 native progress와 포인트 색을 사용한다. value는 0..1, 생략하면 진행 정도를 모르는 상태다. progressbar 역할과 값·접근성 이름을 제공한다. 오래 걸리는 작업은 진행과 상태 문구를 함께 표시한다.
 
 직접 스타일과 자유로운 구성은 계속 허용하며 화면 종류·상단 탭·구성 검사나 경고는 제공하지 않는다.
@@ -213,7 +213,7 @@ Windows persistent Chrome에서 한국어 앱으로 공용 부품·합성 플러
 
 | 화면 | 1440 밝음 전 / 후 | 1440 어두움 전 / 후 | 640 밝음 전 / 후 |
 | --- | --- | --- | --- |
-| 화면 흐름 | [전](assets/plugin-parts-rest-1687/before-Screen-parts-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-Screen-parts-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-Screen-parts-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-Screen-parts-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-Screen-parts-640-light.png) / [후](assets/plugin-parts-rest-1687/after-Screen-parts-640-light.png) |
+| 화면 흐름 | [전](assets/empty-state-1898/before-gallery-1440-light.png) / [후](assets/empty-state-1898/after-gallery-1440-light.png) | [전](assets/empty-state-1898/before-gallery-1440-dark.png) / [후](assets/empty-state-1898/after-gallery-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-Screen-parts-640-light.png) / [후](assets/empty-state-1898/after-gallery-640-light.png) |
 | 그래프 | [전](assets/plugin-parts-rest-1687/before-chart-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-chart-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-chart-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-chart-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-chart-640-light.png) / [후](assets/plugin-parts-rest-1687/after-chart-640-light.png) |
 | 표 | [전](assets/plugin-parts-rest-1687/before-table-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-table-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-table-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-table-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-table-640-light.png) / [후](assets/plugin-parts-rest-1687/after-table-640-light.png) |
 | 파일 선택 | [전](assets/plugin-parts-rest-1687/before-picker-1440-light.png) / [후](assets/plugin-parts-rest-1687/after-picker-1440-light.png) | [전](assets/plugin-parts-rest-1687/before-picker-1440-dark.png) / [후](assets/plugin-parts-rest-1687/after-picker-1440-dark.png) | [전](assets/plugin-parts-rest-1687/before-picker-640-light.png) / [후](assets/plugin-parts-rest-1687/after-picker-640-light.png) |

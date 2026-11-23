@@ -86,6 +86,7 @@ placeholder는 예시·빈 값 표시이며 label·필수 조건을 대신하지
 ## P06 빈 상태와 작성 시작
 
 - **목적·사용/비사용:** 무엇이 비었는지와 다음 행동을 보여 준다. UI 안내를 실제 문서 콘텐츠로 저장하거나 빈 작성 자리를 모두 숨기지 않는다.
+- **공용 빈 화면 안내:** 비서 패널과 플러그인 화면의 `EmptyState`는 제목과 필요한 설명, 다음 행동 버튼을 가운데에 배치한다. 주변 화면의 바탕을 그대로 사용한다. [1440px 플러그인 좁은 본문](assets/empty-state-1898/after-plugin-narrow-1440-light.png) · [전체 폭 본문](assets/empty-state-1898/after-plugin-full-1440-light.png) · [640px 좁은 본문](assets/empty-state-1898/after-plugin-narrow-640-light.png).
 - **현재 기준:** [DocumentTitle](../../apps/editor/src/document-title.tsx)은 기존 title slot 높이를 유지하며 작은 UI 서체의 `제목 추가(선택)` / `Add a title (optional)`을 보이고, 입력 즉시 제목 서체로 전환한다. [pending Figure][figure-view]는 `이미지 선택` / `Mermaid 작성` 버튼으로 기존 picker·원문 편집을 연다. 선택 진입·취소만으로 문서 내용을 확정하지 않는다. [빈 caption hint](editor-visual-language-v1.md#state-rules), 빈 본문의 작성 안내와 빈 목록의 항목 안내는 기존 규칙을 유지한다. 검색·자원 목록의 빈 결과와는 구별한다.
 - **사용처:** U01/U03–U06 빈 그림·원문·표·미주, U12 제목·본문, U21 검색/탐색, U23/U25 파일·참고문헌 빈 상태.
 
@@ -220,7 +221,7 @@ fixture 공급자로 한국어의 1440px 밝음·어두움과 640px 밝음을 �
 
 | 화면 | 1440 밝음 전 / 후 | 1440 어두움 전 / 후 | 640 밝음 전 / 후 |
 | --- | --- | --- | --- |
-| 빈 비서 | [전](assets/panel-headers-assistant-1686/before-empty-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-empty-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-empty-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-empty-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-empty-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-empty-640-light-ko.png) |
+| 빈 비서 | [전](assets/empty-state-1898/before-assistant-1440-light.png) / [후](assets/empty-state-1898/after-assistant-1440-light.png) | [전](assets/panel-headers-assistant-1686/before-empty-1440-dark-ko.png) / [후](assets/empty-state-1898/after-assistant-1440-dark.png) | [전](assets/panel-headers-assistant-1686/before-empty-640-light-ko.png) / [후](assets/empty-state-1898/after-assistant-640-light.png) |
 | 문서 패널 | [전](assets/panel-headers-assistant-1686/before-document-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-document-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-document-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-document-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-document-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-document-640-light-ko.png) |
 | 도구 상태 | [전](assets/panel-headers-assistant-1686/before-work-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-work-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-work-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-work-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-work-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-work-640-light-ko.png) |
 | 질문·결과 | [전](assets/panel-headers-assistant-1686/before-cards-1440-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-cards-1440-light-ko.png) | [전](assets/panel-headers-assistant-1686/before-cards-1440-dark-ko.png) / [후](assets/panel-headers-assistant-1686/after-cards-1440-dark-ko.png) | [전](assets/panel-headers-assistant-1686/before-cards-640-light-ko.png) / [후](assets/panel-headers-assistant-1686/after-cards-640-light-ko.png) |
