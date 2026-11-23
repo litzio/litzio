@@ -275,6 +275,47 @@ async (page, { expect, screenshots, withBlockHover }) => {
     return {below:cell.top >= name.bottom - 1, start:Math.abs(cell.left - name.left) < 1, contained:row.scrollWidth <= row.clientWidth};
   })).toEqual({below:true,start:true,contained:true});
   await page.setViewportSize({width:1440,height:1000});
+  // The way back sits above the title, before the other header controls, and adds no space when absent.
+  const returnFrame = page.locator('.task-surface').filter({has:page.getByRole('heading',{name:'Return to list',exact:true})});
+  const back = returnFrame.locator('.task-header').getByRole('button',{name:'Back to 변환한 문서',exact:true});
+  const titleOffset = frame => frame.locator('.task-header').evaluate(h => {
+    const header = h.getBoundingClientRect(), title = h.querySelector('h1').getBoundingClientRect(), icon = h.querySelector('.screen-back svg')?.getBoundingClientRect();
+    return {top: title.top - header.top, iconStart: icon ? icon.left - title.left : null};
+  });
+  const plainOffset = await titleOffset(page.locator('.task-surface').filter({has:page.getByRole('heading',{name:'Screen frame',exact:true})}));
+  const backOffset = await titleOffset(returnFrame);
+  expect(backOffset.top).toBeGreaterThan(plainOffset.top);
+  expect(Math.abs(backOffset.iconStart)).toBeLessThan(1);
+  await back.focus();
+  await page.keyboard.press('Tab');
+  await expect(returnFrame.locator('.task-header').getByRole('button',{name:'PDF 고르기',exact:true})).toBeFocused();
+  await page.keyboard.press('Shift+Tab'); await expect(back).toBeFocused();
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText('Back to 변환한 문서');
+  await returnFrame.getByRole('button',{name:'Long list name',exact:true}).click();
+  // A long name truncates within the heading; at 1440 status and actions keep the title row.
+  for (const width of [1440, 640]) {
+    await page.setViewportSize({width,height:1000});
+    expect(await returnFrame.locator('.screen-back').evaluate(button => {
+      const label = button.querySelector('.screen-back-label'), heading = button.closest('.task-header-heading'), box = button.getBoundingClientRect();
+      const title = heading.querySelector('h1').getBoundingClientRect(), trailing = heading.nextElementSibling.getBoundingClientRect();
+      return {truncated: label.scrollWidth > label.clientWidth, inside: box.right <= heading.getBoundingClientRect().right + 1, aboveTitle: box.bottom <= title.top,
+        titleRow: innerWidth < 1000 || (trailing.top < title.bottom && trailing.left >= box.right)};
+    })).toEqual({truncated:true, inside:true, aboveTitle:true, titleRow:true});
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  await returnFrame.getByRole('button',{name:'Long list name',exact:true}).click();
+  await returnFrame.getByRole('button',{name:'Narrow width',exact:true}).click();
+  expect((await titleOffset(returnFrame))).toEqual(backOffset);
+  await returnFrame.getByRole('button',{name:'Narrow width',exact:true}).click();
+  await returnFrame.getByRole('button',{name:'Disable return',exact:true}).click();
+  await expect(back).toBeDisabled();
+  await returnFrame.getByRole('button',{name:'Disable return',exact:true}).click();
+  await back.click();
+  await expect(returnFrame.getByRole('button',{name:/^설비 점검 절차서/})).toBeVisible();
+  await expect(returnFrame.locator('.screen-back')).toHaveCount(0);
+  expect((await titleOffset(returnFrame)).top).toBe(plainOffset.top);
+  await returnFrame.getByRole('button',{name:/^설비 점검 절차서/}).click();
+  await expect(back).toBeVisible();
   const taskHeader = await page.locator('.task-header').first().evaluate(n => { const s = getComputedStyle(n); return { paddingTop: s.paddingTop, paddingBottom: s.paddingBottom, paddingLeft: s.paddingLeft, border: s.borderBottom }; });
   expect(taskHeader.paddingTop).toBe(taskHeader.paddingLeft);
   expect(taskHeader.paddingBottom).toBe(taskHeader.paddingTop);

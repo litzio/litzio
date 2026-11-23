@@ -13,7 +13,7 @@ export { mergeParagraphWithPrevious, splitParagraph, updateHeadingLevel, machine
   updateDocumentStatus, DOCUMENT_STATUSES, type DocumentStatus,
   updateList, updateCodeBlock, updateEquationLatex, updateFigure, inlineContentText, bodyEndIndex } from "@litzio/core";
 
-export const SDK_VERSION = "0.11.0";
+export const SDK_VERSION = "0.12.0";
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
 const operation = z.strictObject({ id, version: z.number().int().positive().default(1), effect: z.enum(["read","write"]).default("read"), scope: z.enum(["host","folder"]).default("host"), assistant: z.boolean().default(false), inputSchema: schema.default({}), outputSchema: schema.default({}) });
@@ -130,3 +130,4 @@ export type { ScreenConfirmInput, ScreenPickPathInput, ScreenPickedPath, ScreenO
 export type { ScreenChartProps, ScreenSelectProps, ScreenSliderProps, ScreenSummaryProps, ScreenDocumentViewProps, ScreenDocumentViewLayout, ScreenDocumentViewState } from "./screen-ui.ts";
 export type { ScreenLinkedDocumentItem, ScreenLinkedDocumentViewProps } from "./screen-ui.ts";
 export type { ScreenItemListItem, ScreenItemListGroup, ScreenItemListProps } from "./screen-ui.ts";
+export type { ScreenLayoutBack } from "./screen-ui.ts";

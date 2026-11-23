@@ -1,4 +1,4 @@
-import type { ScreenSelectProps, ScreenChartProps, ScreenSliderProps, ScreenSummaryProps } from "@litzio/plugin-sdk";
+import type { ScreenSelectProps, ScreenChartProps, ScreenSliderProps, ScreenSummaryProps, ScreenLayoutBack } from "@litzio/plugin-sdk";
 import { useContext, useId, useState, type ReactNode } from "react";
 import { Slider as BaseSlider } from "@base-ui/react/slider";
 import { Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine, ResponsiveContainer, Tooltip, Text, XAxis, YAxis } from "recharts";
@@ -6,15 +6,27 @@ import "./screen-parts.css";
 import { createPortal } from "react-dom";
 import { TaskHeaderSlots } from "./task-header.tsx";
 import { SelectControl, SettingsProgress } from "./settings.tsx";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "./button.tsx";
+import { Tooltip as HintTooltip, TooltipContent, TooltipTrigger } from "./tooltip.tsx";
+import { i18n } from "../../i18n.ts";
 export function Select({ label, hideLabel = false, ...props }: ScreenSelectProps) {
   const id = useId();
   return <label className="screen-select" htmlFor={id}><span className={hideLabel ? "sr-only" : "type-item-name"}>{label}</span><SelectControl id={id} {...props} /></label>;
 }
 
-export function ScreenLayout({ description, status, actions, width = "full", fillHeight = false, children }: { title?: string; description?: string; status?: ReactNode; actions?: ReactNode; width?: "full" | "narrow"; fillHeight?: boolean; children: ReactNode }) {
+/** Drawn by the frame at the header start; the plugin's onBack decides what returning shows. */
+function ScreenBack({ label, onBack, disabled = false }: ScreenLayoutBack) {
+  const name = i18n.t("Back to {{name}}", { name: label });
+  return <HintTooltip><TooltipTrigger render={<Button variant="ghost" size="sm" className="screen-back text-muted-foreground" aria-label={name} disabled={disabled} onClick={() => onBack()} />}>
+    <ArrowLeft aria-hidden="true" /><span className="screen-back-label">{label}</span>
+  </TooltipTrigger><TooltipContent side="bottom" align="start">{name}</TooltipContent></HintTooltip>;
+}
+export function ScreenLayout({ description, status, actions, back, width = "full", fillHeight = false, children }: { title?: string; description?: string; status?: ReactNode; actions?: ReactNode; back?: ScreenLayoutBack; width?: "full" | "narrow"; fillHeight?: boolean; children: ReactNode }) {
   const slots = useContext(TaskHeaderSlots);
   const descriptionNode = description && <p className="screen-description">{description}</p>;
-  return <>{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}<section className="screen-layout" data-width={width} data-fill-height={fillHeight || undefined}>{!slots && <>{descriptionNode}{status}{actions}</>}{children}</section></>;
+  const backNode = back && <ScreenBack {...back} />;
+  return <>{slots?.back && backNode && createPortal(backNode, slots.back)}{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}<section className="screen-layout" data-width={width} data-fill-height={fillHeight || undefined}>{!slots && <>{backNode}{descriptionNode}{status}{actions}</>}{children}</section></>;
 }
 export { Status } from "./status.tsx";
 export function Steps({steps, current}: {steps: string[]; current: number}) {

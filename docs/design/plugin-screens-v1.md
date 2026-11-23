@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작 계약](plugin-stage1-v1.md).
-- Last verified: 2026-11-23 — ui.ItemList의 SDK props·제작 안내·문서 계약을 대조하고 UI gallery의 합성 목록(5·30·300개)에서 접근성 이름·세부 정보 열 정렬·화살표 이동·Enter 열기·접힘 focus·640px 배치를 Windows persistent Chrome으로 검증했다. 실제 플러그인 사용·실제 AI 제작·packaged Desktop 수락·소유자 시각 승인은 포함하지 않는다.
+- Last verified: 2026-11-23 — ScreenLayout `back`의 SDK 타입·제작 안내·문서 계약을 대조하고, UI gallery의 합성 화면에서 접근성 이름·Tab 순서·hover/focus 안내·긴 이름 줄임·비활성·narrow 배치·640px 배치와 back이 없는 머리의 변경 전후 픽셀 일치를, plugin-screen-code 시나리오에서 실제 플러그인 화면 머리를 Windows persistent Chrome으로 검증했다. 실제 플러그인의 back 사용·실제 AI 제작·packaged Desktop 수락·소유자 시각 승인은 포함하지 않는다.
 
 ## 연결 수명
 
@@ -68,7 +68,16 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 화면 틀과 템플릿 갤러리는 TaskHeader를 공유한다. 제목은 기존 task-surface-title 크기·굵기·시작선을 유지한다. 설명은 제목 아래, 상태와 동작은 오른쪽에 놓이며 640px에서는 아래 줄로 내려간다. 머리는 sticky이며 본문과 구분선으로 나뉜다. 설정의 목록+상세 구조는 별도다.
 
-`ui.ScreenLayout({description?,status?,actions?,width?,fillHeight?,children})`의 description은 머리에 표시한다. status에는 ui.Status, actions에는 ui.Button을 넣으며 채운 주 동작은 화면에 하나다. title은 받아도 그리지 않는다. width는 기본 full, narrow는 기존 settings-content-width 토큰으로 가운데 정렬한 읽기 폭이다. 표·그래프 중심은 full, 한 가지씩 진행하는 화면은 narrow를 쓴다.
+`ui.ScreenLayout({description?,status?,actions?,back?,width?,fillHeight?,children})`의 description은 머리에 표시한다. status에는 ui.Status, actions에는 ui.Button을 넣으며 채운 주 동작은 화면에 하나다. title은 받아도 그리지 않는다. width는 기본 full, narrow는 기존 settings-content-width 토큰으로 가운데 정렬한 읽기 폭이다. 표·그래프 중심은 full, 한 가지씩 진행하는 화면은 narrow를 쓴다.
+
+목록에서 항목 하나를 열어 보이는 화면은 `back?: {label:string, onBack():void, disabled?:boolean}`으로 목록에 돌아가는 길을 알린다. 틀은 머리 왼쪽, 제목 위의 한 줄에 왼쪽 화살표(Lucide `ArrowLeft`)와 돌아갈 곳의 이름(`label`)으로 된 보조 글씨 색의 ghost sm Button을 그린다. 화살표는 제목의 시작선에 맞추며 제목과 description의 자리는 그대로다. 단추는 머리의 다른 조작보다 Tab 순서가 앞이고, 접근 가능한 이름과 hover·keyboard focus 안내는 “돌아가기: 이름”(영어 “Back to name”)이다. 긴 이름은 머리 제목 영역의 폭에서 한 줄로 줄이며 status·actions를 다른 줄로 밀지 않는다. `disabled`는 기존 비활성 단추 모양이며 이유를 받는 입력은 없다. 누르면 `onBack`만 부르며, 돌아가서 무엇을 보일지와 그 상태는 플러그인이 정한다. 틀은 화면 이동 상태·이력·전용 단축키를 갖지 않는다. 같은 일을 하는 단추를 actions에 따로 두지 않는다. back을 주지 않은 화면의 머리는 변하지 않는다. width·fillHeight·sticky 머리에서도 같은 자리다.
+
+| back 상태 | 1440 밝음 | 1440 어두움 | 640 밝음 |
+| --- | --- | --- | --- |
+| 여러 동작과 함께 | [보기](assets/screen-back-1897/back-1440-light.png) | [보기](assets/screen-back-1897/back-1440-dark.png) | [보기](assets/screen-back-1897/back-640-light.png) |
+| 비활성 · narrow | [비활성](assets/screen-back-1897/disabled-1440-light.png) · [narrow](assets/screen-back-1897/narrow-1440-light.png) | | |
+| 긴 이름 · keyboard focus | [긴 이름](assets/screen-back-1897/long-name-1440-light.png) · [긴 이름 focus](assets/screen-back-1897/long-name-focus-1440-light.png) · [focus](assets/screen-back-1897/focus-1440-light.png) | | |
+| back 없음(변경 전후 같음) | [전](assets/screen-back-1897/no-back-before-1440-light.png) · [후](assets/screen-back-1897/no-back-after-1440-light.png) | | |
 
 루트 ScreenLayout에서 `fillHeight={true}`를 지정하면 본문은 머리 아래의 높이가 정해진 flex 열(column)이 된다. 작업 칸은 `flex: 1; min-height: 0`으로 맞추고 각 칸에 스크롤을 둔다. 탭은 작업 영역의 최소 높이(12rem)도 확보할 수 없을 때만 콘텐츠에 접근하도록 스크롤된다. 기본값 false는 콘텐츠 높이에 따라 기존처럼 탭을 스크롤한다. [갤러리 채우기 예제](assets/screen-fill-height-1742/screen-fill-after-1440x1000-light.png)는 문서와 자료 칸을 같은 높이로 표시한다.
 
