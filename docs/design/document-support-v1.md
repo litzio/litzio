@@ -1,7 +1,7 @@
 # Native document support v1
 
 - Status: Implemented
-- Checklists: 2026-11-23 (#1893; Core admission/canonical/operation tests, CLI tests, Editor unit tests and the `list-authoring` and `external-html-paste` browser scenarios; [contract](#checklists-1893)).
+- Checklists: 2026-11-23 (#1893; Core admission/canonical/operation tests, CLI tests, Editor unit tests and the `list-authoring` and `external-checklist-paste` browser scenarios; [contract](#checklists-1893)).
 - Line-start syntax: 2026-11-20 (#1846; a refused paragraph line that MyST reads as `+++`, `%`, `:::` or `(label)=` is escaped in a later write attempt; master-saved bytes pinned by Core `writer-bytes` tests).
 - Paragraph tail normalization: 2026-11-04 (#1107; shared Core writes, CLI file workflow and Editor Save/Reload/assistant-send regressions).
 - Template update: 2026-11-04 (#936 owner-approved optional `template: { name, description }`; [template contract](document-templates-v1.md)).

@@ -1,7 +1,7 @@
 # Continuous document editing v1
 
 - Status: Implemented
-- Checklists: 2026-11-23 (#1893; `list-authoring` browser scenario: slash insert, Hangul composition, Enter/Tab/empty-item exit, click and Ctrl+Enter checks with Undo/Redo, real-clipboard cut and paste, read-only, Ctrl+Shift+9/8, Save → reopen; `external-html-paste` checklist, empty-item and refusal cases; Editor unit tests).
+- Checklists: 2026-11-23 (#1893; `list-authoring` browser scenario: slash insert, Hangul composition, Enter/Tab/empty-item exit, click and Ctrl+Enter checks with Undo/Redo, real-clipboard cut and paste with checkboxes in the copied HTML, read-only, Ctrl+Shift+9/8, Save → reopen; `external-checklist-paste` checklist, empty-item and refusal cases; Editor unit tests).
 - Last verified: 2026-11-16 — #1658: 표 속성·Figure inline caption을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Plain-text Markdown paste: 2026-11-20 (#1843; all-or-nothing Core reading tests and the `external-html-paste` browser scenario: structure, one Undo/Redo, Save → Reload, Ctrl+Shift+V, plain-text fallback, code, one-line places, endnotes, URLs, history and composition).
 - Pasted label conflicts: 2026-11-20 (#1847; Core `assertPastedLabelsAvailable` tests and the `external-html-paste` browser scenario: a Table copied in the same document, a Table label equal to a section or Equation label, an Equation taking a Table label and a label repeated within the paste are refused with the document and selection kept; plain text and external HTML still paste beside existing duplicate Table labels with one Undo; a Table after a paragraph moved between a section label and its heading pastes; a Table label equal to a heading's automatic ID pastes and Save refuses it; a Table or Equation followed by a heading with its ID, and a distinct Table label, paste and survive Save → Reload).
@@ -410,8 +410,10 @@ not implement a checkbox editor. Its items edit like other list items.
   makes a list a checklist and Ctrl/Cmd+Shift+8 / 7 make it bullets or numbers, nested
   lists included, like the existing list shortcuts; Save writes the result as one list.
 - Copy, cut and paste inside Litzio carry checklist items with their check states, whole or
-  partial, nested or mixed with other blocks. On the typed clipboard a checklist item is a
-  list item whose check state is a typed attribute; the drawn checkbox is not content.
+  partial, nested or mixed with other blocks. The copied HTML keeps each item's checkbox with
+  its state, so other HTML editors and mail show the checks; pasted back into Litzio, that one
+  checkbox at the start of a typed checklist item is read as its check state, not content.
+  Copied plain text has no check marks.
 - The 16px native checkbox stands in the bullet column on the item's first line and uses
   the accent token. Checked item text keeps its normal style. Captures at 1440px:
   [light](assets/checklist-1893/after-1440-light-ko.png),
