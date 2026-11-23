@@ -76,7 +76,8 @@ test("Copilot local Ollama source lists Ollama models and launches the selected 
   // Auto is GitHub's account routing and is not part of a local source.
   assert.deepEqual((await connection.models("copilot", "fresh")).models.map(model => model.model), ["local-a:4b", "local-b:latest"]);
   assert.equal((await connection.diagnostics("copilot")).connected, true);
-  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium" };
+  // The Host passes the settings it read when the send started; the getter above is the live setting.
+  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium", copilotModelSource: "ollama" as const, ollamaUrl: url };
   const input = { provider: "copilot" as const, message: "COMPLETE THIS TURN", folders: [root], model: "local-b:latest", reasoningEffort: "medium" };
   const conversation = await conversations.send(input, settings);
   await settled(conversation);
@@ -89,7 +90,7 @@ test("Copilot local Ollama source lists Ollama models and launches the selected 
   // Switching back to the account source launches without provider variables.
   source = undefined;
   assert.deepEqual((await connection.models("copilot", "fresh")).models.map(model => model.model), ["auto", "copilot-model"]);
-  await settled(await conversations.send({ ...input, model: "copilot-model" }, { ...settings, model: "copilot-model" }));
+  await settled(await conversations.send({ ...input, model: "copilot-model" }, { ...settings, model: "copilot-model", copilotModelSource: "account" }));
   assert.equal(launches().at(-1).byok, null);
   source = unreachable;
   const diagnostics = await connection.diagnostics("copilot");

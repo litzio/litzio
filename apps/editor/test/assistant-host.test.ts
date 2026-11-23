@@ -47,7 +47,7 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
   const root = mkdtempSync(path.join(tmpdir(), "litzio-assistant-host-"));
   const file = path.join(root, "ai.json");
   const agent = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
-    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url))] });
   const host = createAssistantHost(null, file, { agent });
   const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { assistant: host }); });
   await listenForFetch(server);
@@ -98,6 +98,20 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     writeFileSync(local, JSON.stringify(settings));
     assert.equal(await runCliAsync(["assistant", "configure", "--file", local]), 0);
     assert.deepEqual(JSON.parse(output.pop()!), settings);
+    // Changing the Copilot model source together with the model validates against the saved source's catalog.
+    const ollama = createServer((req, res) => { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ models: [{ name: "local-a:4b" }, { name: "local-b:4b" }] })); });
+    await listenForFetch(ollama);
+    t.after(() => new Promise<void>(resolve => ollama.close(() => resolve())));
+    const ollamaUrl = `http://127.0.0.1:${(ollama.address() as import("node:net").AddressInfo).port}`;
+    const copilot = (copilotModelSource: string, model: string) => put({ ...settings, provider: "copilot", reasoningEffort: "medium", copilotModelSource, ollamaUrl, model });
+    const toLocal = await copilot("ollama", "local-a:4b");
+    assert.equal(toLocal.status, 200, await toLocal.clone().text());
+    const toAccount = await copilot("account", "auto");
+    assert.equal(toAccount.status, 200, await toAccount.clone().text());
+    assert.equal((await copilot("ollama", "local-a:4b")).status, 200);
+    const localNameOnAccount = await copilot("account", "local-b:4b");
+    assert.equal(localNameOnAccount.status, 400); assert.match(await localNameOnAccount.text(), /model.*allowed values for copilot: auto, copilot-model\./);
+    assert.equal((await put(settings)).status, 200);
     assert.equal((await fetch(`${url}/api/worker-plugins`)).status, 404);
     assert.equal((await fetch(`${url}/api/ai-tasks`)).status, 404);
     const { ASSISTANT_TRANSPORT_LIMITS } = await import("../shared/assistant-limits.ts");

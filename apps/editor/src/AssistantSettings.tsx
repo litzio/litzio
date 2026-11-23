@@ -179,7 +179,7 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
           <Button variant="ghost" onClick={() => { setInspecting(provider); void loadDiagnostics(provider).catch(report); setView("diagnostics"); }}>{t("Diagnostics")}</Button>
         </Row>)}
         <Tooltip><TooltipTrigger render={<div tabIndex={0} />}>
-          <SettingsSelect label={t("Model source")} testId="copilot-model-source" value={localCopilot ? "ollama" : "account"} disabled={!settings || selectingProvider}
+          <SettingsSelect label={t("Copilot model source")} testId="copilot-model-source" value={localCopilot ? "ollama" : "account"} disabled={!settings || selectingProvider}
             onChange={value => void saveCopilotSource({ ...latest.current!, copilotModelSource: value as NonNullable<AssistantSettings["copilotModelSource"]> })}
             options={[{ value: "account", label: t("GitHub account") }, { value: "ollama", label: t("Local (Ollama)") }]} />
         </TooltipTrigger><TooltipContent>{t("Models GitHub Copilot uses: your GitHub account's models, or models installed in Ollama on the Host. Applies when the next Copilot connection starts; a running response is not interrupted.")}</TooltipContent></Tooltip>

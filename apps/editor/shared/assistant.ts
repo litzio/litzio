@@ -9,6 +9,8 @@ export type AssistantSettings = AssistantExecutionSettings & { provider: AiProvi
   /** Copilot connection only: GitHub account routing, or an Ollama server reached by the Host. */
   copilotModelSource?: "account" | "ollama"; ollamaUrl?: string };
 export const DEFAULT_OLLAMA_URL = "http://localhost:11434";
+/** The Ollama address when these settings select the local Copilot model source; undefined means the GitHub account. */
+export function copilotOllamaUrl(settings: Pick<AssistantSettings, "copilotModelSource" | "ollamaUrl">) { return settings.copilotModelSource === "ollama" ? settings.ollamaUrl ?? DEFAULT_OLLAMA_URL : undefined; }
 /** Host-relative base address; the Copilot provider path (/v1) is added at launch. */
 export function checkedOllamaUrl(value: unknown): string {
   const invalid = () => new Error("AI ollamaUrl: expected an http:// or https:// address without credentials, query or fragment, such as http://localhost:11434.");

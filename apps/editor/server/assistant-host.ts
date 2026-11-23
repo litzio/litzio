@@ -3,7 +3,7 @@ import { ASSISTANT_TRANSPORT_LIMITS } from "../shared/assistant-limits.ts";
 import type { PluginService } from "./plugin-service.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
-import { ASSISTANT, type AiProvider, type AssistantSettings } from "../shared/assistant.ts";
+import { ASSISTANT, copilotOllamaUrl, type AiProvider } from "../shared/assistant.ts";
 import { createAssistantSettings, checkedAssistantSettings } from "./assistant-settings.ts";
 import { ProviderConnections } from "./provider-connections.ts";
 import { AssistantConversations, AssistantModelUnavailable, conversationForDisplay } from "./assistant-conversations.ts";
@@ -62,7 +62,6 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   const plugins = options?.plugins;
   let closed = false, closing: Promise<void> | undefined;
   let agent = options?.agent;
-  const copilotOllamaUrl = (value: AssistantSettings) => value.copilotModelSource === "ollama" ? value.ollamaUrl : undefined;
   const providerConnection = () => {
     if (!agent) agent = new ProviderConnections(paths.assistant, undefined, undefined, options?.run, options?.origin);
     // The Copilot model source is read when a Copilot process launches, never pushed into a running one.
@@ -171,7 +170,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       const selected = provider(next);
       const sourceChanged = copilotOllamaUrl(next) !== copilotOllamaUrl(current);
       if (selected !== current.provider || next?.model !== current.model || next?.reasoningEffort !== current.reasoningEffort) {
-        // A changed Copilot model source is validated against its own catalog before it is saved.
+        // The model is validated against the catalog of the source being saved (next), not the stored one.
         const catalog = selected === "copilot" && sourceChanged ? await providerConnection().models("copilot", "fresh", { ollamaUrl: copilotOllamaUrl(next) })
           : await assistantOperations.assistantModels({ provider: selected });
         const model = catalog.models.find(model => model.model === next.model);

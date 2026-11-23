@@ -162,7 +162,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const aiGeometry = await measure();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-1440-light-en.png' });
   // Copilot model source: the address appears only for the local source and saves only a valid, committed value.
-  const source = page.getByLabel('Model source', { exact: true });
+  const source = page.getByLabel('Copilot model source', { exact: true });
   await expect(source).toHaveValue('account');
   await expect(page.getByLabel('Ollama address', { exact: true })).toHaveCount(0);
   await source.selectOption('ollama');

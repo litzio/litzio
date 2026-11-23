@@ -15,7 +15,7 @@ import { templateTools, executeTemplateOperation, templateOperations } from "./d
 import { statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { ASSISTANT } from "../shared/assistant.ts";
+import { ASSISTANT, copilotOllamaUrl } from "../shared/assistant.ts";
 import type { AssistantConversationInfo, AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
 import { accessPath, type FileAccess } from "./file-access.ts";
@@ -277,7 +277,7 @@ export class AssistantConversations {
     const restored = stored >= 0 && stored <= grants.indexOf(settings.permissionMode) ? info.permissionMode! : settings.permissionMode;
     settings = { ...settings, provider: info.provider ?? "codex", permissionMode: turnPermissionMode ?? this.conversations.get(id)?.permissionMode ?? restored };
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
-    if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings, (await this.connection.copilotOllama())?.launch);
+    if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings, (await this.connection.copilotOllama(copilotOllamaUrl(settings)))?.launch);
     if (info.provider === "copilot" && this.loaded.has(id)) return this.current(id);
     const conversation: AssistantConversation = { ...info, permissionMode: settings.permissionMode, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage, copilotUsage: this.conversations.get(id)?.copilotUsage };
@@ -518,7 +518,9 @@ export class AssistantConversations {
   private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation) {
     const acp = this.connection.copilot;
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
-    const catalog = await this.connection.models("copilot", "recent");
+    // Read the model source once: validation and launch use the source this send started with.
+    const ollamaUrl = copilotOllamaUrl(settings);
+    const catalog = await this.connection.models("copilot", "recent", { ollamaUrl });
     if (!catalog.models.some(model => model.model === input.model)) throw new AssistantModelUnavailable("Invalid Copilot model.");
     if (input.mode !== undefined && !catalog.copilot?.modes.some(mode => mode.id === input.mode)) throw new Error("Invalid Copilot session mode.");
     const source = conversation?.copilot?.reasoningEffortSource ?? catalog.copilot?.reasoningEffortSource;
@@ -529,7 +531,6 @@ export class AssistantConversations {
     const effort = source === "cli" ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.permissionMode === "full-access";
     // A local model source serves one model per process: the selected model is a launch setting.
-    const ollamaUrl = this.connection.copilotOllamaUrl();
     await this.prepareCopilotLaunch(effort, settings, ollamaUrl ? { url: ollamaUrl, model: input.model } : undefined);
     if (conversation && !this.loaded.has(conversation.id)) {
       // A running ACP process already owns the session and its MCP endpoint.

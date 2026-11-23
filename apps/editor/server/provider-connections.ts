@@ -81,7 +81,8 @@ export class ProviderConnections {
     return { skills: entry.skills.filter((skill: any) => skill.enabled).map(({ name, path, description }: any) => ({ name, path, description })), errors: entry.errors };
   }
   /** A BYOK Copilot session lists only its launch model, so the Host reads the Ollama list itself. */
-  async copilotOllama(url = this.copilotOllamaUrl()): Promise<{ launch: CopilotOllama; models: string[] } | undefined> {
+  /** `url` is explicit: undefined is the account source, never "the current setting". */
+  async copilotOllama(url: string | undefined): Promise<{ launch: CopilotOllama; models: string[] } | undefined> {
     if (!url) return undefined;
     const models = await ollamaModels(url);
     if (!models.length) throw new Error(`No models are installed in Ollama at ${url}.`);
@@ -133,7 +134,7 @@ export class ProviderConnections {
     if (provider === "copilot") {
       this.environment();
       const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: this.copilot.executable, version: null, connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
-      try { result.version = await this.copilot.diagnose((await this.copilotOllama())?.launch); result.connected = true; } catch (error) { result.error = (error as Error).message; }
+      try { result.version = await this.copilot.diagnose((await this.copilotOllama(this.copilotOllamaUrl()))?.launch); result.connected = true; } catch (error) { result.error = (error as Error).message; }
       return result;
     }
     this.environment();
