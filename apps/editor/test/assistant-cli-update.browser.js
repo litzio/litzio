@@ -55,6 +55,8 @@ async (page, { expect, screenshots, brand }) => {
   await expect(button).toHaveText('업데이트');
   // Up to date: the screen does not offer the update (the Host operation and CLI still run it).
   await expect(button).toBeDisabled();
+  // The pointer still rests where the enabled button was clicked; enter the trigger again as a person would.
+  await page.mouse.move(0, 999);
   await button.locator('..').hover();
   await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('이미 최신 버전입니다.');
   await capture('succeeded-1440-light-ko');
