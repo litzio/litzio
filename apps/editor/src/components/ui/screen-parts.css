@@ -12,6 +12,9 @@
   min-height: var(--layout-screen-fill-min-height);
 }
 .screen-description { margin: 0; color: var(--id-color-text-muted); }
+/* The arrow starts on the title's start line; the name stays one line and the tooltip carries it in full. */
+.screen-back { --screen-back-inset: calc(var(--space-3) + var(--border-width)); max-width: calc(100% + var(--screen-back-inset)); margin-inline-start: calc(-1 * var(--screen-back-inset)); }
+.screen-back-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .screen-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); min-width: 0; }
 .screen-toolbar > button { width: auto; }
 .screen-select, .screen-toolbar > label { display: grid; gap: var(--space-2); }

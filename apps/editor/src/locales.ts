@@ -22,6 +22,7 @@ export const en = {
   "Select “{{name}}”": "Select “{{name}}”",
   "Folders and files": "Folders and files",
   "Back": "Back",
+  "Back to {{name}}": "Back to {{name}}",
 
   "Forward": "Forward",
   "Edit path": "Edit path",
@@ -1326,6 +1327,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Select “{{name}}”": "“{{name}}” 선택",
   "Folders and files": "폴더와 파일",
   "Back": "뒤로",
+  "Back to {{name}}": "돌아가기: {{name}}",
 
   "Forward": "앞으로",
   "Edit path": "경로 입력",

@@ -93,6 +93,13 @@ export interface ScreenItemListProps {
   /** Keeps the status mark and its accessible name, hiding the status text when group titles already state it. */
   hideStatusLabel?: boolean;
 }
+/** The way back from a screen showing one item of a list; the plugin decides what returning shows. */
+export interface ScreenLayoutBack {
+  /** Name of the place to return to, such as the list. */
+  label: string;
+  onBack(): void;
+  disabled?: boolean;
+}
 /** Shared by the client binding and bundled authoring guidance. No renderer dependency. */
 export const SCREEN_UI = {
   LinkedDocumentView: 'document:DocumentView props, revision:string (paths refer to this saved revision), source:ReactNode, sourceLabel:string, sourceRef?:(viewport:HTMLDivElement|null)=>void, sourceScale?:number (outline scale, defaults to 1), items:{id:string,label:string,path:top-level Core NodePath,boxes:{left:number,top:number,width:number,height:number}[],colorToken:--id-color-*}[], selectedId?:string, onSelect:(id:string)=>void. Supply source boxes in post-scale scroll content CSS px and mark named source buttons with data-linked-item={id}. Source buttons, mapped document blocks and pointer hit areas of bands report the item ID; document blocks also provide a named keyboard action. Set selectedId in your screen and use document.target or sourceRef to move either viewport; document.target.top = box.top - source scrollTop brings the document pair level with a chosen source box; increment document.target.request on each choice. Mapping and bands are only active for the saved revision. document.height: "fill" fills the parent height, including as a direct child of ScreenLayout with fillHeight. Narrow layouts stack the panes.',
@@ -110,7 +117,7 @@ export const SCREEN_UI = {
   Steps: 'steps:string[], current:number (zero based). Display-only ordered list, aria-current="step" on current item.',
   EmptyState: 'title:string, optional description:string, action:ReactNode. One next action, usually a default Button.',
   Progress: 'optional value:number (0..1; omitted for indeterminate), label:string. Native progressbar with accent color.',
-  ScreenLayout: 'children, optional description:string, status:ReactNode, actions:ReactNode, width:"full"|"narrow" (full by default); title:string accepted but not rendered. Frame owns title and sticky header; description/status/actions appear there. narrow centers a reading-width body. With fillHeight?:boolean (default false) on the root ScreenLayout, the remaining tab space is a bounded flex column; use flex:1 and min-height:0 for your panes and give each pane its own scroll area.',
+  ScreenLayout: 'children, optional description:string, status:ReactNode, actions:ReactNode, back:{label:string,onBack():void,disabled?:boolean}, width:"full"|"narrow" (full by default); title:string accepted but not rendered. Frame owns title and sticky header; description/status/actions appear there. back draws a return button labeled with the place to return to at the header left, before the other header controls; onBack decides what to show. narrow centers a reading-width body. With fillHeight?:boolean (default false) on the root ScreenLayout, the remaining tab space is a bounded flex column; use flex:1 and min-height:0 for your panes and give each pane its own scroll area.',
   Toolbar: 'children, optional label:string. Wrapping row aligned to the bottom of labeled inputs; buttons and inputs keep content width. Use separate toolbars for controls and summaries.',
   SummaryCard: 'label:string, value:string|number, optional description:string. Group cards in a separate Toolbar, away from controls; cards share height.',
   Slider: 'label:string, value:number[], onValueChange(values:number[]), min:number, max:number, optional step:number, disabled:boolean. One value selects a number; two select a range. Each thumb is keyboard accessible.',
@@ -121,6 +128,7 @@ export const SCREEN_UI_GUIDANCE = Object.entries(SCREEN_UI).map(([name, props]) 
 Design rules:
 - The frame owns background, page padding and the screen title; do not add them yourself.
 - Put screen status and main actions in ScreenLayout status/actions, in the header.
+- A screen showing one item opened from a list gives the way back to the list with ScreenLayout back; do not add a separate button doing the same in actions.
 - Use ui.Row for a name and value/control; ui.Section for several rows. Do not repeat group/item names or group a single item.
 - Use ui.Status with human language, never raw status identifiers.
 - Use ui.Steps for ordered work, ui.EmptyState for one next action when empty, and ui.Progress with status text for long work.

@@ -1,5 +1,6 @@
 import { SharedPartsExample } from "./shared-parts-example.tsx";
 import { ScreenFrameExample } from "./screen-frame-example.tsx";
+import { ScreenBackExample } from "./screen-back-example.tsx";
 import { ScreenPartsExample } from "./screen-parts-example.tsx";
 import { ItemListExample } from "./item-list-example.tsx";
 import { ScreenPathExample } from "./screen-path-example.tsx";
@@ -147,7 +148,7 @@ export function UiGallery() {
         : "State applies where supported: disabled controls; invalid input, confirmation error and error notification. Navigation remains available."}</p></details>
     </div>
     {visible("Shared parts") ? <SharedPartsExample /> : null}
-    {visible("Screen parts") ? <><h2 className="task-surface-title">Screen parts</h2><ScreenFrameExample /><ItemListExample /><ScreenPartsExample state={state} /><ScreenPathExample /></> : null}
+    {visible("Screen parts") ? <><h2 className="task-surface-title">Screen parts</h2><ScreenFrameExample /><ItemListExample /><ScreenBackExample /><ScreenPartsExample state={state} /><ScreenPathExample /></> : null}
     {visible("Document view") ? <DocumentViewExample /> : null}
     {visible("Linked document view") ? <LinkedDocumentViewExample /> : null}
     {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}
