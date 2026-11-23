@@ -115,6 +115,10 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     checklist: ['<ul class="contains-task-list"><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> Todo</li>' +
       '<li class="task-list-item"><p><input type="checkbox" class="task-list-item-checkbox" checked disabled> Done</p></li></ul>',
       '*   [ ] Todo\n*   [x] Done\n\nOmega.\n', ''],
+    // Checklist items with no text, inside a wrapper with no text, are still items.
+    emptyChecklist: ['<p>Inspection</p><div><ul><li><input type="checkbox" checked></li><li><input type="checkbox"></li></ul></div><p>End</p>',
+      'Inspection\n\n*   [x]\n*   [ ]\n\nEndOmega.\n', ''],
+    emptyChecklistOnly: ['<div><ul><li><input type="checkbox"></li></ul></div>', '*   [ ]\n\nOmega.\n', ''],
     // A fragment link stays an ordinary link, never a cross-reference. Sub/superscript tags
     // and Word's vertical-align spans are kept.
     styled: ['<p><span style="font-family:Georgia;color:rgb(200,0,0)">Styled</span> x<sup>2</sup> H<span style="vertical-align:sub">2</span>O <a href="javascript:alert(1)">unsafe</a> <a href="#local">local</a></p>',

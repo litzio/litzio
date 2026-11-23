@@ -233,8 +233,9 @@ const ChecklistToggle = Extension.create({
           if (node.type.name === "listItem") return false;
           if (node.type.name !== "taskItem") continue;
           if (!this.editor.isEditable) return true;
-          const tr = closeHistory(this.editor.state.tr).setNodeMarkup($from.before(depth), undefined, { ...node.attrs, checked: !node.attrs.checked });
-          this.editor.view.dispatch(closeHistory(tr));
+          // Its own Undo step, as a click is: close history before the check and again after it.
+          this.editor.view.dispatch(closeHistory(this.editor.state.tr).setNodeMarkup($from.before(depth), undefined, { ...node.attrs, checked: !node.attrs.checked }));
+          this.editor.view.dispatch(closeHistory(this.editor.state.tr));
           return true;
         }
         return false;

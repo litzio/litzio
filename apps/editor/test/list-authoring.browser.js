@@ -1,10 +1,12 @@
 // Run with pnpm browser:test list-authoring.
 // Edits list items with the keyboard (Enter, Tab, Enter on an empty item), inserts a numbered
-// list and a checklist from the slash menu, checks items by click and Ctrl+Enter, joins the line after a list into its last item with Backspace
+// list and a checklist from the slash menu, checks items by click and Ctrl+Enter, cuts and pastes
+// checklists through the real clipboard, joins the line after a list into its last item with Backspace
 // (#1821), also right after Home on a paragraph with inline atoms, saves the scratch Markdown
 // files, and reloads them.
 async (page, { openDocument, withBlockHover }) => {
   await page.unrouteAll();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.reload();
   await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.getAttribute('data-operation') === 'ready');
 
@@ -212,14 +214,26 @@ async (page, { openDocument, withBlockHover }) => {
   for (let i = 0; i < 3; i++) await page.keyboard.press('Enter');
   await page.keyboard.type('After checklist', {delay:80});
   const leftChecklist = await reloaded.locator(':scope .document-editor > p', {hasText:'After checklist'}).count() === 1;
+  // A check by click or by Ctrl+Enter is its own Undo step: the first Undo after the next edit
+  // removes only that edit and keeps the new check state.
   await box('Cable').click();
   const clicked = await checks();
+  await page.keyboard.type('Y');
+  const clickTyped = (await shape()).doc.includes('"After checklistY"');
+  await page.keyboard.press('Control+z');
+  const clickTypingUndone = await checks() === clicked && (await shape()).doc.includes('"After checklist"');
   await page.keyboard.press('Control+z');
   const clickUndone = await checks();
   await page.keyboard.press('Control+Shift+z');
   const clickRedone = await checks();
   await caretAtEnd('점검');
   await page.keyboard.press('Control+Enter');
+  // An edit right next to the item (Backspace at its start lifts it out of the list) is
+  // still the next Undo step, not merged with the check.
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Backspace');
+  const keyLifted = (await shape()).doc.endsWith('taskList[taskItem["Cable"]] "점검" taskList[taskItem["Sub"]] "After checklist"');
+  await page.keyboard.press('Control+z');
   const keyChecked = await checks();
   const keyboardChecked = await box('점검').isChecked();
   await page.getByRole('button', {name:'Save', exact:true}).click();
@@ -230,6 +244,17 @@ async (page, { openDocument, withBlockHover }) => {
   await openScratch();
   await reloaded.locator('ul[data-type="taskList"]').first().waitFor({state:'visible'});
   const checklistReopened = await checks();
+  // Cutting the whole document (checklists, a nested checklist and paragraphs) and pasting it
+  // back through the real clipboard restores every item with its check state; Save below
+  // writes the same checklists.
+  await caretAtEnd('Cable');
+  const beforeCut = await shape();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+x');
+  const cutEmpty = (await checks()) === '';
+  await page.keyboard.press('Control+v');
+  const cutPasted = cutEmpty && (await shape()).doc === beforeCut.doc && await checks() === checklistReopened;
   await engine.evaluate(element => element.editor.setEditable(false));
   await box('Sub').click({force:true});
   const readOnlyKept = await checks() === checklistReopened && !await box('Sub').isChecked();
@@ -281,8 +306,10 @@ async (page, { openDocument, withBlockHover }) => {
     reopenedSameLists: reopened.doc === redone.doc,
     reloadedNested,
     checklistTyped: typedChecklist === 'Cable=false 점검=false Sub=false' && checklistNested && leftChecklist,
-    checklistClickUndoRedo: clicked === 'Cable=true 점검=false Sub=false' && clickUndone === typedChecklist && clickRedone === clicked,
-    checklistKeyboard: keyChecked === 'Cable=true 점검=true Sub=false' && keyboardChecked,
+    checklistClickUndoRedo: clicked === 'Cable=true 점검=false Sub=false' && clickTyped && clickTypingUndone &&
+      clickUndone === typedChecklist && clickRedone === clicked,
+    checklistKeyboard: keyChecked === 'Cable=true 점검=true Sub=false' && keyboardChecked && keyLifted,
+    checklistCutPasted: cutPasted,
     checklistSaved: checklistSaved === `${expected.replace('Done.\n', 'Done.\n\n*   [x] Cable\n*   [x] 점검\n    *   [ ] Sub\n\nAfter checklist\n')}`,
     checklistReopened: checklistReopened === keyChecked,
     readOnlyKept,
@@ -294,6 +321,6 @@ async (page, { openDocument, withBlockHover }) => {
     inlineReopenedSame: inlineReopened.doc === inlineJoined.doc,
   };
   const failed = Object.entries(result).filter(([, value]) => value !== true);
-  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, typedChecklist, clicked, clickUndone, clickRedone, keyChecked, checklistSaved, checklistReopened, kindsSwitched, emptyLine, backspacedEmptyLine, writtenLine, joined, typedAfterJoin, undoneTyping, undone, redone, reopened, inlineJoined, inlineAtoms, inlineSaved, inlineReopened})}`);
+  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, typedChecklist, clicked, clickUndone, clickRedone, keyChecked, beforeCut, checklistSaved, checklistReopened, kindsSwitched, emptyLine, backspacedEmptyLine, writtenLine, joined, typedAfterJoin, undoneTyping, undone, redone, reopened, inlineJoined, inlineAtoms, inlineSaved, inlineReopened})}`);
   return result;
 }

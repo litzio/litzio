@@ -33,6 +33,9 @@ const KEEP: Record<string, string[]> = {
   DIV: ["data-divider", "data-table-block"], TH: ["data-table-cell", "align"], TD: ["data-table-cell", "align"],
 };
 
+/** An item `checklists` made: its checkbox became the item's check state. */
+const CHECKLIST_ITEM = 'li[data-type="taskItem"]';
+
 class Rejected extends Error {}
 
 export function normalizeExternalHTML(html: string): ExternalHTML {
@@ -51,11 +54,13 @@ export function normalizeExternalHTML(html: string): ExternalHTML {
       if (link.querySelector(BLOCKS)) throw new Rejected("a link cannot contain paragraphs or other blocks");
     }
     wordLists(body);
-    // Blank paragraphs are spacing, not content. Blank lines inside code are code.
+    // Blank paragraphs are spacing, not content. Blank lines inside code are code. A checklist
+    // item is content even with no text: its checkbox is.
+    const content = `hr,pre,table,${CHECKLIST_ITEM}`;
     for (const block of [...body.querySelectorAll("p,div,blockquote,h1,h2,h3,h4,h5,h6")].reverse()) {
-      if (!block.textContent?.trim() && !block.querySelector("hr,pre,table") && !block.closest("pre")) block.remove();
+      if (!block.textContent?.trim() && !block.querySelector(content) && !block.closest("pre")) block.remove();
     }
-    if (!body.textContent?.trim() && !body.querySelector("hr")) {
+    if (!body.textContent?.trim() && !body.querySelector(`hr,${CHECKLIST_ITEM}`)) {
       throw new Rejected(notices.has("images") ? "images can be added only as image files" : "the clipboard holds no supported content");
     }
     lists(body);
@@ -201,6 +206,9 @@ function lists(body: HTMLElement): void {
     if (nested.length > 1 || (nested[0] && !trailing(nested[0]))) reject();
     nested[0]?.remove();
     if (!inlineOnly(item)) reject();
+    // A checklist item with no text keeps its paragraph, also when it ends the paste: the
+    // engine fills a missing paragraph only in an item the paste closes.
+    if (item.matches(CHECKLIST_ITEM) && !item.textContent?.trim()) item.replaceChildren(body.ownerDocument.createElement("p"));
     if (nested[0]) item.append(nested[0]);
   }
   for (const list of body.querySelectorAll("ol[start]")) {

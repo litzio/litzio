@@ -467,7 +467,9 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
         serializers[type] = node => {
           const spec = serialize(node) as readonly unknown[];
           const attrs = typeof spec[1] === "object" && !Array.isArray(spec[1]) ? spec[1] : {};
-          const children = attrs === spec[1] ? spec.slice(2) : spec.slice(1);
+          // A checklist item's checkbox is drawn by Tiptap, not content: on the clipboard it is a
+          // list item like the others, and its check state travels in the typed attrs.
+          const children = type === "taskItem" ? [0] : attrs === spec[1] ? spec.slice(2) : spec.slice(1);
           return [spec[0], { ...attrs, "data-litzio-type": type, "data-litzio-attrs": JSON.stringify(node.attrs) }, ...children] as DOMOutputSpec;
         };
       }
