@@ -178,6 +178,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [2026-11-13 공정 분석기 (생산 라인 검사 데이터 그래프·공정 능력)](spikes/2026-11-13-process-analyzer.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
 | [2026-11-19 Activity Bar 최종 형태 세 시안 (#1812)](spikes/2026-11-19-activity-bar.md) | Historical | 스파이크 기록. 결론: 채택(시안 1 방향, 후속 1-L로 구체화). 코드는 태그·브랜치에만 있다. |
 | [2026-11-19 Activity Bar 시안 1 후속: 이름 표시와 고유 아이콘 (#1812)](spikes/2026-11-19-activity-bar-labels.md) | Historical | 스파이크 기록. 결론: 채택(1-L). 코드는 태그·브랜치에만 있다. |
+| [2026-11-23 비서의 두 연결 뒤 모델을 Ollama 로컬 모델로 바꾸기](spikes/2026-11-23-ollama-local-model.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
 
 ## Verification
 
