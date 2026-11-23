@@ -226,4 +226,4 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 - [v0.0.3-beta.6 배포·검증 기록](releases/v0.0.3-beta.6.md) — Historical. 공개 Beta·workflow·자산 해시와 한국어 본문. 실제 GitHub 설치·업데이트는 미실행·미검증.
 
-- [v0.0.3 게시 준비·검증 기록](releases/v0.0.3.md) — Draft. 서명 없는 Stable 게시 대기 후보, 0.0.2 이후 사용자 영향별 변경, 수동 확인 안내와 한국어 Release 본문 초안. Beta 없이 낸 beta.6 이후 변경과 실제 IME·GitHub 설치·업데이트는 미확인.
+- [v0.0.3 배포·검증 기록](releases/v0.0.3.md) — Historical. 2026-11-23 공개한 서명 없는 Stable, 0.0.2 이후 사용자 영향별 변경, 자산 해시, 수동 확인 안내와 게시한 한국어 Release 본문. Beta 없이 낸 beta.6 이후 변경과 실제 IME·GitHub 설치·업데이트는 미확인.
