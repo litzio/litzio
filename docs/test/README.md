@@ -314,9 +314,9 @@ HTTP boundary tests are included in `pnpm test`; targeted command: `pnpm --filte
 
 ## Windows Desktop regression
 
-Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 5개로 실행한다: unit foundation·editor 두 묶음(`desktop`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`). 대표 제거(silent empty·user·foreign)는 package job에서 항상 실행한다. 전체 제거는 기존 설치 경로 분류의 `fullRemoval`로 선택하며 설치·업데이트 코드, 공유 빌드 입력과 unknown 변경에서 실행한다. Published 0.0.2 Stable는 릴리스 전 검사에만 남기고, 모든 release 모드에서 Published·Stable·Beta·전체 제거를 실행해 게시를 차단한다. PR·merge queue의 clean package·Save/Reload·crash recovery·reset과 Beta 대표 설치 보호는 유지한다. 필수 aggregate는 선택된 모든 job의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
+Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 5개로 실행한다: unit foundation·editor 두 묶음(`desktop`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`). 대표 제거(silent empty·user·foreign)는 package job에서 항상 실행한다. 전체 제거는 기존 설치 경로 분류의 `fullRemoval`로 선택하며 설치·업데이트 코드, 공유 빌드 입력과 unknown 변경에서 실행한다. Published 0.0.3 Stable은 릴리스 전 검사에만 남기고, 모든 release 모드에서 Published·Stable·Beta·전체 제거를 실행해 게시를 차단한다. PR·merge queue의 clean package·Save/Reload·crash recovery·reset과 Beta 대표 설치 보호는 유지한다. 필수 aggregate는 선택된 모든 job의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
 
-공개 0.0.2 Stable fixture는 `GH_TOKEN`이 있으면 GitHub Releases asset API에 인증하여 다운로드하고, 토큰이 없으면 공개 URL을 사용한다. 두 경로 모두 기존 크기·SHA-256·업데이트 SHA-512 검증과 HTTP 504 재시도 횟수를 유지한다. 인증 여부와 요청 URL은 Actions 로그에 남기며 토큰은 출력하지 않는다. 다운로드 캐시의 실제 경로·키·master 저장 정책은 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)를 따른다.
+공개 0.0.3 Stable fixture는 `GH_TOKEN`이 있으면 GitHub Releases asset API에 인증하여 다운로드하고, 토큰이 없으면 공개 URL을 사용한다. 두 경로 모두 기존 크기·SHA-256·업데이트 SHA-512 검증과 HTTP 504 재시도 횟수를 유지한다. 인증 여부와 요청 URL은 Actions 로그에 남기며 토큰은 출력하지 않는다. 다운로드 캐시의 실제 경로·키·master 저장 정책은 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)를 따른다.
 
 Packaged 테스트의 모든 직접 실행은 `--lang=en-US`로 Chromium UI 언어를 고정하여 OS 언어와 무관하게 영어 UI를 검증한다(#449). 이 인자는 `.md`가 아니므로 Desktop의 문서 인자 처리에서 무시된다. 업데이트 테스트는 설치기가 인자 없이 재실행해도 영어를 유지하도록 테스트 소유 profile의 `litzio.uiLanguage`도 `en`으로 저장한다. 공개 beta.4는 영어 전용이며, 해당 바이너리의 `Ready`와 현재 `ready` 상태 속성은 대소문자를 무시하여 기다린다.
 
@@ -358,7 +358,7 @@ CI의 Windows Desktop job이 선택되면 clean package·release 자산 검증·
 
 ## Real GitHub Beta update
 
-현재 소스와 최신 Stable/Latest는 Litzio `0.0.3`이다([배포 기록](../releases/v0.0.3.md)). 최신 공개 Beta는 `0.0.3-beta.6`이다([배포 기록](../releases/v0.0.3-beta.6.md)). opt-in 대상은 Beta 채널의 `0.0.3-beta.6 → 0.0.3`이며 두 버전 모두 공개됐다. harness는 실행하지 않았다. 실제 GitHub 설치·업데이트는 설치 상태 보존 제약으로 **미실행·미검증**이다. IeumDoc beta.4는 Litzio로 자동 업데이트되지 않으며 새 설치가 필요하고 데이터·설정·복구 기록은 이전되지 않는다. CI local-feed의 같은 소스 fixture(Stable `0.0.1 → 0.0.2`, Beta `0.1.0-beta.1 → 0.1.0-beta.2`)는 유지한다. 릴리스 전 공개 설치본 회귀는 실제 `0.0.2` Stable 설치 파일에서 Settings의 Beta를 한 번 클릭하고 선택 반영을 기다린 후 후보를 설치하며 저장된 Beta 채널을 보존한다. Stable 후보에서는 이 검사가 Beta daemon·`beta.yml`을 전제하므로 같은 소스의 Beta fixture 버전(`0.1.0-beta.2`)을 설치한다. 이 검사는 NSIS 설치·시작·보존을 확인하며, 실제 GitHub 업데이트 전달 검증과 구분한다.
+현재 소스와 최신 Stable/Latest는 Litzio `0.0.3`이다([배포 기록](../releases/v0.0.3.md)). 최신 공개 Beta는 `0.0.3-beta.6`이다([배포 기록](../releases/v0.0.3-beta.6.md)). opt-in 대상은 Beta 채널의 `0.0.3-beta.6 → 0.0.3`이며 두 버전 모두 공개됐다. harness는 실행하지 않았다. 실제 GitHub 설치·업데이트는 설치 상태 보존 제약으로 **미실행·미검증**이다. IeumDoc beta.4는 Litzio로 자동 업데이트되지 않으며 새 설치가 필요하고 데이터·설정·복구 기록은 이전되지 않는다. CI local-feed의 같은 소스 fixture(Stable `0.0.1 → 0.0.2`, Beta `0.1.0-beta.1 → 0.1.0-beta.2`)는 유지한다. 릴리스 전 공개 설치본 회귀는 실제 `0.0.3` Stable 설치 파일에서 Settings의 Beta를 한 번 클릭하고 선택 반영을 기다린 후 후보를 설치하며 저장된 Beta 채널을 보존한다. Stable 후보에서는 이 검사가 Beta daemon·`beta.yml`을 전제하므로 같은 소스의 Beta fixture 버전(`0.1.0-beta.2`)을 설치한다. 이 검사는 NSIS 설치·시작·보존을 확인하며, 실제 GitHub 업데이트 전달 검증과 구분한다.
 
 이 opt-in 검증은 두 버전의 공개 후 명시적 승인 범위에서 실행한다. 모의 Feed 성공은 이 검증의 성공이 아니다. 이미 설치된 Litzio나 사용자 데이터·cache를 삭제해서 실행하지 않는다. 별도 Windows 테스트 계정/VM을 권장한다. 테스트는 기존 설치, `%APPDATA%\litzio`, `%LOCALAPPDATA%\litzio-updater`, 기본 설치 폴더가 하나라도 있으면 거부한다. 이 검사 후에만 테스트가 소유하는 per-user 설치와 profile/cache를 만들고 정리한다. Markdown은 `tmp/desktop-update/documents/`에만 만든다.
 

@@ -121,9 +121,9 @@ work, so their duration is measured by PR CI. Existing deadlines/assertions rema
 no retries or fixed sleeps were added. Unit tests cover ownership/refusal, record cleanup and
 updater failure ordering; the existing CLI lifecycle test also checks actual process exit. One owned Node child verifies actual Windows junction identity (about 1.8s locally), which in-memory ports cannot establish. The existing packaged CLI-refusal probes launch through the real integration junction.
 
-Release verification runs one independent public-0.0.2-Stable starting case before the unit suite. It downloads the actual
+Release verification runs one independent public-0.0.3-Stable starting case before the unit suite. It downloads the actual
 GitHub Release installer and metadata, verifies each download's API size/SHA-256 plus the
-metadata's installer SHA-512 and a pinned 0.0.2 Stable installer SHA-256, and installs/launches that
+metadata's installer SHA-512 and a pinned 0.0.3 Stable installer SHA-256, and installs/launches that
 unmodified binary. It builds only the candidate (the old version is never rebuilt), then
 executes the same NSIS `--updated /S --force-run` transaction as electron-updater and checks
 new app/daemon startup, file version, document/user-data/preferences/PATH preservation and
@@ -132,10 +132,11 @@ The same-source Stable/Beta cases remain the proof for subsequent daemon-to-daem
 The public-baseline case is release-CI-only (including installer download). The existing
 same-source Stable/Beta commands remain unchanged.
 On 2026-11-12 the baseline first changed to beta.10 because beta.9 and earlier installer assets were
-withdrawn for CVE-2026-111497. For the 0.0.3-beta.1 candidate it advances to the latest public
-0.0.2 Stable. Its pinned SHA-256 is
-`7271f9bd7c22ee3da5bcfe4cbfc263d6e1ddf77ef51819204f065786efee1e4c`, matching the
-[Stable release record](../releases/v0.0.2.md) and GitHub asset digest.
+withdrawn for CVE-2026-111497. It now starts from the latest public 0.0.3 Stable. Its pinned SHA-256 is
+`bcdc971e2ea5cc7a32d6fff5c3bcbda844e6a02c2280ef3f91e4cc1e8fc67c49`, matching the
+[Stable release record](../releases/v0.0.3.md) and GitHub asset digest.
+This case runs only in the release workflow, so PR CI does not execute the 0.0.3 starting point;
+the next release workflow is its first actual run.
 Stable includes the lifecycle helper and Desktop-owned daemon. The test checks its default
 Stable selection, selects Beta through Settings and verifies that choice is persisted before
 the candidate installation. A local candidate feed remains available for its automatic checks.
@@ -271,7 +272,7 @@ bridge mocks exercise the actual Settings UI at 1440px and 640px. Disposable Win
 the packaged Electron Node engines range, Desktop version identity, shim help/check JSON and exit-code parity with Node,
 argument/pipe forwarding, `daemon run`, real enable/disable, update preservation and uninstall cleanup.
 All selected Desktop package CI runs silent normal removal, user-file preservation and foreign-command failure, including long raw registry PATH preservation. Installation-sensitive, shared build input and unclassified changes run the full ten interactive/silent combinations, including damaged ownership, missing helper and environment failures. Isolated CLI integration and Windows environment tests retain state/conflict/raw PATH coverage on every product quality run.
-Empty-bin removal and nonempty-bin preservation are checked for disable and uninstall. General update-target PR CI runs Beta install/update; sensitive or unclassified changes select an independent Stable job. Release verification runs Stable then Beta on the same Windows runner, retaining the precondition that no CLI bin directory exists before either run. Published 0.0.2 Stable runs only in release verification; every release mode requires it and full removal before publication. Beta reports CLI ownership, IPC timeout and renderer callback faults as separate subtests sharing the installed fixture, followed by the dirty-document/Save/install preservation subtest. Full execution paths and conservative fallback are defined in the [CI path policy](../../CONTRIBUTING.md#verification-matrix) and `scripts/ci-execution-policy.mjs`; direct invocation defaults to full removal.
+Empty-bin removal and nonempty-bin preservation are checked for disable and uninstall. General update-target PR CI runs Beta install/update; sensitive or unclassified changes select an independent Stable job. Release verification runs Stable then Beta on the same Windows runner, retaining the precondition that no CLI bin directory exists before either run. Published 0.0.3 Stable runs only in release verification; every release mode requires it and full removal before publication. Beta reports CLI ownership, IPC timeout and renderer callback faults as separate subtests sharing the installed fixture, followed by the dirty-document/Save/install preservation subtest. Full execution paths and conservative fallback are defined in the [CI path policy](../../CONTRIBUTING.md#verification-matrix) and `scripts/ci-execution-policy.mjs`; direct invocation defaults to full removal.
 Manual acceptance still includes enabling in an installed app, running from a new terminal,
 disabling, running after update and checking cleanup after removal. Local tests must not modify
 the real user's PATH or registry; packaged Desktop/install tests run in CI for this work.
