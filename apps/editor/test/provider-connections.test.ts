@@ -75,7 +75,10 @@ test("Copilot local Ollama source lists Ollama models and launches the selected 
     }
   };
   // Auto is GitHub's account routing and is not part of a local source.
-  assert.deepEqual((await connection.models("copilot", "fresh")).models.map(model => model.model), ["local-a:4b", "local-b:latest"]);
+  const local = await connection.models("copilot", "fresh");
+  assert.deepEqual(local.models.map(model => model.model), ["local-a:4b", "local-b:latest"]);
+  // A local session has no reasoning option; the launch argument takes every CLI value, including none.
+  assert.deepEqual(local.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
   assert.equal((await connection.diagnostics("copilot")).connected, true);
   // The Host passes the settings it read when the send started; the getter above is the live setting.
   const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium", copilotModelSource: "ollama" as const, ollamaUrl: url };
@@ -88,9 +91,20 @@ test("Copilot local Ollama source lists Ollama models and launches the selected 
   await settled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b" }, settings));
   assert.equal(launches().at(-1).byok.model, "local-a:4b");
   assert.equal(conversation.turns.at(-1)!.status, "completed");
+  // Reasoning effort is a launch argument too: the chosen value relaunches the process between turns.
+  const effort = (launch: { args: string[] }) => launch.args[launch.args.indexOf("--reasoning-effort") + 1];
+  assert.equal(effort(launches().at(-1)), "medium");
+  await settled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b", reasoningEffort: "none" }, settings));
+  assert.equal(effort(launches().at(-1)), "none");
+  assert.equal(conversation.reasoningEffort, "none");
+  assert.equal(conversation.turns.at(-1)!.status, "completed");
   // Switching back to the account source launches without provider variables.
   source = undefined;
-  assert.deepEqual((await connection.models("copilot", "fresh")).models.map(model => model.model), ["auto", "copilot-model"]);
+  const account = await connection.models("copilot", "fresh");
+  assert.deepEqual(account.models.map(model => model.model), ["auto", "copilot-model"]);
+  // The account source keeps its own reasoning choices.
+  assert.equal(account.copilot?.reasoningEffortSource, "cli");
+  assert.equal(account.copilot?.reasoningEfforts, undefined);
   await settled(await conversations.send({ ...input, model: "copilot-model" }, { ...settings, model: "copilot-model", copilotModelSource: "account" }));
   assert.equal(launches().at(-1).byok, null);
   source = unreachable;

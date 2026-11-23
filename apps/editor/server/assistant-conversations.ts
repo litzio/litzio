@@ -297,7 +297,7 @@ export class AssistantConversations {
         const session = await this.connection.copilot.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: this.mcp.servers(id) }), true);
         conversation.model = session.models?.currentModelId ?? settings.model;
         this.connection.copilot.remember({ ...session, sessionId: id });
-        conversation.copilot = copilotOptions({ ...session, sessionId: id });
+        conversation.copilot = copilotOptions({ ...session, sessionId: id }, !!this.connection.copilot.ollama);
         const reasoning = copilotReasoning(session);
         if (conversation.copilot.reasoningEffortSource === "cli" && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
         conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort ?? settings.reasoningEffort;
@@ -531,11 +531,11 @@ export class AssistantConversations {
     if (!catalog.models.some(model => model.model === input.model)) throw new AssistantModelUnavailable("Invalid Copilot model.");
     if (input.mode !== undefined && !catalog.copilot?.modes.some(mode => mode.id === input.mode)) throw new Error("Invalid Copilot session mode.");
     const source = conversation?.copilot?.reasoningEffortSource ?? catalog.copilot?.reasoningEffortSource;
-    if (source === "cli") {
-      if (!COPILOT_EFFORTS.includes(input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort.");
-      if (conversation && conversation.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
-    }
-    const effort = source === "cli" ? input.reasoningEffort : acp.reasoningEffort;
+    // A local source has no reasoning option: the chosen effort is a launch setting like its model.
+    const launchEffort = source === "cli" || !!ollamaUrl;
+    if (launchEffort && !COPILOT_EFFORTS.includes(input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort.");
+    if (source === "cli" && !ollamaUrl && conversation && conversation.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
+    const effort = launchEffort ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.permissionMode === "full-access";
     // A local model source serves one model per process: the selected model is a launch setting.
     await this.prepareCopilotLaunch(effort, settings, ollamaUrl ? { url: ollamaUrl, model: input.model } : undefined);
@@ -556,7 +556,7 @@ export class AssistantConversations {
       if (!conversation) {
         const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: lease.servers }), true));
         conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, ASSISTANT.conversationTitleLimit),
-          folders, createdAt: Date.now(), updatedAt: Date.now(), permissionMode: settings.permissionMode, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
+          folders, createdAt: Date.now(), updatedAt: Date.now(), permissionMode: settings.permissionMode, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session, !!acp.ollama) };
         this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
       }
       const id = conversation.id;
@@ -575,7 +575,7 @@ export class AssistantConversations {
           const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: reasoning.id, value: input.reasoningEffort }));
           session.configOptions = result.configOptions;
         } else if (!modelOption && source === "cli" && acp.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
-        const options = copilotOptions(session);
+        const options = copilotOptions(session, !!acp.ollama);
         const mode = input.mode ?? options.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id;
         if (mode) {
           if (!options.modes.some(value => value.id === mode)) throw new Error("Invalid Copilot session mode.");
@@ -593,7 +593,7 @@ export class AssistantConversations {
       } finally {
         // A successful model change is real even if a later setting is rejected.
         // Keep polling truthful so the user can choose from the new model's options.
-        conversation.copilot = copilotOptions(session);
+        conversation.copilot = copilotOptions(session, !!acp.ollama);
         conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
       }
       references = checkedReferences(input.references ?? [], folders, this.access, settings.permissionMode, this.attachments, conversation?.id);
@@ -692,7 +692,7 @@ export class AssistantConversations {
     }
     if (update.sessionUpdate === "config_option_update" || update.sessionUpdate === "current_mode_update") {
       const session = this.connection.copilot.sessions.get(sessionId);
-      if (session) { conversation.copilot = copilotOptions(session); conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort; }
+      if (session) { conversation.copilot = copilotOptions(session, !!this.connection.copilot.ollama); conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort; }
       return;
     }
     let turn = conversation.turns.at(-1);
