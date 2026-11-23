@@ -1,9 +1,14 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { performance } from "node:perf_hooks";
 
+type LogStream = { write(text: string): unknown; on?(event: "error", listener: (error: Error) => void): unknown };
+const guarded = new WeakSet<object>();
+
 /** One timestamped line in the daemon's output; Desktop and `daemon start` redirect it to daemon.log. */
-export function daemonLog(message: string, stream: { write(text: string): unknown } = process.stdout): void {
-  stream.write(`${new Date().toISOString()} ${message}\n`);
+export function daemonLog(message: string, stream: LogStream = process.stdout): void {
+  // Like console.log: a closed reader (EPIPE) or failed write never fails a request or shutdown.
+  if (stream.on && !guarded.has(stream)) { guarded.add(stream); stream.on("error", () => {}); }
+  try { stream.write(`${new Date().toISOString()} ${message}\n`); } catch { /* the line is lost, not the work */ }
 }
 
 export const DAEMON_LOG_ROTATE_BYTES = 1_000_000;
@@ -31,7 +36,7 @@ export function describeError(error: unknown): string {
  * Consecutive events of one group print once; the next different event or end() of that
  * group prints how many more times it repeated. Memory only, like the rest of the log.
  */
-export function repeatLog(write: (message: string) => void) {
+export function repeatLog(write: (message: string) => void, limit = 64) {
   const runs = new Map<string, { key: string; count: number }>();
   const end = (group: string): boolean => {
     const run = runs.get(group);
@@ -45,6 +50,8 @@ export function repeatLog(write: (message: string) => void) {
       const run = runs.get(group);
       if (run?.key === key) { run.count++; return; }
       end(group);
+      // Bounded: the oldest open run ends (printing its count) before a new one starts.
+      if (runs.size >= limit) end(runs.keys().next().value!);
       write(message);
       runs.set(group, { key, count: 0 });
     },
@@ -68,12 +75,13 @@ export function logRoute(target = ""): string {
 
 /**
  * Records failed (5xx, or 4xx on a state-changing method), slow and aborted requests.
+ * Requests refused before or without a known route record "(unmatched)" instead of their path.
  * A request of the same method and path that needs no record ends that path's repeat run.
  */
 export function requestRecorder(write: (message: string) => void, slowMs = SLOW_REQUEST_MS) {
   const runs = repeatLog(write);
-  const record = (req: IncomingMessage, res: ServerResponse, ms: number, failure?: { error: unknown }) => {
-    const method = req.method ?? "?", route = logRoute(req.url), group = `${method} ${route}`;
+  const record = (req: IncomingMessage, res: ServerResponse, ms: number, failure: { error: unknown } | undefined, routed: boolean) => {
+    const method = req.method ?? "?", route = routed ? logRoute(req.url) : "(unmatched)", group = `${method} ${route}`;
     const finished = res.writableFinished, status = res.statusCode, time = `${Math.round(ms)}ms`;
     if (failure || (finished && (status >= 500 || (status >= 400 && method !== "GET" && method !== "HEAD")))) {
       const key = `request failed ${group} ${finished ? status : "incomplete"}`;

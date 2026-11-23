@@ -129,41 +129,47 @@ export async function startHttpHost(options: HttpHostOptions) {
     if (writing && (url.pathname !== "/api/asset" || req.method === "DELETE") && !/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"] ?? "")) {
       return json(res, 415, "Expected application/json.");
     }
+    if (options.daemon && (url.pathname === "/daemon/health" || url.pathname === "/daemon/stop")) routed.add(res);
     if (options.daemon && await daemonRequest(req, res, url, options.daemon)) return;
     const instanceId = req.headers[DAEMON_INSTANCE_HEADER];
     if (api && instanceId !== undefined && instanceId !== options.daemon?.health.instanceId) {
       return json(res, 409, "The Host connection changed. Reopen the screen on the current Host.");
     }
     if (url.pathname === "/api/app-reset/paths") {
+      routed.add(res);
       if (req.method !== "GET" || url.search) return json(res, 405, "Use GET without a query.");
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.end(JSON.stringify(services.resetPaths)); return;
     }
     // Full filesystem access must not select Vite's checkout-relative development sample.
     if (!access && url.pathname === "/api/document" && req.method === "GET" && !url.searchParams.get("path")?.trim()) {
-      res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify({ start: true })); return;
+      routed.add(res); res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify({ start: true })); return;
     }
     if (media) {
       // User-controlled SVG/HTML must never execute with the application's origin authority.
       res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'");
     }
-    if (url.pathname === "/api/asset") return handleAssetRequest(req, res, key, access);
+    if (url.pathname === "/api/asset") { routed.add(res); return handleAssetRequest(req, res, key, access); }
     if (api || media) {
-      return handleDocumentRequest(req, res, () => json(res, 404, "Not found."), access, MAX_JSON_BYTES, options.removeFile ?? trashFile, undefined, services);
+      routed.add(res);
+      return handleDocumentRequest(req, res, () => { routed.delete(res); json(res, 404, "Not found."); }, access, MAX_JSON_BYTES, options.removeFile ?? trashFile, undefined, services);
     }
     if (req.method !== "GET" && req.method !== "HEAD") return json(res, 405, "Method not allowed.");
     const response = serveEditorFile(editorDir, url.pathname);
+    if (response.status !== 404) routed.add(res);
     res.statusCode = response.status;
     response.headers.forEach((value, name) => res.setHeader(name, value));
     res.end(req.method === "HEAD" ? undefined : Buffer.from(await response.arrayBuffer()));
   };
 
   const requests = options.log && requestRecorder(options.log);
+  // Responses that reached a known route; others are logged as "(unmatched)", never by their path.
+  const routed = new WeakSet<ServerResponse>();
   const server = createServer({ maxHeaderSize: 16 * 1024, headersTimeout: 15_000, requestTimeout: 60_000,
     keepAliveTimeout: 5_000 }, (req, res) => {
     const started = performance.now();
     let failure: { error: unknown } | undefined;
-    if (requests) res.once("close", () => requests.record(req, res, performance.now() - started, failure));
+    if (requests) res.once("close", () => requests.record(req, res, performance.now() - started, failure, routed.has(res)));
     const pending = respond(req, res).catch(error => {
       failure = { error };
       if (!res.headersSent) json(res, 500, "The Host could not complete this request.");

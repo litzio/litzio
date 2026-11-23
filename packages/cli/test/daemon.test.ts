@@ -199,6 +199,20 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
     assert.equal(remote.code, 0, remote.stderr);
     assert.match(remote.stderr, /^\S+Z WARNING: this daemon has no authentication/m);
     assert.match(remote.stdout, /^\S+Z Litzio HTTP: /m);
+    // A log viewer closed before HTTP stop: logging failure must not turn a clean stop into exit 1.
+    const foreground = spawn(process.execPath, [entry, "daemon", "run", "--channel", "development"], { env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let foregroundErrors = "";
+    foreground.stderr.on("data", data => { foregroundErrors += data; });
+    const foregroundExit = once(foreground, "exit");
+    await new Promise<void>((resolve, reject) => {
+      let output = "";
+      const timer = setTimeout(() => reject(new Error(`foreground daemon not ready: ${foregroundErrors}`)), 15_000);
+      foreground.stdout.on("data", data => { output += data; if (output.includes("Litzio HTTP:")) { clearTimeout(timer); resolve(); } });
+    });
+    foreground.stdout.destroy();
+    await stopDaemon(readDaemonRecord(directory)!, "test-version");
+    const [foregroundCode] = await foregroundExit;
+    assert.equal(foregroundCode, 0, foregroundErrors);
     assert.match(remote.stderr, /Anyone on the same network.*reach this port/);
     assert.match(remote.stderr, /Without --root.*entire disk.*assistant \(AI\) execution/);
   } finally {

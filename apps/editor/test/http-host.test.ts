@@ -1108,8 +1108,8 @@ test("daemon log lines carry UTC time; paths keep only file names; one daemon.lo
 test("daemon log records failed, slow and aborted requests once per repeated run, without queries or bodies", () => {
   const lines: string[] = [];
   const recorder = requestRecorder(message => lines.push(message), 100);
-  const record = (method: string, url: string, status: number, ms: number, finished = true, failure?: { error: unknown }) =>
-    recorder.record({ method, url } as any, { statusCode: status, writableFinished: finished } as any, ms, failure);
+  const record = (method: string, url: string, status: number, ms: number, finished = true, failure?: { error: unknown }, routed = true) =>
+    recorder.record({ method, url } as any, { statusCode: status, writableFinished: finished } as any, ms, failure, routed);
   record("GET", "/api/folder?root=C%3A%5Csecret", 404, 5);
   record("GET", "/api/folder", 200, 5);
   assert.deepEqual(lines, [], "reads that are refused or fine stay out of the log");
@@ -1122,6 +1122,7 @@ test("daemon log records failed, slow and aborted requests once per repeated run
   record("POST", "/api/assistant/mcp/lease-token-secret", 200, 60_000);
   record("GET", "/document/secret%20file.png?path=x", 200, 5, false);
   record("HEAD", "/document/other.png", 503, 1);
+  for (const url of ["/C:/Users/secret/plan.md", "/secret-folder/a.md", "/api/secret-route"]) record("POST", url, 405, 2, true, undefined, false);
   recorder.flush();
   assert.deepEqual(lines, [
     "request failed POST /api/folder 415 in 4ms",
@@ -1131,7 +1132,13 @@ test("daemon log records failed, slow and aborted requests once per repeated run
     "repeated 1 more time: request slow GET /api/document",
     "request aborted GET /document/* after 5ms",
     "request failed HEAD /document/* 503 in 1ms",
+    "request failed POST (unmatched) 405 in 2ms",
+    "repeated 2 more times: request failed POST (unmatched) 405",
   ]);
+  const bounded: string[] = [];
+  const runs = repeatLog(message => bounded.push(message), 2);
+  for (const group of ["a", "a", "b", "c"]) runs.report(group, `event ${group}`);
+  assert.deepEqual(bounded, ["event a", "event b", "repeated 1 more time: event a", "event c"], "the oldest open run ends at the limit");
   assert.equal(LONG_RUNNING_ROUTES.length, 1);
   assert.equal(logRoute("/api/assistant/mcp/token"), "/api/assistant/mcp/*");
   assert.equal(SLOW_REQUEST_MS, 2_000);
@@ -1162,11 +1169,20 @@ test("HTTP Host records a thrown 500 with its cause and state-changing refusals,
   t.after(() => host.close());
   const headers = { Origin: host.url, "X-Litzio-Protocol": DAEMON_PROTOCOL };
   assert.equal((await fetch(host.url + "/daemon/health?secret-query=1", { headers })).status, 500);
+  const json = { Origin: host.url, "Content-Type": "application/json" };
+  const missingParent = JSON.stringify({ parent: path.join(isolatedData, "secret-missing"), name: "x" });
+  assert.ok((await fetch(host.url + "/api/folder?root=secret-query", { method: "POST", headers: json, body: missingParent })).status >= 400);
   assert.equal((await fetch(host.url + "/api/folder?root=secret-query", { method: "POST", headers: { Origin: host.url }, body: "secret-body" })).status, 415);
+  assert.equal((await fetch(host.url + "/secret-folder/plan.md", { method: "POST", headers: json, body: "{}" })).status, 405);
+  assert.equal((await fetch(host.url + "/api/secret-route", { method: "POST", headers: json, body: "{}" })).status, 404);
   assert.equal((await fetch(host.url + "/missing-page")).status, 404);
   await host.close();
-  assert.equal(lines.length, 2, lines.join("\n"));
+  assert.equal(lines.length, 5, lines.join("\n"));
   assert.match(lines[0]!, /^request failed GET \/daemon\/health 500 in \d+ms: Error: health failed in health\.ts \| at /);
-  assert.match(lines[1]!, /^request failed POST \/api\/folder 415 in \d+ms$/);
+  assert.match(lines[1]!, /^request failed POST \/api\/folder 4\d\d in \d+ms$/, "a known route keeps its path");
+  // Refused before routing (415), no static route (405) and no API route (404): never the path itself.
+  assert.match(lines[2]!, /^request failed POST \(unmatched\) 415 in \d+ms$/);
+  assert.match(lines[3]!, /^request failed POST \(unmatched\) 405 in \d+ms$/);
+  assert.match(lines[4]!, /^request failed POST \(unmatched\) 404 in \d+ms$/);
   assert.doesNotMatch(lines.join("\n"), /secret|private-user/);
 });
