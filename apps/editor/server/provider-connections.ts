@@ -4,6 +4,7 @@ import { hostPaths, type HostRun } from "./host-paths.ts";
 import { assistantCliEnvironment, hostCli } from "./assistant-cli.ts";
 import type { AssistantDiagnostics, AssistantAccountUsage, AssistantEnvironment, AiModels, AiModel, AiProvider, AssistantSkills } from "../shared/assistant.ts";
 import { CodexAppServer } from "./codex-app-server.ts";
+import { ProviderUpdates } from "./provider-updates.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions, type CopilotOllama } from "./copilot-acp.ts";
 
 // Distribution builds inline the Markdown; tsx/Vite read the same source files.
@@ -26,6 +27,11 @@ export class ProviderConnections {
   private accountRevision = 0;
   /** Host settings owner: the Ollama address when Copilot uses a local model source. */
   copilotOllamaUrl: () => string | undefined = () => undefined;
+  /** Conversation owner: whether a turn of this provider is in progress. */
+  providerBusy: (provider: AiProvider) => boolean = () => false;
+  readonly updates: ProviderUpdates;
+  /** Providers whose CLI was updated while a turn kept the earlier process running. */
+  private updated = new Set<AiProvider>();
   constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}, hostOrigin?: () => string | undefined) {
     this.templatesDirectory = hostPaths(run).templates;
     this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()) }); this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: () => assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.()) });
@@ -34,6 +40,24 @@ export class ProviderConnections {
       if (method === "account/updated" || method === "account/rateLimits/updated") this.invalidateUsage();
     });
     this.client.on("disconnected", () => this.invalidateUsage());
+    this.updates = new ProviderUpdates(provider => provider === "copilot" ? this.copilot.executable : this.client.executable);
+  }
+  /** Runs the CLI's own update on this Host. `reread` re-reads diagnostics once the relaunch decision is made. */
+  updateCli(provider: AiProvider, reread: () => void) {
+    return this.updates.start(provider, async succeeded => {
+      if (succeeded) this.updated.add(provider);
+      const deferred = succeeded && !await this.relaunchUpdated(provider);
+      reread();
+      return deferred;
+    });
+  }
+  /** After an update, the next idle moment launches the new executable; an admitted turn is never interrupted. */
+  async relaunchUpdated(provider: AiProvider): Promise<boolean> {
+    if (!this.updated.has(provider) || this.providerBusy(provider)) return false;
+    this.updated.delete(provider);
+    // An unconfirmed stop fails only callers waiting on it; the next request launches anew.
+    await (provider === "copilot" ? this.copilot.restart() : this.client.restart()).catch(() => {});
+    return true;
   }
   private invalidateUsage() { this.accountRevision++; this.usageCache = undefined; }
   async accountUsage(refresh = false): Promise<AssistantAccountUsage> {
@@ -135,16 +159,19 @@ export class ProviderConnections {
       this.environment();
       const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: this.copilot.executable, version: null, connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
       try { result.version = await this.copilot.diagnose((await this.copilotOllama(this.copilotOllamaUrl()))?.launch); result.connected = true; } catch (error) { result.error = (error as Error).message; }
-      return result;
+      // The installed version does not depend on the model source being reachable.
+      result.version ??= await this.copilot.installedVersion();
+      return Object.assign(result, await this.updates.version(provider, result.version));
     }
     this.environment();
     const result: AssistantDiagnostics = { provider: "codex", checkedAt: Date.now(), path: this.client.executable, version: await this.client.version(), connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
+    const version = this.updates.version("codex", result.version);
     try { await this.client.connect(); result.connected = true; }
-    catch (error) { result.error = String((error as Error).message); return result; }
+    catch (error) { result.error = String((error as Error).message); return Object.assign(result, await version); }
     const [usage, mcp] = await Promise.all([
       this.accountUsage(true), Promise.allSettled([this.mcp()]).then(([result]) => result),
     ]);
-    Object.assign(result, usage);
+    Object.assign(result, usage, await version);
     if (mcp.status === "fulfilled") result.mcp = mcp.value; else result.mcpError = mcp.reason.message;
     return result;
   }

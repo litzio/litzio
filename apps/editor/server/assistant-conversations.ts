@@ -109,6 +109,7 @@ export class AssistantConversations {
       }
     });
     connection.copilot.permission = request => this.copilotPermission(request);
+    connection.providerBusy = provider => [...this.conversations.values()].some(value => (value.provider ?? "codex") === provider && value.turns.some(turn => turn.status === "inProgress"));
     connection.client.userInput = (requestId, params, respond) => {
       const conversation = this.conversations.get(params?.threadId);
       if (!conversation?.turns.some(turn => turn.id === params.turnId && turn.status === "inProgress") || this.answers.has(this.answerKey(conversation.id, params.turnId, requestId)) ||
@@ -352,6 +353,7 @@ export class AssistantConversations {
         if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
         return await this.sendCopilot(input, settings, folders, references, conversation);
       }
+      await this.connection.relaunchUpdated("codex");
       if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.permissionMode);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
@@ -532,6 +534,7 @@ export class AssistantConversations {
     const fullAccess = settings.permissionMode === "full-access";
     // A local model source serves one model per process: the selected model is a launch setting.
     await this.prepareCopilotLaunch(effort, settings, ollamaUrl ? { url: ollamaUrl, model: input.model } : undefined);
+    await this.connection.relaunchUpdated("copilot");
     if (conversation && !this.loaded.has(conversation.id)) {
       // A running ACP process already owns the session and its MCP endpoint.
       // Retain the snapshot object held by callers while rebuilding provider-owned content.

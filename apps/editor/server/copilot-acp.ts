@@ -34,10 +34,11 @@ export class CopilotAcp extends EventEmitter {
     }
     return null;
   }
+  /** First line only: later lines are the CLI's own update hint, which diagnostics show as a status. */
   installedVersion(): Promise<string | null> {
     const bin = this.executable; if (!bin) return Promise.resolve(null);
     const shell = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin);
-    return new Promise(resolve => execFile(shell ? `"${bin}"` : bin, ["--version"], { shell, windowsHide: true, timeout: 5000 }, (error, out) => resolve(error ? null : out.trim())));
+    return new Promise(resolve => execFile(shell ? `"${bin}"` : bin, ["--version"], { shell, windowsHide: true, timeout: 5000 }, (error, out) => resolve(error ? null : out.trim().split(/\r?\n/)[0]!)));
   }
   async connect() {
     await this.stopping;

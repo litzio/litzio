@@ -2,6 +2,7 @@ import { Row, Section } from "./components/ui/row.tsx";
 import { Status } from "./components/ui/status.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
 import { AssistantAccount, AssistantRateLimits } from "./AssistantAccountUsage.tsx";
+import { CliUpdateButton, CliUpdateResult, CliVersionStatus, useCliUpdate } from "./AssistantCliUpdate.tsx";
 import { useHostClient } from "./host-context.tsx";
 import { observeAssistantProvider } from "./assistant-api.ts";
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -136,6 +137,7 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
       void loadModels(savedProvider).catch(report);
       for (const provider of ["codex", "copilot"] as const) void loadDiagnostics(provider).catch(report);
     }, [savedProvider, providerReadRevision]);
+    const cliUpdate = useCliUpdate(inspecting, request, () => void loadDiagnostics(inspecting, false).catch(report));
     const copilot = inspecting === "copilot", providerName = copilot ? "GitHub Copilot" : "Codex";
     const localCopilot = settings?.copilotModelSource === "ollama";
     const defaultModels = settings ? catalogs[settings.provider] : undefined;
@@ -160,7 +162,8 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
         <div className="agent-heading"><h3 className="settings-heading">{copilot ? t("Copilot diagnostics") : t("Codex diagnostics")}</h3><Button variant="outline" title={t(copilot ? "Sign in with Copilot CLI on the Host. Connection does not verify model access or quota." : "To sign in, run codex login in a terminal, then run diagnostics again.")} disabled={loading} onClick={() => void refresh()}>{t("Run diagnostics")}</Button></div>
         <p className="type-helper">{t("Last checked")}: {date(diagnostics?.checkedAt)}</p>
         <div className="agent-diagnostics">
-          {row(`${providerName} CLI`, <>{diagnostics?.version ?? t("Unavailable")}<code>{diagnostics?.path ?? "—"}</code></>)}
+          {row(`${providerName} CLI`, <>{diagnostics?.version ?? t("Unavailable")}<CliVersionStatus diagnostics={diagnostics} /><CliUpdateButton provider={inspecting} diagnostics={diagnostics} running={cliUpdate.update?.status === "running"} start={cliUpdate.start} /><code>{diagnostics?.path ?? "—"}</code></>)}
+          <CliUpdateResult update={cliUpdate.update} problem={cliUpdate.problem} />
           {diagnostics?.storePowerShellOnly ? row("PowerShell 7", <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>{t("Possible shell issue · Install standard PowerShell 7")}</TooltipTrigger><TooltipContent>{t("Only Microsoft Store PowerShell 7 was found. Codex may fail in restricted modes (CreateProcessAsUserW failed: 5). Replace it with the standard PowerShell 7 installer and run diagnostics again.")}</TooltipContent></Tooltip>) : null}
           {row(copilot ? "ACP" : "app-server", <>{t(diagnostics?.connected ? "Connected" : "Unavailable")}{diagnostics?.error ? <Notice tone="error">{diagnostics.error}</Notice> : null}</>)}
           {!copilot ? <>{row(t("Account"), <>{diagnostics?.accountError ?? <AssistantAccount value={diagnostics} />}<code>account/read</code></>)}

@@ -16,6 +16,7 @@ import { canonicalFilePath, RootAccess, fileErrorMessage } from "../server/file-
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
+import { fakeProviderCli, settled, useReleaseSource } from "./helpers/provider-cli.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
@@ -724,6 +725,63 @@ test("installed CLI launcher paths with spaces support version diagnostics and r
   finally { await current.close(); }
 });
 
+test("provider CLI update runs the executable's own update once at a time, reports its result and relaunches only an idle connection", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "provider-cli-update-")), log = path.join(root, "rpc.jsonl");
+  const cli = fakeProviderCli(root, { version: "0.150.0", update: "hang", next: "0.151.0" });
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: cli.bin, args: [fakeServer, log] });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  let releases = 0, release: () => Promise<string> = async () => "0.151.0";
+  useReleaseSource(connection, { latest: () => { releases++; return release(); }, timeoutMs: 1500 });
+  const pids = () => readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line).pid).filter(Boolean);
+
+  // Status: newer release, cached; a failed check is unknown, never current; no update command means no check.
+  const available = await connection.updates.version("codex", "codex-cli 0.150.0");
+  assert.deepEqual([available.versionStatus, available.latestVersion, available.updateUnavailable], ["available", "0.151.0", undefined]);
+  assert.equal((await connection.updates.version("codex", "codex-cli 0.151.0")).versionStatus, "current");
+  assert.equal((await connection.updates.version("codex", "codex-cli 0.152.0")).versionStatus, "current", "a build newer than the release is not an update");
+  assert.equal(releases, 1, "the release read is reused while the screen reopens");
+  release = () => Promise.reject(new Error("offline"));
+  useReleaseSource(connection, { latest: () => { releases++; return release(); }, timeoutMs: 1500 });
+  assert.deepEqual(await connection.updates.version("codex", "codex-cli 0.150.0"), { versionStatus: "unknown" });
+  cli.write({ help: false });
+  assert.deepEqual(await connection.updates.version("codex", "codex-cli 0.150.0"), { versionStatus: "unknown", updateUnavailable: "unsupported" });
+  assert.equal(releases, 2);
+  cli.write({ help: true });
+
+  // A stalled update ends at the time limit; a second start for the same provider is refused meanwhile.
+  await connection.client.connect();
+  connection.updateCli("codex", () => {});
+  assert.throws(() => connection.updateCli("codex", () => {}), /already running/);
+  const stalled = await settled(connection, "codex");
+  assert.equal(stalled.status, "failed"); assert.equal(stalled.timedOut, true);
+  assert.equal(cli.read().updates, 1);
+
+  cli.write({ update: "fail" });
+  const failed = (connection.updateCli("codex", () => {}), await settled(connection, "codex"));
+  assert.deepEqual([failed.status, failed.exitCode], ["failed", 3]);
+  assert.match(failed.output, /Checking for updates[\s\S]*error: release download failed/, "stdout and stderr are shown without color codes");
+  assert.equal(pids().length, 1, "a failed update keeps the running connection");
+
+  // A turn in progress keeps the earlier process; the next idle moment launches the updated executable.
+  cli.write({ update: "ok" });
+  let busy = true, reread = 0;
+  connection.providerBusy = () => busy;
+  const deferred = (connection.updateCli("codex", () => { reread++; }), await settled(connection, "codex"));
+  assert.deepEqual([deferred.status, deferred.exitCode, deferred.deferred, reread], ["succeeded", 0, true, 1]);
+  assert.match(deferred.output, /Updated to 0\.151\.0/);
+  await connection.client.request("model/list", { cursor: null });
+  assert.equal(pids().length, 1, "a running turn is never interrupted");
+  assert.equal(await connection.relaunchUpdated("codex"), false);
+  busy = false;
+  assert.equal(await connection.relaunchUpdated("codex"), true);
+  await connection.client.request("model/list", { cursor: null });
+  assert.equal(pids().length, 2);
+  assert.equal(await connection.relaunchUpdated("codex"), false, "one relaunch per update");
+  const idle = (connection.updateCli("codex", () => {}), await settled(connection, "codex"));
+  assert.equal(idle.deferred, undefined);
+  await connection.client.request("model/list", { cursor: null });
+  assert.equal(pids().length, 3, "an idle connection closes right after the update");
+});
 
 test("dynamic document tools enforce turn scope and preserve results across process resume", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-tools-")), folder = path.join(root, "docs"), outside = path.join(root, "outside"), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");

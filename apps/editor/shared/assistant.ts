@@ -23,7 +23,7 @@ export function checkedOllamaUrl(value: unknown): string {
 export const ASSISTANT = {
   settingsRoute: "/api/assistant/settings",
   skillsRoute: "/api/assistant/skills", modelsRoute: "/api/assistant/models", diagnosticsRoute: "/api/assistant/diagnostics", environmentRoute: "/api/assistant/environment",
-  conversationsRoute: "/api/assistant/conversations",
+  conversationsRoute: "/api/assistant/conversations", providerUpdateRoute: "/api/assistant/provider-update",
   conversationTitleLimit: 80,
 } as const;
 export type AssistantConversationInfo = { id: string; provider?: AiProvider; permissionMode?: AssistantSettings["permissionMode"]; permissionFallback?: boolean; title: string; folders: string[]; createdAt: number; updatedAt: number;
@@ -76,7 +76,18 @@ export type AssistantDiagnostics = {
     spendControlReached?: boolean;
   }[];
   mcp?: { name: string; status: string; authStatus: string }[];
-};
+} & ProviderVersion;
+/** Installed CLI against its latest public release; a failed or late check is "unknown", never "current". */
+export type ProviderVersion = { versionStatus?: "current" | "available" | "unknown"; latestVersion?: string; latestCheckedAt?: number;
+  /** Why the CLI's own update command cannot run on this Host. */
+  updateUnavailable?: "missing" | "unsupported" };
+/** Daemon-memory state of the provider CLI's own update command; one run per provider at a time. */
+export type ProviderUpdate = { provider: AiProvider; status: "idle" | "running" | "succeeded" | "failed";
+  startedAt?: number; finishedAt?: number; exitCode?: number | null; timedOut?: boolean; error?: string;
+  /** Combined stdout and stderr in arrival order; only the last part is kept beyond the limit. */
+  output: string; outputTruncated?: boolean;
+  /** A turn was in progress: the running connection is kept and replaced at the next idle send. */
+  deferred?: boolean };
 /** Display-only subset of provider diagnostics; owned and cached by the target Host. */
 export type AssistantAccountUsage = Pick<AssistantDiagnostics, "provider" | "checkedAt" | "account" | "accountError" | "rateLimits" | "rateLimitsError">;
 

@@ -130,7 +130,7 @@ const COMMANDS: CommandSpec[] = [
 
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
   { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
-    usage: `${brand.cliCommand} assistant import-image <document> --source <absolute-image-path> | assistant delete <id> --host <origin> | assistant rename <id> --title <text> --host <origin> | assistant archive <id> --host <origin> | assistant unarchive <id> --host <origin> | assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot> --host <origin> | assistant conversation <id> --host <origin> | assistant answer <id> --file <json-file> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero.", "rename, archive and unarchive change only the history entry; archive keeps everything and hides the conversation from the default history, and sending a message unarchives it. conversation explicitly reopens the target Host snapshot without starting a turn. answer takes { turnId, requestId, answers } and uses the same question validation and provider delivery as the chat. No local fallback or automatic retry."] },
+    usage: `${brand.cliCommand} assistant import-image <document> --source <absolute-image-path> | assistant delete <id> --host <origin> | assistant rename <id> --title <text> --host <origin> | assistant archive <id> --host <origin> | assistant unarchive <id> --host <origin> | assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot> --host <origin> | assistant provider-update <codex|copilot> [--check] --host <origin> | assistant conversation <id> --host <origin> | assistant answer <id> --file <json-file> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero.", "rename, archive and unarchive change only the history entry; archive keeps everything and hides the conversation from the default history, and sending a message unarchives it. conversation explicitly reopens the target Host snapshot without starting a turn. answer takes { turnId, requestId, answers } and uses the same question validation and provider delivery as the chat. No local fallback or automatic retry.", "provider-update runs that CLI's own update command on the target Host, waits for it and prints the run (status, exitCode, output) with the re-read version; it fails when the update fails or another update of that CLI is running. --check only prints the installed version, the latest public release status (current, available or unknown) and the last run."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -1373,6 +1373,25 @@ export async function runCliAsync(args: string[]): Promise<number> {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Provider log lookup failed.");
       process.stdout.write(JSON.stringify(result) + "\n"); return result.available === false ? 1 : 0;
+    }
+    if (operation === "provider-update") {
+      const check = args[3] === "--check";
+      if (args.length !== (check ? 6 : 5) || args[args.length - 2] !== "--host" || !["codex", "copilot"].includes(args[2])) throw new Error(commandHelp("assistant"));
+      const origin = new URL(args[args.length - 1]);
+      if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("Expected a Host origin.");
+      const call = async (route: string, method = "GET") => {
+        const response = await fetch(`${origin.origin}${route}${method === "GET" ? `?provider=${args[2]}` : ""}`, { method, headers: { "Content-Type": "application/json", "X-Litzio-Protocol": "4", Connection: "close" },
+          ...(method === "POST" ? { body: JSON.stringify({ provider: args[2] }) } : {}), signal: AbortSignal.timeout(60000) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "Provider update request failed.");
+        return result;
+      };
+      // The Host owns the run and its time limit; the CLI only follows it.
+      let update = await call("/api/assistant/provider-update", check ? "GET" : "POST");
+      while (!check && update.status === "running") { await new Promise(resolve => setTimeout(resolve, 1000)); update = await call("/api/assistant/provider-update"); }
+      const { path, version, versionStatus, latestVersion, updateUnavailable } = await call("/api/assistant/diagnostics");
+      process.stdout.write(JSON.stringify({ provider: args[2], path, version, versionStatus, latestVersion, updateUnavailable, update }) + "\n");
+      return !check && update.status === "failed" ? 1 : 0;
     }
     if (operation === "settings" ? args.length !== 2 : operation !== "configure" || args.length !== 4 || args[2] !== "--file") throw new Error(commandHelp("assistant"));
     const host = createAssistantHost();
