@@ -144,6 +144,8 @@ Copilot의 로컬 모델 연결은 프로세스마다 모델 하나만 제공하
 
 모델 출처: 계정 [전](assets/assistant-model-source-1891/before-account-1440-light-ko.png) / [후](assets/assistant-model-source-1891/after-account-1440-light-ko.png) · 로컬 [밝음](assets/assistant-model-source-1891/after-local-1440-light-ko.png) / [어두움](assets/assistant-model-source-1891/after-local-1440-dark-ko.png) · [주소 형식 오류](assets/assistant-model-source-1891/after-local-invalid-1440-light-ko.png) · [Ollama 연결 불가](assets/assistant-model-source-1891/after-local-unavailable-1440-light-ko.png)
 
+로컬 출처의 입력창 추론 강도: [전](assets/assistant-local-reasoning-1908/before-1440-light-ko.png) / [후](assets/assistant-local-reasoning-1908/after-1440-light-ko.png) · [후 1920](assets/assistant-local-reasoning-1908/after-1920-light-ko.png)
+
 연결됨은 전송 준비 상태이며 로그인·모델 사용 자격·잔여 한도를 증명하지 않는다.
 Host는 마지막 모델 목록·진단 결과를 공급자별로 daemon 메모리에 보관한다. 설정과 사이드바는 진입 시 마지막 결과를 먼저 표시하고 백그라운드에서 확인한 뒤 갱신한다. 같은 확인은 진행 중인 요청을 공유하며, 3초 이내에 완료된 결과도 재사용해 두 화면을 연달아 열 때 공급자를 반복 실행하지 않는다.
 설정의 상태에 마우스를 올리거나 키보드로 포커스하면 마지막 확인 시각을 볼 수 있다. 모델 목록의 새로고침과 진단 실행은 공급자를 다시 조회하며 확인 중에도 기존 결과를 표시한다. Copilot 진단은 진행 대화와 분리된 짧은 연결을 사용한다. 끊기거나 초기화에 실패한 Copilot 프로세스와 초기화에 실패한 Codex 프로세스의 종료를 확인하지 못하면 그 시점에 기다리던 요청만 실패하고, 다음 요청은 새 프로세스로 연결한다.
