@@ -3,7 +3,7 @@ import { Row } from "./components/ui/row.tsx";
 import { Status } from "./components/ui/status.tsx";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
-import { PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../shared/plugin-registration-error.ts";
+import { PLUGIN_MANIFEST_MISSING, PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../shared/plugin-registration-error.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
@@ -51,8 +51,16 @@ export function PluginSettings() {
       {!checking && plugins.length && plugins.every(plugin => plugin.update && !plugin.update.available && !plugin.update.error) ? <PluginState tone="ok" label={i18n.t("Up to date")} /> : null}
     </div>
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} initialPath="" recent={[]}
-      browse={browse} places={places}
-      onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
+      browse={browse} places={places} pendingLabel={i18n.t("Adding…")}
+      onClose={() => setChoosing(false)} onOpen={async directory => {
+        try {
+          await change("register", { directory });
+          return "";
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return message === PLUGIN_MANIFEST_MISSING ? i18n.t(PLUGIN_MANIFEST_MISSING) : message;
+        }
+      }} />
     <GitHubPluginDialog open={fromGitHub} returnFocus={githubButton} onClose={() => setFromGitHub(false)} add={async (source, track) => { await change("register", { source, track }); }} />
     {error || problem && !current && !trust ? <Notice tone="error">{error || <GitHubError message={problem} />}</Notice> : null}
     {plugins.map(plugin => <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>
