@@ -34,6 +34,11 @@ export class CopilotAcp extends EventEmitter {
     }
     return null;
   }
+  installedVersion(): Promise<string | null> {
+    const bin = this.executable; if (!bin) return Promise.resolve(null);
+    const shell = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin);
+    return new Promise(resolve => execFile(shell ? `"${bin}"` : bin, ["--version"], { shell, windowsHide: true, timeout: 5000 }, (error, out) => resolve(error ? null : out.trim())));
+  }
   async connect() {
     await this.stopping;
     if (this.closed) return Promise.reject(new Error("Copilot ACP is closed."));
@@ -42,7 +47,7 @@ export class CopilotAcp extends EventEmitter {
   private async initialize() {
     const bin = this.executable; if (!bin) throw new Error("Copilot CLI is unavailable on the Host.");
     const shell = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin), command = shell ? `"${bin}"` : bin;
-    this.version = await new Promise<string | null>(resolve => execFile(command, ["--version"], { shell, windowsHide: true, timeout: 5000 }, (error, out) => resolve(error ? null : out.trim())));
+    this.version = await this.installedVersion();
     if (this.closed) throw new Error("Copilot ACP is closed.");
     const child = spawn(command, [...(this.options.args ?? []), "--acp", "--allow-tool=litzio_host", "--reasoning-effort", this.reasoningEffort],
       { cwd: this.cwd, env: { ...this.options.env?.() ?? process.env, ...copilotOllamaEnvironment(this.ollama) }, shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
@@ -94,10 +99,15 @@ export class CopilotAcp extends EventEmitter {
   async useLaunchSettings(effort: string, fullAccess: boolean, ollama?: CopilotOllama) {
     if (!COPILOT_EFFORTS.includes(effort)) throw new Error("Invalid Copilot reasoning effort.");
     if (effort === this.reasoningEffort && fullAccess === this.fullAccess && sameOllama(ollama, this.ollama)) return;
+    await this.restart();
+    this.reasoningEffort = effort; this.fullAccess = fullAccess; this.ollama = ollama;
+  }
+  /** The next connection launches the executable again. Caller must exclude active turns. */
+  async restart() {
     const client = this.ready ? await this.ready : undefined;
     await this.stop();
     if (client) await client.closed;
-    this.ready = undefined; this.probe = undefined; this.reasoningEffort = effort; this.fullAccess = fullAccess; this.ollama = ollama;
+    this.ready = undefined; this.probe = undefined;
   }
   async call<T>(operation: () => Promise<T>, discardOnTimeout = false): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
