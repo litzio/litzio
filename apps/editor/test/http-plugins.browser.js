@@ -349,26 +349,20 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(page.getByText(hint, { exact: true })).toBeVisible();
   if (screenshots) await capture("after-1440-light");
 
-  // A failed registration has no row. The picker still handles path input errors.
-  const add = page.getByRole("button", { name: "Add plugin…", exact: true });
-  await add.click();
-  const picker = page.getByRole("dialog");
-  await picker.getByRole("button", { name: "Edit path", exact: true }).click();
-  await page.getByTestId("folder-path").fill(pluginFixture.folder);
-  const addFailed = responseFor("register");
-  await page.getByTestId("folder-open").click();
-  const rejectedAdd = await addFailed;
-  expect(rejectedAdd.status()).toBe(400);
-  await expect(picker).toBeHidden();
+  // A failed request to check the entire list belongs below the list actions.
+  const checkUpdates = pluginList.getByRole("button", { name: "Check for updates", exact: true });
+  const listFailure = "Fixture update check failed.";
+  await page.route("**/api/plugins", route => route.request().postDataJSON()?.action === "check-updates"
+    ? route.fulfill({ status: 400, json: { error: listFailure } }) : route.continue());
+  await checkUpdates.click();
   const listError = pluginList.getByRole("alert");
-  await expect(listError).toHaveText((await rejectedAdd.json()).error);
+  await expect(listError).toHaveText(listFailure);
   const actionsBox = await pluginList.locator(".plugin-actions").boundingBox();
   expect((await listError.boundingBox()).y).toBeGreaterThan(actionsBox.y + actionsBox.height);
-  if (screenshots) await capture("after-add-error-1440-light");
-  await add.click();
-  await page.keyboard.press("Escape");
-  await expect(picker).toBeHidden();
-  await expect(pluginList.getByRole("alert")).toHaveCount(0);
+  await page.unrouteAll({ behavior: "wait" });
+  await checkUpdates.click();
+  await expect(listError).toHaveCount(0);
+  await expect(checkUpdates).toBeEnabled();
 
   if (screenshots) {
     await page.setViewportSize({ width: 1920, height: 1080 });

@@ -91,7 +91,15 @@ export function PluginSettings() {
     </div>
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} initialPath="" recent={[]}
       browse={browse} places={places} returnFocus={addButton}
-      onClose={() => setChoosing(false)} onOpen={async directory => { await run("register", { directory }); setChoosing(false); return ""; }} />
+      onClose={() => setChoosing(false)} onOpen={async directory => {
+        try {
+          await change("register", { directory });
+          setChoosing(false);
+          return "";
+        } catch (error) {
+          return error instanceof Error ? error.message : String(error);
+        }
+      }} />
     <GitHubPluginDialog open={fromGitHub} returnFocus={githubButton} onClose={() => setFromGitHub(false)} add={async (source, track) => { await run("register", { source, track }); }} />
     {error || listProblem ? <Notice tone="error" className="plugin-list-error"><GitHubError message={error || listProblem} /></Notice> : null}
     {plugins.map(plugin => {
