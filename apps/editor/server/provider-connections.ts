@@ -137,7 +137,7 @@ export class ProviderConnections {
       const models = ollama ? ollama.models.map(name => ({ modelId: name, name, description: "" }))
         : available.filter((model, index) => available.findIndex(value => value.modelId === model.modelId) === index);
       if (!ollama && !models.some(model => model.modelId === "auto")) models.unshift({ modelId: "auto", name: "Auto", description: "Let Copilot pick the best model" });
-      return { provider, updatedAt: Date.now(), copilot: copilotOptions(session), models: models.map(model => ({
+      return { provider, updatedAt: Date.now(), copilot: copilotOptions(session, !!ollama), models: models.map(model => ({
         id: model.modelId, model: model.modelId, displayName: model.name, description: model.description ?? "",
         defaultReasoningEffort: reasoning?.currentValue ?? "medium", supportedReasoningEfforts,
       })) };

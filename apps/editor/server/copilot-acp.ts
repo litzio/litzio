@@ -198,14 +198,17 @@ export function copilotChoices(option: SelectOption) {
 export function copilotModelOption(session: Pick<NewSessionResponse, "configOptions">) {
   return session.configOptions?.find((option): option is SelectOption => option.type === "select" && (option.category === "model" || option.id === "model"));
 }
-export function copilotOptions(session: NewSessionResponse): AiCopilotOptions {
+/** `local`: a BYOK (Ollama) session has no reasoning option; the launch argument takes every CLI value. */
+export function copilotOptions(session: NewSessionResponse, local = false): AiCopilotOptions {
   const mode = session.configOptions?.find((option): option is SelectOption => option.type === "select" && option.category === "mode");
   const modes = session.modes?.availableModes ?? (mode ? copilotChoices(mode).map(value => ({ id: value.value, name: value.name, description: value.description })) : []);
   // Only protocol Agent/Plan IDs (or their short forms). Names alone cannot authorize a mode.
   const safe = modes.filter(mode => /^(agent|plan)$/.test(mode.id) || /^https:\/\/agentclientprotocol.com\/protocol\/session-modes#(agent|plan)$/.test(mode.id));
   const reasoning = copilotReasoning(session);
-  const config = !!reasoning || !!copilotModelOption(session);
-  return { ...(config ? { reasoningEfforts: reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" })) : [] } : {}), reasoningEffortSource: config ? "config" : "cli",
+  const config = !!reasoning || !!copilotModelOption(session) || local;
+  const efforts = reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" }))
+    : local ? COPILOT_EFFORTS.map(reasoningEffort => ({ reasoningEffort, description: "" })) : [];
+  return { ...(config ? { reasoningEfforts: efforts } : {}), reasoningEffortSource: config ? "config" : "cli",
     modes: safe.map(mode => ({ id: mode.id, name: mode.name, description: mode.description ?? "" })),
     currentMode: session.modes?.currentModeId ?? mode?.currentValue ?? "" };
 }
