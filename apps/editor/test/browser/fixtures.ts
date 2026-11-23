@@ -197,6 +197,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
   "external-html-paste": { files: [{ name: "external.md", create: () => nativeSource("# External\n\nAlpha.\n\nOmega.\n") },
     { name: "markdown.md", create: () => nativeSource("# Markdown\n\nAlpha.\n\nInline `mono` text.\n\n```\ncode\n```\n\n:::{table}\n\n| A | B |\n| - | - |\n| c | d |\n:::\n\nOmega.\n") },
     { name: "places.md", create: () => nativeSource("# Places\n\n(tab-sec)=\n### Section\n\nLeftRIGHT\n\nInline `mono` text.\n\n:::{table} CaptionText\n:name: tab-data\n\n| A        | B |\n| -------- | - |\n| CellText | d |\n:::\n\nSee[^n].\n\nOmega.\n\n[^n]: NoteText\n") }], scenarios: ["external-html-paste"] },
+  "external-checklist-paste": { files: [{ name: "checklist.md", create: () => nativeSource("# Checklist\n\nOmega.\n") }], scenarios: ["external-checklist-paste"] },
   "atom-boundaries": { files: [{ name: "boundaries.md", create: () => nativeSource(
     "# Atom boundaries\n\n" + ["equation", "figure", "table", "code", "divider", "admonition"].flatMap((kind, i) =>
       ["heading", "paragraph", "list", "quote"].flatMap((current, j) => ["Backspace", "Delete"].map(key => {

@@ -102,6 +102,7 @@ export const STABLE_SCENARIOS = [
   "metadata-popover",
   "linked-document-view",
   "activity-bar",
+  "external-checklist-paste",
 ];
 
 /** These scenarios inspect notification content, actions, history or stacking.
@@ -125,6 +126,7 @@ export const NOTIFICATION_SCENARIOS = [
   "equation-node-selection-typing",
   "external-change",
   "external-html-paste",
+  "external-checklist-paste",
   "file-actions",
   "folder-navigation",
   "footnotes",
