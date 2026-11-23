@@ -17,7 +17,7 @@ import { canEditEndnoteAt, endnoteBlocks } from "./endnotes.ts";
 import { i18n } from "./i18n.ts";
 import { useMessageState } from "./ui-message.ts";
 import { useOverlayBounds, type OverlayAnchor } from "./ui/use-overlay-bounds.ts";
-import { hangulJamo, qwertyHangulJamo } from "./qwerty-hangul.ts";
+import { hangulJamo, searchJamo } from "./qwerty-hangul.ts";
 
 export const BibliographyContext = createContext<BibliographyEvaluation | undefined>(undefined);
 export const useBibliography = () => useContext(BibliographyContext);
@@ -151,8 +151,8 @@ export function citationCommandItems(entries: readonly BibliographyEntry[] | und
   const matches = (entries ?? []).filter(entry => entry.key.toLowerCase().startsWith(needle) ||
     entry.text.toLowerCase().split(/[\s\p{P}]+/u).some(word => word.startsWith(needle)));
   const offered = ["citation", "cite", "인용"].some(word => word.startsWith(needle));
-  // /인용 typed in English mode, tried only when the query as typed found nothing.
-  const jamo = offered || matches.length ? undefined : qwertyHangulJamo(query.trim());
+  // /인용 still being composed or typed in English mode, tried only when the query as typed found nothing.
+  const jamo = offered || matches.length ? undefined : searchJamo(query.trim());
   return [...(offered || (jamo && hangulJamo("인용").startsWith(jamo)) ? item : []),
     ...matches.slice(0, MENU_ENTRIES).map(entry => ({ id: ENTRY_COMMAND + entry.key, label: `${entry.key} · ${entry.text}`, group }))];
 }

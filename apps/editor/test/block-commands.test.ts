@@ -95,6 +95,22 @@ test("insert search falls back to Hangul typed in English mode only when the que
   assert.ok(!ids("t").includes("equation"));
 });
 
+test("insert search keeps Hangul still being composed by comparing jamo only when the query finds nothing", () => {
+  const ids = (query: string) => filterInsertCommands(query).map(command => command.id);
+  assert.deepEqual(ids("수시"), ["equation"]);
+  assert.deepEqual(ids("ㅍ"), ["table"]);
+  // Queries with their own results keep them unchanged.
+  assert.deepEqual(ids("수"), ["equation"]);
+  assert.deepEqual(ids("이"), ["figure"]);
+  // /인용 being composed stays reserved for Citation, so Quote does not appear and vanish on the way to it.
+  for (const query of ["인ㅇ", "인요", "인용", "dlsd", "dlsdy", "dlsdyd"]) {
+    assert.deepEqual(ids(query), [], query);
+    assert.equal(citationCommandItems(undefined, query)[0]?.id, CITATION_COMMAND, query);
+  }
+  assert.deepEqual(ids("인"), ["quote"]);
+  assert.deepEqual(ids("인용ㅁ"), ["quote"]);
+});
+
 function docOf(markdown: string): ProseMirrorNode {
   return schema.nodeFromJSON(toTiptapDocument(loadEditableDocument(markdown)));
 }

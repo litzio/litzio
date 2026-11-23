@@ -12,7 +12,7 @@ import { endnoteLabel } from "./endnotes.ts";
 import { updateLabelProperties } from "./label-rename.ts";
 import { AUTHORABLE_ADMONITION_KINDS, admonitionAppearance, admonitionSearchTerms } from "./admonition-kinds.ts";
 import { blockMoveTarget, blockMoveBlockedHint, reorderBlock } from "./block-reorder.ts";
-import { hangulJamo, qwertyHangulJamo } from "./qwerty-hangul.ts";
+import { hangulJamo, searchJamo } from "./qwerty-hangul.ts";
 
 // Editor commands for block insert/delete and table rows/columns. Each command is one engine
 // transaction; Save maps the result to Core insertParagraph/insertHeading/insertEquation/
@@ -324,10 +324,10 @@ export function filterInsertCommands(query: string): InsertCommand[] {
   if (needle === "인용") return [];
   const words = (command: InsertCommand) => [command.label, command.id, ...command.keywords, ...(KOREAN_SEARCH[command.id] ?? [])];
   const matches = INSERT_COMMANDS.filter(command => words(command).some(word => word.toLowerCase().startsWith(needle)));
-  const jamo = matches.length ? undefined : qwertyHangulJamo(query.trim());
-  // /인용 typed in English mode is reserved the same way.
-  if (!jamo || jamo === hangulJamo("인용")) return matches;
-  return INSERT_COMMANDS.filter(command => words(command).some(word => hangulJamo(word).startsWith(jamo)));
+  const jamo = matches.length ? undefined : searchJamo(query.trim());
+  // /인용 still being composed (인ㅇ, 인요) or typed in English mode is reserved the same way.
+  if (!jamo || (jamo.length > hangulJamo("인").length && hangulJamo("인용").startsWith(jamo))) return matches;
+  return INSERT_COMMANDS.filter(command => words(command).some(word => hangulJamo(word.toLowerCase()).startsWith(jamo)));
 }
 
 /** Search aliases remain available in both display languages. */

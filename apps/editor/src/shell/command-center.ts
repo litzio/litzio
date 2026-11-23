@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { hangulJamo, qwertyHangulJamo } from "../qwerty-hangul.ts";
+import { hangulJamo, searchJamo } from "../qwerty-hangul.ts";
 
 /** A view of existing shell actions, rebuilt from the current tab and operation state. */
 export type CommandCenterItem = {
@@ -31,8 +31,8 @@ export function filterCommandCenterItems(items: readonly CommandCenterItem[], qu
     return matches.sort((a, b) => Number(containsAll(b.label)) - Number(containsAll(a.label)));
   };
   const matches = search(typed.map(word => word.toLocaleLowerCase()), normalize);
-  // Hangul typed in English mode is tried only when the query as typed found nothing.
-  const jamo = typed.map(qwertyHangulJamo).filter(word => word !== undefined);
+  // Hangul being composed or typed in English mode is tried only when the query as typed found nothing.
+  const jamo = typed.map(searchJamo).filter(word => word !== undefined);
   if (matches.length || !typed.length || jamo.length !== typed.length) return matches;
   return search(jamo, value => hangulJamo(normalize(value)));
 }

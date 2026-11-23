@@ -338,6 +338,10 @@ test("command center searches document paths and translated commands, with an ex
   assert.deepEqual(ids("anstj"), ["document"]);
   assert.deepEqual(ids("Qhr"), []);
   assert.deepEqual(ids("copy"), ["copy"]);
+  // Hangul still being composed matches by jamo the same way.
+  assert.deepEqual(ids("저자"), ["save"]);
+  assert.deepEqual(ids("> 경로 보"), ["copy"]);
+  assert.deepEqual(ids("저"), ["save"]);
   const ranked: CommandCenterItem[] = [
     { id: "path", kind: "file", label: "guide.md", detail: "C:/settings/guide.md", icon: FileText, run() {} },
     { id: "refresh", kind: "command", label: "Refresh folder", detail: "C:/settings", icon: FileText, run() {} },
