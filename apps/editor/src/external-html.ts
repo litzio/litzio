@@ -180,7 +180,7 @@ function checklists(body: HTMLElement): void {
 }
 
 /** The checkbox before any text of an item's own content, or undefined. */
-function leadingCheckbox(item: Element): HTMLInputElement | undefined {
+export function leadingCheckbox(item: Element): HTMLInputElement | undefined {
   // SHOW_ELEMENT | SHOW_TEXT
   const walker = item.ownerDocument.createTreeWalker(item, 1 | 4);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {

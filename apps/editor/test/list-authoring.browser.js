@@ -253,6 +253,13 @@ async (page, { openDocument, withBlockHover }) => {
   await page.keyboard.press('Control+a');
   await page.keyboard.press('Control+x');
   const cutEmpty = (await checks()) === '';
+  // Other apps read the copied HTML: each item keeps a real checkbox with its state.
+  const cutClipboard = await page.evaluate(async () => {
+    const [item] = await navigator.clipboard.read();
+    const html = await (await item.getType('text/html')).text();
+    const boxes = [...new DOMParser().parseFromString(html, 'text/html').querySelectorAll('li input[type="checkbox"]')];
+    return { boxes: boxes.map(box => box.checked).join(), text: await (await item.getType('text/plain')).text() };
+  });
   await page.keyboard.press('Control+v');
   const cutPasted = cutEmpty && (await shape()).doc === beforeCut.doc && await checks() === checklistReopened;
   await engine.evaluate(element => element.editor.setEditable(false));
@@ -309,7 +316,7 @@ async (page, { openDocument, withBlockHover }) => {
     checklistClickUndoRedo: clicked === 'Cable=true 점검=false Sub=false' && clickTyped && clickTypingUndone &&
       clickUndone === typedChecklist && clickRedone === clicked,
     checklistKeyboard: keyChecked === 'Cable=true 점검=true Sub=false' && keyboardChecked && keyLifted,
-    checklistCutPasted: cutPasted,
+    checklistCutPasted: cutPasted && cutClipboard.boxes === 'true,true,false',
     checklistSaved: checklistSaved === `${expected.replace('Done.\n', 'Done.\n\n*   [x] Cable\n*   [x] 점검\n    *   [ ] Sub\n\nAfter checklist\n')}`,
     checklistReopened: checklistReopened === keyChecked,
     readOnlyKept,
@@ -321,6 +328,6 @@ async (page, { openDocument, withBlockHover }) => {
     inlineReopenedSame: inlineReopened.doc === inlineJoined.doc,
   };
   const failed = Object.entries(result).filter(([, value]) => value !== true);
-  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, typedChecklist, clicked, clickUndone, clickRedone, keyChecked, beforeCut, checklistSaved, checklistReopened, kindsSwitched, emptyLine, backspacedEmptyLine, writtenLine, joined, typedAfterJoin, undoneTyping, undone, redone, reopened, inlineJoined, inlineAtoms, inlineSaved, inlineReopened})}`);
+  if (failed.length > 0) throw new Error(`List authoring failed: ${JSON.stringify({result, saved, typedChecklist, clicked, clickUndone, clickRedone, keyChecked, beforeCut, cutClipboard, checklistSaved, checklistReopened, kindsSwitched, emptyLine, backspacedEmptyLine, writtenLine, joined, typedAfterJoin, undoneTyping, undone, redone, reopened, inlineJoined, inlineAtoms, inlineSaved, inlineReopened})}`);
   return result;
 }
