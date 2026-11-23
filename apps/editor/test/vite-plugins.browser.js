@@ -13,8 +13,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const response = await rejected;
     expect(response.status()).toBe(400);
     const failure = await response.json();
-    await expect(page.getByRole("alert")).toContainText(failure.error);
-    await expect(input).toHaveValue(directory);
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page.getByRole("region", { name: "Plugins", exact: true }).getByRole("alert")).toHaveText(failure.error);
   };
   await input.fill(pluginFixture.directory + "-missing");
   await expect(register).toBeDisabled();
@@ -22,6 +22,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.getByTestId("folder-picker-meta")).toHaveText("folder does not exist");
   await page.getByRole("dialog").getByRole("button", {name:"Edit path",exact:true}).click();
   await rejectRegistration(pluginFixture.folder);
+  await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Edit path", exact: true }).click();
   await input.fill(pluginFixture.directory);
   await register.click();
   await expect(input).not.toBeVisible();

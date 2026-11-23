@@ -3,6 +3,7 @@ import type { PluginCli } from "@litzio/plugin-sdk";
 import { installScreenDependencies } from "./screen-dependencies.ts";
 import { compileScreen, bundleScreens } from "./screen-code.ts";
 import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
+import { PluginArtifactChangedError } from "../../shared/plugin-artifact-error.ts";
 import { AssistantSkillValidationError, PluginAssistantSkills, validateAssistantSkills } from "./assistant-skills.ts";
 import { PLUGIN_REGISTRATION_CHANGED } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
@@ -282,7 +283,8 @@ export class PluginHost {
       try {
         const { manifest: m, digest } = await this.installedArtifact(r, current => { file = current; }), live = this.loaded.get(id);
         if (m.id !== id || digest !== r.digest) {
-          return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, status: null, error: "Artifact changed; reload the plugin" };
+          return { id, registrationId: r.registrationId, installed: true, trusted: !!r.trusted, enabled: r.enabled, running: false, status: null,
+            error: "Artifact changed; reload the plugin", artifactChanged: true, source: sourceSummary(r) };
         }
         const observed = live ? await this.status(live) : null;
         const current = live && this.loaded.get(id) === live;
@@ -297,7 +299,7 @@ export class PluginHost {
     const directory = this.installedDirectory(previous), artifact = await this.artifact(directory);
     if (artifact.manifest.id !== id) throw new Error("Artifact ID changed");
     if (!previous.trusted) throw new Error("Explicit plugin trust is required");
-    if (artifact.digest !== previous.digest) throw new Error("Artifact changed; reload the plugin");
+    if (artifact.digest !== previous.digest) throw new PluginArtifactChangedError();
     if (!this.loaded.has(id)) await this.activate({ ...previous, enabled: true }, directory, artifact, previous);
   }
   private async activate(record: InstalledPlugin, directory: string, artifact: Artifact, previous?: PluginRegistration, checkCandidate = false) {

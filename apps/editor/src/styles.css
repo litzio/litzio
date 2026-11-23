@@ -1019,6 +1019,10 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
 }
 .settings-section:not(.settings-section--stacked) > .settings-actions { grid-column: -2 / -1; justify-content: flex-end; }
 .plugin-settings-dialog .settings-actions { justify-content: flex-end; }
+.plugin-actions { align-items: center; }
+.plugin-status { display: inline-flex; align-items: center; gap: var(--space-1); }
+.host-access-warning { display: flex; align-items: center; gap: var(--space-1); }
+.settings-group > .plugin-list-error { margin-block-start: var(--space-3); }
 .settings-section > [role="alert"] { grid-column: 1 / -1; }
 .settings-section > .settings-progress { grid-column: 1 / -1; }
 .settings-row { align-items: center; }

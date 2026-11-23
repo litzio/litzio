@@ -3,6 +3,7 @@ import { Row } from "./components/ui/row.tsx";
 import { Status } from "./components/ui/status.tsx";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
+import { PluginArtifactChangedError } from "../shared/plugin-artifact-error.ts";
 import { PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../shared/plugin-registration-error.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
@@ -20,9 +21,14 @@ import { SettingsSwitch } from "./components/ui/settings.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./components/ui/dialog.tsx";
 import { usePlugins, type Plugin } from "./plugin-state.ts";
 
+const ARTIFACT_CHANGED_HINT = "The installed files differ from when the plugin was installed. Reinstall to restore it from its source.";
+
 export function PluginSettings() {
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
   const [removing, setRemoving] = useState(false), [checking, setChecking] = useState<string | true>(), [fromGitHub, setFromGitHub] = useState(false);
+  const [listProblem, setListProblem] = useState("");
+  const [rowProblems, setRowProblems] = useState(new Map<string, string>());
+  const [reinstalling, setReinstalling] = useState<string>();
   const githubButton = useRef<HTMLButtonElement>(null);
   const removeButton = useRef<HTMLButtonElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
@@ -35,36 +41,78 @@ export function PluginSettings() {
     if (busy || error) return;
     if (selected && !plugins.some(plugin => plugin.id === selected) || trust && !plugins.some(plugin => plugin.id === trust.id)) {
       setSelected(undefined); setTrust(undefined); setRemoving(false);
-      setProblem(i18n.t("The selected plugin is no longer available."));
+      setListProblem(i18n.t("The selected plugin is no longer available."));
     }
   }, [plugins, selected, trust, busy, error]);
-  const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); try { await change(action, args); } catch (e) { setProblem(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); } };
+  const run = async (action: string, args: Record<string, unknown>, report = setListProblem) => {
+    setBusy(true);
+    report("");
+    try { await change(action, args); }
+    catch (error) { report(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
+  };
+  const runRow = async (plugin: Plugin, action: "enable" | "disable" | "reload" | "update", confirmTrust = false) => {
+    const key = plugin.registrationId ?? plugin.id;
+    const report = (message: string) => setRowProblems(previous => {
+      const next = new Map(previous);
+      if (message) next.set(key, message);
+      else next.delete(key);
+      return next;
+    });
+    setBusy(true);
+    report("");
+    if (action === "reload") setReinstalling(plugin.id);
+    try {
+      await change(action, { id: plugin.id, ...(confirmTrust ? { registrationId: plugin.registrationId, trust: true } : {}) });
+    } catch (error) {
+      if (confirmTrust && error instanceof Error && error.message === PLUGIN_REGISTRATION_CHANGED) {
+        setListProblem(i18n.t(PLUGIN_REGISTRATION_CHANGED));
+      } else {
+        report(error instanceof PluginArtifactChangedError
+          ? ARTIFACT_CHANGED_HINT
+          : error instanceof Error ? error.message : String(error));
+      }
+    } finally {
+      if (confirmTrust) setTrust(undefined);
+      if (action === "reload") setReinstalling(undefined);
+      setBusy(false);
+    }
+  };
   return <section className="settings-group" aria-label={i18n.t("Plugins")}>
     <Notice tone="warning" className="host-access-warning"><span>{i18n.t("Plugins use Host OS permissions")}</span>
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin access details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Plugins run on this Host with its OS permissions. Enable only code you trust.")}</TooltipContent></Tooltip>
     </Notice>
-    <div className="settings-actions">
-      <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
-      <Button ref={githubButton} size="sm" variant="outline" disabled={busy} onClick={() => setFromGitHub(true)}>{i18n.t("Add from GitHub…")}</Button>
+    <div className="settings-actions plugin-actions">
+      <Button ref={addButton} size="sm" variant="outline" disabled={busy} onClick={() => { setListProblem(""); setChoosing(true); }}>{i18n.t("Add plugin…")}</Button>
+      <Button ref={githubButton} size="sm" variant="outline" disabled={busy} onClick={() => { setListProblem(""); setFromGitHub(true); }}>{i18n.t("Add from GitHub…")}</Button>
       <Button size="sm" variant="outline" disabled={busy || !plugins.length} onClick={async () => { setChecking(true); await run("check-updates", {}); setChecking(undefined); }}>{i18n.t(checking === true ? "Checking…" : "Check for updates")}</Button>
       {/* Every status here and in the plugin dialog comes from the Host's last check (plugin.update). */}
       {!checking && plugins.length && plugins.every(plugin => plugin.update && !plugin.update.available && !plugin.update.error) ? <PluginState tone="ok" label={i18n.t("Up to date")} /> : null}
     </div>
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} initialPath="" recent={[]}
-      browse={browse} places={places}
-      onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
-    <GitHubPluginDialog open={fromGitHub} returnFocus={githubButton} onClose={() => setFromGitHub(false)} add={async (source, track) => { await change("register", { source, track }); }} />
-    {error || problem && !current && !trust ? <Notice tone="error">{error || <GitHubError message={problem} />}</Notice> : null}
-    {plugins.map(plugin => <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>
-      <Row label={<span className="plugin-heading"><PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />{plugin.name ?? plugin.id}</span>} description={<>{[plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version"), sourceLabel(plugin), plugin.description].filter(Boolean).join(" · ")}<PluginUpdateState plugin={plugin} /></>}>
-        {plugin.update?.available ? <Button size="sm" variant="outline" disabled={busy} aria-label={i18n.t("Update {{name}}", { name: plugin.name ?? plugin.id })} onClick={() => void run("update", { id: plugin.id })}>{i18n.t("Update")}</Button> : null}
-        <PluginState tone={plugin.error ? "error" : plugin.enabled && !plugin.running ? "warning" : plugin.running ? "ok" : "neutral"} label={i18n.t(plugin.error ? "Plugin error" : plugin.enabled && !plugin.running ? "Plugin unavailable" : plugin.running ? "Running" : "Installed")} detail={plugin.error === PLUGIN_SOURCE_READD_REQUIRED ? i18n.t(PLUGIN_SOURCE_READD_REQUIRED) : plugin.error} />
-          <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("{{name}} settings", { name: plugin.name ?? plugin.id })} onClick={() => setSelected(plugin.id)} />}><Settings aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Settings")}</TooltipContent></Tooltip>
-          <input className="settings-switch" type="checkbox" role="switch" aria-label={i18n.t("Enable {{name}}", { name: plugin.name ?? plugin.id })} checked={plugin.enabled} disabled={busy} onChange={event => { if (event.target.checked && !plugin.trusted) setTrust(plugin); else void run(event.target.checked ? "enable" : "disable", { id: plugin.id }); }} />
-
-      </Row>
-    </section>)}
-    <Dialog open={!!trust} onOpenChange={open => { if (!open && !busy) setTrust(undefined); }}><DialogContent className="plugin-settings-dialog"><DialogHeader><DialogTitle>{i18n.t("Trust and enable {{name}}?", { name: trust?.name ?? trust?.id ?? "" })}</DialogTitle><DialogDescription>{i18n.t("This plugin runs with the Host OS permissions. Updates will not ask for trust again.")}</DialogDescription></DialogHeader><div className="settings-actions"><Button disabled={busy} onClick={async () => { if (!trust) return; setBusy(true); setProblem(""); try { await change("enable", { id: trust.id, registrationId: trust.registrationId, trust: true }); setTrust(undefined); } catch (e) { if (e instanceof Error && e.message === PLUGIN_REGISTRATION_CHANGED) { setTrust(undefined); setProblem(i18n.t(PLUGIN_REGISTRATION_CHANGED)); } else setProblem(String(e)); } finally { setBusy(false); } }}>{i18n.t("Trust and enable")}</Button><Button disabled={busy} variant="outline" onClick={() => setTrust(undefined)}>{i18n.t("Cancel")}</Button></div>{trust && problem ? <Notice tone="error">{problem}</Notice> : null}</DialogContent></Dialog>
+      browse={browse} places={places} returnFocus={addButton}
+      onClose={() => setChoosing(false)} onOpen={async directory => { await run("register", { directory }); setChoosing(false); return ""; }} />
+    <GitHubPluginDialog open={fromGitHub} returnFocus={githubButton} onClose={() => setFromGitHub(false)} add={async (source, track) => { await run("register", { source, track }); }} />
+    {error || listProblem ? <Notice tone="error" className="plugin-list-error"><GitHubError message={error || listProblem} /></Notice> : null}
+    {plugins.map(plugin => {
+      const rowProblem = rowProblems.get(plugin.registrationId ?? plugin.id);
+      const hasError = !!(rowProblem || plugin.error);
+      const reinstallHint = plugin.artifactChanged ? i18n.t(ARTIFACT_CHANGED_HINT) : undefined;
+      const rowDetail = rowProblem ? githubErrorText(rowProblem) : undefined;
+      const detail = rowDetail ? [rowDetail.text, rowDetail.hint].filter(Boolean).join(" ") : reinstallHint ??
+        (plugin.error === PLUGIN_SOURCE_READD_REQUIRED ? i18n.t(PLUGIN_SOURCE_READD_REQUIRED) : plugin.error);
+      const version = plugin.artifactChanged ? undefined : plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version");
+      return <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>
+        <Row label={<span className="plugin-heading"><PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />{plugin.name ?? plugin.id}</span>} description={<>{[version, sourceLabel(plugin), plugin.description].filter(Boolean).join(" · ")}<PluginUpdateState plugin={plugin} /></>}>
+          {plugin.artifactChanged ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void runRow(plugin, "reload")}>{i18n.t(reinstalling === plugin.id ? "Reinstalling…" : "Reinstall")}</Button> : null}
+          {plugin.update?.available ? <Button size="sm" variant="outline" disabled={busy} aria-label={i18n.t("Update {{name}}", { name: plugin.name ?? plugin.id })} onClick={() => void runRow(plugin, "update")}>{i18n.t("Update")}</Button> : null}
+          <PluginState tone={hasError ? "error" : plugin.enabled && !plugin.running ? "warning" : plugin.running ? "ok" : "neutral"} label={i18n.t(hasError ? "Plugin error" : plugin.enabled && !plugin.running ? "Plugin unavailable" : plugin.running ? "Running" : "Installed")} detail={detail} />
+          <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("{{name}} settings", { name: plugin.name ?? plugin.id })} onClick={() => { setProblem(""); setSelected(plugin.id); }} />}><Settings aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Settings")}</TooltipContent></Tooltip>
+          <input className="settings-switch" type="checkbox" role="switch" aria-label={i18n.t("Enable {{name}}", { name: plugin.name ?? plugin.id })} checked={plugin.enabled} disabled={busy} onChange={event => { if (event.target.checked && !plugin.trusted) setTrust(plugin); else void runRow(plugin, event.target.checked ? "enable" : "disable"); }} />
+        </Row>
+      </section>;
+    })}
+    <Dialog open={!!trust} onOpenChange={open => { if (!open && !busy) setTrust(undefined); }}><DialogContent className="plugin-settings-dialog"><DialogHeader><DialogTitle>{i18n.t("Trust and enable {{name}}?", { name: trust?.name ?? trust?.id ?? "" })}</DialogTitle><DialogDescription>{i18n.t("This plugin runs with the Host OS permissions. Updates will not ask for trust again.")}</DialogDescription></DialogHeader><div className="settings-actions"><Button disabled={busy} onClick={() => { if (trust) void runRow(trust, "enable", true); }}>{i18n.t("Trust and enable")}</Button><Button disabled={busy} variant="outline" onClick={() => setTrust(undefined)}>{i18n.t("Cancel")}</Button></div></DialogContent></Dialog>
     <Dialog open={!!current} onOpenChange={open => { if (!open && !busy) setSelected(undefined); }}>
       <DialogContent className="plugin-settings-dialog" finalFocus={addButton}>
         <DialogHeader>
@@ -73,10 +121,10 @@ export function PluginSettings() {
         </DialogHeader>
         {current && problem ? <Notice tone="error"><GitHubError message={problem} /></Notice> : null}
         {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} /> : null}
-        {current ? <div className="settings-actions">
+        {current ? <div className="settings-actions plugin-actions">
           {checking !== current.id ? <PluginUpdateState plugin={current} upToDate /> : null}
-          {current.update?.available ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run("update", { id: current.id })}>{i18n.t("Update")}</Button> : null}
-          <Button size="sm" variant="outline" disabled={busy} onClick={async () => { setChecking(current.id); await run("check-updates", { id: current.id }); setChecking(undefined); }}>{i18n.t(checking === current.id ? "Checking…" : "Check for updates")}</Button>
+          {current.update?.available ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run("update", { id: current.id }, setProblem)}>{i18n.t("Update")}</Button> : null}
+          <Button size="sm" variant="outline" disabled={busy} onClick={async () => { setChecking(current.id); await run("check-updates", { id: current.id }, setProblem); setChecking(undefined); }}>{i18n.t(checking === current.id ? "Checking…" : "Check for updates")}</Button>
           <Button ref={removeButton} size="sm" variant="destructive" disabled={busy} onClick={() => { setProblem(""); setRemoving(true); }}>{i18n.t("Remove")}</Button>
         </div> : null}
         <details><summary>{i18n.t("Details")}</summary><p className="settings-description">{i18n.t(current?.trusted ? "Trusted plugin" : "Trust required")}</p><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>
@@ -94,10 +142,11 @@ export function PluginSettings() {
       }} /> : null}
   </section>;
 }
-/** Where checks and updates read: GitHub folder and track, or the local folder it was added from. */
+/** Show the source used by the action available in the row. */
 function sourceLabel(plugin: Plugin) {
   const source = plugin.source;
   if (source?.kind !== "github") return source ? i18n.t("Local folder") : undefined;
+  if (plugin.artifactChanged && source.local) return i18n.t("Local folder");
   const parsed = parseGitHubSource(source.url);
   const folder = source.path ?? parsed?.tree.slice(1).join("/");
   const track = source.track ?? plugin.update?.track;
@@ -184,7 +233,7 @@ function GitHubError({ message }: { message: string }) {
   return <>{text}{hint ? <PluginDetail>{hint}</PluginDetail> : null}</>;
 }
 function PluginState({ tone, label, detail }: { tone: "ok" | "error" | "warning" | "neutral"; label: string; detail?: string }) {
-  return <span role="status"><Status variant="plain" tone={tone} label={label} />{detail ? <PluginDetail>{detail}</PluginDetail> : null}</span>;
+  return <span className="plugin-status" role="status"><Status variant="plain" tone={tone} label={label} />{detail ? <PluginDetail>{detail}</PluginDetail> : null}</span>;
 }
 /** Dialog-owned drafts; Host remains the owner of saved settings. */
 function ConnectionSettings({ plugin, change, busy }: { plugin: Plugin; change: (action: string, args: Record<string, unknown>) => Promise<void>; busy: boolean }) {

@@ -444,6 +444,24 @@ test("GitHub folders resolve once by address or plugin ID, then stay pinned to t
     await host.invoke("update", { id: "acme.solo" });
     assert.equal(await read("acme.solo"), "solo-2");
 
+    // A mismatched installed copy lists the registered source and reloads the applied commit.
+    const solo = (await host.list()).find(p => p.id === "acme.solo")!;
+    await host.invoke("disable", { id: solo.id });
+    writeFileSync(path.join(registeredCopy(state, solo.id), "changed.txt"), "changed");
+    await assert.rejects(host.invoke("enable", { id: solo.id }), /Artifact changed/);
+    const damaged = (await host.list()).find(p => p.id === solo.id)!;
+    assert.equal(damaged.artifactChanged, true);
+    assert.deepEqual(damaged.source, solo.source);
+    assert.equal(damaged.name, undefined);
+    assert.equal(damaged.version, undefined);
+    single.push("feat/x", plugin("plugins/solo", "acme.solo", "solo-3", "3.0.0"));
+    await host.invoke("reload", { id: solo.id });
+    const restored = (await host.list()).find(p => p.id === solo.id)!;
+    assert.equal(restored.artifactChanged, undefined);
+    assert.equal(restored.registrationId, solo.registrationId);
+    assert.equal(restored.version, "2.0.0");
+    assert.equal(await read(solo.id), "solo-2");
+
     // A local manifest naming the repository root finds the folder with its plugin ID for check and update.
     const shared = github.repository("acme", "shared");
     shared.push("main", { ...plugin("plugins/gamma", "acme.gamma", "remote"), ...plugin("plugins/delta", "acme.delta", "delta") });
