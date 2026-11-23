@@ -1,4 +1,5 @@
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
+import { PluginArtifactChangedError } from "../shared/plugin-artifact-error.ts";
 // Use the published ESM entry: its UMD factory leaves dynamic relative require calls in CLI bundles.
 
 import { browseFolder, documentRevision, listFolder, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
@@ -428,6 +429,7 @@ export async function handleDocumentRequest(
         try { result = await service!.invoke(operation, args); }
         catch (error) {
           if (error instanceof PluginSettingsError) { sendJson(res, 400, { error: error.message, settingsIssues: error.settingsIssues }); return; }
+          if (error instanceof PluginArtifactChangedError) { sendJson(res, 400, { error: error.message, artifactChanged: true }); return; }
           throw error;
         }
         sendJson(res, 200, result);

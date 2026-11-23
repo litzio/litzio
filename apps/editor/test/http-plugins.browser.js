@@ -197,6 +197,59 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(driveRow.getByRole("button", { name: "Update Drive fixture", exact: true })).toHaveCount(0);
   await expect(driveRow.getByRole("status")).toHaveText("Running");
   expect(pluginFixture.cli(["plugins", "check-updates", "fixture.drive"]).updates[0].available).toBe(false);
+  const measureCenter = async locator => {
+    const { y, height } = await locator.boundingBox();
+    return y + height / 2;
+  };
+  const verifyPluginAlignment = async (ko, theme) => {
+    const list = page.getByRole("region", { name: ko ? "플러그인" : "Plugins", exact: true });
+    const updateName = ko ? "업데이트 확인" : "Check for updates";
+    const statusName = ko ? "최신 버전" : "Up to date";
+    const listCheck = list.getByRole("button", { name: updateName, exact: true });
+    await listCheck.click();
+    const latestIn = scope => scope.getByText(statusName, { exact: true });
+    await expect(latestIn(list)).toBeVisible();
+    const warning = list.getByRole("status").filter({ hasText: ko ? "플러그인은 Host OS 권한으로 실행됩니다" : "Plugins use Host OS permissions" });
+    const warningText = warning.getByText(ko ? "플러그인은 Host OS 권한으로 실행됩니다" : "Plugins use Host OS permissions", { exact: true });
+    const warningIcon = warning.getByRole("button");
+    const warningCenter = await measureCenter(warning);
+    const offsets = {
+      listStatus: (await measureCenter(latestIn(list))) - (await measureCenter(listCheck)),
+      warningText: (await measureCenter(warningText)) - warningCenter,
+      warningIcon: (await measureCenter(warningIcon)) - warningCenter,
+    };
+    const capture = view => page.screenshot({ path: `tmp/plugin-error-row-1909/after-alignment-${view}-1440-${theme}-ko.png`, mask: [page.locator(".activity-bar-status, .document-path, .sidebar-folder-name, .document-start-folder-path, .document-tab-name")] });
+    if (screenshots) await capture("list");
+    await list.getByRole("button", { name: ko ? "Drive fixture 설정" : "Drive fixture settings", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Drive fixture", exact: true });
+    await expect(latestIn(dialog)).toBeVisible();
+    const dialogStatus = await measureCenter(latestIn(dialog));
+    const dialogOffsets = {
+      dialogCheck: dialogStatus - (await measureCenter(dialog.getByRole("button", { name: updateName, exact: true }))),
+      dialogRemove: dialogStatus - (await measureCenter(dialog.getByRole("button", { name: ko ? "제거" : "Remove", exact: true }))),
+    };
+    if (screenshots) await capture("dialog");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    const geometry = { ...offsets, ...dialogOffsets };
+    for (const [part, offset] of Object.entries(geometry)) expect(Math.abs(offset), part).toBeLessThan(1);
+    return geometry;
+  };
+  const alignment = {};
+  if (screenshots) {
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(theme => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", theme); }, theme);
+      await page.reload();
+      await page.getByRole("button", { name: "설정", exact: true }).click();
+      await page.getByRole("button", { name: "플러그인", exact: true }).click();
+      alignment[theme] = await verifyPluginAlignment(true, theme);
+    }
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+    await page.reload();
+    await openSettings();
+  } else {
+    await verifyPluginAlignment(false, "light");
+  }
   await returnToObserver();
   await expect(observer.getByText('Updated runtime fixture', { exact: true })).toBeVisible();
   await readSnapshot("Updated value");
@@ -268,6 +321,102 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await page.bringToFront();
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).not.toBeChecked();
+  // Alter the installed snapshot, leaving the registered source untouched.
+  const pluginList = page.getByRole("region", { name: "Plugins", exact: true });
+  const damaged = pluginList.getByRole("region", { name: "fixture.drive", exact: true });
+  const details = damaged.getByRole("button", { name: "Plugin status details", exact: true });
+  const reinstall = damaged.getByRole("button", { name: "Reinstall", exact: true });
+  const responseFor = action => page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().postDataJSON()?.action === action);
+  const capture = name => page.screenshot({ path: `tmp/plugin-error-row-1909/${name}.png`, mask: [page.locator(".activity-bar-status, .document-path, .sidebar-folder-name, .document-start-folder-path, .document-tab-name")] });
+  if (screenshots) await page.setViewportSize({ width: 1440, height: 900 });
+
+  pluginFixture.changeInstalledCopy();
+  const enableFailed = responseFor("enable");
+  await toggle.click();
+  const rejectedEnable = await enableFailed;
+  expect(rejectedEnable.status()).toBe(400);
+  expect((await rejectedEnable.json()).artifactChanged).toBe(true);
+  await expect(damaged.getByText("Local folder", { exact: true })).toBeVisible();
+  await expect(damaged.getByText("No version", { exact: true })).toHaveCount(0);
+  await expect(damaged.getByRole("status")).toHaveText("Plugin error");
+  await expect(damaged.getByRole("switch")).not.toBeChecked();
+  await expect(pluginList.getByRole("alert")).toHaveCount(0);
+  const hint = "The installed files differ from when the plugin was installed. Reinstall to restore it from its source.";
+  await expect(details).toHaveAccessibleDescription(hint);
+  await reinstall.focus();
+  await page.keyboard.press("Tab");
+  await expect(details).toBeFocused();
+  await expect(page.getByText(hint, { exact: true })).toBeVisible();
+  if (screenshots) await capture("after-1440-light");
+
+  // A failed request to check the entire list belongs below the list actions.
+  const checkUpdates = pluginList.getByRole("button", { name: "Check for updates", exact: true });
+  const listFailure = "Fixture update check failed.";
+  await page.route("**/api/plugins", route => route.request().postDataJSON()?.action === "check-updates"
+    ? route.fulfill({ status: 400, json: { error: listFailure } }) : route.continue());
+  await checkUpdates.click();
+  const listError = pluginList.getByRole("alert");
+  await expect(listError).toHaveText(listFailure);
+  const actionsBox = await pluginList.locator(".plugin-actions").boundingBox();
+  expect((await listError.boundingBox()).y).toBeGreaterThan(actionsBox.y + actionsBox.height);
+  await page.unrouteAll({ behavior: "wait" });
+  await checkUpdates.click();
+  await expect(listError).toHaveCount(0);
+  await expect(checkUpdates).toBeEnabled();
+
+  if (screenshots) {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await capture("after-1920-light");
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.reload();
+    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page.getByRole("button", { name: "플러그인", exact: true }).click();
+    const reinstallKo = page.getByRole("region", { name: "fixture.drive", exact: true }).getByRole("button", { name: "다시 설치", exact: true });
+    await expect(reinstallKo).toBeVisible();
+    await capture("after-1440-dark-ko");
+    await page.setViewportSize({ width: 640, height: 900 });
+    await capture("after-640-dark-ko");
+    await reinstallKo.focus();
+    await page.keyboard.press("Tab");
+    await expect(page.getByText("설치된 파일이 설치할 때와 다릅니다. 다시 설치하면 출처에서 새로 받아 복구합니다.", { exact: true })).toBeVisible();
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.reload();
+    await openSettings();
+  }
+
+  await page.route("**/api/plugins", route => route.request().postDataJSON()?.action === "reload"
+    ? route.fulfill({ status: 400, json: { error: "Fixture reinstall failed." } }) : route.continue());
+  await reinstall.click();
+  await expect(details).toHaveAccessibleDescription("Fixture reinstall failed.");
+  await expect(pluginList.getByRole("alert")).toHaveCount(0);
+  await page.unrouteAll({ behavior: "wait" });
+
+  let releaseReinstall;
+  const reinstallGate = new Promise(resolve => { releaseReinstall = resolve; });
+  await page.route("**/api/plugins", async route => {
+    if (route.request().postDataJSON()?.action === "reload") await reinstallGate;
+    await route.continue();
+  });
+  try {
+    const reinstalled = responseFor("reload");
+    await reinstall.click();
+    await expect(damaged.getByRole("button", { name: "Reinstalling…", exact: true })).toBeDisabled();
+    if (screenshots) await capture("reinstalling-1440-light");
+    releaseReinstall();
+    expect((await (await reinstalled).json()).receipt.operation).toBe("plugins.reload");
+    const recovered = pluginList.getByRole("region", { name: "Drive fixture", exact: true });
+    await expect(recovered.getByRole("status")).toHaveText("Running");
+    await expect(recovered.getByText(/^Version 1\.2\.3 · Local folder/)).toBeVisible();
+    await expect(reinstall).toHaveCount(0);
+    if (screenshots) await capture("reinstalled-1440-light");
+    await toggle.click();
+    await expect(toggle).not.toBeChecked();
+  } finally {
+    releaseReinstall();
+    await page.unrouteAll({ behavior: "wait" });
+  }
   await page.keyboard.press("Escape");
   await expect.poll(() => page.locator(".tiptap").first().innerText()).toBe(beforeDisable);
   await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
@@ -299,5 +448,6 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(page.getByRole("alert").filter({ hasText: "The selected plugin is no longer available." })).toBeVisible();
   expect(await page.evaluate(() => { window.pluginNoticeObserver.disconnect(); return window.pluginNoticeMaximum; }), "A closing dialog must not duplicate the selected-plugin notice").toBe(1);
   await page.keyboard.press("Escape");
+  return { alignment };
   } finally { await observer.close(); }
 }
