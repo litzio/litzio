@@ -20,9 +20,9 @@ const inline: z.ZodType<InlineContent> = z.lazy(() => z.discriminatedUnion("kind
   z.strictObject({ kind: z.literal("citation"), role: z.enum(["cite", "cite:t", "cite:p"]), keys: z.array(text) }),
 ]));
 const content = z.array(inline);
-const listItem: z.ZodType<ListItemContent> = z.lazy(() => z.strictObject({ content, list: list.optional() }));
+const listItem: z.ZodType<ListItemContent> = z.lazy(() => z.strictObject({ content, checked: z.boolean().optional(), list: list.optional() }));
 const list: z.ZodType<ListContent> = z.lazy(() => z.strictObject({
-  ordered: z.boolean(), start: z.number().int().positive().optional(), style: z.enum(LIST_STYLES).optional(),
+  ordered: z.boolean(), checklist: z.boolean().optional(), start: z.number().int().positive().optional(), style: z.enum(LIST_STYLES).optional(),
   delimiter: z.enum([".", ")"]).optional(), items: z.array(listItem).min(1).max(100),
 }));
 const inlineFields = { text: text.optional(), content: content.optional() };
@@ -33,7 +33,7 @@ const block = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("admonition"), variant: z.enum(ADMONITION_VARIANTS), ...inlineFields }),
   z.strictObject({ kind: z.literal("footnote"), label: text, ...inlineFields }),
   z.strictObject({ kind: z.literal("target"), label: text }),
-  z.strictObject({ kind: z.literal("list"), ordered: z.boolean(), start: z.number().int().positive().optional(),
+  z.strictObject({ kind: z.literal("list"), ordered: z.boolean(), checklist: z.boolean().optional(), start: z.number().int().positive().optional(),
     style: z.enum(LIST_STYLES).optional(), delimiter: z.enum([".", ")"]).optional(), items: z.array(z.union([text, listItem])).min(1).max(100) }),
   z.strictObject({ kind: z.literal("table"), rows: z.array(z.array(z.union([text, content])).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableColumns)).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableRows),
     align: z.array(z.enum(["left", "center", "right"]).nullable()).optional(), caption: z.union([text, content]).optional(), label: text.optional(), enumerator: text.optional(), enumerated: z.boolean().optional() }),

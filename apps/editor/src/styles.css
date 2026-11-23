@@ -1478,6 +1478,29 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   margin: 0;
 }
 
+/* A checklist keeps the list indent; its checkbox stands where a bullet would, on the first line.
+   The 16px native checkbox sits in a 28px label target that ends where the item text starts. */
+ul.list[data-type="taskList"], ul.list ul.list[data-type="taskList"] { list-style: none; }
+ul.list[data-type="taskList"] > li { position: relative; }
+ul.list[data-type="taskList"] > li > label {
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--size-control-compact));
+  width: var(--size-control-compact);
+  height: 1lh;
+  min-height: var(--size-control-compact);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+ul.list[data-type="taskList"] > li > label > input {
+  width: var(--size-icon-slot);
+  height: var(--size-icon-slot);
+  margin: 0;
+  cursor: pointer;
+}
+/* Read-only views show the state; Tiptap would revert a click there anyway. */
+.ProseMirror[contenteditable="false"] ul.list[data-type="taskList"] > li > label > input { pointer-events: none; cursor: default; }
+
 .document-editor > .code-block {
   margin: var(--space-document-block) 0;
 }

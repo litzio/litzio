@@ -71,10 +71,11 @@ export function toTiptapBlock(block: EditableBlock): TiptapJSON {
 
 function listNode(list: ListContent): TiptapJSON {
   return {
-    type: list.ordered ? "orderedList" : "bulletList",
+    type: list.ordered ? "orderedList" : list.checklist ? "taskList" : "bulletList",
     ...(list.ordered ? { attrs: { start: list.start, style: list.style ?? "decimal", delimiter: list.delimiter ?? "." } } : {}),
     content: list.items.map(item => ({
-      type: "listItem",
+      type: list.checklist ? "taskItem" : "listItem",
+      ...(list.checklist ? { attrs: { checked: item.checked === true } } : {}),
       content: [
         { type: "paragraph", content: paragraphContent(item.content) },
         ...(item.list ? [listNode(item.list)] : []),

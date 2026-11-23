@@ -1,6 +1,7 @@
 # Native document support v1
 
 - Status: Implemented
+- Checklists: 2026-11-23 (#1893; Core admission/canonical/operation tests, CLI tests, Editor unit tests and the `list-authoring` and `external-checklist-paste` browser scenarios; [contract](#checklists-1893)).
 - Line-start syntax: 2026-11-20 (#1846; a refused paragraph line that MyST reads as `+++`, `%`, `:::` or `(label)=` is escaped in a later write attempt; master-saved bytes pinned by Core `writer-bytes` tests).
 - Paragraph tail normalization: 2026-11-04 (#1107; shared Core writes, CLI file workflow and Editor Save/Reload/assistant-send regressions).
 - Template update: 2026-11-04 (#936 owner-approved optional `template: { name, description }`; [template contract](document-templates-v1.md)).
@@ -94,12 +95,12 @@ Support is decided from Core semantic structure and existing authoring helpers, 
 | Equation | Display math value (including empty), optional label and fixed `:enumerator:` string. Empty equations use dollar fences, filled equations use `{math}`. A label must preserve its identity in the chosen notation. Empty equations with a fixed number are permitted only as an intermediate operation state, and refused at final canonical write. No `:enumerated: false` or arbitrary attributes. |
 | Figure | Empty/pending, one image or one option-free non-empty `mermaid` directive, optional container label, fixed `:enumerator:` string and one supported inline caption. Mermaid numbering belongs only to the outer `{figure}`; numbering visibility follows the [shared number contract](heading-numbering-v1.md#fixed-numbers-720). Alt text requires an image. Mermaid source is opaque; no syntax validation or image ↔ Mermaid conversion. No legends, subfigures, mixed content or extra directive/image/Mermaid attributes. |
 | Table | Rectangular GFM grid with a header row, supported inline cells without line breaks, column alignment; optional supported table caption, label and fixed number. Only plain GFM and the exact `{table}` directive are accepted. Its options may contain only `name` / `label`, `enumerator` and numbering visibility (`enumerated` / `numbered`), and any MyST VFile diagnostic within the directive's source range causes refusal, including duplicate/unknown options in colon-line or YAML syntax. `{csv-table}`, `{list-table}` and other table directives are refused with or without caption/Label. Every table is canonically saved as `{table}`, including without caption or label. Numbering visibility follows the [shared number contract](heading-numbering-v1.md#fixed-numbers-720). No merged cells, legends or extra directive attributes. |
-| List | Ordered or unordered lists with supported paragraph content and supported nested lists; existing start and nesting rules. Ordered lists preserve style and delimiter under the [ordered format contract](#ordered-list-formats-734). A list retains at least one item. Each item may be empty, including a parent with only a nested list, or contain supported inline content such as text, a citation, footnote reference, math, code or semantic reference. This applies at every nesting level. Insert/update operations normalize whitespace-only content to empty content as described below. No tasks or arbitrary nested blocks. |
+| List | Ordered or unordered lists with supported paragraph content and supported nested lists; existing start and nesting rules. Ordered lists preserve style and delimiter under the [ordered format contract](#ordered-list-formats-734). A list retains at least one item. Each item may be empty, including a parent with only a nested list, or contain supported inline content such as text, a citation, footnote reference, math, code or semantic reference. This applies at every nesting level. Insert/update operations normalize whitespace-only content to empty content as described below. A [checklist](#checklists-1893) is an unordered list whose every item has a check state. No arbitrary nested blocks. |
 | Code | Plain fenced code with the existing language contract; no captioned/directive variants. |
 | Quote, divider, admonition | An empty quote or one supported paragraph; thematic break; all standard admonition kinds with an empty body or one supported paragraph. No custom titles/options or additional nested blocks. |
 | Footnote and target | One non-empty supported paragraph per definition, no footnote references inside definitions; citations and document references are supported. Label targets and semantic references follow their existing contracts. |
 
-Ordinary Markdown images, task lists, unsupported roles/directives, attributes or nesting reject the entire file. Alternative supported Markdown/MyST spellings may be accepted and normalized. No generic Markdown Import, automatic marker insertion, Migration, unsupported native read-only opening or block source replacement is provided. Separate plain text editing follows #817 above.
+Ordinary Markdown images, checkboxes outside the [checklist contract](#checklists-1893), unsupported roles/directives, attributes or nesting reject the entire file. Alternative supported Markdown/MyST spellings may be accepted and normalized. No generic Markdown Import, automatic marker insertion, Migration, unsupported native read-only opening or block source replacement is provided. Separate plain text editing follows #817 above.
 
 Bare `@name` (including `@kim` and `@param`) is literal text, as is already escaped `\@name`. Core disables MyST's shorthand citation extension at the parse boundary while keeping explicit roles parsed. In accordance with [ADR-0008 decision 3](../adr/0008-citations-and-bibliography.md#3-지원할-인용-형태), unescaped citation-like brackets such as `[@key]`, `[@a; @b]` and `[@key, p. 3]` are refused with `native-content` and guidance to use an explicit citation role or escape the opening bracket or the `@` for literal text. This applies to supported text surfaces including endnote definitions; actual links, code and math retain their syntax. Code or math inside such brackets, as in ``[`@param`]`` or `[$@key$]`, is still refused because default MyST reads the bracket as a citation; `\[` keeps it literal. Explicit `{cite}`, `{cite:t}` and `{cite:p}` roles follow [Citations](citations-v1.md), preserving exact keys, group order and narrative/parenthetical meaning. Prefix/suffix/partial and other unsupported attributes are refused.
 
@@ -180,6 +181,7 @@ unchanged. Native structural shape rules and the full canonical round-trip guard
 | Quote | `>` | Existing Markdown quote |
 | Bullet list item | `*` | Existing Markdown list; empty/nested items retain structure |
 | Ordered list item | `3.` (its start) | Existing numbered list |
+| Checklist item | `*   [ ]` (its check state) | `*   [ ] text` / `*   [x] text` |
 | Equation | `$$\n$$` | Existing fenced `{math}` directive |
 | Labeled equation | `$$\n$$ (eq-empty)` | Existing `{math}` with label option |
 
@@ -328,6 +330,46 @@ Python MyST-parser 4.0.1 confirmed boundary, style, delimiter and start for all 
 formats, non-default starts, adjacency and nesting. External HTML/PDF output is outside
 this change; the Editor's display/interaction is defined in [Editor UX Shell](editor-ux-shell-v1.md#unified-action-menus-516).
 
+### Checklists (#1893)
+
+A checklist is the third list kind beside bullet and numbered lists: an unordered list
+whose every item has a check state (checked or not). `ListContent` marks it with
+`checklist: true`, and each of its items carries `checked`; other lists and their items
+have neither field. Insert/update input may omit an item's `checked` (unchecked); the
+editable projection and `inspect --format json` always give it. A checklist item holds
+the same content as any list item: zero or one paragraph and at most one nested list.
+Nesting follows the existing rule in both directions: a checklist item may hold a bullet,
+numbered or checklist list, and any list item may hold a checklist.
+
+The saved form is GFM task-list syntax under the bullet list's canonical marker, written
+tight: `*   [ ] text` and `*   [x] text`, with the `*` / `-` alternation for adjacent
+unordered lists and nested items indented as in other lists. An empty item is the
+checkbox alone (`*   [ ]`). Alternative spellings are accepted and normalized: `-` or `+`
+markers, `[X]`, and extra spaces after the checkbox. An escaped `\[ ]` stays text in an
+ordinary bullet list.
+
+Native admission refuses these checkbox shapes with a `native-content` reason that names
+the shape: a checkbox on a numbered item (`1. [x] …`), a list where only some items have a
+checkbox, and checklist items separated by blank lines (myst-parser reads checkboxes only
+in tight lists). `parse()` still reads such Markdown; only native admission refuses it.
+
+`myst-to-md@1.0.17` has no task-list writer and drops `listItem.checked` (#103). The
+write-only clone writes each checkbox as raw text before the item's prepared inline content
+and keeps checklists tight; the serializer diagnostics and the complete semantic
+fingerprint still guard every write. Two pinned parser patches make the written form read
+back as the same tree: `markdown-it-task-lists@2.1.1` reads a checkbox alone as an empty
+task item, as GFM does, and `myst-parser@1.7.4` keeps no empty text node in front of an
+item's formatted content. See the [dependency patch register](../contributing/dependency-patches.md).
+
+Core `updateListItemChecked(document, path, item, checked)` checks or unchecks one checklist
+item without rewriting the list: `path` is the top-level list and `item` the item's index in
+that list, then in each nested list below it. CLI `insert-list` / `update-list --list` take the
+same `ListContent` JSON, and `update-list-item-checked <file> --path <list> --item <indexes>
+--checked <true|false>` calls the new operation, with the existing dry-run, batch and
+unchanged-file refusal contracts. Switching a list between bullets, numbers and checkboxes is a
+whole-list `updateList`, as between bullets and numbers. The Editor interaction is in
+[Continuous editing](document-editing-v1.md#lists-and-checklists).
+
 The [v0.1.0-beta.1 candidate release record](../releases/v0.1.0-beta.1.md) summarizes compatibility and behavior changes since beta.4. The native marker remains `litzio: 1`; beta.4 native documents remain supported, while new citation and reference-template metadata is not supported by beta.4.
 
 Files use UTF-8 and canonical LF line endings. CRLF/mixed input is normalized. A leading UTF-8 BOM is removed; U+FEFF elsewhere is content. Straight and curly quotes retain their meaning. Canonical output is semantic preservation, not byte preservation. Literal dollars and context-sensitive math retain the existing MyST boundary corrections.
@@ -398,7 +440,7 @@ block-count and fingerprint-size refusal. UI rendering requires separate measure
 
 ## 공식 JSON 읽기 출력
 
-CLI `inspect --format json`의 `nodes`는 Core `getEditableDocument`의 인라인 구조를 그대로 노출한다. 문단·제목·인용·주의 상자·미주 정의·그림 caption 노드·표 cell 노드는 `content: InlineContent[]`를 제공한다. 표 캡션은 table 노드의 `caption`, 목록은 `items[].content`와 재귀적인 `items[].list`로 제공한다. 빈 인라인 내용은 빈 배열이다.
+CLI `inspect --format json`의 `nodes`는 Core `getEditableDocument`의 인라인 구조를 그대로 노출한다. 문단·제목·인용·주의 상자·미주 정의·그림 caption 노드·표 cell 노드는 `content: InlineContent[]`를 제공한다. 표 캡션은 table 노드의 `caption`, 목록은 `items[].content`와 재귀적인 `items[].list`로 제공하며 체크리스트는 `checklist: true`와 항목마다 `checked`를 함께 준다. 빈 인라인 내용은 빈 배열이다.
 
 `text`는 기존 표시·요약 소비자를 위해 유지한다. `content`가 구조 보존과 재작성의 입력이며 `text`에서 서식이나 원자를 추론하지 않는다. 인라인 서식, 첨자, 수식, 코드, 링크, 참조, 미주 표시는 Core 타입 그대로다. 경로는 해당 revision의 locator다. 번호 등 파생 표시 필드는 저장 의미가 아니다. JSON 투영은 Core 공용 `machineNodes`를 CLI·Host·SDK가 함께 사용한다. 비서의 `read_document`는 원문과 revision을 반환하며 별도의 의미 투영을 만들지 않는다. 비서가 JSON 구조를 필요로 하면 같은 CLI를 사용한다.
 
@@ -433,7 +475,7 @@ Core `documentAuthoringSchema`와 `authorDocument`가 CLI `create --input` 및 �
 - `status`는 같은 세 문자열 중 하나이며 생략할 수 있다. CLI `create --input`과 화면 `saveDocument`도 같은 schema를 사용한다.
 - paragraph·heading(level)·quote·admonition(variant)·footnote(label)는 `text` 또는 `content: InlineContent[]` 중 정확히 하나를 받는다. 문자열은 Markdown 해석 없이 글자 그대로다.
 - table의 `rows` 각 셀과 figure의 `caption`은 문자열 또는 같은 InlineContent 배열이다. table은 `caption`, `label`, `align`도 받는다.
-- list는 Core ListContent의 `ordered`, `start`, `style`, `delimiter`, `items:[{content,list?}]`를 받는다. 기존 문자열 items도 유지한다.
+- list는 Core ListContent의 `ordered`, `checklist`, `start`, `style`, `delimiter`, `items:[{content,checked?,list?}]`를 받는다. 기존 문자열 items도 유지하며 체크리스트의 문자열 항목은 체크 안 됨이다.
 - target(label)은 heading 앞의 Core target 블록이다. figure·table·equation도 label을 받는다. 참조는 InlineContent의 reference(role,label), 미주 표시는 footnote(label), 정의는 footnote 블록으로 연결한다. 정의는 Core 규칙대로 본문 뒤 첫 참조 순서로 배치하며 입력별 target receipt는 재배치된 경로를 가리킨다.
 
 읽기 출력의 `content`와 목록 `items`를 변환 없이 해당 입력 필드에 넣는다. JSON nodes의 type은 blocks의 kind에, 표 cell 노드는 rows에, 별도 그림 caption 노드는 figure.caption에 매핑한다. path·text·editable·파생 번호 등 조회 필드는 입력이 아니다.

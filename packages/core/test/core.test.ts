@@ -151,9 +151,9 @@ test("reorderBlocks equals the moveBlock sequence and checks boundaries on the f
   assert.equal(serialize(reordered), serialize(moved));
   assert.deepEqual(document, before);
 
-  const unwritable = parse("---\nlitzio: 1\n---\n\nP\n\n- [ ] Task\n\nQ\n");
-  assert.throws(() => moveBlock(unwritable, 3, 1), /this order cannot be saved \(Block 4:/);
-  assert.throws(() => reorderBlocks(unwritable, [0, 3, 1, 2]), /this order cannot be saved \(Block 4:/);
+  const unwritable = parse("---\nlitzio: 1\n---\n\nP\n\n- {kbd}`Ctrl`\n\nQ\n");
+  assert.throws(() => moveBlock(unwritable, 3, 1), /this order cannot be saved \(Line 7: Unsupported node type: keyboard\)/);
+  assert.throws(() => reorderBlocks(unwritable, [0, 3, 1, 2]), /this order cannot be saved \(Line 7: Unsupported node type: keyboard\)/);
   assert.throws(() => reorderBlocks(document, [1, 0, 2, 3, 4, 5, 6, 7]), /block 0 is the document metadata/);
   assert.throws(() => reorderBlocks(document, [0, 1, 1, 3, 4, 5, 6, 7]), /each top-level block index exactly once/);
 });

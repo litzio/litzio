@@ -180,7 +180,7 @@ test("Paragraph and Heading conversions survive Tiptap collection, Host file sav
 });
 
 test("Markdown block shortcuts replace the typed prefix and save as the equivalent Core blocks", () => {
-  const markdown = nativeSource("# Title\n\nFirst item **bold**\n\nSecond\n\nsnippet\n\nKeep.\n\nTwo\\\nlines\n");
+  const markdown = nativeSource("# Title\n\nFirst item **bold**\n\nSecond\n\nsnippet\n\nKeep.\n\nTwo\\\nlines\n\nDone\n");
   const editable = loadEditableDocument(markdown);
   const baseline = toTiptapDocument(editable);
   const schema = getSchema(editorExtensions());
@@ -202,10 +202,13 @@ test("Markdown block shortcuts replace the typed prefix and save as the equivale
   // Headings hold no line breaks; the typed prefix stays as text.
   assert.equal(typed(5, "##", { block: "heading", level: 2 }), false);
   assert.equal(state.doc.child(5).type.name, "paragraph");
+  // A typed checkbox makes a checklist item in the typed state.
+  assert.ok(typed(6, "[x]", { block: "list", ordered: false, checked: true }));
 
   const saved = saveEdits(markdown, collectSupportedEdits(editable, editorDocumentJSON(state)));
   const blocks = loadEditableDocument(saved.markdown).blocks;
-  assert.deepEqual(blocks.map(block => block.block), ["heading", "list", "list", "code", "heading", "paragraph"]);
+  assert.deepEqual(blocks.map(block => block.block), ["heading", "list", "list", "code", "heading", "paragraph", "list"]);
+  assert.deepEqual(blocks[6], { block: "list", path: [7], ordered: false, checklist: true, items: [{ content: [{ kind: "text", text: "Done" }], checked: true }] });
   assert.deepEqual(blocks[1]?.block === "list" && blocks[1].items.map(item => item.content), [
     [{ kind: "text", text: "First item " }, { kind: "strong", children: [{ kind: "text", text: "bold" }] }],
   ]);

@@ -9,7 +9,7 @@ import { AllSelection, NodeSelection, Plugin, Selection, TextSelection, type Edi
 import type { EditorView } from "@tiptap/pm/view";
 import { ASSET_FORMATS } from "../shared/asset-policy.ts";
 import { addTableRowBelow, changeHeadingLevel, TABLE_DELETE_META } from "./block-commands.ts";
-import { normalizeExternalHTML, type ExternalHTML } from "./external-html.ts";
+import { leadingCheckbox, normalizeExternalHTML, type ExternalHTML } from "./external-html.ts";
 import { markdownPaste } from "./markdown-paste.ts";
 import { linkUrlsInNodes, type AutoLink } from "./pasted-url.ts";
 import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
@@ -65,7 +65,7 @@ export function pasteFootnotes(state: EditorState, slice: Slice, incoming: Footn
   return tr;
 }
 
-const TYPES = new Set(["paragraph", "heading", "admonition", "quote", "divider", "equation", "figure", "table", "tableRow", "tableCell", "tableCaption", "bulletList", "orderedList", "listItem", "codeBlock", "text", "hardBreak", "inlineMath", "crossReference", "footnoteReference", "citation"]);
+const TYPES = new Set(["paragraph", "heading", "admonition", "quote", "divider", "equation", "figure", "table", "tableRow", "tableCell", "tableCaption", "bulletList", "orderedList", "listItem", "taskList", "taskItem", "codeBlock", "text", "hardBreak", "inlineMath", "crossReference", "footnoteReference", "citation"]);
 const COPY_RESTRICTION = "This selection cannot be copied losslessly. Use Source to copy its original Markdown. The selection is kept.";
 const CUT_RESTRICTION = "This selection cannot be cut losslessly. Use Source to copy its original Markdown. Nothing was removed.";
 
@@ -110,6 +110,13 @@ export function isInternalClipboard(html: string): boolean {
 function internalPasteError(html: string, schema: Schema): UiMessage | undefined {
   const document = new DOMParser().parseFromString(html, "text/html");
   const allowed = new Set(["P", "DIV", "SPAN", "S", "DEL", "H1", "H2", "H3", "H4", "H5", "H6", "STRONG", "B", "EM", "I", "A", "BR", "CODE", "TABLE", "THEAD", "TBODY", "TR", "TD", "TH"]);
+  // A checklist item starts with its checkbox (in Tiptap's label), as other apps read it; that one
+  // checkbox is the item's check state, not content.
+  const checkboxes = new Set<Element>();
+  for (const item of document.body.querySelectorAll('[data-litzio-type="taskItem"]')) {
+    const box = leadingCheckbox(item);
+    if (box) checkboxes.add(box).add(box.parentElement?.tagName === "LABEL" && box.parentElement.parentElement === item ? box.parentElement : box);
+  }
   // Content of a typed textblock must be what its schema allows: marks and inline atoms in a heading,
   // but no line break in a heading or cell and no block inside text.
   const misplaced = (element: Element, typed: string) => {
@@ -120,6 +127,7 @@ function internalPasteError(html: string, schema: Schema): UiMessage | undefined
     const typed = element.getAttribute("data-litzio-type");
     // The Figure's typed attrs own its image; only its figcaption is parsed as content.
     if (["IMG", "FIGCAPTION"].includes(element.tagName) && element.closest('[data-litzio-type="figure"]')) continue;
+    if (checkboxes.has(element)) continue;
     if ((!typed && (!allowed.has(element.tagName) || element.hasAttribute("style"))) ||
         (typed && !TYPES.has(typed)) || misplaced(element, typed ?? (element.tagName === "BR" ? "hardBreak" : "")) ||
         (["TABLE", "THEAD", "TBODY", "TR", "TD", "TH"].includes(element.tagName) && !element.closest('[data-litzio-type="table"]')) || element.hasAttribute("colspan") || element.hasAttribute("rowspan")) {
@@ -478,6 +486,17 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
             try { return JSON.parse(element.getAttribute("data-litzio-attrs") ?? "{}"); } catch { return false; }
           },
           ...(type === "table" ? { contentElement: "table" } : type === "figure" ? { contentElement: "figcaption" } : {}),
+          // As Tiptap reads its own checklist item: the content is in the item's div, and the
+          // leading checkbox is the check state.
+          ...(type === "taskItem" ? {
+            contentElement: (element: HTMLElement) => element.querySelector<HTMLElement>(":scope > div") ?? element,
+            getAttrs: (element: HTMLElement) => {
+              let attrs: Record<string, unknown>;
+              try { attrs = JSON.parse(element.getAttribute("data-litzio-attrs") ?? "{}"); } catch { return false; }
+              const box = leadingCheckbox(element);
+              return box ? { ...attrs, checked: box.checked } : attrs;
+            },
+          } : {}),
         })),
         ...PMDOMParser.fromSchema(schema).rules,
       ]);

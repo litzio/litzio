@@ -61,6 +61,7 @@ import {
   removeCitation,
   updateTableColumnAlignment,
   updateList,
+  updateListItemChecked,
   updateCodeBlock,
   unresolvedReferences,
   validateStructure,
@@ -216,6 +217,13 @@ export function changeFor(command: string, flags: string[], deferEndnotes = fals
     }
     case "update-list": {
       return (document) => updateList(document, pathFlag(flags), jsonFlag<ListContent>(flags, "--list"));
+    }
+    case "update-list-item-checked": {
+      const item = flag(flags, "--item").split(",").map((part) => part.trim() === "" ? NaN : Number(part.trim()));
+      if (item.some((index) => !Number.isInteger(index) || index < 0)) throw new Error("--item must be comma-separated non-negative integers");
+      const checked = flag(flags, "--checked");
+      if (checked !== "true" && checked !== "false") throw new Error("--checked must be true or false");
+      return (document) => updateListItemChecked(document, pathFlag(flags), item, checked === "true");
     }
     case "insert-code-block": {
       return (document) => insertCodeBlock(document, insertionIndex(document, flags), {
@@ -404,6 +412,7 @@ export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "insert-table": ["--at", "--cells", "--align", "--caption", "--caption-content", "--label"],
   "insert-list": ["--at", "--list"],
   "update-list": ["--path", "--list"],
+  "update-list-item-checked": ["--path", "--item", "--checked"],
   "insert-code-block": ["--at", "--language", "--code"],
   "update-code-block": ["--path", "--language", "--code"],
   "insert-table-row": ["--path", "--at"],

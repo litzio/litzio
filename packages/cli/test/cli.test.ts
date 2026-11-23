@@ -713,7 +713,7 @@ test("litzio help exits successfully", () => {
       "Check": ["check"],
       "Edit — batch": ["apply-batch"],
       "Edit — insert blocks": ["insert-block", "insert-heading", "insert-admonition", "insert-quote", "insert-divider", "insert-equation", "insert-figure", "insert-list", "insert-code-block"],
-      "Edit — text and content": ["insert-hard-break", "replace-text", "update-heading", "update-admonition-variant", "update-quote", "update-figure", "update-media-references", "update-list", "update-code-block", "update-node-text", "update-equation-latex"],
+      "Edit — text and content": ["insert-hard-break", "replace-text", "update-heading", "update-admonition-variant", "update-quote", "update-figure", "update-media-references", "update-list", "update-list-item-checked", "update-code-block", "update-node-text", "update-equation-latex"],
       "Edit — structure": ["split-paragraph", "merge-paragraph", "update-heading-level", "convert-block", "remove-block", "move-block", "move-section", "remove-section"],
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-status", "update-title"],
@@ -2196,6 +2196,44 @@ test("CLI inserts and updates lists through Core and rejects invalid lists witho
       const result = run([...args]);
       assert.equal(result.status, 1, args.join(" "));
       assert.equal(readFileSync(target, "utf8"), before, args.join(" "));
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI inserts a checklist, checks one item and rejects invalid checks without writing", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-checklist-"));
+  const file = path.join(dir, "doc.md");
+  writeFileSync(file, nativeSource("# Steps\n\n- plain\n"));
+  const text = (value: string) => [{ kind: "text", text: value }];
+  try {
+    const checklist = { ordered: false, checklist: true, items: [
+      { content: text("Wire"), list: { ordered: false, checklist: true, items: [{ content: text("Input") }] } },
+      { content: text("Power on"), checked: true },
+    ] };
+    const insert = run(["insert-list", file, "--at", "2", "--list", JSON.stringify(checklist)]);
+    assert.equal(insert.status, 0, insert.stderr);
+    const check = run(["update-list-item-checked", file, "--path", "2", "--item", "0,0", "--checked", "true"]);
+    assert.equal(check.status, 0, check.stderr);
+    const saved = readFileSync(file, "utf8");
+    assert.equal(saved, nativeSource("# Steps\n\n*   [ ] Wire\n    *   [x] Input\n*   [x] Power on\n\n-   plain\n"));
+    const inspected = JSON.parse(run(["inspect", file, "--format", "json"]).stdout) as { nodes: Array<Record<string, unknown>> };
+    assert.deepEqual(inspected.nodes[1], { path: [2], type: "list", ordered: false, checklist: true, items: [
+      { content: text("Wire"), checked: false, list: { ordered: false, checklist: true, items: [{ content: text("Input"), checked: true }] } },
+      { content: text("Power on"), checked: true },
+    ] });
+    assert.match(run(["inspect", file]).stdout, /- \[x\] text="Input"/);
+
+    for (const args of [
+      ["update-list-item-checked", file, "--path", "3", "--item", "0", "--checked", "true"],
+      ["update-list-item-checked", file, "--path", "2", "--item", "2", "--checked", "true"],
+      ["update-list-item-checked", file, "--path", "2", "--item", "0", "--checked", "yes"],
+      ["insert-list", file, "--at", "2", "--list", JSON.stringify({ ordered: true, checklist: true, items: [{ content: text("x") }] })],
+    ]) {
+      const result = run(args);
+      assert.equal(result.status, 1, args.join(" "));
+      assert.equal(readFileSync(file, "utf8"), saved, args.join(" "));
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });

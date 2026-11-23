@@ -57,11 +57,12 @@ const KNOWN_BLOCKS = new Set([
   "table",
   "bulletList",
   "orderedList",
+  "taskList",
   "codeBlock",
   "labelTarget",
 ]);
 
-const LIST_BLOCKS = new Set(["bulletList", "orderedList"]);
+const LIST_BLOCKS = new Set(["bulletList", "orderedList", "taskList"]);
 
 /** Text blocks that convert into each other as a new block with a fresh locator. */
 const TEXT_BLOCKS = new Set(["paragraph", "heading", "codeBlock"]);
@@ -389,20 +390,22 @@ export function assertSupportedDocumentChange(baseline: TiptapJSON, next: Tiptap
 }
 
 /** List v1 content of an editor list: each item holds one paragraph and at most one nested list.
- * Empty items persist as Markdown list markers. */
+ * Empty items persist as Markdown list markers. A task list is a checklist; its items keep `checked`. */
 function listContent(node: TiptapJSON): ListContent {
   if (!LIST_BLOCKS.has(node.type ?? "")) throw new Error(`unsupported Tiptap node ${describeType(node)} as a list`);
+  const checklist = node.type === "taskList";
   const items = (node.content ?? []).map((item) => {
-    if (item.type !== "listItem") throw new Error(`unsupported Tiptap node ${describeType(item)} in list`);
+    if (item.type !== (checklist ? "taskItem" : "listItem")) throw new Error(`unsupported Tiptap node ${describeType(item)} in list`);
     const [paragraph, nested, ...rest] = item.content ?? [];
     if (paragraph?.type !== "paragraph" || rest.length > 0 || (nested !== undefined && !LIST_BLOCKS.has(nested.type ?? ""))) {
       throw new Error("a list item holds one paragraph, optionally followed by one nested list");
     }
     const content = paragraphInline(paragraph);
-    return nested ? { content, list: listContent(nested) } : { content };
+    return { content, ...(checklist ? { checked: item.attrs?.checked === true } : {}), ...(nested ? { list: listContent(nested) } : {}) };
   });
   if (items.length === 0) throw new Error("a list needs at least one item");
   if (node.type === "bulletList") return { ordered: false, items };
+  if (checklist) return { ordered: false, checklist: true, items };
   const start = Number(node.attrs?.start ?? 1);
   if (!Number.isInteger(start) || start < 0) throw new Error("numbered list start must be a non-negative integer");
   return { ordered: true, start,
@@ -434,11 +437,11 @@ function footnoteLabel(node: TiptapJSON): string {
 
 
 function sameList(left: ListContent, right: ListContent): boolean {
-  return left.ordered === right.ordered && (left.start ?? 1) === (right.start ?? 1) && left.items.length === right.items.length &&
+  return left.ordered === right.ordered && !!left.checklist === !!right.checklist && (left.start ?? 1) === (right.start ?? 1) && left.items.length === right.items.length &&
     (left.style ?? "decimal") === (right.style ?? "decimal") && (left.delimiter ?? ".") === (right.delimiter ?? ".") &&
     left.items.every((item, index) => {
       const other = right.items[index];
-      return sameInline(item.content, other.content) &&
+      return sameInline(item.content, other.content) && item.checked === other.checked &&
         (item.list === undefined ? other.list === undefined : other.list !== undefined && sameList(item.list, other.list));
     });
 }
@@ -554,7 +557,7 @@ function assertBlockChange(before: TiptapJSON | undefined, after: TiptapJSON | u
   if (!KNOWN_BLOCKS.has(afterType)) {
     throw new Error(`unsupported Tiptap block "${afterType || "unknown"}"`);
   }
-  // A list can switch between bullets and numbers at the same locator.
+  // A list can switch between bullets, numbers and checkboxes at the same locator.
   if (beforeType !== afterType && !(LIST_BLOCKS.has(beforeType) && LIST_BLOCKS.has(afterType))) {
     throw new Error(`top-level block type changed from "${beforeType}" to "${afterType}"`);
   }

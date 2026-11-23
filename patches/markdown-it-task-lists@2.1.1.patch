@@ -1,0 +1,24 @@
+diff --git a/index.js b/index.js
+index aed64f06ce777d5cad65e099ac8d6a94bf4443f0..fe618fc082a9ce368875a01a414f4abfae04077c 100644
+--- a/index.js
++++ b/index.js
+@@ -77,9 +77,9 @@ function todoify(token, TokenConstructor) {
+ function makeCheckbox(token, TokenConstructor) {
+ 	var checkbox = new TokenConstructor('html_inline', '', 0);
+ 	var disabledAttr = disableCheckboxes ? ' disabled="" ' : '';
+-	if (token.content.indexOf('[ ] ') === 0) {
++	if (token.content.indexOf('[ ]') === 0) {
+ 		checkbox.content = '<input class="task-list-item-checkbox"' + disabledAttr + 'type="checkbox">';
+-	} else if (token.content.indexOf('[x] ') === 0 || token.content.indexOf('[X] ') === 0) {
++	} else if (token.content.indexOf('[x]') === 0 || token.content.indexOf('[X]') === 0) {
+ 		checkbox.content = '<input class="task-list-item-checkbox" checked=""' + disabledAttr + 'type="checkbox">';
+ 	}
+ 	return checkbox;
+@@ -112,5 +112,6 @@ function isListItem(token) { return token.type === 'list_item_open'; }
+ 
+ function startsWithTodoMarkdown(token) {
+ 	// leading whitespace in a list item is already trimmed off by markdown-it
+-	return token.content.indexOf('[ ] ') === 0 || token.content.indexOf('[x] ') === 0 || token.content.indexOf('[X] ') === 0;
++	// Litzio: a marker alone is an empty task item, as GFM reads `- [ ]`.
++	return /^\[[ xX]\]( |$)/.test(token.content);
+ }

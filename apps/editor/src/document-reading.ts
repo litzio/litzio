@@ -52,7 +52,7 @@ export function useDocumentReading(editor: Editor | null, host: RefObject<HTMLEl
             cells.push({ table: key, row: rowIndex, column, clip, ...geometry(cellDom) });
           });
         });
-        if (node.type.name === "bulletList" || node.type.name === "orderedList") {
+        if (node.type.name === "bulletList" || node.type.name === "orderedList" || node.type.name === "taskList") {
           const walk = (list: HTMLElement, indexes: number[]) => {
             [...list.children].filter(child => child.tagName === "LI").forEach((child, index) => {
               const item = [...indexes, index];

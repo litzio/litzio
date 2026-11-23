@@ -13,7 +13,7 @@ export const MARKDOWN_INPUT_RULES = "markdownInputRules";
 
 export type BlockShortcut =
   | { block: "heading"; level: number }
-  | { block: "list"; ordered: boolean; start?: number }
+  | { block: "list"; ordered: boolean; start?: number; checked?: boolean }
   | { block: "code"; language: string }
   | { block: "quote" }
   | { block: "divider" };
@@ -41,6 +41,9 @@ export function applyBlockShortcut(tr: Transaction, from: number, to: number, sh
     : shortcut.block === "quote" ? [nodes.quote.create({ sourcePath }, rest)]
     // Writing continues in a new paragraph below the divider.
     : shortcut.block === "divider" ? [nodes.divider.create({ sourcePath }), nodes.paragraph.create({ sourcePath: freshBlockPath() })]
+    // A typed checkbox makes a checklist; its item keeps the typed state.
+    : shortcut.checked !== undefined ? [nodes.taskList.create({ sourcePath },
+      nodes.taskItem.create({ checked: shortcut.checked }, nodes.paragraph.create(null, rest)))]
     : [nodes[shortcut.ordered ? "orderedList" : "bulletList"].create(
       { sourcePath, ...(shortcut.ordered ? { start: shortcut.start ?? 1 } : {}) },
       nodes.listItem.create(null, nodes.paragraph.create(null, rest)))];
@@ -115,6 +118,7 @@ export const MarkdownInputRules = Extension.create({
     return [
       blockRule(/^(#{1,6}) $/, match => ({ block: "heading", level: match[1].length })),
       blockRule(/^[-+*] $/, () => ({ block: "list", ordered: false })),
+      blockRule(/^\[([ xX]?)\] $/, match => ({ block: "list", ordered: false, checked: match[1] !== "" && match[1] !== " " })),
       blockRule(/^> $/, () => ({ block: "quote" })),
       // Applies on the third dash, in an otherwise empty paragraph.
       blockRule(/^---$/, () => ({ block: "divider" })),

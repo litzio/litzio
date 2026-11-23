@@ -110,7 +110,8 @@ function machineBlock(block: EditableBlock): MachineNode[] {
     return [{ ...base, label: block.label }];
   }
   if (block.block === "list") {
-    return [{ ...base, ordered: block.ordered, ...(block.ordered ? { start: block.start, style: block.style ?? "decimal", delimiter: block.delimiter ?? "." } : {}), items: block.items }];
+    return [{ ...base, ordered: block.ordered, ...(block.ordered ? { start: block.start, style: block.style ?? "decimal", delimiter: block.delimiter ?? "." } : {}),
+      ...(block.checklist ? { checklist: true } : {}), items: block.items }];
   }
   throw new Error("Unknown native block");
 }

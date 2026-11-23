@@ -125,6 +125,7 @@ export const moveTableColumn = fence(operations.moveTableColumn);
 export const updateTableColumnAlignment = fence(operations.updateTableColumnAlignment);
 export const insertList = fence(operations.insertList);
 export const updateList = fence(operations.updateList);
+export const updateListItemChecked = fence(operations.updateListItemChecked);
 export const insertCodeBlock = fence(operations.insertCodeBlock);
 export const updateCodeBlock = fence(operations.updateCodeBlock);
 export const removeBlock = fence(operations.removeBlock);

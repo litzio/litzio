@@ -10,7 +10,7 @@ export type ExternalHTML = { html: string; notice?: string; error?: string };
 const BLOCKS = "address,article,aside,blockquote,dd,details,div,dl,dt,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hr,li,main,nav,ol,p,pre,section,table,ul";
 const REJECTED: [selector: string, reason: string][] = [
   ["iframe,frame,object,embed,applet,video,audio", "embedded media and objects are not supported"],
-  ["input,select,textarea", "form controls and task lists are not supported"],
+  ["input,select,textarea", "form controls are not supported"],
   ["math", "math formulas cannot be converted"],
   ["dl,details", "definition lists and collapsible sections are not supported"],
   // Flattened, annotations run into their base text ("漢kan").
@@ -29,9 +29,12 @@ const NOTICES = {
 type Notice = keyof typeof NOTICES;
 /** Attributes the editor's parse rules read; everything else is presentation or vendor data. */
 const KEEP: Record<string, string[]> = {
-  A: ["href", "title"], OL: ["start"], PRE: ["language"], BLOCKQUOTE: ["data-quote"],
+  A: ["href", "title"], OL: ["start"], UL: ["data-type"], LI: ["data-type", "data-checked"], PRE: ["language"], BLOCKQUOTE: ["data-quote"],
   DIV: ["data-divider", "data-table-block"], TH: ["data-table-cell", "align"], TD: ["data-table-cell", "align"],
 };
+
+/** An item `checklists` made: its checkbox became the item's check state. */
+const CHECKLIST_ITEM = 'li[data-type="taskItem"]';
 
 class Rejected extends Error {}
 
@@ -40,6 +43,7 @@ export function normalizeExternalHTML(html: string): ExternalHTML {
   const body = document.body;
   const notices = new Set<Notice>();
   try {
+    checklists(body);
     for (const [selector, reason] of REJECTED) if (body.querySelector(selector)) throw new Rejected(reason);
     visualFormatting(body, notices);
     body.querySelectorAll("script,style,template,noscript").forEach(element => element.remove());
@@ -50,11 +54,13 @@ export function normalizeExternalHTML(html: string): ExternalHTML {
       if (link.querySelector(BLOCKS)) throw new Rejected("a link cannot contain paragraphs or other blocks");
     }
     wordLists(body);
-    // Blank paragraphs are spacing, not content. Blank lines inside code are code.
+    // Blank paragraphs are spacing, not content. Blank lines inside code are code. A checklist
+    // item is content even with no text: its checkbox is.
+    const content = `hr,pre,table,${CHECKLIST_ITEM}`;
     for (const block of [...body.querySelectorAll("p,div,blockquote,h1,h2,h3,h4,h5,h6")].reverse()) {
-      if (!block.textContent?.trim() && !block.querySelector("hr,pre,table") && !block.closest("pre")) block.remove();
+      if (!block.textContent?.trim() && !block.querySelector(content) && !block.closest("pre")) block.remove();
     }
-    if (!body.textContent?.trim() && !body.querySelector("hr")) {
+    if (!body.textContent?.trim() && !body.querySelector(`hr,${CHECKLIST_ITEM}`)) {
       throw new Rejected(notices.has("images") ? "images can be added only as image files" : "the clipboard holds no supported content");
     }
     lists(body);
@@ -153,6 +159,39 @@ function wordLists(body: HTMLElement): void {
   }
 }
 
+/**
+ * A bullet list whose every item starts with a checkbox (rendered GFM, such as GitHub's) is a
+ * checklist: the checkbox becomes the item's check state. A checkbox anywhere else stays a form
+ * control and refuses the paste, as do checkboxes on numbered items or on only some items.
+ */
+function checklists(body: HTMLElement): void {
+  for (const list of [...body.querySelectorAll("ul,ol")]) {
+    const items = [...list.children].filter(child => child.tagName === "LI");
+    const boxes = items.map(leadingCheckbox);
+    if (!boxes.some(Boolean)) continue;
+    if (list.tagName === "OL" || !boxes.every(Boolean)) throw new Rejected("checkboxes are supported only on every item of a bullet list");
+    list.setAttribute("data-type", "taskList");
+    items.forEach((item, index) => {
+      item.setAttribute("data-type", "taskItem");
+      item.setAttribute("data-checked", String(boxes[index]!.checked));
+      boxes[index]!.remove();
+    });
+  }
+}
+
+/** The checkbox before any text of an item's own content, or undefined. */
+export function leadingCheckbox(item: Element): HTMLInputElement | undefined {
+  // SHOW_ELEMENT | SHOW_TEXT
+  const walker = item.ownerDocument.createTreeWalker(item, 1 | 4);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeType === 3) {
+      if (node.textContent?.trim()) return undefined;
+    } else if ((node as Element).matches('input[type="checkbox"]')) return node as HTMLInputElement;
+    else if ((node as Element).matches("ul,ol,li,input")) return undefined;
+  }
+  return undefined;
+}
+
 /** List v1: an item holds one paragraph, optionally followed by one nested list. */
 function lists(body: HTMLElement): void {
   const reject = () => { throw new Rejected("a list item holds one paragraph, optionally followed by one nested list"); };
@@ -167,6 +206,9 @@ function lists(body: HTMLElement): void {
     if (nested.length > 1 || (nested[0] && !trailing(nested[0]))) reject();
     nested[0]?.remove();
     if (!inlineOnly(item)) reject();
+    // A checklist item with no text keeps its paragraph, also when it ends the paste: the
+    // engine fills a missing paragraph only in an item the paste closes.
+    if (item.matches(CHECKLIST_ITEM) && !item.textContent?.trim()) item.replaceChildren(body.ownerDocument.createElement("p"));
     if (nested[0]) item.append(nested[0]);
   }
   for (const list of body.querySelectorAll("ol[start]")) {

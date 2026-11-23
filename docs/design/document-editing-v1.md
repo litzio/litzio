@@ -1,6 +1,7 @@
 # Continuous document editing v1
 
 - Status: Implemented
+- Checklists: 2026-11-23 (#1893; `list-authoring` browser scenario: slash insert, Hangul composition, Enter/Tab/empty-item exit, click and Ctrl+Enter checks with Undo/Redo, real-clipboard cut and paste with checkboxes in the copied HTML, read-only, Ctrl+Shift+9/8, Save → reopen; `external-checklist-paste` checklist, empty-item and refusal cases; Editor unit tests).
 - Last verified: 2026-11-16 — #1658: 표 속성·Figure inline caption을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Plain-text Markdown paste: 2026-11-20 (#1843; all-or-nothing Core reading tests and the `external-html-paste` browser scenario: structure, one Undo/Redo, Save → Reload, Ctrl+Shift+V, plain-text fallback, code, one-line places, endnotes, URLs, history and composition).
 - Pasted label conflicts: 2026-11-20 (#1847; Core `assertPastedLabelsAvailable` tests and the `external-html-paste` browser scenario: a Table copied in the same document, a Table label equal to a section or Equation label, an Equation taking a Table label and a label repeated within the paste are refused with the document and selection kept; plain text and external HTML still paste beside existing duplicate Table labels with one Undo; a Table after a paragraph moved between a section label and its heading pastes; a Table label equal to a heading's automatic ID pastes and Save refuses it; a Table or Equation followed by a heading with its ID, and a distinct Table label, paste and survive Save → Reload).
@@ -391,6 +392,34 @@ italic or deletion marks. Core supplies their number policy and text. Supported 
 normal editing and Save preserve those attributes and the bibliography declaration. Citation
 authoring UI and bibliography resource reads follow the [Citations contract](citations-v1.md#editor).
 
+## Lists and checklists
+
+A checklist is Tiptap's own task list and task item (`@tiptap/extension-list`), saved
+through the [Core checklist contract](document-support-v1.md#checklists-1893); Litzio does
+not implement a checkbox editor. Its items edit like other list items.
+
+- Insert: “Checklist” / “체크리스트” in the Lists group of the `+`, slash and block insert
+  menus (key chip `[ ]`), or `[ ] ` / `[x] ` typed at the start of a top-level paragraph,
+  which follows the other Markdown block shortcuts (Undo right after restores the text).
+- Check: click the checkbox, or press Ctrl+Enter (Cmd+Enter on macOS) in the item's own text;
+  in a nested non-checklist item it stays a line break. Each check, by click or key, is its
+  own Undo step, separate from the edits just before and after it. Read-only views (Read, plugin `ui.DocumentView`, comparison, template
+  preview) show the state and do not change it.
+- Enter adds an unchecked item, Enter on an empty item lifts it and then leaves the list,
+  Tab/Shift+Tab nest and lift, and Backspace behaves as in other lists. Ctrl/Cmd+Shift+9
+  makes a list a checklist and Ctrl/Cmd+Shift+8 / 7 make it bullets or numbers, nested
+  lists included, like the existing list shortcuts; Save writes the result as one list.
+- Copy, cut and paste inside Litzio carry checklist items with their check states, whole or
+  partial, nested or mixed with other blocks. The copied HTML keeps each item's checkbox with
+  its state, so other HTML editors and mail show the checks; pasted back into Litzio, that one
+  checkbox at the start of a typed checklist item is read as its check state, not content.
+  Copied plain text has no check marks.
+- The 16px native checkbox stands in the bullet column on the item's first line and uses
+  the accent token. Checked item text keeps its normal style. Captures at 1440px:
+  [light](assets/checklist-1893/after-1440-light-ko.png),
+  [dark](assets/checklist-1893/after-1440-dark-ko.png),
+  [slash menu](assets/checklist-1893/slash-menu-1440-ko.png).
+
 ## Reference display settings
 
 In-text Figure/Table/Equation references use Core's per-document [reference templates](heading-numbering-v1.md#reference-templates-445).
@@ -524,7 +553,9 @@ parses, fits and replaces the selection in one transaction (one Undo), and Save
 still goes through Core validation. Litzio's typed clipboard is not normalized, and
 a clipboard image file (PNG, JPEG, GIF or WebP) still takes the #59 asset path first.
 
-- Kept: paragraphs, H1–H6, bullet/numbered lists within List v1, single-paragraph
+- Kept: paragraphs, H1–H6, bullet/numbered lists within List v1, checklists (a bullet
+  list whose every item starts with a checkbox, as rendered GFM writes them; an item with
+  no text, and a wrapper holding only such items, are kept), single-paragraph
   quotes, `<pre>` code (whitespace kept, a `language-*` class as the language, one
   trailing newline dropped), dividers, rectangular tables of single-line cells, and
   bold/italic/strikethrough, subscript/superscript (`sub`/`sup` tags and
@@ -542,8 +573,9 @@ a clipboard image file (PNG, JPEG, GIF or WebP) still takes the #59 asset path f
   notice, which also covers lost metadata such as an `abbr` title or a `datetime`.
 - Refused, keeping document, selection and clipboard: merged or nested table cells,
   ragged rows, cells, list items or quotes with several paragraphs or other blocks,
-  headings with line breaks, links around blocks, embeds and media, form controls
-  (task lists), MathML, definition lists and collapsible sections, and `ruby`,
+  headings with line breaks, links around blocks, embeds and media, other form controls,
+  checkboxes on numbered items or on only some items of a list, MathML, definition lists
+  and collapsible sections, and `ruby`,
   whose annotations would run into the base text if flattened.
 - Word writes list items as `mso-list` paragraphs rather than HTML lists; this one
   vendor rule turns them into lists so they do not become "·"-prefixed paragraphs.
@@ -551,7 +583,7 @@ a clipboard image file (PNG, JPEG, GIF or WebP) still takes the #59 asset path f
   lowered or filled with invented items.
 - At the paste edges only a paragraph joins the text around the selection; edge
   headings, lists, code blocks and tables stay whole.
-- Limits: task lists drawn without form controls and code copied without `<pre>`
+- Limits: checklists drawn without form controls and code copied without `<pre>`
   (styled `<div>` lines) arrive as ordinary lists and paragraphs.
 
 The result uses existing blocks and InlineContent only, so no Core operation or CLI
@@ -566,7 +598,8 @@ same admission and canonical round-trip as opening a document; the Editor projec
 with the Core → editor projection that opening uses. No Markdown is read in the Editor.
 `text/html`, Litzio's typed clipboard and image files keep their existing precedence.
 
-- All or nothing: if any part of the text is not native content (a task list, a multi-paragraph
+- All or nothing: if any part of the text is not native content (a checkbox on a numbered item,
+  a list with checkboxes on only some items, a multi-paragraph
   list item or quote, raw HTML, an image, a directive with unsupported options such as a table's
   `:widths:`, bracket citation shorthand, an endnote definition nothing references), or the parse
   consumes source without leaving editable content (link reference definitions, used or not and

@@ -558,7 +558,7 @@ export function insertDivider(document: MystDocument, index: number): MystDocume
 const LIST_FAILURE = "list cannot round-trip losslessly through canonical Markdown";
 const MAX_LIST_START = 999_999_999;
 
-/** Insert a top-level bullet or numbered list. */
+/** Insert a top-level bullet list, numbered list or checklist. */
 export function insertList(document: MystDocument, index: number, list: ListContent): MystDocument {
   const normalized = normalizeList(list);
   const next = insertBlock(document, index, createListNode(normalized));
@@ -581,6 +581,38 @@ export function updateList(document: MystDocument, path: NodePath, list: ListCon
   return next;
 }
 
+/** Check or uncheck one checklist item without rewriting the list. `item` gives the item's index
+ * in the top-level list at `path`, then its index in each nested list below it. */
+export function updateListItemChecked(document: MystDocument, path: NodePath, item: number[], checked: boolean): MystDocument {
+  if (!Array.isArray(path) || path.length !== 1) {
+    throw new DocumentDiagnosticError("invalid-operation", "updateListItemChecked requires a top-level list path [index]");
+  }
+  const content = supportedListContent(getNode(document, path));
+  if (!content) throw new DocumentDiagnosticError("unsupported-content", `list at [${path.join(",")}] is not editable in this version`);
+  if (!Array.isArray(item) || item.length === 0 || item.some(index => !Number.isInteger(index) || index < 0)) {
+    throw new DocumentDiagnosticError("invalid-operation", "a list item is addressed by non-negative item indexes");
+  }
+  if (typeof checked !== "boolean") throw new DocumentDiagnosticError("invalid-operation", "checked must be true or false");
+  const next = cloneDocument(document);
+  let list: ListContent | undefined = content;
+  let node = getNode(next, path);
+  let target: MystNode | undefined;
+  for (const [depth, index] of item.entries()) {
+    if (!list || index >= list.items.length) {
+      throw new DocumentDiagnosticError("invalid-operation", `no list item at [${item.slice(0, depth + 1).join(",")}] in list [${path.join(",")}]`);
+    }
+    if (depth === item.length - 1 && !list.checklist) {
+      throw new DocumentDiagnosticError("invalid-operation", `list item [${item.join(",")}] in list [${path.join(",")}] is not a checklist item`);
+    }
+    target = node.children![index];
+    list = list.items[index].list;
+    node = target.children!.at(-1)!;
+  }
+  target!.checked = checked;
+  assertListRoundTrip(next, path[0], supportedListContent(getNode(next, path))!);
+  return next;
+}
+
 function normalizeList(list: ListContent): ListContent {
   if (!list || typeof list !== "object" || typeof list.ordered !== "boolean") {
     throw new DocumentDiagnosticError("invalid-operation", "list requires a boolean ordered");
@@ -600,14 +632,26 @@ function normalizeList(list: ListContent): ListContent {
     : list.style !== undefined || list.delimiter !== undefined) {
     throw new DocumentDiagnosticError("invalid-operation", "only ordered lists support a valid style and delimiter");
   }
+  if (list.checklist !== undefined && typeof list.checklist !== "boolean") {
+    throw new DocumentDiagnosticError("invalid-operation", "checklist must be true or false");
+  }
+  const checklist = list.checklist === true;
+  if (checklist && list.ordered) {
+    throw new DocumentDiagnosticError("invalid-operation", "a checklist is a bullet list; numbered lists have no checkboxes");
+  }
   const items = list.items.map((item) => {
     if (!item || typeof item !== "object") throw new DocumentDiagnosticError("invalid-operation", "list item must be an object");
+    if (item.checked !== undefined && (!checklist || typeof item.checked !== "boolean")) {
+      throw new DocumentDiagnosticError("invalid-operation", checklist ? "checked must be true or false"
+        : "only checklist items have a check state; set checklist: true on the list");
+    }
     const content = structuralInlineContent(item.content);
-    return item.list === undefined ? { content } : { content, list: normalizeList(item.list) };
+    return { content, ...(checklist ? { checked: item.checked === true } : {}), ...(item.list === undefined ? {} : { list: normalizeList(item.list) }) };
   });
   return list.ordered ? { ordered: true, start,
     ...(list.style && list.style !== "decimal" ? { style: list.style } : {}),
-    ...(list.delimiter === ")" ? { delimiter: list.delimiter } : {}), items } : { ordered: false, items };
+    ...(list.delimiter === ")" ? { delimiter: list.delimiter } : {}), items }
+    : { ordered: false, ...(checklist ? { checklist: true } : {}), items };
 }
 
 function assertListRoundTrip(document: MystDocument, index: number, list: ListContent): void {
@@ -625,12 +669,12 @@ function assertListRoundTrip(document: MystDocument, index: number, list: ListCo
 }
 
 function sameList(left: ListContent, right: ListContent): boolean {
-  return left.ordered === right.ordered && left.start === right.start &&
+  return left.ordered === right.ordered && left.start === right.start && !!left.checklist === !!right.checklist &&
     (left.style ?? "decimal") === (right.style ?? "decimal") && (left.delimiter ?? ".") === (right.delimiter ?? ".") &&
     left.items.length === right.items.length &&
     left.items.every((item, index) => {
       const other = right.items[index];
-      return sameInlineContent(item.content, other.content) && (item.list === undefined
+      return sameInlineContent(item.content, other.content) && item.checked === other.checked && (item.list === undefined
         ? other.list === undefined : other.list !== undefined && sameList(item.list, other.list));
     });
 }
