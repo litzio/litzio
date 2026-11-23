@@ -1,6 +1,7 @@
 /** The stable browser suite, shared by the runner and its coverage/selection checks.
  * Order feeds eight round-robin shards, balanced by descending measured duration
  * and least-loaded shard from CI run 43428753339 (94 scenarios, 2026-11-13).
+ * The clipboard split uses the lighter shard 4 for label checks (CI run 45122790213).
  */
 export const STABLE_SCENARIOS = [
   "document-tabs",
@@ -98,11 +99,13 @@ export const STABLE_SCENARIOS = [
   "provider-session-log",
   "ui-prose-wrap",
   "reveal-folder",
-  "save-during-edit",
+  "markdown-paste",
   "metadata-popover",
   "linked-document-view",
   "activity-bar",
+  "clipboard-label-paste",
   "external-checklist-paste",
+  "save-during-edit",
 ];
 
 /** These scenarios inspect notification content, actions, history or stacking.
@@ -126,6 +129,8 @@ export const NOTIFICATION_SCENARIOS = [
   "equation-node-selection-typing",
   "external-change",
   "external-html-paste",
+  "markdown-paste",
+  "clipboard-label-paste",
   "external-checklist-paste",
   "file-actions",
   "folder-navigation",

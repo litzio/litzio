@@ -77,8 +77,8 @@ test("fault injection permits only its expected network failures", () => {
   assert.deepEqual(classifyConsoleErrors("assistant", [unexpectedUndoConflict]).unexpected, [unexpectedUndoConflict]);
   // A rule with a maximum expects that many failures only: another one is unexpected.
   const refusedSave = "Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://127.0.0.1:1/api/document";
-  assert.deepEqual(classifyConsoleErrors("external-html-paste", [refusedSave]).unexpected, []);
-  assert.deepEqual(classifyConsoleErrors("external-html-paste", [refusedSave, refusedSave]).unexpected, [refusedSave]);
+  assert.deepEqual(classifyConsoleErrors("clipboard-label-paste", [refusedSave]).unexpected, []);
+  assert.deepEqual(classifyConsoleErrors("clipboard-label-paste", [refusedSave, refusedSave]).unexpected, [refusedSave]);
 });
 
 const testDir = path.join(REPOSITORY_ROOT, "apps", "editor", "test");
