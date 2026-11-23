@@ -878,7 +878,8 @@ English/Korean names and shared platform labels, rather than an inventory of eve
   Apply properties Ctrl+Enter on Windows/Linux or Cmd+Enter on macOS within a properties form (#576);
   Line break Shift+Enter (supported prose blocks, not headings);
   Tab/Shift+Tab increases/decreases heading level at a caret or indents/outdents a list item;
-  Ctrl/Cmd+Shift+8 and Ctrl/Cmd+Shift+7 toggle Bullet list / Numbered list;
+  Ctrl/Cmd+Shift+8, Ctrl/Cmd+Shift+7 and Ctrl/Cmd+Shift+9 toggle Bullet list / Numbered list / Checklist;
+  Check or uncheck checklist item Ctrl/Cmd+Enter (#1893);
   Code block Ctrl/Cmd+Alt+C; Go to document end Ctrl/Cmd+End.
 - Formatting: bold Ctrl/Cmd+B, italic Ctrl/Cmd+I, strikethrough Ctrl/Cmd+Shift+S,
   inline code Ctrl/Cmd+E, link Ctrl/Cmd+', subscript Ctrl/Cmd+, and superscript Ctrl/Cmd+.
