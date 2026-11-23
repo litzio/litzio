@@ -5,7 +5,7 @@ import { ProviderUpdates } from "../../server/provider-updates.ts";
 import type { ProviderConnections } from "../../server/provider-connections.ts";
 
 const dispatcher = fileURLToPath(new URL("../fixtures/provider-cli.mjs", import.meta.url));
-export type FakeCliState = { version: string; help?: boolean; update?: "ok" | "fail" | "hang"; next?: string; updates?: number };
+export type FakeCliState = { version: string; help?: boolean; update?: "ok" | "slow" | "fail" | "hang"; next?: string; updates?: number; pid?: number };
 
 /** An installed-CLI launcher (a .cmd on Windows) whose behavior the returned state file controls. */
 export function fakeProviderCli(root: string, state: FakeCliState) {

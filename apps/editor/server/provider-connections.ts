@@ -32,6 +32,7 @@ export class ProviderConnections {
   readonly updates: ProviderUpdates;
   /** Providers whose CLI was updated while a turn kept the earlier process running. */
   private updated = new Set<AiProvider>();
+  private relaunching = new Map<AiProvider, Promise<void>>();
   constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}, hostOrigin?: () => string | undefined) {
     this.templatesDirectory = hostPaths(run).templates;
     this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()) }); this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: () => assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.()) });
@@ -51,12 +52,18 @@ export class ProviderConnections {
       return deferred;
     });
   }
-  /** After an update, the next idle moment launches the new executable; an admitted turn is never interrupted. */
-  async relaunchUpdated(provider: AiProvider): Promise<boolean> {
-    if (!this.updated.has(provider) || this.providerBusy(provider)) return false;
+  /**
+   * After an update, the next idle moment launches the new executable; an admitted turn or a send on its way is never
+   * interrupted. A send that arrives while the relaunch runs waits for it.
+   */
+  async relaunchUpdated(provider: AiProvider, busy = this.providerBusy(provider)): Promise<boolean> {
+    await this.relaunching.get(provider);
+    if (!this.updated.has(provider) || busy) return false;
     this.updated.delete(provider);
     // An unconfirmed stop fails only callers waiting on it; the next request launches anew.
-    await (provider === "copilot" ? this.copilot.restart() : this.client.restart()).catch(() => {});
+    const relaunch = (provider === "copilot" ? this.copilot.restart() : this.client.restart()).catch(() => {}).finally(() => this.relaunching.delete(provider));
+    this.relaunching.set(provider, relaunch);
+    await relaunch;
     return true;
   }
   private invalidateUsage() { this.accountRevision++; this.usageCache = undefined; }
@@ -184,7 +191,7 @@ export class ProviderConnections {
     } while (cursor);
     return servers;
   }
-  async close() { const results = await Promise.allSettled([this.client.close(), this.copilot.close()]); for (const result of results) if (result.status === "rejected") throw result.reason; }
+  async close() { const results = await Promise.allSettled([this.client.close(), this.copilot.close(), this.updates.close()]); for (const result of results) if (result.status === "rejected") throw result.reason; }
 }
 
 function usageBuckets(buckets: Record<string, any>): NonNullable<AssistantDiagnostics["rateLimits"]> {

@@ -1320,7 +1320,8 @@ export const en = {
   "Runs {{command}} on the Host.": "Runs {{command}} on the Host.",
   "The CLI was not found on the Host.": "The CLI was not found on the Host.",
   "This CLI version has no update command. Update it the way you installed it.": "This CLI version has no update command. Update it the way you installed it.",
-  "This CLI version has no update command.": "This CLI version has no update command."
+  "This CLI version has no update command.": "This CLI version has no update command.",
+  "Already up to date.": "Already up to date."
 } as const;
 export const ko: Record<keyof typeof en, string> = {
   "Update failed": "업데이트 실패",
@@ -2641,5 +2642,6 @@ export const ko: Record<keyof typeof en, string> = {
   "Runs {{command}} on the Host.": "Host에서 {{command}}를 실행합니다.",
   "The CLI was not found on the Host.": "Host에서 CLI를 찾지 못했습니다.",
   "This CLI version has no update command. Update it the way you installed it.": "이 CLI 버전에는 업데이트 명령이 없습니다. 설치한 방법으로 업데이트하세요.",
-  "This CLI version has no update command.": "이 CLI 버전에는 업데이트 명령이 없습니다."
+  "This CLI version has no update command.": "이 CLI 버전에는 업데이트 명령이 없습니다.",
+  "Already up to date.": "이미 최신 버전입니다."
 };

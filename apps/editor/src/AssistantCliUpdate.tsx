@@ -52,7 +52,9 @@ export function useCliUpdate(provider: AiProvider, request: Request, finished: (
 
 export function CliUpdateButton({ provider, diagnostics, running, start }: { provider: AiProvider; diagnostics?: AssistantDiagnostics; running: boolean; start(): void }) {
   const reason = diagnostics?.updateUnavailable === "missing" ? i18n.t("The CLI was not found on the Host.")
-    : diagnostics?.updateUnavailable === "unsupported" ? i18n.t("This CLI version has no update command. Update it the way you installed it.") : undefined;
+    : diagnostics?.updateUnavailable === "unsupported" ? i18n.t("This CLI version has no update command. Update it the way you installed it.")
+    // The screen only: the Host operation and CLI still run the CLI's own update when it is current.
+    : diagnostics?.versionStatus === "current" ? i18n.t("Already up to date.") : undefined;
   const command = provider === "copilot" ? "copilot update" : "codex update";
   return <Tooltip><TooltipTrigger render={<span tabIndex={reason ? 0 : -1} />}>
     <Button variant="outline" size="sm" data-testid="assistant-cli-update" disabled={!diagnostics || running || !!reason} onClick={start}>{i18n.t(running ? "Updating…" : "Update")}</Button>

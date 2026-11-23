@@ -53,8 +53,15 @@ async (page, { expect, screenshots, brand }) => {
   await expect(status).toHaveText('최신 버전');
   expect(reads).toBeGreaterThan(before);
   await expect(button).toHaveText('업데이트');
+  // Up to date: the screen does not offer the update (the Host operation and CLI still run it).
+  await expect(button).toBeDisabled();
+  await button.locator('..').hover();
+  await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('이미 최신 버전입니다.');
   await capture('succeeded-1440-light-ko');
 
+  version = { version: 'codex-cli 0.172.0', versionStatus: 'available', latestVersion: '0.173.0', latestCheckedAt: 1793590000000 };
+  await page.getByRole('button', { name: '다시 진단', exact: true }).click();
+  await expect(button).toBeEnabled();
   await button.click();
   update = { ...update, status: 'failed', exitCode: 1, finishedAt: 3, output: update.output + 'error: release download failed\n' };
   const result = page.getByTestId('assistant-cli-update-result');

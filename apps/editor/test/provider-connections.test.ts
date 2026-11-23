@@ -739,6 +739,7 @@ test("provider CLI update runs the executable's own update once at a time, repor
   assert.deepEqual([available.versionStatus, available.latestVersion, available.updateUnavailable], ["available", "0.151.0", undefined]);
   assert.equal((await connection.updates.version("codex", "codex-cli 0.151.0")).versionStatus, "current");
   assert.equal((await connection.updates.version("codex", "codex-cli 0.152.0")).versionStatus, "current", "a build newer than the release is not an update");
+  assert.equal((await connection.updates.version("codex", "codex-cli 0.151.0-rc.1")).versionStatus, "unknown", "a pre-release is not compared");
   assert.equal(releases, 1, "the release read is reused while the screen reopens");
   release = () => Promise.reject(new Error("offline"));
   useReleaseSource(connection, { latest: () => { releases++; return release(); }, timeoutMs: 1500 });
@@ -781,6 +782,31 @@ test("provider CLI update runs the executable's own update once at a time, repor
   assert.equal(idle.deferred, undefined);
   await connection.client.request("model/list", { cursor: null });
   assert.equal(pids().length, 3, "an idle connection closes right after the update");
+
+  // Host shutdown ends a running update and its process tree.
+  cli.write({ update: "hang" });
+  connection.updateCli("codex", () => {});
+  while (!cli.read().pid || cli.read().updates !== 5) await new Promise(resolve => setTimeout(resolve, 50));
+  await connection.close();
+  assert.throws(() => process.kill(cli.read().pid!, 0), /ESRCH/, "the update process is gone once the Host has closed");
+  assert.equal((await settled(connection, "codex")).status, "failed");
+});
+
+test("a send already on its way to the provider defers the relaunch after an update", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "provider-cli-pending-")), log = path.join(root, "rpc.jsonl");
+  const cli = fakeProviderCli(root, { version: "0.150.0", update: "slow", next: "0.151.0" });
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: cli.bin, args: [fakeServer, log, "delay-turn-start"] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  t.after(async () => { await conversations.close(); await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  useReleaseSource(connection, { latest: async () => "0.151.0" });
+  await connection.client.connect();
+  const settings = { provider: "codex", model: "gpt-6.1-sol", reasoningEffort: "medium", permissionMode: "full-access" } as const;
+  // The provider announces the turn 3 s after turn/start; the update finishes in between.
+  connection.updateCli("codex", () => {});
+  const sent = conversations.send({ message: "Draft", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  const update = await settled(connection, "codex");
+  assert.deepEqual([update.status, update.deferred], ["succeeded", true]);
+  assert.equal((await sent).turns.at(-1)!.status, "inProgress", "the send is not cut off by the relaunch");
 });
 
 test("dynamic document tools enforce turn scope and preserve results across process resume", async t => {

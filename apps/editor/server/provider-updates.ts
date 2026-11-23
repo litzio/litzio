@@ -1,4 +1,4 @@
-import { spawn, execFile } from "node:child_process";
+import { spawn, execFile, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import type { AiProvider, ProviderUpdate, ProviderVersion } from "../shared/assistant.ts";
 import { stopAgentProcess } from "./codex-app-server.ts";
@@ -28,9 +28,10 @@ export async function latestRelease(provider: AiProvider): Promise<string> {
   return version.join(".");
 }
 
+/** A pre-release (`1.2.3-rc.1`) is not compared with the stable release: its status is unknown. */
 function semver(value: unknown): number[] | undefined {
-  const match = typeof value === "string" ? value.match(/(\d+)\.(\d+)\.(\d+)/) : null;
-  return match ? match.slice(1, 4).map(Number) : undefined;
+  const match = typeof value === "string" ? value.match(/(\d+)\.(\d+)\.(\d+)(-)?/) : null;
+  return match && !match[4] ? match.slice(1, 4).map(Number) : undefined;
 }
 function launcher(bin: string) {
   const shell = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin);
@@ -46,6 +47,8 @@ function listsUpdate(bin: string): Promise<boolean> {
 export class ProviderUpdates {
   private runs = new Map<AiProvider, ProviderUpdate>();
   private releases = new Map<AiProvider, { version: string; checkedAt: number }>();
+  private children = new Map<AiProvider, { child: ChildProcessWithoutNullStreams; timer: ReturnType<typeof setTimeout> }>();
+  private closed = false;
   constructor(private executable: (provider: AiProvider) => string | null, private options: { latest?: (provider: AiProvider) => Promise<string>; timeoutMs?: number } = {}) {}
 
   async version(provider: AiProvider, installed: string | null): Promise<ProviderVersion> {
@@ -78,6 +81,7 @@ export class ProviderUpdates {
    * so a screen that sees the result also sees the new version. `finished` reports whether a turn deferred the relaunch.
    */
   start(provider: AiProvider, finished: (succeeded: boolean) => Promise<boolean>): ProviderUpdate {
+    if (this.closed) throw new Error("The Assistant Host is closing.");
     if (this.runs.get(provider)?.status === "running") throw new Error(`An update of the ${provider} CLI is already running.`);
     const state: ProviderUpdate = { provider, status: "running", startedAt: Date.now(), output: "" };
     // The last run stays in daemon memory: reopening the screen shows its progress or result.
@@ -94,6 +98,7 @@ export class ProviderUpdates {
     const bin = this.executable(state.provider);
     if (!bin) { state.error = "The CLI was not found on the Host."; return false; }
     if (!await listsUpdate(bin)) { state.error = "This CLI version has no update command."; return false; }
+    if (this.closed) { state.error = "The Host closed before the update started."; return false; }
     const { command, shell } = launcher(bin);
     const child = spawn(command, ["update"], { shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"], env: process.env });
     child.stdin.end();
@@ -106,12 +111,20 @@ export class ProviderUpdates {
     child.stderr.on("data", append(new StringDecoder("utf8")));
     const timeoutMs = this.options.timeoutMs ?? PROVIDER_UPDATE_TIMEOUT_MS;
     const timer = setTimeout(() => { state.timedOut = true; void stopAgentProcess(child).catch(() => {}); }, timeoutMs);
+    this.children.set(state.provider, { child, timer });
     try {
       const [code, error] = await new Promise<[number | null, Error?]>(resolve => { child.once("error", error => resolve([null, error])); child.once("close", code => resolve([code])); });
       state.exitCode = code;
       if (state.timedOut) state.error = `The update did not finish within ${Math.round(timeoutMs / 1000)} seconds.`;
+      else if (this.closed) state.error = "The Host closed during the update.";
       else if (error) state.error = error.message;
-      return code === 0 && !state.timedOut;
-    } finally { clearTimeout(timer); }
+      return code === 0 && !state.timedOut && !this.closed;
+    } finally { clearTimeout(timer); this.children.delete(state.provider); }
+  }
+  /** Host shutdown ends running updates with the owned process tree and confirms their exit. */
+  async close() {
+    this.closed = true;
+    const results = await Promise.allSettled([...this.children.values()].map(({ child, timer }) => { clearTimeout(timer); return stopAgentProcess(child); }));
+    for (const result of results) if (result.status === "rejected") throw result.reason;
   }
 }

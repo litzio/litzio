@@ -16,7 +16,7 @@ import { statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { ASSISTANT, copilotOllamaUrl } from "../shared/assistant.ts";
-import type { AssistantConversationInfo, AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
+import type { AssistantConversationInfo, AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn, AiProvider } from "../shared/assistant.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
 import { accessPath, type FileAccess } from "./file-access.ts";
 
@@ -96,6 +96,11 @@ export class AssistantConversations {
   private closed = false;
 
   private loaded = new Set<string>();
+  /** A provider is busy with an admitted turn or a send already on its way to it; `except` is the caller's own send. */
+  private busy(provider: AiProvider, except?: string) {
+    return [...this.conversations.values()].some(value => (value.provider ?? "codex") === provider && value.turns.some(turn => turn.status === "inProgress"))
+      || [...this.pending].some(key => key !== except && (key === "copilot") === (provider === "copilot"));
+  }
   constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost) {
     this.attachments = new AssistantAttachments(connection.cwd);
     this.index = new AssistantConversationIndex(connection, this.attachments);
@@ -109,7 +114,7 @@ export class AssistantConversations {
       }
     });
     connection.copilot.permission = request => this.copilotPermission(request);
-    connection.providerBusy = provider => [...this.conversations.values()].some(value => (value.provider ?? "codex") === provider && value.turns.some(turn => turn.status === "inProgress"));
+    connection.providerBusy = provider => this.busy(provider);
     connection.client.userInput = (requestId, params, respond) => {
       const conversation = this.conversations.get(params?.threadId);
       if (!conversation?.turns.some(turn => turn.id === params.turnId && turn.status === "inProgress") || this.answers.has(this.answerKey(conversation.id, params.turnId, requestId)) ||
@@ -353,7 +358,7 @@ export class AssistantConversations {
         if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
         return await this.sendCopilot(input, settings, folders, references, conversation);
       }
-      await this.connection.relaunchUpdated("codex");
+      await this.connection.relaunchUpdated("codex", this.busy("codex", key));
       if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.permissionMode);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
@@ -534,7 +539,7 @@ export class AssistantConversations {
     const fullAccess = settings.permissionMode === "full-access";
     // A local model source serves one model per process: the selected model is a launch setting.
     await this.prepareCopilotLaunch(effort, settings, ollamaUrl ? { url: ollamaUrl, model: input.model } : undefined);
-    await this.connection.relaunchUpdated("copilot");
+    await this.connection.relaunchUpdated("copilot", this.busy("copilot", "copilot"));
     if (conversation && !this.loaded.has(conversation.id)) {
       // A running ACP process already owns the session and its MCP endpoint.
       // Retain the snapshot object held by callers while rebuilding provider-owned content.
