@@ -10,6 +10,7 @@ import { ProviderConnections } from "../server/provider-connections.ts";
 import { handleDocumentRequest } from "../server/document-api.ts";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 import { runCliAsync } from "../../../packages/cli/src/cli.ts";
+import { fakeProviderCli, useReleaseSource } from "./helpers/provider-cli.ts";
 
 test("Codex skill discovery waits for plugin startup; Copilot retains tool-only support", async () => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-plugin-skill-catalog-"));
@@ -130,6 +131,49 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     stdout.mock.restore(); stderr.mock.restore();
     if (previous === undefined) delete process.env.LITZIO_ASSISTANT_SETTINGS_FILE; else process.env.LITZIO_ASSISTANT_SETTINGS_FILE = previous;
   }
+});
+
+test("provider CLI update is one Host run shared by HTTP and the explicit-Host CLI and keeps a running turn", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-provider-update-")), log = path.join(root, "rpc.jsonl");
+  const cli = fakeProviderCli(root, { version: "0.150.0", update: "hang", next: "0.151.0" });
+  const agent = new ProviderConnections(path.join(root, "assistant"), { bin: cli.bin, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
+  useReleaseSource(agent, { latest: async () => "0.151.0", timeoutMs: 1500 });
+  const host = createAssistantHost(null, path.join(root, "assistant.json"), { agent });
+  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { assistant: host }); });
+  await listenForFetch(server);
+  const origin = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); rmSync(root, { recursive: true, force: true }); });
+  const post = async (route: string, body: unknown) => fetch(`${origin}${route}`, { method: "POST", headers: { "Content-Type": "application/json", Connection: "close" }, body: JSON.stringify(body) });
+  const pids = () => readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line).pid).filter(Boolean);
+  const running = await (await post("/api/assistant/conversations", { action: "send", message: "Draft", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" })).json() as any;
+  assert.equal(running.turns.at(-1).status, "inProgress");
+  const output: string[] = [];
+  const stdout = t.mock.method(process.stdout, "write", ((value: string) => { output.push(value); return true; }) as typeof process.stdout.write);
+  const stderr = t.mock.method(process.stderr, "write", (() => true) as typeof process.stderr.write);
+  try {
+    assert.equal(await runCliAsync(["assistant", "provider-update", "codex", "--check", "--host", origin]), 0);
+    assert.deepEqual((({ version, versionStatus, latestVersion, update }) => [version, versionStatus, latestVersion, update.status])(JSON.parse(output.pop()!)), ["codex-cli 0.150.0", "available", "0.151.0", "idle"]);
+    assert.equal((await post("/api/assistant/provider-update", { provider: "codex" })).status, 200);
+    const second = await post("/api/assistant/provider-update", { provider: "codex" });
+    assert.equal(second.status, 400); assert.match((await second.json() as any).error, /already running/);
+    assert.equal(await runCliAsync(["assistant", "provider-update", "codex", "--check", "--host", origin]), 0, "--check reports a run without waiting for it");
+    assert.equal(JSON.parse(output.pop()!).update.status, "running");
+    cli.write({ update: "fail" });
+    assert.equal(await runCliAsync(["assistant", "provider-update", "codex", "--host", origin]), 1, "a refused start fails the command");
+    while ((await (await fetch(`${origin}/api/assistant/provider-update?provider=codex`)).json() as any).status === "running") await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(await runCliAsync(["assistant", "provider-update", "codex", "--host", origin]), 1);
+    assert.deepEqual((({ status, exitCode }) => [status, exitCode])(JSON.parse(output.pop()!).update), ["failed", 3]);
+    cli.write({ update: "ok" });
+    assert.equal(await runCliAsync(["assistant", "provider-update", "codex", "--host", origin]), 0);
+    const updated = JSON.parse(output.pop()!);
+    assert.deepEqual([updated.update.status, updated.update.deferred, updated.version, updated.versionStatus], ["succeeded", true, "codex-cli 0.151.0", "current"]);
+  } finally { stdout.mock.restore(); stderr.mock.restore(); }
+  assert.equal(pids().length, 1, "the running turn keeps its process");
+  await agent.client.request("fixture/finish", { threadId: running.id });
+  await post("/api/assistant/conversations", { action: "resume", id: running.id });
+  const next = await (await post("/api/assistant/conversations", { action: "send", id: running.id, message: "Continue", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" })).json() as any;
+  assert.equal(next.turns.at(-1).status, "inProgress");
+  assert.equal(pids().length, 2, "the next send after the turn launches the updated CLI");
 });
 
 test("question metadata and answers use the same HTTP and explicit-Host CLI conversation operations", async t => {

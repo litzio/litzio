@@ -1306,7 +1306,22 @@ export const en = {
   "Pasting would reuse a label that already names another target. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.": "Pasting would reuse a label that already names another target. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.",
   "This document is read-only. No image was added.": "This document is read-only. No image was added.",
   "Wait for the current image to finish before adding another.": "Wait for the current image to finish before adding another.",
-  "Home": "Home"
+  "Home": "Home",
+  "Newer version available": "Newer version available",
+  "Couldn't check": "Couldn't check",
+  "Updating…": "Updating…",
+  "Updated. If a response is running, the new version is used after it finishes.": "Updated. If a response is running, the new version is used after it finishes.",
+  "Could not update.": "Could not update.",
+  "Could not update (exit code {{code}}).": "Could not update (exit code {{code}}).",
+  "The update did not finish within the time limit.": "The update did not finish within the time limit.",
+  "Output": "Output",
+  "Latest release {{version}}": "Latest release {{version}}",
+  "Could not read the latest public release. Run diagnostics to check again.": "Could not read the latest public release. Run diagnostics to check again.",
+  "Runs {{command}} on the Host.": "Runs {{command}} on the Host.",
+  "The CLI was not found on the Host.": "The CLI was not found on the Host.",
+  "This CLI version has no update command. Update it the way you installed it.": "This CLI version has no update command. Update it the way you installed it.",
+  "This CLI version has no update command.": "This CLI version has no update command.",
+  "Already up to date.": "Already up to date."
 } as const;
 export const ko: Record<keyof typeof en, string> = {
   "Update failed": "업데이트 실패",
@@ -2613,5 +2628,20 @@ export const ko: Record<keyof typeof en, string> = {
   "Pasting would reuse a label that already names another target. Cut the original to move it, or give it a distinct label before copying. Nothing was pasted; the clipboard is kept.": "붙여 넣으면 레이블이 다른 대상과 중복됩니다. 원본을 잘라내어 이동하거나 복사 전에 다른 레이블을 지정하세요. 붙여 넣지 않았으며 클립보드는 유지됩니다.",
   "This document is read-only. No image was added.": "읽기 전용 문서입니다. 이미지를 추가하지 않았습니다.",
   "Wait for the current image to finish before adding another.": "현재 이미지 추가가 끝난 후 다음 이미지를 추가하세요.",
-  "Home": "홈"
+  "Home": "홈",
+  "Newer version available": "업데이트 있음",
+  "Couldn't check": "확인하지 못함",
+  "Updating…": "업데이트 중…",
+  "Updated. If a response is running, the new version is used after it finishes.": "업데이트했습니다. 진행 중인 응답이 있으면 끝난 뒤 새 버전을 씁니다.",
+  "Could not update.": "업데이트하지 못했습니다.",
+  "Could not update (exit code {{code}}).": "업데이트하지 못했습니다(종료 코드 {{code}}).",
+  "The update did not finish within the time limit.": "제한 시간 안에 업데이트가 끝나지 않아 중단했습니다.",
+  "Output": "출력",
+  "Latest release {{version}}": "최신 공개 버전 {{version}}",
+  "Could not read the latest public release. Run diagnostics to check again.": "최신 공개 버전을 읽지 못했습니다. 다시 진단하면 다시 확인합니다.",
+  "Runs {{command}} on the Host.": "Host에서 {{command}}를 실행합니다.",
+  "The CLI was not found on the Host.": "Host에서 CLI를 찾지 못했습니다.",
+  "This CLI version has no update command. Update it the way you installed it.": "이 CLI 버전에는 업데이트 명령이 없습니다. 설치한 방법으로 업데이트하세요.",
+  "This CLI version has no update command.": "이 CLI 버전에는 업데이트 명령이 없습니다.",
+  "Already up to date.": "이미 최신 버전입니다."
 };

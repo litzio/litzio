@@ -151,6 +151,26 @@ Host는 마지막 모델 목록·진단 결과를 공급자별로 daemon 메모�
 
 [공급자 상태와 마지막 확인 시각](assets/assistant-provider-1699/settings-1440-light.png)
 
+#### CLI 새 버전과 업데이트
+
+진단은 설치 버전(CLI `--version`의 첫 줄)과 함께 새 버전 상태 `versionStatus`를 보고한다. 값은 최신(`current`), 업데이트 있음(`available`), 확인하지 못함(`unknown`)이며, 공개 버전 확인이 실패하거나 5초 안에 끝나지 않으면 최신이 아니라 확인하지 못함이다. Copilot의 설치 버전은 모델 출처(계정·Ollama)에 닿지 못해도 읽는다.
+
+| 공급자 | 업데이트 명령 | 새 버전 확인 출처 |
+| --- | --- | --- |
+| Codex | 진단의 실행 파일로 `codex update` | GitHub `openai/codex` 최신 릴리스 |
+| Copilot | 진단의 실행 파일로 `copilot update` | GitHub `github/copilot-cli` 최신 릴리스 |
+
+두 CLI의 `update`가 스스로 최신을 고르는 같은 공개 출처이며, 요청에는 사용자·프로젝트 정보를 싣지 않는다. 시험·격리 Host는 플러그인 출처와 같은 `LITZIO_GITHUB_API_URL`로 주소를 바꾼다. 확인 결과는 대상 Host가 10분 동안 재사용하고, 설정 화면을 열 때와 다시 진단·새로고침 때만 확인하며 주기 확인은 없다. 설치 버전이나 공개 릴리스가 사전 릴리스 형식(숫자 세 자리 바로 뒤의 `-`, 예: `0.151.0-rc.1`)이면 비교하지 않고 확인하지 못함이다. 실행 파일이 없거나 CLI 도움말에 `update` 명령이 없으면 확인하지 않고 `updateUnavailable`(`missing`·`unsupported`)을 보고한다. 리치오는 CLI를 대신 설치하거나 설치 방법별 명령을 고르지 않는다.
+
+업데이트는 대상 Host가 진단과 같은 실행 파일(PATH에서 다시 찾지 않는다)의 `update`를 실행하는 공용 작업이다. 진행 상태와 마지막 결과(상태·종료 코드·표준 출력과 오류를 도착 순서로, 마지막 65,536자(UTF-16 코드 단위)까지)는 daemon 메모리에만 두며 저장하지 않는다. 공급자마다 한 번에 하나만 실행하고 진행 중인 요청은 거절한다. 화면을 닫아도 계속되고 다시 열면 진행이나 마지막 결과를 보인다. 시간 제한은 10분이며 넘으면 프로세스를 끝내고 실패로 보고한다. 취소는 없다. Host가 닫히면 실행 중인 업데이트를 끝내며 그 실행은 실패로 남는다. 끝나면 Host는 연결을 다시 띄울지 정하고 그 공급자의 진단 결과를 버려 다시 읽기를 시작한 뒤 결과를 보고한다. 화면과 CLI는 결과를 받은 뒤 진단을 다시 읽으며, 진행 중인 다시 읽기가 있으면 그 결과를 함께 받는다.
+성공하면 그 공급자에 진행 중인 턴도, 공급자에 이미 보낸 전송도 없을 때 연결을 닫아 다음 사용부터 새 실행 파일로 띄운다. 진행 중인 턴과 보낸 전송은 끊지 않으며, 그 경우 결과의 `deferred`가 참이고 턴이 끝난 뒤 그 공급자의 다음 전송이 연결을 새로 띄운다. 연결을 새로 띄우는 동안 들어온 전송은 그 일이 끝난 뒤 진행한다.
+
+HTTP는 `GET /api/assistant/provider-update?provider=<codex|copilot>`(상태)와 `POST`(`{ provider }`, 시작)이며, CLI는 `assistant provider-update <codex|copilot> [--check] --host <origin>`이다. CLI는 시작한 실행을 끝까지 따라가 실행 결과와 다시 읽은 버전을 JSON으로 출력하고, 실패·거절이면 0이 아닌 코드로 끝난다. `--check`는 실행하지 않고 설치 버전·새 버전 상태와 마지막 실행만 출력한다.
+
+비서 설정의 공급자 진단에서 CLI 줄의 설치 버전 옆에 상태(plain Status: 정상 ‘최신 버전’, 경고 ‘업데이트 있음’, 중립 ‘확인하지 못함’)와 테두리 sm [업데이트]를 둔다. 최신 공개 버전과 확인 시각은 상태의 hover·keyboard focus 안내, 실행할 명령은 단추 안내에 있다. 업데이트할 수 없거나 이미 최신 버전이면 단추는 비활성이고 이유(‘이미 최신 버전입니다.’ 등)를 hover·keyboard focus 안내에 둔다. 확인하지 못함과 업데이트 있음에서는 누를 수 있다. 화면만 막으며 Host 작업과 CLI는 최신일 때도 실행한다. 진행 중에는 단추가 ‘업데이트 중…’이 되고 줄 아래에 출력이 보인다. 성공은 ‘업데이트했습니다. 진행 중인 응답이 있으면 끝난 뒤 새 버전을 씁니다.’, 실패는 종료 코드를 담은 오류 Notice이며 출력은 접힌 ‘출력’에서 본다. 로컬(Ollama) 출처의 Copilot도 같은 자리·같은 동작이다.
+
+진단 CLI 줄: [전](assets/assistant-cli-update-1904/before-1440-light-ko.png) · [업데이트 있음](assets/assistant-cli-update-1904/available-1440-light-ko.png) · [확인하지 못함](assets/assistant-cli-update-1904/unknown-1440-light-ko.png) · [업데이트할 수 없음](assets/assistant-cli-update-1904/unsupported-1440-light-ko.png) · 진행 중 [1440](assets/assistant-cli-update-1904/running-1440-light-ko.png) / [1920](assets/assistant-cli-update-1904/running-1920-light-ko.png) / [640](assets/assistant-cli-update-1904/running-640-light-ko.png) / [어두움](assets/assistant-cli-update-1904/running-1440-dark-ko.png) · [성공·최신 버전](assets/assistant-cli-update-1904/succeeded-1440-light-ko.png) · [실패](assets/assistant-cli-update-1904/failed-1440-light-ko.png)
+
 ### 대화와 표시
 
 펼친 비서와 탐색기 머리는 제목 앞 아이콘 없이 PanelHeader를 사용한다. 맥락·도구 종류·대상은 보조 역할, 질문과 결과 제목·기록 항목은 항목 이름 역할이다. 도구 상태는 오른쪽 plain Status로 표시한다. 진행은 고리와 진행 중, 실패·거절은 오류 점과 해당 문구, 완료는 점 없는 중립 글씨, 중단과 정의되지 않은 값은 중립 문구를 쓴다. 빈 대화는 EmptyState를 사용하며 편집 권한에 따른 직접 수정 안내를 남긴다. 대화 본문과 답변의 글씨·줄 간격은 유지한다.

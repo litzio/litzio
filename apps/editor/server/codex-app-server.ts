@@ -123,6 +123,12 @@ export class CodexAppServer extends EventEmitter {
     });
   }
   async request<T = any>(method: string, params: unknown = {}): Promise<T> { await this.connect(); return this.call<T>(method, params); }
+  /** The next request launches the executable again. Caller must exclude active turns. */
+  async restart() {
+    if (this.closed) return;
+    await this.ready?.catch(() => {});
+    await this.stop();
+  }
   close() {
     this.closed = true;
     // Retain a rejected shutdown promise so the owning Host observes cleanup failure.

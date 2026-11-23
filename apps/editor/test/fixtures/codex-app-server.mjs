@@ -23,9 +23,11 @@ const notify = (method, params) => send({ method, params });
 const model = (name, efforts) => ({ id: name, model: name, displayName: name, description: "한국어 모델", defaultReasoningEffort: efforts[0], supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) });
 const toolPending = new Map();
 let usageOverride;
-createInterface({ input: process.stdin }).on("line", line => {
+const receive = line => {
   const message = JSON.parse(line); record(message);
   const { id, method, params } = message;
+  // The request reached the provider, which announces the turn only later.
+  if (mode === "delay-turn-start" && method === "turn/start" && !message.delayed) { setTimeout(() => receive(JSON.stringify({ ...message, delayed: true })), 3000); return; }
   if (id === undefined) return;
   if (toolPending.has(id)) {
     const pending = toolPending.get(id); toolPending.delete(id);
@@ -160,4 +162,5 @@ createInterface({ input: process.stdin }).on("line", line => {
   };
   send({ id, result: responses[method] ?? { text: "안녕하세요", method } });
   if (method === "notify") send({ method: "fixture/notification", params: { text: "한글" } });
-}).on("close", () => process.exit(0));
+};
+createInterface({ input: process.stdin }).on("line", receive).on("close", () => process.exit(0));

@@ -108,6 +108,12 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       return { ...value, accountError: value.accountError ? "Unavailable" : undefined, rateLimitsError: value.rateLimitsError ? "Unavailable" : undefined };
     },
     assistantEnvironment: () => providerConnection().environment(),
+    /** The provider CLI's own update on this Host; the run outlives the screen and is one per provider. */
+    assistantProviderUpdate: (args?: { provider?: AiProvider }) => providerConnection().updates.state(provider(args)),
+    startProviderUpdate: (args?: { provider?: AiProvider }) => {
+      const selected = provider(args);
+      return providerConnection().updateCli(selected, () => recheckProvider(selected));
+    },
     assistantConversations: (args: any) => {
       if (args.submissionId) return history().submission(args.submissionId);
       if (!args.id) {
@@ -193,6 +199,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   const route = (url: string): Record<string, string> | undefined => {
     if (url === ASSISTANT.settingsRoute) return { GET: "settings", PUT: "configure" };
     if (url === ASSISTANT.conversationsRoute) return { GET: "assistantConversations", POST: "assistantConversation" };
+    if (url === ASSISTANT.providerUpdateRoute) return { GET: "assistantProviderUpdate", POST: "startProviderUpdate" };
     const operation = { [ASSISTANT.skillsRoute]: "assistantSkills", [ASSISTANT.modelsRoute]: "assistantModels", [ASSISTANT.diagnosticsRoute]: "assistantDiagnostics", [ASSISTANT.environmentRoute]: "assistantEnvironment" }[url];
     return operation ? { GET: operation } : undefined;
   };
