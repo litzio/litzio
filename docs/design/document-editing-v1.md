@@ -1,7 +1,7 @@
 # Continuous document editing v1
 
 - Status: Implemented
-- Checklists: 2026-11-23 (#1893; `list-authoring` browser scenario: slash insert, Hangul composition, Enter/Tab/empty-item exit, click and Ctrl+Enter checks with Undo/Redo, read-only, Ctrl+Shift+9/8, Save → reopen; `external-html-paste` checklist and refusal cases; Editor unit tests).
+- Checklists: 2026-11-23 (#1893; `list-authoring` browser scenario: slash insert, Hangul composition, Enter/Tab/empty-item exit, click and Ctrl+Enter checks with Undo/Redo, real-clipboard cut and paste, read-only, Ctrl+Shift+9/8, Save → reopen; `external-html-paste` checklist, empty-item and refusal cases; Editor unit tests).
 - Last verified: 2026-11-16 — #1658: 표 속성·Figure inline caption을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Plain-text Markdown paste: 2026-11-20 (#1843; all-or-nothing Core reading tests and the `external-html-paste` browser scenario: structure, one Undo/Redo, Save → Reload, Ctrl+Shift+V, plain-text fallback, code, one-line places, endnotes, URLs, history and composition).
 - Pasted label conflicts: 2026-11-20 (#1847; Core `assertPastedLabelsAvailable` tests and the `external-html-paste` browser scenario: a Table copied in the same document, a Table label equal to a section or Equation label, an Equation taking a Table label and a label repeated within the paste are refused with the document and selection kept; plain text and external HTML still paste beside existing duplicate Table labels with one Undo; a Table after a paragraph moved between a section label and its heading pastes; a Table label equal to a heading's automatic ID pastes and Save refuses it; a Table or Equation followed by a heading with its ID, and a distinct Table label, paste and survive Save → Reload).
@@ -402,13 +402,16 @@ not implement a checkbox editor. Its items edit like other list items.
   menus (key chip `[ ]`), or `[ ] ` / `[x] ` typed at the start of a top-level paragraph,
   which follows the other Markdown block shortcuts (Undo right after restores the text).
 - Check: click the checkbox, or press Ctrl+Enter (Cmd+Enter on macOS) in the item's own text;
-  in a nested non-checklist item it stays a line break. Each check is its own Undo step, also
-  right after typing. Read-only views (Read, plugin `ui.DocumentView`, comparison, template
+  in a nested non-checklist item it stays a line break. Each check, by click or key, is its
+  own Undo step, separate from the edits just before and after it. Read-only views (Read, plugin `ui.DocumentView`, comparison, template
   preview) show the state and do not change it.
 - Enter adds an unchecked item, Enter on an empty item lifts it and then leaves the list,
   Tab/Shift+Tab nest and lift, and Backspace behaves as in other lists. Ctrl/Cmd+Shift+9
   makes a list a checklist and Ctrl/Cmd+Shift+8 / 7 make it bullets or numbers, nested
   lists included, like the existing list shortcuts; Save writes the result as one list.
+- Copy, cut and paste inside Litzio carry checklist items with their check states, whole or
+  partial, nested or mixed with other blocks. On the typed clipboard a checklist item is a
+  list item whose check state is a typed attribute; the drawn checkbox is not content.
 - The 16px native checkbox stands in the bullet column on the item's first line and uses
   the accent token. Checked item text keeps its normal style. Captures at 1440px:
   [light](assets/checklist-1893/after-1440-light-ko.png),
@@ -549,7 +552,8 @@ still goes through Core validation. Litzio's typed clipboard is not normalized, 
 a clipboard image file (PNG, JPEG, GIF or WebP) still takes the #59 asset path first.
 
 - Kept: paragraphs, H1–H6, bullet/numbered lists within List v1, checklists (a bullet
-  list whose every item starts with a checkbox, as rendered GFM writes them), single-paragraph
+  list whose every item starts with a checkbox, as rendered GFM writes them; an item with
+  no text, and a wrapper holding only such items, are kept), single-paragraph
   quotes, `<pre>` code (whitespace kept, a `language-*` class as the language, one
   trailing newline dropped), dividers, rectangular tables of single-line cells, and
   bold/italic/strikethrough, subscript/superscript (`sub`/`sup` tags and
