@@ -1,0 +1,30 @@
+/* One grid for the whole list: the status slot, the name and one auto column per details position.
+ * Groups, lists, items and rows are subgrids, so a missing value never shifts the next column. */
+.item-list { container-type: inline-size; min-width: 0; width: 100%; }
+.item-list-body { display: grid; grid-template-columns: var(--size-icon-slot) minmax(0, 1fr) var(--item-list-meta-columns,); column-gap: var(--space-3); }
+.item-list-group, .item-list-items, .item-list-items > li, .item-list-row, .item-list-group-title { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; }
+.item-list-items { margin: 0; padding: 0; list-style: none; }
+.item-list-items[hidden] { display: none; }
+.item-list-group + .item-list-group, .item-list-items + .item-list-group { margin-top: var(--space-4); }
+
+/* Shared list-row treatment: hover tint and a thin inset ring for keyboard focus, never the whole list. */
+.item-list-row, .item-list-group-title { height: auto; gap: normal; justify-content: normal; align-items: baseline; padding: var(--space-2) var(--space-3); border-width: 0 0 var(--border-width); border-color: var(--id-color-border-subtle); border-radius: 0; background: transparent; white-space: normal; text-align: start; }
+.item-list-row { font-weight: var(--font-weight-normal); }
+.item-list-row:hover, .item-list-group-title:hover { background: var(--id-color-surface-hover); }
+.item-list-row:focus-visible, .item-list-group-title:focus-visible { box-shadow: var(--focus-ring-inset); }
+.item-list-row:focus:not(:focus-visible), .item-list-group-title:focus:not(:focus-visible) { box-shadow: none; }
+
+.item-list-mark { grid-row: 1; grid-column: 1; align-self: start; display: flex; align-items: center; justify-content: center; height: var(--line-height-label); }
+.item-list-name { grid-row: 1; grid-column: 2; min-width: 0; overflow-wrap: anywhere; }
+.item-list-meta { display: contents; }
+.item-list-cell { grid-row: 1; grid-column: var(--item-list-column); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.item-list-group-title > svg { grid-row: 1; grid-column: 1; align-self: center; justify-self: center; }
+.item-list-group-label { grid-row: 1; grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
+
+/* Narrow containers keep the status slot and name, and wrap the details below the name. */
+@container (width < 40rem) {
+  .item-list-body { grid-template-columns: var(--size-icon-slot) minmax(0, 1fr); }
+  .item-list-row { row-gap: var(--space-1); }
+  .item-list-meta { grid-row: 2; grid-column: 2; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-3); min-width: 0; }
+  .item-list-cell { white-space: normal; overflow-wrap: anywhere; }
+}

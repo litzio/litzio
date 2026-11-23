@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작 계약](plugin-stage1-v1.md).
-- Last verified: 2026-11-17 — DocumentView의 SDK props·제작 안내·문서 계약을 대조하고 합성 화면의 양방향 스크롤·클릭·배율·위치 알림·stale 억제·UI gallery를 Windows persistent Chrome으로 검증했다. 실제 AI 제작·실제 PDF 대조·packaged Desktop 수락·소유자 시각 승인은 포함하지 않는다.
+- Last verified: 2026-11-23 — ui.ItemList의 SDK props·제작 안내·문서 계약을 대조하고 UI gallery의 합성 목록(5·30·300개)에서 접근성 이름·세부 정보 열 정렬·화살표 이동·Enter 열기·접힘 focus·640px 배치를 Windows persistent Chrome으로 검증했다. 실제 플러그인 사용·실제 AI 제작·packaged Desktop 수락·소유자 시각 승인은 포함하지 않는다.
 
 ## 연결 수명
 
@@ -30,7 +30,7 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 비서 제작의 조건 협의와 계획 문서는 [비서 계약](main-agent-v1.md#플러그인)을 따른다. 질문 카드나 계획을 위한 새 화면 기능은 추가하지 않는다.
 
-기존 Button/Input/Select/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명·상태·동작을 머리에, 내용을 본문에 그린다. 본문은 기본 전체 폭이며 narrow를 선택하면 기존 읽기 폭으로 가운데 정렬한다.
+기존 Button/Input/Select/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. 열어 보는 항목의 줄 목록은 [ui.ItemList](#공용-정보-부품)다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명·상태·동작을 머리에, 내용을 본문에 그린다. 본문은 기본 전체 폭이며 narrow를 선택하면 기존 읽기 폭으로 가운데 정렬한다.
 
 ui.ContextMenu는 기존 공통 ContextMenu를 사용한다. trigger는 focus 가능한 ReactElement, actions는 `{id,label,icon,visible?,disabled?,disabledReason?,danger?,run}` 배열이며 전체 메뉴의 disabled도 받는다. icon은 ReactNode이고 글자만 쓰면 null로 둔다. 비활성 이유는 기존 hover·keyboard focus tooltip을 쓴다. 구분선·하위 메뉴는 지원하지 않는다. 우클릭·Shift+F10·메뉴 키로 열고 Esc·바깥 클릭으로 닫는다. 항목 실행 후 명시적으로 다른 곳으로 focus를 옮기지 않았으면 trigger로 복귀한다. 메뉴는 주 동작의 유일한 진입점이 아니며 같은 동작을 화면 버튼에도 둔다.
 
@@ -174,6 +174,20 @@ Green에서는 ok와 progress의 색조 차이가 작아 색만으로 구별하�
 `ui.Row({label,description?,children,kind?})`는 본체 SettingsRow와 동일한 Row 구현이다. 기본 item의 이름은 type-item-name, 읽기 전용 fact의 이름은 type-value-name, 값은 type-body다. 이름은 왼쪽, 값·컨트롤은 오른쪽 끝에 놓이고 여러 컨트롤은 가로로 놓인다. 값 자리는 내용 폭이며 행 폭의 60% 안에서 줄바꿈한다. 이름은 나머지 폭을 사용한다. select와 텍스트 입력칸만 기존 `--layout-settings-control-width` 토큰을 자신의 폭으로 사용한다. 부모 폭이 좁으면 아래 왼쪽으로 내려가므로 narrow 열에서도 동작한다. fact는 각 줄마다 dl/dt/dd 한 쌍으로 만든다. 혼합 Section과 단독 줄에도 유효한 정의 목록 의미를 보존하기 위해서다. 숫자·날짜·버전은 tabular-nums, 경로·식별자는 code로 감싸 mono 보조 크기를 쓴다. Row가 code 안의 문자열을 `/`, `\`, `.`, `-`, `_` 뒤의 wbr 요소로 나눠 먼저 그 위치에서 줄바꿈하고, 구분자 없는 긴 조각만 글자 단위로 접는다. 보이지 않는 문자를 넣지 않아 복사한 원문은 그대로다. 행 자체를 focus 대상으로 만들지 않으며 내부 컨트롤의 label·Tab 순서를 보존한다.
 
 `ui.Section({title,description?,children})`은 여러 줄의 묶음이다. 이름은 type-group-title과 아래 구분선이며 묶음 간 간격은 space-6이다. 항목 하나에는 묶음을 만들지 않고 항목 이름을 제목으로 반복하지 않는다. description은 결과를 바꾸는 설명만 준다.
+
+`ui.ItemList({items,groups?,onOpen,hideStatusLabel?})`는 문서·작업처럼 사람이 열어 보는 항목의 줄 목록이다. 값을 비교하는 데이터는 DataTable을 쓴다. 항목은 `{id,label,status?:{tone,label},details?,group?}`이며 tone은 ui.Status와 같은 다섯 가지다. 줄은 앞의 고정 칸에 Status와 같은 상태 표시, 이름(type-item-name), 오른쪽의 세부 정보(type-helper) 순이다. details의 같은 위치는 모든 줄에서 같은 열에 맞고 null은 그 칸을 비운다. 목록 전체가 한 grid이고 묶음·목록·줄이 subgrid라 빈 칸이 다음 열을 당기지 않는다. 상태 글자는 세부 정보 앞의 열에 ui.Status plain(점 없음)으로 보이며, 묶음 제목이 상태를 말할 때 `hideStatusLabel`로 숨겨도 줄의 접근성 이름에는 남는다. 접근성 이름은 이름·상태·세부 정보 순이다. 열 머리글·필터·건수 표시는 없다.
+
+줄 전체가 공용 Button(ghost) 하나이며 줄 안에 다른 조작은 없다. 클릭·Enter·Space가 `onOpen(item)`을 부른다. hover는 surface-hover, 키보드 focus는 다른 목록 줄과 같은 안쪽 고리(focus-ring-inset)를 현재 줄에만 그린다. 각 줄과 묶음 제목은 Tab 정지점이며 위·아래·Home·End는 보이는 줄과 묶음 제목 사이를 옮긴다(문서 개요 목록과 같은 관례). groups는 배열 순서로 보이고 항목이 없는 묶음은 그리지 않는다. 알려진 묶음이 없는 항목은 제목 없이 맨 앞에 둔다. 묶음 제목은 알림 묶음·문서 설정과 같은 ghost sm Button·Lucide chevron·aria-expanded/aria-controls이며 type-group-title과 아래 구분선을 쓴다. 클릭·Enter·Space로 접고 펴며 접힌 묶음은 제목 옆에 항목 수를 보인다. `collapsed`는 처음 상태만 정하고 이후 접힘은 그 부품 인스턴스가 기억한다. 탭을 닫으면 사라지며 Host·저장소에 남기지 않는다. 접히는 묶음 안의 줄에 focus가 있으면 묶음 제목으로 옮긴다. 항목이 없으면 아무것도 그리지 않으므로 빈 안내는 호출자가 ui.EmptyState로 한다. 폭은 놓인 자리를 채우며 ScreenLayout width로 정한다. 부품 폭이 40rem 미만이면 세부 정보가 이름 아래 같은 시작선으로 내려가 줄바꿈한다. 가상 스크롤 없이 모든 항목을 그린다.
+
+| UI gallery 합성 목록 | 1440 밝음 | 1440 어두움 | 640 밝음 |
+| --- | --- | --- | --- |
+| 묶음 5개 항목 | [보기](assets/item-list-1894/grouped-5-1440-light.png) | [보기](assets/item-list-1894/grouped-5-1440-dark.png) | [보기](assets/item-list-1894/grouped-5-640-light.png) |
+| 묶음 30개 항목 | [보기](assets/item-list-1894/grouped-30-1440-light.png) | | |
+| 묶음 하나 접음 | [보기](assets/item-list-1894/collapsed-1440-light.png) | | |
+| 묶음 없음(상태 글자 표시) | [보기](assets/item-list-1894/ungrouped-5-1440-light.png) | | |
+| 마우스를 올린 줄 · 키보드 focus | [hover](assets/item-list-1894/hover-1440-light.png) · [focus](assets/item-list-1894/focus-1440-light.png) | | |
+
+캡처는 합성 자료의 비교 근거이며 소유자 시각 승인을 뜻하지 않는다.
 
 플러그인 h2는 type-section-title, h3·h4는 type-item-name의 역할 정의를 공유한다. 문서 보기 안 제목은 제외한다. SummaryCard의 이름·설명은 item-name·helper이며 값은 범주 제목과 같은 글씨(type-category-title)를 쓴다.
 
