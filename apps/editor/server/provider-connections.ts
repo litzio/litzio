@@ -4,7 +4,7 @@ import { hostPaths, type HostRun } from "./host-paths.ts";
 import { assistantCliEnvironment, hostCli } from "./assistant-cli.ts";
 import type { AssistantDiagnostics, AssistantAccountUsage, AssistantEnvironment, AiModels, AiModel, AiProvider, AssistantSkills } from "../shared/assistant.ts";
 import { CodexAppServer } from "./codex-app-server.ts";
-import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions } from "./copilot-acp.ts";
+import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions, type CopilotOllama } from "./copilot-acp.ts";
 
 // Distribution builds inline the Markdown; tsx/Vite read the same source files.
 declare const __LITZIO_ASSISTANT_INSTRUCTIONS__: string | undefined;
@@ -24,6 +24,8 @@ export class ProviderConnections {
   private usageCache?: AssistantAccountUsage;
   private usageRead?: Promise<AssistantAccountUsage>;
   private accountRevision = 0;
+  /** Host settings owner: the Ollama address when Copilot uses a local model source. */
+  copilotOllamaUrl: () => string | undefined = () => undefined;
   constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}, hostOrigin?: () => string | undefined) {
     this.templatesDirectory = hostPaths(run).templates;
     this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()) }); this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: () => assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.()) });
@@ -78,18 +80,32 @@ export class ProviderConnections {
     if (!entry) throw new Error("Codex returned no skills for the assistant directory.");
     return { skills: entry.skills.filter((skill: any) => skill.enabled).map(({ name, path, description }: any) => ({ name, path, description })), errors: entry.errors };
   }
-  async models(provider: AiProvider = "codex", inspectCopilot?: "fresh" | "recent"): Promise<AiModels> {
+  /** A BYOK Copilot session lists only its launch model, so the Host reads the Ollama list itself. */
+  /** `url` is explicit: undefined is the account source, never "the current setting". */
+  async copilotOllama(url: string | undefined): Promise<{ launch: CopilotOllama; models: string[] } | undefined> {
+    if (!url) return undefined;
+    const models = await ollamaModels(url);
+    if (!models.length) throw new Error(`No models are installed in Ollama at ${url}.`);
+    const current = this.copilot.ollama;
+    return { models, launch: { url, model: current?.url === url && models.includes(current.model) ? current.model : models[0]! } };
+  }
+  async models(provider: AiProvider = "codex", inspectCopilot?: "fresh" | "recent", copilotSource: { ollamaUrl?: string } = { ollamaUrl: this.copilotOllamaUrl() }): Promise<AiModels> {
     if (provider === "copilot") {
       this.environment();
-      const session = inspectCopilot === "fresh" ? (await this.copilot.inspect()).session
-        : (inspectCopilot === "recent" ? this.copilot.recentlyInspectedSession() : undefined) ?? await this.copilot.catalog();
+      const ollama = await this.copilotOllama(copilotSource.ollamaUrl);
+      // The running process keeps its model source until its next launch; read another source with a probe.
+      const session = inspectCopilot === "fresh" ? (await this.copilot.inspect(ollama?.launch)).session
+        : (inspectCopilot === "recent" ? this.copilot.recentlyInspectedSession(ollama?.launch) : undefined)
+          ?? (this.copilot.ollama?.url === ollama?.launch.url ? await this.copilot.catalog() : (await this.copilot.inspect(ollama?.launch)).session);
       const reasoning = copilotReasoning(session);
       const supportedReasoningEfforts = reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" }))
         : COPILOT_EFFORTS.map(reasoningEffort => ({ reasoningEffort, description: "" }));
       const available: { modelId: string; name: string; description?: string | null }[] = session.models?.availableModels ?? [];
       // Copilot may return auto twice. Retain the first provider description, and synthesize only if absent.
-      const models = available.filter((model, index) => available.findIndex(value => value.modelId === model.modelId) === index);
-      if (!models.some(model => model.modelId === "auto")) models.unshift({ modelId: "auto", name: "Auto", description: "Let Copilot pick the best model" });
+      // Auto is GitHub's account routing, so a local source lists only the Ollama models.
+      const models = ollama ? ollama.models.map(name => ({ modelId: name, name, description: "" }))
+        : available.filter((model, index) => available.findIndex(value => value.modelId === model.modelId) === index);
+      if (!ollama && !models.some(model => model.modelId === "auto")) models.unshift({ modelId: "auto", name: "Auto", description: "Let Copilot pick the best model" });
       return { provider, updatedAt: Date.now(), copilot: copilotOptions(session), models: models.map(model => ({
         id: model.modelId, model: model.modelId, displayName: model.name, description: model.description ?? "",
         defaultReasoningEffort: reasoning?.currentValue ?? "medium", supportedReasoningEfforts,
@@ -118,7 +134,7 @@ export class ProviderConnections {
     if (provider === "copilot") {
       this.environment();
       const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: this.copilot.executable, version: null, connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
-      try { result.version = await this.copilot.diagnose(); result.connected = true; } catch (error) { result.error = (error as Error).message; }
+      try { result.version = await this.copilot.diagnose((await this.copilotOllama(this.copilotOllamaUrl()))?.launch); result.connected = true; } catch (error) { result.error = (error as Error).message; }
       return result;
     }
     this.environment();
@@ -161,6 +177,20 @@ function usageNumber(value: unknown): number | null {
   if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+/** Ollama's own model list; Copilot's OpenAI-compatible connection serves inference only. */
+export async function ollamaModels(url: string): Promise<string[]> {
+  let response: Response;
+  try { response = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(5_000) }); }
+  catch (error) {
+    const cause = (error as Error & { cause?: { code?: string; message?: string } }).cause;
+    throw new Error(`Ollama is unavailable at ${url} (${cause?.code ?? cause?.message ?? (error as Error).message}). Start Ollama on the Host or check the Ollama address.`);
+  }
+  if (!response.ok) throw new Error(`Ollama at ${url} returned HTTP ${response.status} for its model list.`);
+  const value = await response.json().catch(() => undefined) as { models?: { name?: unknown }[] } | undefined;
+  if (!Array.isArray(value?.models)) throw new Error(`Ollama at ${url} returned an unexpected model list.`);
+  return value.models.flatMap(model => typeof model?.name === "string" && model.name ? [model.name] : []);
 }
 
 export const LITZIO_GUIDE = typeof __LITZIO_ASSISTANT_GUIDE__ === "string"
