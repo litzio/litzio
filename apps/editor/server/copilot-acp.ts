@@ -16,13 +16,15 @@ export class CopilotAcp extends EventEmitter {
   private closed = false;
   private stopping?: Promise<void>;
   private diagnostic?: CopilotAcp;
-  private diagnosis?: Promise<{ version: string | null; session: NewSessionResponse }>;
-  private lastInspection?: { session: NewSessionResponse; completedAt: number };
+  private diagnosis?: Promise<{ version: string | null; session: NewSessionResponse }> & { ollama?: CopilotOllama };
+  private lastInspection?: { session: NewSessionResponse; completedAt: number; ollamaUrl?: string };
   private probe?: Promise<Awaited<ReturnType<ClientSideConnection["newSession"]>>>;
   version: string | null = null;
   loadSession = false;
   reasoningEffort = "medium";
   fullAccess = false;
+  /** Launch setting: a Copilot BYOK process serves exactly one Ollama model. */
+  ollama?: CopilotOllama;
   readonly sessions = new Map<string, NewSessionResponse>();
   constructor(readonly cwd: string, private options: { bin?: string; args?: string[]; timeoutMs?: number; env?: () => NodeJS.ProcessEnv } = {}) { super(); }
   get executable() {
@@ -43,7 +45,7 @@ export class CopilotAcp extends EventEmitter {
     this.version = await new Promise<string | null>(resolve => execFile(command, ["--version"], { shell, windowsHide: true, timeout: 5000 }, (error, out) => resolve(error ? null : out.trim())));
     if (this.closed) throw new Error("Copilot ACP is closed.");
     const child = spawn(command, [...(this.options.args ?? []), "--acp", "--allow-tool=litzio_host", "--reasoning-effort", this.reasoningEffort],
-      { cwd: this.cwd, env: this.options.env?.() ?? process.env, shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
+      { cwd: this.cwd, env: { ...this.options.env?.() ?? process.env, ...copilotOllamaEnvironment(this.ollama) }, shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
     child.stderr.on("data", () => {});
     // SDK 0.17's NDJSON reader does not catch input read errors. End its input
@@ -89,13 +91,13 @@ export class CopilotAcp extends EventEmitter {
   }
   remember(session: NewSessionResponse) { this.sessions.set(session.sessionId, session); return session; }
   /** CLI fallback is fixed for a conversation. Caller must exclude active turns before restarting. */
-  async useLaunchSettings(effort: string, fullAccess: boolean) {
+  async useLaunchSettings(effort: string, fullAccess: boolean, ollama?: CopilotOllama) {
     if (!COPILOT_EFFORTS.includes(effort)) throw new Error("Invalid Copilot reasoning effort.");
-    if (effort === this.reasoningEffort && fullAccess === this.fullAccess) return;
+    if (effort === this.reasoningEffort && fullAccess === this.fullAccess && sameOllama(ollama, this.ollama)) return;
     const client = this.ready ? await this.ready : undefined;
     await this.stop();
     if (client) await client.closed;
-    this.ready = undefined; this.probe = undefined; this.reasoningEffort = effort; this.fullAccess = fullAccess;
+    this.ready = undefined; this.probe = undefined; this.reasoningEffort = effort; this.fullAccess = fullAccess; this.ollama = ollama;
   }
   async call<T>(operation: () => Promise<T>, discardOnTimeout = false): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -124,23 +126,31 @@ export class CopilotAcp extends EventEmitter {
     finally { clearTimeout(timer); this.off("disconnected", onDisconnect); }
   }
   /** Independent probe: diagnostics must never disconnect an admitted turn. */
-  async diagnose(): Promise<string | null> { return (await this.inspect()).version; }
-  recentlyInspectedSession(): NewSessionResponse | undefined {
-    if (this.lastInspection && Date.now() - this.lastInspection.completedAt < 3_000) return this.lastInspection.session;
+  async diagnose(ollama?: CopilotOllama): Promise<string | null> { return (await this.inspect(ollama)).version; }
+  /** Model source must match; modes do not depend on the local model name. */
+  recentlyInspectedSession(ollama?: CopilotOllama): NewSessionResponse | undefined {
+    if (this.lastInspection && this.lastInspection.ollamaUrl === ollama?.url && Date.now() - this.lastInspection.completedAt < 3_000) return this.lastInspection.session;
   }
-  inspect(): Promise<{ version: string | null; session: NewSessionResponse }> {
+  inspect(ollama?: CopilotOllama): Promise<{ version: string | null; session: NewSessionResponse }> {
     if (this.closed) return Promise.reject(new Error("Copilot ACP is closed."));
-    if (this.diagnosis) return this.diagnosis;
-    const probe = this.diagnostic = new CopilotAcp(this.cwd, this.options);
-    probe.reasoningEffort = this.reasoningEffort; probe.fullAccess = this.fullAccess;
+    if (this.diagnosis && sameOllama(this.diagnosis.ollama, ollama)) return this.diagnosis;
+    const probe = new CopilotAcp(this.cwd, this.options);
+    probe.reasoningEffort = this.reasoningEffort; probe.fullAccess = this.fullAccess; probe.ollama = ollama;
+    const previous = this.diagnosis;
     this.lastInspection = undefined;
-    return this.diagnosis = (async () => {
+    const diagnosis: Promise<{ version: string | null; session: NewSessionResponse }> & { ollama?: CopilotOllama } = (async () => {
+      // A probe for another model source waits; one diagnostic process runs at a time.
+      await previous?.catch(() => {});
+      if (this.closed) throw new Error("Copilot ACP is closed.");
+      this.diagnostic = probe;
       try { return { session: await probe.catalog(), version: probe.version }; }
       finally { await probe.close(); }
     })().then(value => {
-      this.lastInspection = { session: value.session, completedAt: Date.now() };
+      if (this.diagnosis === diagnosis) this.lastInspection = { session: value.session, completedAt: Date.now(), ollamaUrl: ollama?.url };
       return value;
-    }).finally(() => { this.diagnostic = undefined; this.diagnosis = undefined; });
+    }).finally(() => { if (this.diagnosis === diagnosis) { this.diagnostic = undefined; this.diagnosis = undefined; } });
+    diagnosis.ollama = ollama;
+    return this.diagnosis = diagnosis;
   }
   close() {
     this.closed = true;
@@ -159,6 +169,13 @@ export class CopilotAcp extends EventEmitter {
 }
 
 export const COPILOT_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+/** Ollama base address (without /v1) and the one model a Copilot BYOK process serves. */
+export type CopilotOllama = { url: string; model: string };
+export function sameOllama(left?: CopilotOllama, right?: CopilotOllama) { return left?.url === right?.url && left?.model === right?.model; }
+/** Process environment only; the user's Copilot home and configuration are never written. */
+export function copilotOllamaEnvironment(ollama?: CopilotOllama): Record<string, string> {
+  return ollama ? { COPILOT_PROVIDER_BASE_URL: `${ollama.url}/v1`, COPILOT_PROVIDER_API_KEY: "", COPILOT_PROVIDER_WIRE_API: "responses", COPILOT_MODEL: ollama.model } : {};
+}
 type SelectOption = Extract<SessionConfigOption, { type: "select" }>;
 export function copilotReasoning(session: Pick<NewSessionResponse, "configOptions">) {
   return session.configOptions?.find((option): option is SelectOption => option.type === "select" &&
