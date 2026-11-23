@@ -23,6 +23,8 @@ if (process.argv.includes("--fixture-orphan-stdout-once") && !existsSync(log + "
 const modes = { currentModeId: "agent", availableModes: ["agent", "plan", "autopilot", "allow-all"].map(id => ({ id, name: id === "agent" ? "Agent" : id === "plan" ? "Plan" : id })) };
 const configOptions = [{ id: "allow_all", name: "Allow All", type: "select", currentValue: "off", options: ["on", "off"].map(value => ({ value, name: value })) },
   ...(process.argv.includes("--fixture-config") ? [{ id: "model", category: "model", name: "Model", type: "select", currentValue: "copilot-model", options: ["auto", "copilot-model", "max-only"].map(value => ({ value, name: value })) }, { id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
+// A BYOK session offers mode, model (auto and COPILOT_MODEL) and allow_all, without a reasoning option.
+if (byok) configOptions.push({ id: "model", category: "model", name: "Model", type: "select", currentValue: byok.model, options: ["auto", byok.model].map(value => ({ value, name: value })) });
 const sessionState = () => byok ? { models: { currentModelId: byok.model, availableModels: [{ modelId: "auto", name: "Auto" }, { modelId: byok.model, name: byok.model }] }, modes, configOptions }
   : { models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }, ...(process.argv.includes("--fixture-config") ? [{ modelId: "max-only", name: "Max only" }] : [])] }, modes, configOptions };
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
@@ -71,9 +73,10 @@ createInterface({ input: process.stdin }).on("line", line => {
   else if (method === "session/set_config_option") {
     if (params.configId === "model") {
       selectedModels.set(params.sessionId, params.value);
+      if (byok && params.value !== byok.model && params.value !== "auto") { send({ id, error: { code: -32602, message: `Invalid modelId '${params.value}': not one of this session's models.` } }); return; }
       const reasoning = configOptions.find(option => option.id === "reasoning");
-      reasoning.options = (params.value === "max-only" ? ["max"] : ["low", "max"]).map(value => ({ value, name: value }));
-      if (params.value === "max-only") reasoning.currentValue = "max";
+      if (reasoning) reasoning.options = (params.value === "max-only" ? ["max"] : ["low", "max"]).map(value => ({ value, name: value }));
+      if (reasoning && params.value === "max-only") reasoning.currentValue = "max";
     }
     if (process.argv.includes("--fixture-config") && params.configId === "reasoning" && selectedModels.get(params.sessionId) === "auto") { send({ id, error: { code: -32602, message: "This model does not support reasoning_effort configuration." } }); return; }
     configOptions.find(option => option.id === params.configId).currentValue = params.value;

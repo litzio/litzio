@@ -6,23 +6,43 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   const input = page.getByTestId("folder-path");
   const register = page.getByTestId("folder-open");
   await expect(register).toBeDisabled();
-  const rejectRegistration = async directory => {
-    await input.fill(directory);
-    const rejected = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "POST");
-    await register.click();
-    const response = await rejected;
-    expect(response.status()).toBe(400);
-    const failure = await response.json();
-    const picker = page.getByRole("dialog");
-    await expect(picker.getByRole("alert")).toHaveText(failure.error);
-    await expect(input).toHaveValue(directory);
-  };
   await input.fill(pluginFixture.directory + "-missing");
   await expect(register).toBeDisabled();
   await input.press("Enter");
   await expect(page.getByTestId("folder-picker-meta")).toHaveText("folder does not exist");
-  await page.getByRole("dialog").getByRole("button", {name:"Edit path",exact:true}).click();
-  await rejectRegistration(pluginFixture.folder);
+  const picker = page.getByRole("dialog").filter({ has: register });
+  await picker.getByRole("button", { name: "Edit path", exact: true }).click();
+  await input.fill(pluginFixture.folder);
+  const { promise: registrationAllowed, resolve: allowRegistration } = Promise.withResolvers();
+  const delayRegistration = async route => {
+    if (route.request().method() === "POST" && route.request().postDataJSON()?.action === "register") await registrationAllowed;
+    await route.fallback();
+  };
+  await page.route("**/api/plugins", delayRegistration);
+  try {
+    const rejected = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "POST");
+    try {
+      await register.click();
+      await expect(register).toHaveText("Adding…");
+      await expect(register).toBeDisabled();
+    } finally {
+      allowRegistration();
+    }
+    expect((await rejected).status()).toBe(400);
+  } finally {
+    await page.unroute("**/api/plugins", delayRegistration);
+  }
+  await expect(picker.getByRole("alert")).toHaveText("This folder does not contain a plugin manifest (litzio-plugin.json). Choose a plugin folder.");
+  await expect(input).toHaveValue(pluginFixture.folder);
+  await expect(register).toBeEnabled();
+  if (screenshots) {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(async theme => { const { applyTheme } = await import("/src/theme.ts"); await applyTheme(theme, false); }, theme);
+      await picker.screenshot({ path: `docs/design/assets/plugin-register-precheck-1913/after-1440-${theme}.png`, mask: [input, picker.locator(".folder-picker-place")], maskColor: "#777" });
+    }
+    await page.evaluate(async () => { const { applyTheme } = await import("/src/theme.ts"); await applyTheme("light", false); });
+  }
   await input.fill(pluginFixture.directory);
   await register.click();
   await expect(input).not.toBeVisible();

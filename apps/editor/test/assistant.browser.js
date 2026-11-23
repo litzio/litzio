@@ -1648,6 +1648,45 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   }
   await expect(panel.getByRole('button', { name: 'Reasoning effort settings', exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  if (screenshots) {
+    // #1908 manual captures: a local (Ollama) Copilot session has no reasoning option. Before, the Host reported no
+    // reasoning choices for it; now it reports the CLI launch values. Both are fixture responses, restored afterwards.
+    const accountModels = copilotModels.splice(0, copilotModels.length, { ...copilotModels[1], id: 'qwen3.5:4b', model: 'qwen3.5:4b', displayName: 'qwen3.5:4b' });
+    const sessionOptions = selected.copilot, sessionModel = selected.model;
+    const reopen = async () => {
+      await panel.getByRole('button', { name: /^(Close assistant|비서 닫기)$/ }).click();
+      await page.getByRole('button', { name: /^(Assistant|비서)(?: — |$)/ }).first().click();
+      await expect(panel.locator('.assistant-turn').first()).toBeVisible();
+    };
+    selected.model = 'qwen3.5:4b';
+    await source.selectOption('ollama'); await expect.poll(() => settings.copilotModelSource).toBe('ollama');
+    await categories.getByRole('button', { name: 'Appearance & language', exact: true }).click();
+    await page.getByTestId('ui-language').selectOption('ko');
+    await categories.getByRole('button', { name: '비서', exact: true }).click();
+    await reopen();
+    await panel.getByRole('button', { name: '모델 설정', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'qwen3.5:4b', exact: true }).click();
+    await expect(panel.getByRole('button', { name: '추론 강도 설정', exact: true })).toHaveCount(0);
+    await page.screenshot({ path: 'tmp/1908-evidence/before-1440-light-ko.png' });
+    selected.copilot = { ...copilotOptions, reasoningEffortSource: 'config', reasoningEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map(reasoningEffort => ({ reasoningEffort, description: '' })) };
+    await reopen();
+    await panel.getByRole('button', { name: '추론 강도 설정', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: '없음', exact: true })).toBeVisible();
+    await page.screenshot({ path: 'tmp/1908-evidence/after-1440-light-ko.png' });
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.screenshot({ path: 'tmp/1908-evidence/after-1920-light-ko.png' });
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    copilotModels.splice(0, copilotModels.length, ...accountModels);
+    selected.copilot = sessionOptions; selected.model = sessionModel;
+    await categories.getByRole('button', { name: '표시·언어', exact: true }).click();
+    await page.getByTestId('ui-language').selectOption('en');
+    await categories.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await source.selectOption('account'); await expect.poll(() => settings.copilotModelSource).toBe('account');
+    await reopen();
+    await panel.getByRole('button', { name: 'Model settings', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Auto', exact: true }).click();
+  }
   await referenceRow.click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
   await message.fill('Prompt lost before provider record');

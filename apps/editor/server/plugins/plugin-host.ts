@@ -12,7 +12,7 @@ import { InstalledArtifacts } from "./installed-artifacts.ts";
 import { readPluginRegistrations, type GitHubRegistration, type InstalledPlugin, type PluginRegistration } from "./plugin-registrations.ts";
 import { GitHubSource, GitHubSourceError, type GitHubLocation, type GitHubTarget } from "./github-source.ts";
 import { rm } from "node:fs/promises";
-import { PLUGIN_SOURCE_MOVED, PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../../shared/plugin-registration-error.ts";
+import { PLUGIN_MANIFEST_MISSING, PLUGIN_SOURCE_MOVED, PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../../shared/plugin-registration-error.ts";
 import { publicOperationError, publicOperationResult, publicInputIssues, safePluginValue } from "./operation-result.ts";
 import { assertNoPluginSecrets } from "./secret-redaction.ts";
 import { randomUUID } from "node:crypto";
@@ -29,7 +29,11 @@ import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store
 
 type ManifestIssue = { path: PropertyKey[]; code: string; message: string; issues?: ManifestIssue[] };
 type ValidationDiagnostic = { file: string; line: number | null; column: number | null; kind: string; path?: string; message?: string; code?: string };
+class MissingPluginManifestError extends Error {
+  constructor() { super(PLUGIN_MANIFEST_MISSING); }
+}
 function validationDiagnostics(error: unknown, file: string): ValidationDiagnostic[] {
+  if (error instanceof MissingPluginManifestError) return [{ file, line: null, column: null, kind: "Artifact or SDK/schema validation failed", message: error.message }];
   if (error instanceof GitHubSourceError) return [{ file: "GitHub source", line: null, column: null, kind: "GitHub source unavailable", path: "source", message: error.message, code: "github_source" }];
   if (error instanceof AssistantSkillValidationError) return [{ file: error.file, line: null, column: null, kind: "Assistant skill validation failed", path: error.field, message: error.message, code: "invalid_skill" }];
   if (file === "artifact directory") {
@@ -407,7 +411,7 @@ export class PluginHost {
     const staging = this.staging();
     try {
       await source.download(location, target.commit, staging);
-      if (!existsSync(path.join(staging, "litzio-plugin.json"))) throw new GitHubSourceError("No litzio-plugin.json in this GitHub folder.");
+      this.precheckSourceManifest(staging, options.inspecting, () => new GitHubSourceError("No litzio-plugin.json in this GitHub folder."));
       await this.prepareDependencies(staging);
       return await this.applySource(action, staging, expectedId, options.inspecting, {
         ...(options.sourceDirectory ? { sourceDirectory: options.sourceDirectory } : {}),
@@ -484,9 +488,24 @@ export class PluginHost {
       }
     } finally { this.disabling.delete(id); }
   }
+  private precheckSourceManifest(directory: string, inspecting = (_file: string) => {},
+    missing = () => new MissingPluginManifestError()) {
+    const file = path.join(directory, "litzio-plugin.json");
+    try {
+      const entry = lstatSync(file, { throwIfNoEntry: false });
+      if (!entry) throw missing();
+      if (!entry.isFile()) throw new Error("Plugin manifest must be a real file");
+      validateManifest(readArtifactJson(file));
+    } catch (error) {
+      inspecting("litzio-plugin.json");
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") throw missing();
+      throw error;
+    }
+  }
   /** Stage the same local snapshot for folder registration, install, reload and update. */
   private async applySource(action: "register" | "install" | "reload" | "update", sourceDirectory: string, expectedId?: string,
     inspecting: (file: string) => void = () => {}, origin?: Pick<InstalledPlugin, "sourceDirectory" | "github">) {
+    if (!origin) this.precheckSourceManifest(sourceDirectory, inspecting);
     const copy = await this.copies.copy(sourceDirectory);
     let applied = false;
     try {
