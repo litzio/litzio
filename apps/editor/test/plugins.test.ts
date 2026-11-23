@@ -15,6 +15,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { PluginHost } from "../server/plugins/plugin-host.ts";
+import { PLUGIN_MANIFEST_MISSING } from "../shared/plugin-registration-error.ts";
 import { GitHubSource } from "../server/plugins/github-source.ts";
 import { FakeGitHub } from "./fake-github.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
@@ -27,6 +28,21 @@ function registeredCopy(state: string, id: string) {
   const record = JSON.parse(readFileSync(state, "utf8"))[id];
   return path.join(`${state}.artifacts`, record.installationId);
 }
+
+test("registration rejects a folder without a manifest before creating artifact storage", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-precheck-"));
+  const state = path.join(root, "state.json");
+  const directory = path.join(root, "not-a-plugin");
+  mkdirSync(directory);
+  const host = new PluginHost(state);
+  try {
+    await assert.rejects(host.invoke("register", { directory }), { message: PLUGIN_MANIFEST_MISSING });
+    assert.equal(existsSync(`${state}.artifacts`), false);
+  } finally {
+    await host.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("startup preserves installed copies until it can read a valid registration file", async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-registration-"));
