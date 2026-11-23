@@ -526,18 +526,18 @@ function redactPublishedDiagnostic(diagnostic: string): string {
 // The old installer comes from GitHub; only the candidate is built. Rebuilding the old
 // version here would miss installer bootstrap defects. Release verification runs this as a separate early step.
 // beta.9 and earlier assets were withdrawn on 2026-11-12 for CVE-2026-111497.
-// 0.0.2 Stable includes the helper: this no longer covers beta.6's helperless first update.
-test("published 0.0.2 Stable upgrades to the candidate and preserves installed data", {
+// 0.0.3 Stable includes the helper: this no longer covers beta.6's helperless first update.
+test("published 0.0.3 Stable upgrades to the candidate and preserves installed data", {
   skip: !PUBLISHED_BASE || LIVE, timeout: 5 * 60_000,
 }, async () => {
   requireCleanUser();
   const started = Date.now();
   rmSync(work, { recursive: true, force: true });
-  const published = "0.0.2";
+  const published = "0.0.3";
   const oldBuild = await publicBeta([published], published);
   const oldSetup = path.join(oldBuild, `${brand.executableName}-Setup-${published}.exe`);
   const digest = createHash("sha256").update(readFileSync(oldSetup)).digest("hex");
-  assert.equal(digest, "7271f9bd7c22ee3da5bcfe4cbfc263d6e1ddf77ef51819204f065786efee1e4c", "the exact public 0.0.2 Stable installer, not a rebuilt version");
+  assert.equal(digest, "bcdc971e2ea5cc7a32d6fff5c3bcbda844e6a02c2280ef3f91e4cc1e8fc67c49", "the exact public 0.0.3 Stable installer, not a rebuilt version");
   console.log(`verified public v${published}: SHA-256 ${digest}`);
   const candidateBuild = packageVersion(NEW);
   const candidate = path.join(candidateBuild, `${brand.executableName}-Setup-${NEW}.exe`);
@@ -562,7 +562,7 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
     ownsInstallation = true;
     const exe = path.join(install, `${brand.executableName}.exe`);
     assert.equal(powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`), published);
-    assert.equal(existsSync(path.join(install, "resources/prepare-installation.cjs")), true, "public 0.0.2 Stable includes the lifecycle helper");
+    assert.equal(existsSync(path.join(install, "resources/prepare-installation.cjs")), true, "public 0.0.3 Stable includes the lifecycle helper");
     assertNoDiscovery("stable");
     oldApp = await electron.launch({ executablePath: exe, args: ["--lang=en-US", documentFile], timeout: 60_000 });
     const page = await oldApp.firstWindow();
@@ -590,7 +590,7 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
     await page.waitForFunction(() => window.litzioDesktop?.info().then(info => info.channel === "beta"));
     await oldApp.close(); oldApp = undefined;
     const canary = path.join(appData, "published-update-canary.txt");
-    writeFileSync(canary, "Preserve existing 0.0.2 Stable user data.\n");
+    writeFileSync(canary, "Preserve existing 0.0.3 Stable user data.\n");
     const preferencesFile = path.join(appData, "preferences.json");
     const preferences = readPreferences(preferencesFile, published);
     assert.equal(preferences.channel, "beta", "the user's Beta choice was persisted by the public app");
@@ -598,14 +598,14 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
     // remain in the existing two cases. No app-update config or old ASAR is modified.
     const updated = spawnSync(candidate, ["--updated", "/S", "--force-run"], { timeout: 60_000, encoding: "utf8" });
     assert.ifError(updated.error);
-    assert.equal(updated.status, 0, "public 0.0.2 Stable -> candidate NSIS update must succeed");
+    assert.equal(updated.status, 0, "public 0.0.3 Stable -> candidate NSIS update must succeed");
     const log = path.join(appData, "logs/desktop.log");
     const deadline = Date.now() + 30_000;
     while (!(readDaemonRecord(daemonDirectory("beta"))?.productVersion === NEW && existsSync(log) && readFileSync(log, "utf8").split(`starting ${NEW}`).at(-1)!.includes("window shown"))) {
       if (Date.now() >= deadline) {
         const daemonLog = path.join(daemonDirectory("beta"), "daemon.log");
         throw new Error(redactPublishedDiagnostic(
-          `Updated 0.0.2 Stable app/daemon did not start\ndesktop.log (tail):\n${publishedLogTail(log)}\nBeta daemon.log (tail):\n${publishedLogTail(daemonLog)}`,
+          `Updated 0.0.3 Stable app/daemon did not start\ndesktop.log (tail):\n${publishedLogTail(log)}\nBeta daemon.log (tail):\n${publishedLogTail(daemonLog)}`,
         ));
       }
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -613,10 +613,10 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
     desktopRecord("beta", NEW);
     assert.equal(powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`), NEW);
     assert.equal(readFileSync(documentFile, "utf8"), bytes);
-    assert.equal(readFileSync(canary, "utf8"), "Preserve existing 0.0.2 Stable user data.\n");
+    assert.equal(readFileSync(canary, "utf8"), "Preserve existing 0.0.3 Stable user data.\n");
     assert.deepEqual(readPreferences(preferencesFile, NEW), preferences);
     assert.deepEqual((await environment.read()).user, originalPath, "first update does not opt in to CLI/PATH");
-    console.log(`public 0.0.2 Stable -> ${NEW}: installed, launched and preserved data`);
+    console.log(`public 0.0.3 Stable -> ${NEW}: installed, launched and preserved data`);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     await oldApp?.close();
@@ -641,6 +641,6 @@ test("published 0.0.2 Stable upgrades to the candidate and preserves installed d
       for (const folder of [appData, updaterCache, sharedData]) rmSync(folder, { recursive: true, force: true });
     }
     assert.deepEqual((await environment.read()).user, originalPath);
-    console.log(`public 0.0.2 Stable update case: ${Date.now() - started} ms (download, install, update, startup, cleanup)`);
+    console.log(`public 0.0.3 Stable update case: ${Date.now() - started} ms (download, install, update, startup, cleanup)`);
   }
 });
