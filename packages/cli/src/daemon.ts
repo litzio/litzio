@@ -7,7 +7,8 @@ import { brand } from "../../../brand.ts";
 import { startHttpHost } from "../../../apps/editor/server/http-host.ts";
 import { DAEMON_PROTOCOL, sameInstance } from "../../../apps/editor/server/daemon-protocol.ts";
 import { daemonChannel, startDaemonChild, acquireDaemonLock, processStart, reclaimStaleDaemon, daemonDirectory, daemonPort, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
-import { productVersion } from "./version.ts";
+import { daemonLog, describeError, repeatLog, watchEventLoop } from "../../../apps/editor/server/daemon-log.ts";
+import { buildCommit, productVersion } from "./version.ts";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 function options(action: string, args: string[]) {
@@ -49,11 +50,18 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
     const lock = path.join(directory, config.local ? "daemon.lock" : `manual-${config.host ?? "127.0.0.1"}-${config.port}.lock`.replaceAll(":", "_"));
     const manualRecord = { ...identity, ...details, productVersion, protocolVersion: DAEMON_PROTOCOL, url: config["public-origin"] ?? `http://${config.host?.includes(":") ? `[${config.host}]` : config.host ?? "127.0.0.1"}:${config.port}` };
     const release = acquireDaemonLock(lock, config.local ? identity : manualRecord);
+    daemonLog(`daemon starting: version=${productVersion} commit=${buildCommit} pid=${process.pid} instance=${identity.instanceId} launcher=${launcher} protocol=${DAEMON_PROTOCOL}`);
+    // Observe only: Node's existing exit behavior for uncaught exceptions and rejections is unchanged.
+    process.on("uncaughtExceptionMonitor", (error, origin) => daemonLog(`daemon ${origin === "unhandledRejection" ? "unhandled rejection" : "uncaught exception"}: ${describeError(error)}`, process.stderr));
+    const stalls = repeatLog(daemonLog);
+    const stopWatching = watchEventLoop(stalls);
     let host: Awaited<ReturnType<typeof startHttpHost>> | undefined, closing: Promise<void> | undefined;
-    const stop = () => closing ??= (async () => {
-      process.off("SIGINT", signalStop); process.off("SIGTERM", signalStop);
+    const stop = (reason: string) => closing ??= (async () => {
+      daemonLog(`daemon stopping: reason=${reason}`);
+      process.off("SIGINT", onSigint); process.off("SIGTERM", onSigterm);
       try { await host?.close(); }
       finally {
+        stopWatching(); stalls.flush();
         if (config.local) {
           const record = readDaemonRecord(directory);
           if (record && sameInstance(record, identity)) fs.unlinkSync(path.join(directory, "instance.json"));
@@ -61,26 +69,30 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
         release();
         if (desktopOwned && process.connected) process.disconnect();
       }
+      daemonLog("daemon stopped");
     })();
-    const signalStop = () => { void stop().catch(error => { console.error(error.message); process.exitCode = 1; }); };
+    const signalStop = (reason: string) => { void stop(reason).catch(error => { daemonLog(`daemon stop failed: ${describeError(error)}`, process.stderr); process.exitCode = 1; }); };
+    const onSigint = () => signalStop("SIGINT"), onSigterm = () => signalStop("SIGTERM");
     let parentGone = false, ready = false;
-    const parentDisconnected = () => { parentGone = true; if (ready) signalStop(); };
+    const parentDisconnected = () => { parentGone = true; if (ready) signalStop("Desktop disconnected"); };
     if (desktopOwned) process.once("disconnect", parentDisconnected);
     try {
       host = await startHttpHost({ roots: config.root ?? [], host: config.host, port: config.port, editorDir, publicOrigin: config["public-origin"],
-        daemon: { health: { ...identity, ...details, productVersion, protocolVersion: DAEMON_PROTOCOL }, stop: signalStop } });
-      if (desktopOwned && (parentGone || !process.connected)) { await stop(); return; }
+        daemon: { health: { ...identity, ...details, productVersion, protocolVersion: DAEMON_PROTOCOL }, stop: () => signalStop("HTTP stop request") }, log: daemonLog });
+      if (details.nonLoopback) daemonLog("WARNING: this daemon has no authentication. Anyone on the same network who can reach this port can access it. Without --root, the entire disk and assistant (AI) execution are exposed with this OS user's permissions.", process.stderr);
+      if (desktopOwned && (parentGone || !process.connected)) { await stop("Desktop disconnected"); return; }
       if (config.local) {
         const temp = path.join(directory, `${identity.instanceId}.tmp`);
         fs.writeFileSync(temp, JSON.stringify({ ...identity, ...details, productVersion, protocolVersion: DAEMON_PROTOCOL, url: host.url }), { flag: "wx", mode: 0o600 });
         fs.renameSync(temp, path.join(directory, "instance.json"));
       }
-      process.once("SIGINT", signalStop); process.once("SIGTERM", signalStop);
-      console.log(`${brand.name.en} HTTP: ${host.url}\nAllowed folders: ${host.roots.length ? host.roots.join(", ") : "unrestricted access"}`);
+      process.once("SIGINT", onSigint); process.once("SIGTERM", onSigterm);
+      daemonLog(`${brand.name.en} HTTP: ${host.url}`);
+      daemonLog(`Allowed folders: ${host.roots.length ? host.roots.join(", ") : "unrestricted access"}`);
       ready = true;
       process.send?.({ ready: true, identity });
       if (!desktopOwned) process.disconnect?.();
-    } catch (error) { await stop(); throw error; }
+    } catch (error) { await stop(`startup failed: ${describeError(error)}`); throw error; }
     return;
   }
   if (!["start", "stop", "status"].includes(action)) throw new Error("Unknown daemon command.");

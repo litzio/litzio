@@ -377,6 +377,7 @@ pnpm --filter @litzio/desktop test:update:github
 - [TEST_GUIDE](TEST_GUIDE.md): 실행 옵션, CI, OS IME·실제 앱 clipboard 등 자동화가 판정하지 않는 시나리오.
 - [Visual change review](#reviewing-a-visual-change): 같은 상태의 Before/After 캡처와 검토 절차.
 - [Layout Rules](../design/editor-layout-rules-v1.md): 정렬·간격·control 치수 기준.
+- 다른 PC의 문제는 `daemon.log`·`desktop.log`로 daemon 시작·종료와 이유, 실패·느린 요청, 이벤트 루프 멈춤, Desktop의 연결 끊김·다시 연결(같은/새 instance)을 확인한다([기록 항목](../design/http-host-v1.md#daemon-log-1915)).
 
 ### Reviewing a visual change
 

@@ -156,6 +156,18 @@ Discovery and health also carry launcher (`desktop`, `cli-start`, `cli-run`), OS
 
 Desktop invokes the same local `run`/lock path with a private IPC pipe (`LITZIO_DESKTOP_DAEMON=1`, requiring an IPC parent). Its daemon exits when that pipe disconnects, including parent crash. CLI `start`/`run` have no Desktop parent lifetime. Normal Desktop close stops only its spawned generation and waits for its process exit as well as discovery removal. Update/removal gates and CLI-daemon refusal follow the [Desktop installation contract](desktop-distribution-v1.md#update-and-removal-daemon-gate-1164). Explicit Desktop Stop uses the existing confirmed identity-checked stop RPC regardless of launcher. No client/job tracking. See [Desktop contract](desktop-distribution-v1.md#shared-daemon-desktop).
 
+### Daemon log (#1915)
+
+The daemon writes `<UTC ISO time> <message>` lines to its own output. Desktop and `daemon start` redirect that output to `daemon.log` in the daemon home (`daemon status` shows the path); a foreground `daemon run` prints the same lines, banner and non-loopback warning included, to its terminal. Node's own crash output keeps its format. Records, all in [`daemon-log.ts`](../../apps/editor/server/daemon-log.ts):
+
+- `daemon starting:` product version, build commit (as `--version`), PID, instance ID, launcher and protocol; the existing banner lines then mark readiness.
+- `daemon stopping: reason=` `SIGINT`/`SIGTERM`, `HTTP stop request`, `Desktop disconnected` or `startup failed: <error>`, then `daemon stopped`. A forced kill leaves no stop line.
+- `daemon uncaught exception:` / `daemon unhandled rejection:` through `uncaughtExceptionMonitor`; existing exit behavior is unchanged.
+- `request failed` (5xx, or 4xx on a method other than GET/HEAD; a thrown handler error adds its cause), `request slow` (2 s or longer) and `request aborted` (connection closed before the response finished), with method, path, status and duration. `/api/assistant/mcp/*` is not reported as slow: an agent's Host tool call lasts as long as its plugin or document work.
+- `event loop stalled for <n>s` when a timer is late by more than 1 s; system sleep also appears as a stall.
+
+Errors keep name, message and the first 8 stack frames on one line with directories removed. Paths under `/document/` and the MCP lease token become `*`. Queries, headers, request/response bodies, document text and assistant conversations are never written. Consecutive identical events of one path, the stall watcher or Desktop's health check print once, then `repeated N more times: <event>` when another event or a normal result ends the run. Before launching a daemon, `startDaemonChild()` moves a `daemon.log` over 1 MB to `daemon.log.old` (one generation); a running daemon never rotates. There are no log levels, settings, remote transport or trace IDs.
+
 ### Authentication deferred (#1145)
 
 **Owner-approved final decision, 2026-11-04:** this phase has **no authentication**.

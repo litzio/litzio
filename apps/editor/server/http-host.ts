@@ -4,6 +4,7 @@ import { createHostServices } from "./host-services.ts";
 import { randomBytes } from "node:crypto";
 import { realpathSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { performance } from "node:perf_hooks";
 import { isIP } from "node:net";
 import path from "node:path";
 import { handleAssetRequest } from "./asset-api.ts";
@@ -14,6 +15,7 @@ import { daemonRequest, type DaemonControl } from "./daemon-protocol.ts";
 import { trashFile } from "./os-trash.ts";
 import { requestQuery } from "./request-query.ts";
 import { ResetGuard } from "./reset-guard.ts";
+import { requestRecorder } from "./daemon-log.ts";
 
 export const MAX_JSON_BYTES = 32 * 1024 * 1024;
 
@@ -25,6 +27,8 @@ type HttpHostOptions = {
   publicOrigin?: string;
   daemon?: DaemonControl;
   removeFile?: (file: string) => void | Promise<void>;
+  /** Receives failed, slow and aborted request records; omitted, requests are not recorded. */
+  log?: (message: string) => void;
 };
 
 const loopback = (host: string) => host === "::1" || /^127\./.test(host);
@@ -154,9 +158,14 @@ export async function startHttpHost(options: HttpHostOptions) {
     res.end(req.method === "HEAD" ? undefined : Buffer.from(await response.arrayBuffer()));
   };
 
+  const requests = options.log && requestRecorder(options.log);
   const server = createServer({ maxHeaderSize: 16 * 1024, headersTimeout: 15_000, requestTimeout: 60_000,
     keepAliveTimeout: 5_000 }, (req, res) => {
-    const pending = respond(req, res).catch(() => {
+    const started = performance.now();
+    let failure: { error: unknown } | undefined;
+    if (requests) res.once("close", () => requests.record(req, res, performance.now() - started, failure));
+    const pending = respond(req, res).catch(error => {
+      failure = { error };
       if (!res.headersSent) json(res, 500, "The Host could not complete this request.");
       else res.destroy();
     });
@@ -183,7 +192,6 @@ export async function startHttpHost(options: HttpHostOptions) {
   }
   if (external) origins.add(external);
   for (const origin of origins) authorities.add(new URL(origin).host.toLowerCase());
-  if (!loopback(host)) console.warn("WARNING: this daemon has no authentication. Anyone on the same network who can reach this port can access it. Without --root, the entire disk and assistant (AI) execution are exposed with this OS user's permissions.");
   let closing: Promise<void> | undefined;
   return {
     server,
@@ -204,7 +212,7 @@ export async function startHttpHost(options: HttpHostOptions) {
           // Retain the writer lease until its handler has actually settled.
           await Promise.allSettled([...inFlight]);
         } catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
-        finally { releaseResetGuard(); }
+        finally { requests?.flush(); releaseResetGuard(); }
       }
     })(); },
   };

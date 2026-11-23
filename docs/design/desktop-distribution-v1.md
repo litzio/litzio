@@ -423,6 +423,13 @@ this diagnostic guarantee. Only the origin is recorded, never the error/rejectio
 message, stack or value, which may contain document content or full paths.
 See [Node's monitor contract](https://nodejs.org/api/process.html#event-uncaughtexceptionmonitor).
 
+`desktop.log` also records daemon connection changes with the daemon's PID and instance ID,
+which match the daemon's `daemon starting` line in [`daemon.log`](http-host-v1.md#daemon-log-1915):
+`daemon connection lost` on the first failed health check (repeats print once as
+`repeated N more times`), `daemon connection restored: same instance` when the same daemon
+answers again, `daemon reconnected: same|new instance` after a manual reconnect (with the
+previous daemon for a new one) and `daemon reconnect failed`. Error text keeps file names only.
+
 `child-process-gone` records only type, reason and exitCode. `render-process-gone`
 records reason and exitCode after normal startup as well as during the existing startup
 failure path; startup dialogs and recovery behavior are unchanged. These are minimal

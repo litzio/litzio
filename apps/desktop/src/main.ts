@@ -17,6 +17,7 @@ import { DesktopDaemon } from "./daemon-client.ts";
 import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
 import { bundledUiResponse } from "./bundled-ui.ts";
 import { daemonPort, daemonRpc, processStart } from "../../editor/server/daemon-state.ts";
+import { repeatLog, shortenPaths } from "../../editor/server/daemon-log.ts";
 import { ResetGuard } from "../../editor/server/reset-guard.ts";
 import { inspectAppReset, localResetLocations, resetHostPaths } from "../../editor/server/app-reset.ts";
 import { ExplorerFolders } from "./explorer.ts";
@@ -103,9 +104,19 @@ function trayStatus(connected: boolean): void {
   tray?.setToolTip(`${brand.name.ko}: ${connected ? "백그라운드 실행 중" : "연결 끊김"}`);
 }
 
+// Pairs with daemon.log's `daemon starting` line of the same instance.
+const daemonName = (record: { pid: number; instanceId: string } | undefined) => `pid=${record?.pid} instance=${record?.instanceId}`;
+const connectionLog = repeatLog(log);
+
 async function checkDaemon(): Promise<void> {
-  try { await daemon.check(); trayStatus(true); }
-  catch (error) { trayStatus(false); throw error; }
+  try {
+    await daemon.check(); trayStatus(true);
+    if (connectionLog.end("health")) log(`daemon connection restored: same instance ${daemonName(daemon.record)}`);
+  } catch (error) {
+    trayStatus(false);
+    connectionLog.report("health", "daemon connection lost", `daemon connection lost: ${daemonName(daemon.record)}: ${shortenPaths(String(error))}`);
+    throw error;
+  }
 }
 
 async function observeDaemon() {
@@ -368,9 +379,15 @@ function registerIpc(): void {
   });
   handle("desktop:daemon-check", () => observeDaemon());
   handle("desktop:daemon-reconnect", async () => {
+    const previous = daemon.record;
     initialConnection = daemon.connect();
-    try { const connection = await hostConnection(); trayStatus(true); return connection; }
-    catch (error) { trayStatus(false); throw error; }
+    try {
+      const connection = await hostConnection(); trayStatus(true);
+      connectionLog.end("health");
+      const same = previous?.instanceId === daemon.record.instanceId;
+      log(`daemon reconnected: ${same ? "same" : "new"} instance ${daemonName(daemon.record)} version=${daemon.health.productVersion} launcher=${daemon.health.launcher}${previous && !same ? ` (previous ${daemonName(previous)})` : ""}`);
+      return connection;
+    } catch (error) { trayStatus(false); log(`daemon reconnect failed: ${shortenPaths(String(error))}`); throw error; }
   });
   handle("desktop:provider-session-log", async (id, provider, action) => {
     await daemon.check();
