@@ -103,10 +103,11 @@ const FIGURE_NOTE = [
   "Values that cannot round-trip through canonical Markdown are rejected.",
 ];
 const LIST_NOTE = [
-  "--list is Core ListContent JSON: {\"ordered\": boolean, \"start\"?: number, \"items\": [...]}.",
-  "Each item is {\"content\": InlineContent[], \"list\"?: ListContent}; the optional list nests below the item.",
+  "--list is Core ListContent JSON: {\"ordered\": boolean, \"checklist\"?: boolean, \"start\"?: number, \"items\": [...]}.",
+  "Each item is {\"content\": InlineContent[], \"checked\"?: boolean, \"list\"?: ListContent}; the optional list nests below the item.",
   "Numbered lists start at \"start\" (default 1); optional style: decimal (default), lower-alpha, upper-alpha, lower-roman, upper-roman; delimiter: . (default) or ).",
   "Bullet lists have no start, style or delimiter. Empty items are saved as list markers.",
+  "A checklist is a bullet list with \"checklist\": true; each item's \"checked\" defaults to false. Only checklist items have \"checked\".",
   "Example: --list '{\"ordered\":false,\"items\":[{\"content\":[{\"kind\":\"text\",\"text\":\"First\"}]}]}'",
 ];
 const CODE_NOTE = [
@@ -557,10 +558,10 @@ const COMMANDS: CommandSpec[] = [
   {
     name: "insert-list",
     group: "Edit — insert blocks",
-    summary: "Insert a bullet or numbered list at a top-level index",
+    summary: "Insert a bullet list, numbered list or checklist at a top-level index",
     usage: `${brand.cliCommand} insert-list <file> --at <index|end> --list <json>`,
     details: [
-      "Insert a bullet or numbered list, optionally with nested lists, at a top-level index.",
+      "Insert a bullet list, numbered list or checklist, optionally with nested lists, at a top-level index.",
       ...LIST_NOTE,
     ],
   },
@@ -573,7 +574,19 @@ const COMMANDS: CommandSpec[] = [
       "Replace the kind, numbering, items and nesting of one editable top-level list.",
       ...LIST_NOTE,
       "inspect --format json shows an editable list's current content in the same shape.",
-      "Task lists and items with several paragraphs or other blocks are not native content.",
+      "Checkboxes on numbered items or on only some items, and items with several paragraphs or other blocks, are not native content.",
+      ...PATH_NOTE,
+    ],
+  },
+  {
+    name: "update-list-item-checked",
+    group: "Edit — text and content",
+    summary: "Check or uncheck one checklist item through Core",
+    usage: `${brand.cliCommand} update-list-item-checked <file> --path <index> --item <indexes> --checked <true|false>`,
+    details: [
+      "Change one checklist item's check state without rewriting the list.",
+      "--path is the top-level list. --item is the item's index in that list, then in each nested list below it (0,1 is the second item nested under the first).",
+      "inspect --format json shows each checklist item's \"checked\" state.",
       ...PATH_NOTE,
     ],
   },
@@ -1223,7 +1236,7 @@ function formatBlock(block: EditableBlock): string[] {
 function formatListItems(list: ListContent, depth: number): string[] {
   const indent = "  ".repeat(depth);
   return list.items.flatMap((item, index) => [
-    `${indent}${list.ordered ? `${(list.start ?? 1) + index}${list.delimiter ?? "."}` : "-"} text=${quote(inlineText(item.content))}${list.ordered ? ` style=${list.style ?? "decimal"}` : ""}`,
+    `${indent}${list.ordered ? `${(list.start ?? 1) + index}${list.delimiter ?? "."}` : "-"}${list.checklist ? ` [${item.checked ? "x" : " "}]` : ""} text=${quote(inlineText(item.content))}${list.ordered ? ` style=${list.style ?? "decimal"}` : ""}`,
     ...(item.list ? formatListItems(item.list, depth + 1) : []),
   ]);
 }

@@ -238,6 +238,22 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     }
     node.children?.forEach((child, childIndex) => visit(child, childIndex, node,
       node === tree ? blockPaths[childIndex] : [...path, childIndex], inLink));
+    // myst-to-md has no GFM task list writer and drops `checked`. Write each checkbox before
+    // the item's prepared inline content; an empty item is its checkbox alone, which the pinned
+    // task list patch reads back as an empty item. A checklist is written tight, also around a
+    // nested list, as myst-parser reads checkboxes only there. The full fingerprint still guards
+    // the result.
+    if (node.type === "list") {
+      for (const item of node.children ?? []) {
+        if (typeof item.checked !== "boolean") continue;
+        item.spread = false;
+        const marker = item.checked ? "[x]" : "[ ]";
+        const paragraph = item.children?.[0];
+        if (paragraph?.type === "paragraph") paragraph.children = [{ type: "html", value: `${marker} ` }, ...(paragraph.children ?? [])];
+        else item.children = [{ type: "paragraph", children: [{ type: "html", value: marker }] }, ...(item.children ?? [])];
+        delete item.checked;
+      }
+    }
     // After the inline content is prepared, so its remaining text is final.
     if (lineStarts && node.type === "paragraph" && !captions.has(node) && node.children) {
       node.children = encodeLineStarts(node.children, true);

@@ -149,7 +149,7 @@ test("public Core rejects invalid list edits without mutating the source", () =>
     assert.throws(operation);
     assert.equal(serialize(document), before);
   }
-  const task = parse("- [ ] task\n");
+  const task = parse("1. [x] task\n");
   assert.throws(() => updateList(task, [0], { ordered: false, items: [item] }), /not editable/);
 });
 
@@ -248,5 +248,90 @@ test("list style parsing preserves literal attributes and container boundaries",
     const reopened = parse(markdown);
     assert.deepEqual(semanticFingerprint(reopened), expected, name);
     assert.equal(serialize(reopened), markdown, name);
+  }
+});
+
+test("checklists read, write canonically and keep check states and content through reopen", () => {
+  // Alternative spellings (`-`, `[X]`) normalize to one canonical form; an empty
+  // item is its checkbox alone. Nesting works in both directions under the existing list rules.
+  const source = "---\nlitzio: 1\n---\n\n- [X] **Done**\n- [ ]\n  - [x] nested\n  - [ ]\n- [ ] has bullets\n  - plain\n\n1. step\n   - [ ] inside numbered\n";
+  const canonical = "---\nlitzio: 1\n---\n\n*   [x] **Done**\n*   [ ]\n    *   [x] nested\n    *   [ ]\n*   [ ] has bullets\n    *   plain\n\n1.  step\n\n    *   [ ] inside numbered\n";
+  // The parse boundary reads the checkbox; native admission accepts the same tree.
+  assert.deepEqual(parse(source).children[1].children!.map(item => item.checked), [true, false, false]);
+  const document = core.parse(source);
+  const checklist: ListContent = { ordered: false, checklist: true, items: [
+    { content: [{ kind: "strong", children: text("Done") }], checked: true },
+    { content: [], checked: false, list: { ordered: false, checklist: true, items: [{ content: text("nested"), checked: true }, { content: [], checked: false }] } },
+    { content: text("has bullets"), checked: false, list: { ordered: false, items: [{ content: text("plain") }] } },
+  ] };
+  assert.deepEqual(core.getEditableDocument(document).blocks[0], { block: "list", path: [1], ...checklist });
+  assert.deepEqual(core.getEditableDocument(document).blocks[1], { block: "list", path: [2], ordered: true, start: 1,
+    items: [{ content: text("step"), list: { ordered: false, checklist: true, items: [{ content: text("inside numbered"), checked: false }] } }] });
+  const markdown = core.serialize(document);
+  assert.equal(markdown, canonical);
+  assert.deepEqual(core.getEditableDocument(core.parse(markdown)), core.getEditableDocument(document));
+  assert.equal(core.serialize(core.parse(markdown)), markdown);
+  // Spaces after the checkbox are not content; canonical write removes them.
+  assert.equal(core.serialize(core.parse("---\nlitzio: 1\n---\n\n+ [ ]   spaced\n")), "---\nlitzio: 1\n---\n\n*   [ ] spaced\n");
+});
+
+test("checkbox shapes outside the checklist contract are refused with their reason", () => {
+  for (const [body, reason] of [
+    ["1. [x] one\n2. [ ] two\n", /not in numbered lists/],
+    ["- [ ] a\n- b\n", /mixes items with and without checkboxes/],
+    ["- [ ] a\n  - [x] b\n  - c\n", /mixes items with and without checkboxes/],
+    ["- a\n  1. [ ] b\n", /not in numbered lists/],
+    ["- [ ] a\n\n- [x] b\n", /must not be separated by blank lines/],
+  ] as const) {
+    // parse() still reads what the Markdown says; native admission names the refused shape.
+    assert.ok(parse(body).children.length > 0);
+    assert.throws(() => core.parse(`---\nlitzio: 1\n---\n\n${body}`), (error: any) =>
+      error instanceof core.NativeDocumentError && error.location.code === "native-content" && reason.test(error.message), body);
+  }
+  // Escaped brackets stay text in an ordinary bullet list.
+  assert.deepEqual(core.getEditableDocument(core.parse("---\nlitzio: 1\n---\n\n- \\[ ] text\n")).blocks[0],
+    { block: "list", path: [1], ordered: false, items: [{ content: text("[ ] text") }] });
+});
+
+test("insert and update lists accept checklists; check states default to unchecked and belong only to checklists", () => {
+  const document = core.parse("---\nlitzio: 1\n---\n\nIntro.\n");
+  const inserted = core.insertList(document, 2, { ordered: false, checklist: true, items: [{ content: text("todo") }, { content: text("done"), checked: true }] });
+  assert.equal(core.serialize(inserted), "---\nlitzio: 1\n---\n\nIntro.\n\n*   [ ] todo\n*   [x] done\n");
+  // Switching kind is a whole-list update, like bullets and numbers.
+  const numbered = core.updateList(inserted, [2], { ordered: true, items: [{ content: text("todo") }, { content: text("done") }] });
+  assert.equal(core.serialize(numbered), "---\nlitzio: 1\n---\n\nIntro.\n\n1.  todo\n2.  done\n");
+  const back = core.updateList(numbered, [2], { ordered: false, checklist: true, items: [{ content: text("todo"), checked: true }, { content: [] }] });
+  assert.equal(core.serialize(back), "---\nlitzio: 1\n---\n\nIntro.\n\n*   [x] todo\n*   [ ]\n");
+  const before = core.serialize(inserted);
+  for (const [list, reason] of [
+    [{ ordered: true, checklist: true, items: [{ content: text("a") }] }, /numbered lists have no checkboxes/],
+    [{ ordered: false, items: [{ content: text("a"), checked: true }] }, /only checklist items have a check state/],
+    [{ ordered: false, checklist: true, items: [{ content: text("a"), checked: "yes" }] }, /checked must be true or false/],
+    [{ ordered: false, items: [{ content: text("a"), list: { ordered: false, items: [{ content: text("b"), checked: false }] } }] }, /only checklist items/],
+  ] as const) {
+    assert.throws(() => core.updateList(inserted, [2], list as unknown as ListContent), reason);
+    assert.equal(core.serialize(inserted), before);
+  }
+});
+
+test("updateListItemChecked changes one checklist item and leaves every other byte", () => {
+  const source = "---\nlitzio: 1\n---\n\n# Plan\n\n*   [ ] first\n    *   [ ] nested\n    *   [x] nested done\n*   [x] second\n\n-   plain\n\nAfter.\n";
+  const document = core.parse(source);
+  const checked = core.updateListItemChecked(document, [2], [0, 0], true);
+  assert.equal(core.serialize(checked), source.replace("[ ] nested\n", "[x] nested\n"));
+  const unchecked = core.updateListItemChecked(checked, [2], [1], false);
+  assert.equal(core.serialize(unchecked), source.replace("[ ] nested\n", "[x] nested\n").replace("[x] second", "[ ] second"));
+  assert.equal(core.serialize(core.parse(core.serialize(unchecked))), core.serialize(unchecked));
+  assert.equal(core.serialize(document), source);
+  for (const [run, reason] of [
+    [() => core.updateListItemChecked(document, [3], [0], true), /not a checklist item/],
+    [() => core.updateListItemChecked(document, [2], [2], true), /no list item at \[2\]/],
+    [() => core.updateListItemChecked(document, [2], [1, 0], true), /no list item at \[1,0\]/],
+    [() => core.updateListItemChecked(document, [1], [0], true), /not editable/],
+    [() => core.updateListItemChecked(document, [2], [], true), /item indexes/],
+    [() => core.updateListItemChecked(document, [2], [0], "true" as unknown as boolean), /true or false/],
+  ] as const) {
+    assert.throws(run, reason);
+    assert.equal(core.serialize(document), source);
   }
 });

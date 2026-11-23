@@ -113,7 +113,7 @@ index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f520
              visit(mdast, (node) => {
                  if (node.position) {
 diff --git a/dist/tokensToMyst.js b/dist/tokensToMyst.js
-index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..8776b6521852eef1eedf0d98b88ed40914b365fd 100644
+index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..d8ecaed2ffffb10f7efe99e0a41c948d6a8a056b 100644
 --- a/dist/tokensToMyst.js
 +++ b/dist/tokensToMyst.js
 @@ -98,6 +98,8 @@ const defaultMdast = {
@@ -125,3 +125,16 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..8776b6521852eef1eedf0d98b88ed409
                  start: isNaN(start) || !info ? 1 : start,
                  spread: false,
              };
+@@ -540,9 +542,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
+             node.checked = html[0].value.includes('checked=""');
+             // Remove the inline html
+             node.children?.splice(0, 1);
+-            if (node.children?.[0].type === 'text') {
++            if (node.children?.[0]?.type === 'text') {
+                 // Ensure that the parsing is the same as other text lists, that strip leading whitespace
+                 node.children[0].value = node.children[0].value.replace(/^\s/, '');
++                // and keep no empty text before formatted content, as other lists have none
++                if (!node.children[0].value) node.children.splice(0, 1);
+             }
+         }
+     });

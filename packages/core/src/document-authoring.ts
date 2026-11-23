@@ -55,7 +55,7 @@ export async function authorDocument(raw: unknown, imageAssets: Readonly<Record<
         case "admonition": part = operations.insertAdmonition(part, index, block.variant, block.content ?? [{ kind: "text", text: block.text! }]); break;
         case "footnote": part = operations.insertFootnoteDefinition(part, index, block.label, block.content ?? [{ kind: "text", text: block.text! }]); break;
         case "target": part = operations.insertTarget(part, index, block.label); break;
-        case "list": part = operations.insertList(part, index, { ordered: block.ordered, start: block.start, style: block.style, delimiter: block.delimiter,
+        case "list": part = operations.insertList(part, index, { ordered: block.ordered, checklist: block.checklist, start: block.start, style: block.style, delimiter: block.delimiter,
           items: block.items.map(item => typeof item === "string" ? { content: [{ kind: "text", text: item }] } : item) }); break;
         case "table":
           part = operations.insertTable(part, index, block.rows, block.align);

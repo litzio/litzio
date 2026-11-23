@@ -7,7 +7,7 @@ import { supportedAdmonitionContent } from "./admonition.ts";
 import { supportedCodeBlock } from "./code.ts";
 import { isFigure, supportedFigureContent } from "./figure.ts";
 import { supportedFootnoteContent } from "./footnote.ts";
-import { supportedListContent } from "./list.ts";
+import { checklistShapeIssue, supportedListContent } from "./list.ts";
 import { citationShorthand } from "./literal-syntax.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { parse as parseTree } from "./parse.ts";
@@ -151,6 +151,8 @@ function assertNativeDocument(document: MystDocument): void {
   }
   document.children.forEach((node, index) => {
     if (index === 0) return;
+    const checklist = node.type === "list" ? checklistShapeIssue(node) : undefined;
+    if (checklist) throw new NativeDocumentError("native-content", checklist, [index], node.position?.start.line);
     if (!supportedBlock(node)) throw new NativeDocumentError("native-content", `Unsupported native content: ${node.type}${node.kind ? ` (${node.kind})` : ""}`, [index], node.position?.start.line);
     assertInlineContent(node, [index]);
   });

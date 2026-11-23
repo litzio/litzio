@@ -236,7 +236,7 @@ test("the native marker is read from leading frontmatter alone, without admittin
   }
 });
 test("native admission rejects unsupported structure instead of projecting partial documents", () => {
-  for (const body of ["![ordinary](./x.png)\n", "Text ![inline](./x.png).\n", "- [ ] task\n",
+  for (const body of ["![ordinary](./x.png)\n", "Text ![inline](./x.png).\n", "1. [x] task\n",
     "> One.\n>\n> Two.\n", ":::{note}\n# Nested\n:::\n", "Text {kbd}`Ctrl`.\n",
     "## See {ref}`Custom <target>`\n", "[a](./same)[b](./same)\n", "| A |\n|---|\n| ![x](./x.png) |\n",
     "Text[^a].\n\n[^a]: One.\n\n    Two.\n", ":::{figure} ./x.png\n:width: 100px\n:::\n",
@@ -268,12 +268,13 @@ test("a Markdown fragment counts as formatted only from visible Markdown syntax"
 
 test("a Markdown fragment is read all or nothing", () => {
   // Read only when the whole text opens as a native document body.
-  for (const text of [":::{note}\nhi\n:::\n\n**b**", "[x](https://example.com) and T[^1]\n\n[^1]: Note.", "# 측정\n\n1. **a:** b\n2. **c:** d\n\n오늘은 **x**입니다."]) {
+  for (const text of [":::{note}\nhi\n:::\n\n**b**", "[x](https://example.com) and T[^1]\n\n[^1]: Note.", "# 측정\n\n1. **a:** b\n2. **c:** d\n\n오늘은 **x**입니다.",
+    "# Kept\n\n- [ ] task\n- [x] done"]) {
     assert.ok(core.readMarkdownFragment(text), text);
   }
   for (const text of [
     // Native admission or the canonical round-trip refuses part of it.
-    "# Kept\n\n- [ ] task", "**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::", "**a** [@key]", "**a**\n\n[^x]: orphan", "**a**\n\n<div>raw</div>",
+    "# Kept\n\n1. [x] task", "# Kept\n\n- [ ] task\n- plain", "**Rich**\n\n:::{table}\n:widths: 1 2\n\n| A | B |\n| - | - |\n:::", "**a** [@key]", "**a**\n\n[^x]: orphan", "**a**\n\n<div>raw</div>",
     // The parse consumes it without editable content: link reference definitions (used or not,
     // at any depth), comments and block breaks.
     "**a** [x][r]\n\n[r]: https://example.com", "> Quote\n>\n> [unused]: https://example.com \"Keep\"",
@@ -681,6 +682,7 @@ test("structured authoring preserves keyed zero/multiple targets in the canonica
     { key: "__proto__", blocks: [] },
     { key: "a-last", blocks: [
       { kind: "list", ordered: true, start: 3, items: ["First", "Second"] },
+      { kind: "list", ordered: false, checklist: true, items: ["Todo", { content: [{ kind: "text", text: "Done" }], checked: true }] },
       { kind: "table", rows: [["Name", "Value"], ["A", "B"]] },
       { kind: "figure", imageUrl: "images/page.png", imageAlt: "Page", caption: "Caption" },
       { kind: "code", language: "js", code: "const x = 1;" },
@@ -689,9 +691,10 @@ test("structured authoring preserves keyed zero/multiple targets in the canonica
   ] });
   const snapshot = parse(result.source);
   assert.equal(serialize(snapshot), result.source);
+  assert.match(result.source, /\n\*   \[ \] Todo\n\*   \[x\] Done\n/);
   assert.equal(result.documentRevision, createHash("sha256").update(result.source).digest("hex"));
   assert.equal(result.documentHash, result.documentRevision);
-  assert.deepEqual(result.inputs.map(item => [item.key, item.targets.length]), [["z-first", 2], ["__proto__", 0], ["a-last", 6]]);
+  assert.deepEqual(result.inputs.map(item => [item.key, item.targets.length]), [["z-first", 2], ["__proto__", 0], ["a-last", 7]]);
   assert.deepEqual(result.inputs.flatMap(item => item.targets.map(target => target.path)), getEditableDocument(snapshot).blocks.map(block => block.path));
   for (const target of result.inputs.flatMap(item => item.targets)) assert.equal(target.documentRevision, result.documentRevision);
 });
