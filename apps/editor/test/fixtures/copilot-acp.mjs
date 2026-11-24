@@ -28,6 +28,9 @@ if (byok) configOptions.push({ id: "model", category: "model", name: "Model", ty
 const sessionState = () => byok ? { models: { currentModelId: byok.model, availableModels: [{ modelId: "auto", name: "Auto" }, { modelId: byok.model, name: byok.model }] }, modes, configOptions }
   : { models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }, ...(process.argv.includes("--fixture-config") ? [{ modelId: "max-only", name: "Max only" }] : [])] }, modes, configOptions };
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
+const updateSession = (sessionId, update) => send({ method: "session/update", params: { sessionId, update } });
+const commandList = { sessionUpdate: "available_commands_update", availableCommands: [] };
+const fixtureReplay = process.argv.includes("--fixture-replay");
 let session = 0, pending, delayedLoad;
 const prompts = new Map();
 const selectedModels = new Map();
@@ -72,9 +75,26 @@ createInterface({ input: process.stdin }).on("line", line => {
       };
       return;
     }
+    if (fixtureReplay) {
+      // Reproduce a command-list refresh before the provider replays any messages.
+      updateSession(params.sessionId, commandList);
+      updateSession(params.sessionId, { sessionUpdate: "current_mode_update", currentModeId: modes.currentModeId });
+      updateSession(params.sessionId, { sessionUpdate: "config_option_update", configOptions });
+      const prior = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line))
+        .find(row => row.method === "session/prompt" && row.params.sessionId === params.sessionId);
+      if (prior) {
+        updateSession(params.sessionId, { sessionUpdate: "user_message_chunk", content: prior.params.prompt[0] });
+        updateSession(params.sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "한글 ACP answer" } });
+      }
+    }
     reply(sessionState());
   }
-  else if (method === "session/set_mode") { modes.currentModeId = params.modeId; send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "current_mode_update", currentModeId: params.modeId } } }); reply({}); }
+  else if (method === "session/set_mode") {
+    modes.currentModeId = params.modeId;
+    if (fixtureReplay) updateSession(params.sessionId, commandList);
+    updateSession(params.sessionId, { sessionUpdate: "current_mode_update", currentModeId: params.modeId });
+    reply({});
+  }
   else if (method === "session/set_config_option") {
     if (params.configId === "model") {
       selectedModels.set(params.sessionId, params.value);

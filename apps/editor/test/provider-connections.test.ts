@@ -147,7 +147,7 @@ test("Copilot account and Ollama run as separate processes that never take over 
   const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
   const root = mkdtempSync(path.join(tmpdir(), "acp-pair-")), log = path.join(root, "acp.jsonl"), cwd = path.join(root, "assistant");
   const ollama = await fakeOllama(["local-a:4b", "local-b:latest"]);
-  const options = { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] };
+  const options = { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-replay"] };
   const host = () => {
     const connection = new ProviderConnections(cwd, undefined, options);
     connection.ollamaUrl = () => ollama.url;
@@ -194,6 +194,7 @@ test("Copilot account and Ollama run as separate processes that never take over 
   assert.equal(account.turns.flatMap(turn => turn.items).some(item => item.text.includes("Permission result")), false);
   await conversations.interrupt(local.id);
   await turnSettled(local);
+  assert.equal(local.turns.length, 1, "a command-list refresh during first-send setup does not open another turn");
 
   // After a Host restart each conversation reopens on its stored provider's connection, Ollama with its recorded model.
   await conversations.close(); await connection.close();
@@ -205,6 +206,9 @@ test("Copilot account and Ollama run as separate processes that never take over 
   ollama.models.push("local-b:latest");
   const reopened = await conversations.resume(local.id, { ...ollamaSettings, model: "local-a:4b" });
   assert.equal(reopened.model, "local-b:latest");
+  assert.deepEqual(reopened.turns.map(turn => turn.items.map(({ kind, text }) => ({ kind, text }))), [[
+    { kind: "user", text: "Wait for approval" }, { kind: "assistant", text: "한글 ACP answer" },
+  ]], "only the real exchange is replayed, even when session notifications arrive first");
   const reopenedAccount = await conversations.resume(account.id, accountSettings);
   assert.equal(reopenedAccount.provider, "copilot");
   const loads = acpRows(log).filter(row => row.method === "session/load").slice(-2).map(row => row.params.sessionId);
