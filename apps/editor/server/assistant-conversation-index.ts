@@ -4,6 +4,7 @@ import path from "node:path";
 import type { AssistantConversationInfo, AssistantConversation, AssistantQuestionRecord } from "../shared/assistant.ts";
 import type { AssistantAttachments } from "./assistant-attachments.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
+import { conversationProvider, providerEngine } from "./provider-engine.ts";
 
 export type ConversationIndexEntry = AssistantConversationInfo & { attachments?: import("./assistant-attachments.ts").AttachmentRecord[]; copilotCliReasoningEffort?: string; questions?: { itemId: string; text: string; question: AssistantQuestionRecord }[] };
 
@@ -28,7 +29,7 @@ export class AssistantConversationIndex {
       writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}), ...(permissionFallback ? { permissionFallback } : {}), ...(archivedAt ? { archivedAt } : {}),
         ...(attachments?.length ? { attachments } : {}),
         ...(questions.length ? { questions } : {}),
-        ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
+        ...(providerEngine(conversationProvider(conversation)) === "acp" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }

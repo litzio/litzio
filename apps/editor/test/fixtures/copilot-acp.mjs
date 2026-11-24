@@ -51,6 +51,11 @@ createInterface({ input: process.stdin }).on("line", line => {
       if (log) writeFileSync(log + ".session", "failed"); send({ id, error: { code: -32000, message: "Copilot session fixture failure", data: { token: "must-not-be-displayed" } } }); return; }
     const sessionId = `copilot-${process.pid}-${++session}`;
     loaded.add(sessionId);
+    // A later session (after the catalog) answers only once the test writes the release file.
+    if (process.argv.includes("--fixture-hold-new-session") && session > 1) {
+      const held = setInterval(() => { if (existsSync(log + ".release")) { clearInterval(held); reply({ sessionId, ...sessionState() }); } }, 50);
+      return;
+    }
     reply({ sessionId, ...sessionState() });
   }
   else if (method === "session/load") {

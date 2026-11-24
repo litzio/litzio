@@ -6,6 +6,7 @@ import type { AssistantDiagnostics, AssistantAccountUsage, AssistantEnvironment,
 import { CodexAppServer } from "./codex-app-server.ts";
 import { ProviderUpdates } from "./provider-updates.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions, type CopilotOllama } from "./copilot-acp.ts";
+import { providerEngine } from "./provider-engine.ts";
 
 // Distribution builds inline the Markdown; tsx/Vite read the same source files.
 declare const __LITZIO_ASSISTANT_INSTRUCTIONS__: string | undefined;
@@ -41,7 +42,12 @@ export class ProviderConnections {
       if (method === "account/updated" || method === "account/rateLimits/updated") this.invalidateUsage();
     });
     this.client.on("disconnected", () => this.invalidateUsage());
-    this.updates = new ProviderUpdates(provider => provider === "copilot" ? this.copilot.executable : this.client.executable);
+    this.updates = new ProviderUpdates(provider => providerEngine(provider) === "acp" ? this.acp(provider).executable : this.client.executable);
+  }
+  /** The ACP connection a provider's conversations use. */
+  acp(provider: AiProvider): CopilotAcp {
+    if (providerEngine(provider) !== "acp") throw new Error(`AI provider ${provider} has no ACP connection.`);
+    return this.copilot;
   }
   /** Runs the CLI's own update on this Host. `reread` re-reads diagnostics once the relaunch decision is made. */
   updateCli(provider: AiProvider, reread: () => void) {
@@ -61,7 +67,7 @@ export class ProviderConnections {
     if (!this.updated.has(provider) || busy) return false;
     this.updated.delete(provider);
     // An unconfirmed stop fails only callers waiting on it; the next request launches anew.
-    const relaunch = (provider === "copilot" ? this.copilot.restart() : this.client.restart()).catch(() => {}).finally(() => this.relaunching.delete(provider));
+    const relaunch = (providerEngine(provider) === "acp" ? this.acp(provider).restart() : this.client.restart()).catch(() => {}).finally(() => this.relaunching.delete(provider));
     this.relaunching.set(provider, relaunch);
     await relaunch;
     return true;
@@ -117,17 +123,18 @@ export class ProviderConnections {
     if (!url) return undefined;
     const models = await ollamaModels(url);
     if (!models.length) throw new Error(`No models are installed in Ollama at ${url}.`);
-    const current = this.copilot.ollama;
+    const current = this.acp("copilot").ollama;
     return { models, launch: { url, model: current?.url === url && models.includes(current.model) ? current.model : models[0]! } };
   }
   async models(provider: AiProvider = "codex", inspectCopilot?: "fresh" | "recent", copilotSource: { ollamaUrl?: string } = { ollamaUrl: this.copilotOllamaUrl() }): Promise<AiModels> {
     if (provider === "copilot") {
       this.environment();
+      const acp = this.acp(provider);
       const ollama = await this.copilotOllama(copilotSource.ollamaUrl);
       // The running process keeps its model source until its next launch; read another source with a probe.
-      const session = inspectCopilot === "fresh" ? (await this.copilot.inspect(ollama?.launch)).session
-        : (inspectCopilot === "recent" ? this.copilot.recentlyInspectedSession(ollama?.launch) : undefined)
-          ?? (this.copilot.ollama?.url === ollama?.launch.url ? await this.copilot.catalog() : (await this.copilot.inspect(ollama?.launch)).session);
+      const session = inspectCopilot === "fresh" ? (await acp.inspect(ollama?.launch)).session
+        : (inspectCopilot === "recent" ? acp.recentlyInspectedSession(ollama?.launch) : undefined)
+          ?? (acp.ollama?.url === ollama?.launch.url ? await acp.catalog() : (await acp.inspect(ollama?.launch)).session);
       const reasoning = copilotReasoning(session);
       const supportedReasoningEfforts = reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" }))
         : COPILOT_EFFORTS.map(reasoningEffort => ({ reasoningEffort, description: "" }));
@@ -164,10 +171,11 @@ export class ProviderConnections {
   async diagnostics(provider: AiProvider = "codex"): Promise<AssistantDiagnostics> {
     if (provider === "copilot") {
       this.environment();
-      const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: this.copilot.executable, version: null, connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
-      try { result.version = await this.copilot.diagnose((await this.copilotOllama(this.copilotOllamaUrl()))?.launch); result.connected = true; } catch (error) { result.error = (error as Error).message; }
+      const acp = this.acp(provider);
+      const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: acp.executable, version: null, connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
+      try { result.version = await acp.diagnose((await this.copilotOllama(this.copilotOllamaUrl()))?.launch); result.connected = true; } catch (error) { result.error = (error as Error).message; }
       // The installed version does not depend on the model source being reachable.
-      result.version ??= await this.copilot.installedVersion();
+      result.version ??= await acp.installedVersion();
       return Object.assign(result, await this.updates.version(provider, result.version));
     }
     this.environment();

@@ -2,6 +2,7 @@ import { openSync, readSync, closeSync, lstatSync, realpathSync, fstatSync } fro
 import path from "node:path";
 import { homedir } from "node:os";
 import type { AiProvider } from "../shared/assistant.ts";
+import { providerEngine } from "./provider-engine.ts";
 
 export const sessionIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function copilotLogRoot() { return path.resolve(process.env.COPILOT_HOME || path.join(homedir(), ".copilot")); }
@@ -23,7 +24,7 @@ export function validateProviderLog(file: string, provider: AiProvider, id: stri
     const end = bytes.subarray(0, count).indexOf(10);
     if (end < 0) throw new Error("Provider log metadata is unavailable.");
     const first = JSON.parse(bytes.subarray(0, end).toString("utf8"));
-    if (provider === "codex" ? first.type !== "session_meta" || first.payload?.id !== id : first.type !== "session.start" || first.data?.sessionId !== id) throw new Error("Provider log belongs to another session.");
+    if (providerEngine(provider) === "codex" ? first.type !== "session_meta" || first.payload?.id !== id : first.type !== "session.start" || first.data?.sessionId !== id) throw new Error("Provider log belongs to another session.");
     return real;
   } finally { closeSync(fd); }
 }

@@ -6,6 +6,7 @@ import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { ASSISTANT, copilotOllamaUrl, type AiProvider } from "../shared/assistant.ts";
 import { createAssistantSettings, checkedAssistantSettings } from "./assistant-settings.ts";
 import { ProviderConnections } from "./provider-connections.ts";
+import { conversationProvider, providerEngine } from "./provider-engine.ts";
 import { AssistantConversations, AssistantModelUnavailable, conversationForDisplay } from "./assistant-conversations.ts";
 
 const PROVIDER_RECHECK_INTERVAL_MS = 3_000;
@@ -90,7 +91,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const assistantOperations = {
     assistantSkills: async (args?: { provider?: AiProvider }) => {
-      if (provider(args) !== "codex") throw new Error("Skill selection is available only with Codex.");
+      if (providerEngine(provider(args)) !== "codex") throw new Error("Skill selection is available only with Codex.");
       await plugins?.start();
       const catalog = await providerConnection().skills();
       return { ...catalog, skills: catalog.skills.map(skill => {
@@ -119,7 +120,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (!args.id) {
         const selected = args.provider === undefined ? undefined : provider(args);
         return history().list()
-          .filter(info => !selected || (info.provider ?? "codex") === selected)
+          .filter(info => !selected || conversationProvider(info) === selected)
           .map(({ attachments: _attachments, ...info }) => info);
       }
       const conversation = history().current(args.id);
