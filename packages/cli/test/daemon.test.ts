@@ -148,12 +148,27 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
     assert.notEqual(JSON.parse(recovered.stdout).instanceId, killed.instanceId);
     const repeated = await execute(["start"]); assert.match(repeated.stderr, /Already running.*cli-start/);
     assert.equal((await execute(["stop", "--confirm"])).code, 0);
+    const lifecycle = fs.readFileSync(path.join(directory, "daemon.log"), "utf8");
+    const at = String.raw`\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z `;
+    for (const launcher of ["cli-start", "desktop"]) {
+      assert.match(lifecycle, new RegExp(String.raw`^${at}daemon starting: version=test-version commit=test pid=\d+ instance=[\w-]+ launcher=${launcher} protocol=${DAEMON_PROTOCOL}$`, "m"));
+    }
+    for (const reason of ["HTTP stop request", "Desktop disconnected"]) assert.match(lifecycle, new RegExp(`^${at}daemon stopping: reason=${reason}$`, "m"));
+    assert.match(lifecycle, new RegExp(`^${at}daemon stopped$`, "m"));
+    assert.match(lifecycle, new RegExp(`^${at}Litzio HTTP: http://127\\.0\\.0\\.1:\\d+$`, "m"));
+    assert.ok(!lifecycle.includes(base), "daemon.log never names the daemon home or executable folder");
+    // startDaemonChild rotates before launching; the failed launch below writes a new generation.
+    fs.appendFileSync(path.join(directory, "daemon.log"), "x".repeat(1_000_001));
     const blocker = createServer();
     await new Promise<void>((resolve, reject) => { blocker.once("error", reject); blocker.listen(daemonPort("development"), "127.0.0.1", resolve); });
     try {
       const conflict = await execute(["start"]);
       assert.equal(conflict.code, 1);
-      assert.match(fs.readFileSync(path.join(directory, "daemon.log"), "utf8"), /EADDRINUSE/);
+      const failed = fs.readFileSync(path.join(directory, "daemon.log"), "utf8");
+      assert.match(failed, /EADDRINUSE/);
+      assert.match(failed, /^\S+Z daemon stopping: reason=startup failed: Error: listen EADDRINUSE/m);
+      assert.ok(failed.length < 10_000, "the oversized log moved to daemon.log.old");
+      assert.ok(fs.readFileSync(path.join(directory, "daemon.log.old"), "utf8").startsWith(lifecycle));
       assert.equal(readDaemonRecord(directory), undefined);
     } finally { await new Promise<void>(resolve => blocker.close(() => resolve())); }
     const remote = await execute(["run", "--host", "0.0.0.0", "--public-origin", first.url], async () => {
@@ -182,7 +197,22 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
       await stopDaemon({ ...health, url: first.url }, "test-version");
     });
     assert.equal(remote.code, 0, remote.stderr);
-    assert.match(remote.stderr, /WARNING: this daemon has no authentication/);
+    assert.match(remote.stderr, /^\S+Z WARNING: this daemon has no authentication/m);
+    assert.match(remote.stdout, /^\S+Z Litzio HTTP: /m);
+    // A log viewer closed before HTTP stop: logging failure must not turn a clean stop into exit 1.
+    const foreground = spawn(process.execPath, [entry, "daemon", "run", "--channel", "development"], { env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let foregroundErrors = "";
+    foreground.stderr.on("data", data => { foregroundErrors += data; });
+    const foregroundExit = once(foreground, "exit");
+    await new Promise<void>((resolve, reject) => {
+      let output = "";
+      const timer = setTimeout(() => reject(new Error(`foreground daemon not ready: ${foregroundErrors}`)), 15_000);
+      foreground.stdout.on("data", data => { output += data; if (output.includes("Litzio HTTP:")) { clearTimeout(timer); resolve(); } });
+    });
+    foreground.stdout.destroy();
+    await stopDaemon(readDaemonRecord(directory)!, "test-version");
+    const [foregroundCode] = await foregroundExit;
+    assert.equal(foregroundCode, 0, foregroundErrors);
     assert.match(remote.stderr, /Anyone on the same network.*reach this port/);
     assert.match(remote.stderr, /Without --root.*entire disk.*assistant \(AI\) execution/);
   } finally {

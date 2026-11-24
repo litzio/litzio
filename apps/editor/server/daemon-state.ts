@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { Agent } from "undici";
 import { brand } from "../../../brand.ts";
 import { DAEMON_PROTOCOL, sameInstance, type DaemonHealth, type DaemonIdentity } from "./daemon-protocol.ts";
+import { DAEMON_LOG_ROTATE_BYTES } from "./daemon-log.ts";
 
 export type DaemonRecord = DaemonHealth & { url: string };
 export type DaemonChannel = "stable" | "beta" | "development";
@@ -21,7 +22,9 @@ export async function startDaemonChild(options: {
 }): Promise<{ record: DaemonRecord | undefined; identity: DaemonIdentity | undefined }> {
   const { directory, launcher } = options;
   prepareDaemonDirectory(directory);
-  const log = path.join(directory, "daemon.log"), fd = fs.openSync(log, "a", 0o600);
+  const log = path.join(directory, "daemon.log");
+  rotateDaemonLog(log);
+  const fd = fs.openSync(log, "a", 0o600);
   let identity: DaemonIdentity | undefined;
   try {
     const child = spawn(options.bin, options.args, {
@@ -50,6 +53,12 @@ export async function startDaemonChild(options: {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   return { record, identity };
+}
+
+/** One previous generation, like desktop.log; a running daemon keeps appending to its own file. */
+export function rotateDaemonLog(log: string): void {
+  try { if (fs.statSync(log).size > DAEMON_LOG_ROTATE_BYTES) fs.renameSync(log, `${log}.old`); }
+  catch { /* Missing or locked: keep appending rather than block startup. */ }
 }
 
 function daemonUser(): string {

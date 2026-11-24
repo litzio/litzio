@@ -13,6 +13,7 @@ import { transformSync } from "esbuild";
 import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
 import { bundledUiResponse } from "../src/bundled-ui.ts";
 import { daemonPort } from "../../editor/server/daemon-state.ts";
+import * as daemonLog from "../../editor/server/daemon-log.ts";
 import { ExplorerFolders } from "../src/explorer.ts";
 import { INSTALLATION_CLOSE_MESSAGE } from "../src/installation-lifecycle.ts";
 import { brand } from "../../../brand.ts";
@@ -30,6 +31,7 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
   const directories: string[] = [], opened: string[] = [];
   const daemonCalls: string[] = [], confirmations: any[] = [];
   const resetCalls: any[] = [];
+  const daemons: any[] = [];
   const mainProcess = Object.assign(new EventEmitter(), { argv: [], platform: "win32", env: {}, resourcesPath: "/fake-resources", pid: 123, execPath: "/fake-app.exe" });
   const timers = new Map<number, { run: () => void; ms: number }>();
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
@@ -124,10 +126,14 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
     "./bundled-ui.ts": { bundledUiResponse },
     "./daemon-client.ts": { DesktopDaemon: class {
       channel = "beta";
-      record = { url: "http://127.0.0.1:23456" }; health = { productVersion: options.daemonVersion ?? "0.0.3-beta.1", launcher: "cli-start" };
-      async connect() { daemonCalls.push("connect"); if (options.daemonPending) await new Promise(() => {}); if (options.daemonError) throw new Error(options.daemonError); } async close() { daemonCalls.push("close"); if (options.closeError) throw new Error(options.closeError); }
-      async check() { daemonCalls.push("check"); } async stopExplicitly() { daemonCalls.push("stop"); }
+      record = { url: "http://127.0.0.1:23456", pid: 4321, instanceId: "first-instance" }; health = { productVersion: options.daemonVersion ?? "0.0.3-beta.1", launcher: "cli-start" };
+      next?: { url: string; pid: number; instanceId: string }; checkError?: string; connectError?: string;
+      constructor() { daemons.push(this); }
+      async connect() { daemonCalls.push("connect"); if (options.daemonPending) await new Promise(() => {}); if (options.daemonError) throw new Error(options.daemonError);
+        if (this.connectError) throw new Error(this.connectError); if (this.next) this.record = this.next; } async close() { daemonCalls.push("close"); if (options.closeError) throw new Error(options.closeError); }
+      async check() { daemonCalls.push("check"); if (this.checkError) throw new Error(this.checkError); } async stopExplicitly() { daemonCalls.push("stop"); }
     } },
+    "../../editor/server/daemon-log.ts": daemonLog,
     "../../editor/server/daemon-state.ts": { daemonPort, async daemonRpc() { return { same: true }; }, processStart: () => "fixture-parent" },
     "./explorer.ts": { ExplorerFolders },
     "./first-document.ts": { firstDocument() {} },
@@ -171,7 +177,7 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
   const invoke = (channel: string, args: unknown[], trusted = true) => handlers.get(channel)!({
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
-  return { reportPendingWork, trays, menu, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+  return { daemons, reportPendingWork, trays, menu, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
 
@@ -537,6 +543,35 @@ test("daemon controls require trusted bundled main frame, always confirm stop an
   }
 });
 
+test("desktop.log records a lost daemon once, then whether the restored or reconnected daemon is the same instance", async () => {
+  const h = await start();
+  const daemon = h.daemons[0];
+  const lines = () => h.logs.filter(line => / daemon (connection|reconnect)|repeated/.test(line));
+  assert.deepEqual(lines(), [], "startup keeps `window shown` right after `started` (packaged update check)");
+  daemon.checkError = "Recorded daemon (pid 4321) is not responding: fetch failed. Inspect C:\\Users\\private-user\\daemon.log";
+  for (let i = 0; i < 3; i++) assert.match((await h.invoke("desktop:daemon-check", []) as any).problem, /not responding/);
+  assert.equal(lines().length, 1, "repeated health failures add no lines while they last");
+  daemon.checkError = undefined;
+  assert.equal(await h.invoke("desktop:daemon-check", []), undefined);
+  daemon.checkError = "fetch failed";
+  await h.invoke("desktop:daemon-check", []);
+  daemon.connectError = "Daemon startup was not confirmed. Inspect C:\\Users\\private-user\\daemon.log";
+  await assert.rejects(async () => h.invoke("desktop:daemon-reconnect", []), /not confirmed/);
+  daemon.connectError = undefined; daemon.checkError = undefined;
+  daemon.next = { url: "http://127.0.0.1:23456", pid: 5678, instanceId: "second-instance" };
+  await h.invoke("desktop:daemon-reconnect", []);
+  await h.invoke("desktop:daemon-reconnect", []);
+  assert.ok(lines().every(line => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \S.*\n$/.test(line)));
+  assert.deepEqual(lines().map(line => line.replace(/^\S+ /, "").trimEnd()), [
+    "daemon connection lost: pid=4321 instance=first-instance: Error: Recorded daemon (pid 4321) is not responding: fetch failed. Inspect daemon.log",
+    "repeated 2 more times: daemon connection lost",
+    "daemon connection restored: same instance pid=4321 instance=first-instance",
+    "daemon connection lost: pid=4321 instance=first-instance: Error: fetch failed",
+    "daemon reconnect failed: Error: Daemon startup was not confirmed. Inspect daemon.log",
+    "daemon reconnected: new instance pid=5678 instance=second-instance version=0.0.3-beta.1 launcher=cli-start (previous pid=4321 instance=first-instance)",
+    "daemon reconnected: same instance pid=5678 instance=second-instance version=0.0.3-beta.1 launcher=cli-start",
+  ]);
+});
 
 test("bundled window and IPC remain available while daemon is pending or rejected", async () => {
   for (const options of [{ daemonPending: true }, { daemonError: "Protocol mismatch. Restart with CLI." }]) {

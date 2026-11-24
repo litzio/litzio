@@ -19,6 +19,9 @@ import { daemonRpc, inspectDaemon, stopDaemon, type DaemonRecord } from "../serv
 import { RootAccess } from "../server/file-access.ts";
 import { trashFile } from "../server/os-trash.ts";
 import { ResetGuard } from "../server/reset-guard.ts";
+import { DAEMON_LOG_ROTATE_BYTES, LONG_RUNNING_ROUTES, SLOW_REQUEST_MS, daemonLog, describeError, logRoute, repeatLog, requestRecorder, shortenPaths, watchEventLoop } from "../server/daemon-log.ts";
+import { rotateDaemonLog } from "../server/daemon-state.ts";
+import { performance } from "node:perf_hooks";
 import { resetHostPaths } from "../server/app-reset.ts";
 import { CodexAppServer } from "../server/codex-app-server.ts";
 import { brand } from "../../../brand.ts";
@@ -1070,4 +1073,116 @@ test("plugins CLI installs a GitHub folder, checks it and updates it over a real
   assert.equal(await read(), "first");
   assert.equal((await cli("update", "acme.alpha")).code, 0);
   assert.equal(await read(), "second");
+});
+
+const LOG_LINE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z \S/;
+
+test("daemon log lines carry UTC time; paths keep only file names; one daemon.log generation rotates", () => {
+  let written = "";
+  daemonLog("daemon starting: version=x", { write: text => { written += text; } });
+  assert.match(written, LOG_LINE); assert.ok(written.endsWith(" daemon starting: version=x\n"));
+  const error = new Error("open 'C:\\Users\\Private Person\\문서\\plan.md' failed\nsecond line");
+  error.stack = String.raw`Error: ignored
+    at read (C:\Users\Private Person\AppData\Local\Programs\Litzio\resources\cli\cli.mjs:12:5)
+    at file:///C:/Users/Private%20Person/x/host.mjs:3:1
+    at load (/home/private-user/work/server.ts:7:9)
+    at \\server\share\private-user\unc.ts:1:1
+    at node:internal/process/task_queues:95:5`;
+  const described = describeError(error);
+  assert.equal(described, "Error: open 'plan.md' failed second line | at read (cli.mjs:12:5) | at /host.mjs:3:1 | at load (server.ts:7:9) | at unc.ts:1:1 | at node:internal/process/task_queues:95:5");
+  assert.equal(shortenPaths("http://127.0.0.1:20001/api/folder"), "http://127.0.0.1:20001/api/folder", "URLs are not paths");
+  assert.equal(describeError("document text"), "non-error value string", "a rejection value can be document text");
+
+  const directory = fs.mkdtempSync(path.join(isolatedData, "rotate-")), log = path.join(directory, "daemon.log");
+  fs.writeFileSync(log, "small");
+  rotateDaemonLog(log);
+  assert.equal(fs.existsSync(`${log}.old`), false, "below the limit the file keeps growing");
+  fs.writeFileSync(`${log}.old`, "older generation");
+  fs.writeFileSync(log, "x".repeat(DAEMON_LOG_ROTATE_BYTES + 1));
+  rotateDaemonLog(log);
+  assert.equal(fs.existsSync(log), false);
+  assert.equal(fs.statSync(`${log}.old`).size, DAEMON_LOG_ROTATE_BYTES + 1, "one generation replaces the older one");
+  rotateDaemonLog(path.join(directory, "missing.log"));
+});
+
+test("daemon log records failed, slow and aborted requests once per repeated run, without queries or bodies", () => {
+  const lines: string[] = [];
+  const recorder = requestRecorder(message => lines.push(message), 100);
+  const record = (method: string, url: string, status: number, ms: number, finished = true, failure?: { error: unknown }, routed = true) =>
+    recorder.record({ method, url } as any, { statusCode: status, writableFinished: finished } as any, ms, failure, routed);
+  record("GET", "/api/folder?root=C%3A%5Csecret", 404, 5);
+  record("GET", "/api/folder", 200, 5);
+  assert.deepEqual(lines, [], "reads that are refused or fine stay out of the log");
+  for (let i = 0; i < 3; i++) record("POST", "/api/folder?name=secret", 415, 4);
+  record("POST", "/api/folder", 201, 3);
+  record("GET", "/api/plugins", 500, 12, true, { error: Object.assign(new Error("plugin failed at C:\\Users\\secret\\x.ts"), { stack: "" }) });
+  record("GET", "/api/document", 200, 150);
+  record("GET", "/api/document", 200, 160);
+  record("GET", "/api/document", 200, 10);
+  record("POST", "/api/assistant/mcp/lease-token-secret", 200, 60_000);
+  record("GET", "/document/secret%20file.png?path=x", 200, 5, false);
+  record("HEAD", "/document/other.png", 503, 1);
+  for (const url of ["/C:/Users/secret/plan.md", "/secret-folder/a.md", "/api/secret-route"]) record("POST", url, 405, 2, true, undefined, false);
+  recorder.flush();
+  assert.deepEqual(lines, [
+    "request failed POST /api/folder 415 in 4ms",
+    "repeated 2 more times: request failed POST /api/folder 415",
+    "request failed GET /api/plugins 500 in 12ms: Error: plugin failed at x.ts",
+    "request slow GET /api/document 200 in 150ms",
+    "repeated 1 more time: request slow GET /api/document",
+    "request aborted GET /document/* after 5ms",
+    "request failed HEAD /document/* 503 in 1ms",
+    "request failed POST (unmatched) 405 in 2ms",
+    "repeated 2 more times: request failed POST (unmatched) 405",
+  ]);
+  const bounded: string[] = [];
+  const runs = repeatLog(message => bounded.push(message), 2);
+  for (const group of ["a", "a", "b", "c"]) runs.report(group, `event ${group}`);
+  assert.deepEqual(bounded, ["event a", "event b", "repeated 1 more time: event a", "event c"], "the oldest open run ends at the limit");
+  assert.equal(LONG_RUNNING_ROUTES.length, 1);
+  assert.equal(logRoute("/api/assistant/mcp/token"), "/api/assistant/mcp/*");
+  assert.equal(SLOW_REQUEST_MS, 2_000);
+});
+
+test("daemon log reports an event loop stall once per run", async () => {
+  const lines: string[] = [];
+  const stop = watchEventLoop(repeatLog(message => lines.push(message)), 150, 20);
+  try {
+    await new Promise(resolve => setTimeout(resolve, 60));
+    const until = performance.now() + 600;
+    while (performance.now() < until) { /* synchronous work blocks every timer */ }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  } finally { stop(); }
+  const stalls = lines.filter(line => line.startsWith("event loop stalled for "));
+  assert.ok(stalls.length >= 1, lines.join("\n"));
+  assert.ok(Number(stalls[0]!.match(/for (\d+\.\d)s$/)![1]) >= 0.15, stalls[0]);
+});
+
+test("HTTP Host records a thrown 500 with its cause and state-changing refusals, never the query or body", async t => {
+  const editorDir = fs.mkdtempSync(path.join(isolatedData, "log-editor-"));
+  fs.writeFileSync(path.join(editorDir, "index.html"), "<!doctype html><title>Editor</title>");
+  const lines: string[] = [];
+  const identity = { pid: 1, startedAt: new Date(0).toISOString(), instanceId: "fixture" };
+  const health = { ...identity, launcher: "cli-run" as const, daemonHome: "unused", executable: "unused", roots: [], nonLoopback: false, productVersion: "test", protocolVersion: DAEMON_PROTOCOL,
+    get processStartedAt(): string { throw new Error(`health failed in ${path.join(isolatedData, "private-user", "health.ts")}`); } };
+  const host = await startHttpHost({ roots: [], editorDir, port: 0, daemon: { health, stop() {} }, log: message => lines.push(message) });
+  t.after(() => host.close());
+  const headers = { Origin: host.url, "X-Litzio-Protocol": DAEMON_PROTOCOL };
+  assert.equal((await fetch(host.url + "/daemon/health?secret-query=1", { headers })).status, 500);
+  const json = { Origin: host.url, "Content-Type": "application/json" };
+  const missingParent = JSON.stringify({ parent: path.join(isolatedData, "secret-missing"), name: "x" });
+  assert.ok((await fetch(host.url + "/api/folder?root=secret-query", { method: "POST", headers: json, body: missingParent })).status >= 400);
+  assert.equal((await fetch(host.url + "/api/folder?root=secret-query", { method: "POST", headers: { Origin: host.url }, body: "secret-body" })).status, 415);
+  assert.equal((await fetch(host.url + "/secret-folder/plan.md", { method: "POST", headers: json, body: "{}" })).status, 405);
+  assert.equal((await fetch(host.url + "/api/secret-route", { method: "POST", headers: json, body: "{}" })).status, 404);
+  assert.equal((await fetch(host.url + "/missing-page")).status, 404);
+  await host.close();
+  assert.equal(lines.length, 5, lines.join("\n"));
+  assert.match(lines[0]!, /^request failed GET \/daemon\/health 500 in \d+ms: Error: health failed in health\.ts \| at /);
+  assert.match(lines[1]!, /^request failed POST \/api\/folder 4\d\d in \d+ms$/, "a known route keeps its path");
+  // Refused before routing (415), no static route (405) and no API route (404): never the path itself.
+  assert.match(lines[2]!, /^request failed POST \(unmatched\) 415 in \d+ms$/);
+  assert.match(lines[3]!, /^request failed POST \(unmatched\) 405 in \d+ms$/);
+  assert.match(lines[4]!, /^request failed POST \(unmatched\) 404 in \d+ms$/);
+  assert.doesNotMatch(lines.join("\n"), /secret|private-user/);
 });
