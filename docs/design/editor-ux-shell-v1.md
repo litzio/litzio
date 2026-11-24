@@ -140,7 +140,7 @@ wrap or scroll within the group. It observes that viewport as well as the overla
 window resize, group resize/movement and document scrolling refit the same controls.
 Single-group mode retains the previous window/header bounds and CSS size limits.
 
-The tab context menu offers Close, Close Others, Close to the Left and Close to the Right. These actions use the clicked tab and its group. Empty ranges are disabled. Clean tabs close immediately. Each unsaved tab keeps its own Save, Don’t save and Cancel decision, with the remaining review count. Desktop Ctrl+W closes the focused group’s active tab, including while editing. A modal dialog or an empty group blocks it. In a browser Ctrl+W belongs to the browser.
+The tab context menu offers Close, Close Others, Close to the Left and Close to the Right. These actions use the clicked tab and its group. Empty ranges are disabled. Clean tabs close immediately. Each unsaved tab keeps its own Save, Don’t save and Cancel decision, with the remaining review count. Desktop Ctrl+W closes the focused group’s active tab, including while editing. A modal dialog or an empty group blocks it. In a browser Ctrl+W belongs to the browser. See the [light menu](assets/tab-close-1940/after-light.png), [dark menu](assets/tab-close-1940/after-dark.png) and [leftmost tab](assets/tab-close-1940/after-disabled.png).
 
 Open to the right is available in tab context menus, document File actions, Explorer
 document context menus and Command Center. It targets the right group, creating it
