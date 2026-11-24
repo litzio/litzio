@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 import { StringDecoder } from "node:string_decoder";
+import { launch, processLog, type Launch, type ProviderDaemonLog } from "./provider-daemon-log.ts";
 
 type Message = { id?: number | string; method?: string; params?: any; result?: any; error?: { code?: number; message: string } };
 /** Same newline JSON-RPC transport as the 10-28 spike; no provider framework. */
@@ -41,7 +42,8 @@ export class CodexAppServer extends EventEmitter {
   private closing?: Promise<void>;
   private nextId = 0;
   private pending = new Map<number, { resolve(value: any): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
-  constructor(readonly cwd: string, private options: { bin?: string; args?: string[]; timeoutMs?: number; env?: () => NodeJS.ProcessEnv } = {}) { super(); }
+  /** `log`: the Host's daemon log; `busy`: whether a Codex turn is in progress, for an unexpected exit's line. */
+  constructor(readonly cwd: string, private options: { bin?: string; args?: string[]; timeoutMs?: number; env?: () => NodeJS.ProcessEnv; log?: ProviderDaemonLog; busy?: () => boolean } = {}) { super(); }
   get executable() { return this.options.bin ?? codexPath(); }
   async version(): Promise<string | null> {
     const bin = this.executable; if (!bin) return null;
@@ -53,15 +55,21 @@ export class CodexAppServer extends EventEmitter {
     return this.ready ??= this.initialize().catch(async error => { try { await this.stop(); } finally { this.ready = undefined; } throw error; });
   }
   private async initialize() {
-    const bin = this.executable;
+    const state = launch(), log = processLog(this.options.log, "codex", "main");
+    try { await this.launch(state); } catch (error) { log.failed(state, error); throw error; }
+    log.started(state);
+  }
+  private async launch(state: Launch) {
+    const bin = state.bin = this.executable;
     if (!bin) throw new Error("Codex CLI is unavailable on the Host.");
-    const version = await this.version();
+    const version = state.version = await this.version();
     if (!version) throw new Error("Codex CLI could not be executed on the Host.");
     const match = version?.match(/(\d+)\.(\d+)\.(\d+)/);
     if (!match || Number(match[1]) === 0 && Number(match[2]) < 141) throw new Error("Codex 0.141.0 or later is required.");
+    state.stage = "spawn";
     if (this.closed) throw new Error("Codex app-server is closed.");
     const cmd = command(bin);
-    const child = spawn(cmd.bin, this.options.args ?? ["app-server", "-c", "features.default_mode_request_user_input=true"], { cwd: this.cwd, shell: cmd.shell,
+    const child = state.child = spawn(cmd.bin, this.options.args ?? ["app-server", "-c", "features.default_mode_request_user_input=true"], { cwd: this.cwd, shell: cmd.shell,
       windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"], env: this.options.env?.() });
     this.child = child;
     let initialized = false;
@@ -70,7 +78,12 @@ export class CodexAppServer extends EventEmitter {
     child.stdout.on("data", (chunk: Buffer) => { try { decoder.push(chunk); } catch { fail(new Error("Invalid Codex app-server response.")); void this.close().catch(() => {}); } });
     child.stderr.on("data", () => {});
     child.stdin.on("error", fail); child.on("error", fail);
-    child.once("close", () => { fail(new Error("Codex app-server exited.")); this.emit("disconnected", "Codex app-server exited."); if (this.child === child) { this.child = undefined; if (initialized) this.ready = undefined; } });
+    child.once("close", () => {
+      // Logged before the disconnect fails the conversation's turns.
+      if (initialized && !stoppedByHost(child)) processLog(this.options.log, "codex", "main").exited(child, !!this.options.busy?.());
+      fail(new Error("Codex app-server exited.")); this.emit("disconnected", "Codex app-server exited."); if (this.child === child) { this.child = undefined; if (initialized) this.ready = undefined; }
+    });
+    state.stage = "initialize";
     await this.call("initialize", { clientInfo: { name: "litzio", title: "Litzio", version: "0.0.0" }, capabilities: { experimentalApi: true } });
     this.write({ method: "initialized" });
     initialized = true;
@@ -111,7 +124,8 @@ export class CodexAppServer extends EventEmitter {
     if (message.id !== undefined) {
       const waiter = this.pending.get(Number(message.id)); if (!waiter) return;
       this.pending.delete(Number(message.id)); clearTimeout(waiter.timer);
-      if (message.error) waiter.reject(new Error(message.error.message)); else waiter.resolve(message.result);
+      // providerCode marks a provider's own error response for the daemon log; the message is unchanged.
+      if (message.error) waiter.reject(Object.assign(new Error(message.error.message), { providerCode: message.error.code })); else waiter.resolve(message.result);
     } else if (message.method) this.emit("notification", message.method, message.params ?? {});
   }
   private call<T = any>(method: string, params: unknown): Promise<T> {
@@ -141,9 +155,14 @@ export class CodexAppServer extends EventEmitter {
   }
 }
 
+const hostStopped = new WeakSet<ChildProcessWithoutNullStreams>();
+/** Whether the Host asked this process to stop, so its exit is expected. */
+export function stoppedByHost(child: ChildProcessWithoutNullStreams) { return hostStopped.has(child); }
+
 /** Close only the exact Host-owned stdio process tree and confirm its exit. */
 export async function stopAgentProcess(child?: ChildProcessWithoutNullStreams) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  hostStopped.add(child);
   const exited = new Promise<void>(resolve => child.once("close", () => resolve()));
   // End stdin first, then terminate the exact owned tree if the child does not exit.
   child.stdin.end();

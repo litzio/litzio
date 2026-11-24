@@ -12,6 +12,7 @@ import { pluginTools, executePluginTool, pluginOperationTools, executePluginOper
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { statSync } from "node:fs";
+import { performance } from "node:perf_hooks";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { ASSISTANT, DEFAULT_OLLAMA_URL, isAiProvider } from "../shared/assistant.ts";
@@ -24,6 +25,7 @@ import { accessPath, type FileAccess } from "./file-access.ts";
 import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copilotModelOption, sameOllama, type CopilotOllama } from "./copilot-acp.ts";
+import { codexErrorFields, conversationField, errorFields, modelToken, token } from "./provider-daemon-log.ts";
 
 /** Ollama is reached at the address saved in settings. */
 const ollamaUrl = (settings: AssistantSettings) => settings.ollamaUrl ?? DEFAULT_OLLAMA_URL;
@@ -31,6 +33,8 @@ const ollamaUrl = (settings: AssistantSettings) => settings.ollamaUrl ?? DEFAULT
 import { questionTool } from "./assistant-question-tool.ts";
 
 export class AssistantModelUnavailable extends Error {}
+/** Where one send stopped if it starts no turn, for the daemon log. */
+type SendAttempt = { stage: "prepare" | "resume" | "session" | "configure" | "turn"; session: "new" | "resumed" | "continued"; started: number; conversation?: string; admitted?: boolean };
 
 /** Providers own message content. Litzio's index also owns correlated question interactions. */
 export class AssistantConversations {
@@ -98,6 +102,25 @@ export class AssistantConversations {
   private cancellations = new Map<string, () => void>();
   private answerKey(id: string, turnId: string, requestId: string | number) { return JSON.stringify([id, turnId, typeof requestId, requestId]); }
   private closed = false;
+  /** Turns admitted in this Host process until their one daemon log line at the end; send start time and provider. */
+  private loggedTurns = new Map<string, { provider: AiProvider; started: number }>();
+  private turnStarted(conversation: AssistantConversation, turnId: string, attempt: SendAttempt) {
+    const provider = conversationProvider(conversation), mode = conversation.copilot?.currentMode?.replace(/^.*[#/]/, "");
+    attempt.admitted = true;
+    this.loggedTurns.set(`${conversation.id} ${turnId}`, { provider, started: attempt.started });
+    this.connection.log(`assistant turn started provider=${provider} ${conversationField(conversation.id)} session=${attempt.session} model=${modelToken(conversation.model)} effort=${token(conversation.reasoningEffort, "default")} permission=${conversation.permissionMode}${mode ? ` mode=${token(mode)}` : ""}`);
+    // The provider may report the end before its start response arrives.
+    const status = conversation.turns.find(turn => turn.id === turnId)?.status;
+    if (status && status !== "inProgress") this.turnEnded(conversation.id, turnId, status);
+  }
+  /** `failure`: stage and Host-classified kind; provider error text is never written. */
+  private turnEnded(conversationId: string, turnId: string, status: AssistantConversationTurn["status"], failure = "stage=response error=provider") {
+    const key = `${conversationId} ${turnId}`, turn = this.loggedTurns.get(key);
+    if (!turn) return;
+    this.loggedTurns.delete(key);
+    const result = status === "completed" || status === "interrupted" ? status : "failed";
+    this.connection.log(`assistant turn ${result} provider=${turn.provider} ${conversationField(conversationId)}${result === "failed" ? ` ${failure}` : ""} elapsedMs=${Math.round(performance.now() - turn.started)}`);
+  }
 
   private loaded = new Set<string>();
   /** A provider is busy with an admitted turn or a send already on its way to it; `except` is the caller's own send. */
@@ -117,7 +140,7 @@ export class AssistantConversations {
         for (const conversation of this.conversations.values()) if (conversationProvider(conversation) === provider) {
 
           this.loaded.delete(conversation.id); this.scopes.delete(conversation.id); this.mcp.revokeConversation(conversation.id);
-          for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message;  }
+          for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.turnEnded(conversation.id, turn.id, "failed", "stage=process error=disconnected"); }
           if (this.expireQuestion(conversation)) this.save(conversation);
         }
       });
@@ -148,7 +171,7 @@ export class AssistantConversations {
     connection.client.on("disconnected", (message: string) => {
       for (const [id, conversation] of this.conversations) if (providerEngine(conversationProvider(conversation)) === "codex") { this.loaded.delete(id); this.scopes.delete(id); }
       for (const conversation of this.conversations.values()) if (providerEngine(conversationProvider(conversation)) === "codex") {
-        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message;  }
+        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; this.turnEnded(conversation.id, turn.id, "failed", "stage=process error=disconnected"); }
         if (this.expireQuestion(conversation)) this.save(conversation);
       }
     });
@@ -378,15 +401,18 @@ export class AssistantConversations {
     const key = this.sendKey(settings.provider, input.id);
     if (this.pending.has(key)) throw new Error("A conversation request is already pending.");
     this.pending.set(key, settings.provider);
+    // Steering an active turn starts no turn, so its failure writes no turn line.
+    const steering = !!conversation?.turns.some(turn => turn.status === "inProgress");
+    const attempt: SendAttempt = { stage: "prepare", session: conversation ? "continued" : "new", started: performance.now() };
     try {
       this.connection.environment();
       if (conversation && conversationProvider(conversation) !== settings.provider) throw new Error("Start a conversation with the selected provider.");
       if (providerEngine(settings.provider) === "acp") {
         if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
-        return await this.sendCopilot(input, settings, folders, references, conversation);
+        return await this.sendCopilot(input, settings, folders, references, conversation, attempt);
       }
       await this.connection.relaunchUpdated(settings.provider, this.busy(settings.provider, key));
-      if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.permissionMode);
+      if (conversation && !this.loaded.has(conversation.id)) { attempt.stage = "resume"; attempt.session = "resumed"; conversation = await this.resume(conversation.id, settings, settings.permissionMode); attempt.stage = "prepare"; }
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
       if (!active) {
@@ -403,6 +429,7 @@ export class AssistantConversations {
         if (skills.some(skill => !catalog.skills.some(active => active.name === skill.name && active.path === skill.path))) throw new Error("Selected skill is no longer active. Choose it again.");
       }
       if (!conversation) {
+        attempt.stage = "session";
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: settings.permissionMode === "full-access" ? "never" : "on-request", sandbox: "read-only", ephemeral: false, dynamicTools: this.tools });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, ASSISTANT.conversationTitleLimit), folders, createdAt: Date.now(), updatedAt: Date.now(),
@@ -439,6 +466,7 @@ export class AssistantConversations {
             networkAccess: true, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
         };
         const turnsBeforeStart = conversation.turns.length;
+        attempt.stage = "turn";
         let result;
         try { result = await start(); }
         catch (error) {
@@ -458,11 +486,16 @@ export class AssistantConversations {
         }
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
+        this.turnStarted(conversation, result.turn.id, attempt);
       }
       conversation.folders = folders; conversation.updatedAt = Date.now(); delete conversation.archivedAt;
       this.save(conversation);
       return conversation;
     } catch (error) {
+      if (!steering && !attempt.admitted) {
+        const id = conversation?.id ?? attempt.conversation;
+        this.connection.log(`assistant turn failed provider=${settings.provider} ${id ? conversationField(id) : "session=new"} stage=${attempt.stage} ${error instanceof AssistantModelUnavailable ? "error=model-unavailable" : errorFields(error)} elapsedMs=${Math.round(performance.now() - attempt.started)}`);
+      }
       if (conversation && !conversation.turns.some(turn => turn.status === "inProgress")) this.scopes.delete(conversation.id);
       if (error instanceof AssistantModelUnavailable) throw error;
       throw new Error(permissionError((error as Error).message));
@@ -550,7 +583,7 @@ export class AssistantConversations {
     } else if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
     return conversation;
   }
-  private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation) {
+  private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation: AssistantConversation | undefined, attempt: SendAttempt) {
     const acp = this.connection.acp(settings.provider);
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     // Read the Ollama address once: validation and launch use the address this send started with.
@@ -574,21 +607,27 @@ export class AssistantConversations {
       // A running ACP process already owns the session and its MCP endpoint.
       // Retain the snapshot object held by callers while rebuilding provider-owned content.
       const previous = conversation;
+      // Also after a relaunch for another model or launch setting, which unloads the conversation.
+      attempt.stage = "resume"; attempt.session = "resumed";
       const restored = await this.resume(previous.id, settings, settings.permissionMode, input.model);
       // Some ACP implementations replay no history; retain the admitted snapshot then.
       if (!restored.turns.length) restored.turns = previous.turns;
       Object.assign(previous, restored);
       conversation = previous; this.conversations.set(previous.id, previous);
     }
+    attempt.stage = "prepare";
     const client = await acp.connect();
     const lease = conversation ? this.mcp.lease(conversation.id) : this.mcp.create();
     try {
       if (!conversation) {
+        attempt.stage = "session";
         const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: lease.servers }), true));
         conversation = { id: session.sessionId, provider: settings.provider, title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, ASSISTANT.conversationTitleLimit),
           folders, createdAt: Date.now(), updatedAt: Date.now(), permissionMode: settings.permissionMode, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session, !!acp.ollama) };
         this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
+        attempt.conversation = conversation.id;
       }
+      attempt.stage = "configure";
       const id = conversation.id;
       this.mcp.bind(lease, id);
       const session = acp.sessions.get(id)!;
@@ -641,6 +680,7 @@ export class AssistantConversations {
       lease.turnId = turn.id;
       this.scopes.set(id, { folders: documentFolders(folders, settings.permissionMode, this.access), access: this.access, permissionMode: settings.permissionMode, turnId: turn.id });
       this.save(conversation);
+      this.turnStarted(conversation, turn.id, attempt);
       // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
       const failedPrompt = (message: string) => {
         turn.status = "failed"; turn.error = message;
@@ -655,7 +695,11 @@ export class AssistantConversations {
           turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
           if (turn.status === "failed") failedPrompt(`Copilot stopped: ${result.stopReason}`);
         }
-      }, error => failedPrompt(typeof error?.message === "string" ? error.message : String(error))).finally(() => {
+        this.turnEnded(id, turn.id, turn.status, `stage=response error=${token(result.stopReason)}`);
+      }, error => {
+        failedPrompt(typeof error?.message === "string" ? error.message : String(error));
+        this.turnEnded(id, turn.id, "failed", `stage=response ${errorFields(error)}`);
+      }).finally(() => {
 
         if (lease.turnId === turn.id) lease.turnId = undefined;
         if (this.scopes.get(id)?.turnId === turn.id) this.scopes.delete(id);
@@ -788,6 +832,7 @@ export class AssistantConversations {
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
       else {  this.scopes.delete(params.threadId); this.expireQuestion(conversation, turnId); }
       if (params.turn.error) turn.error = permissionError(params.turn.error.message);
+      if (method === "turn/completed") this.turnEnded(conversation.id, turnId, turn.status, `stage=response ${codexErrorFields(params.turn.error)}`);
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item, "provider-live", turn.id);
       if (item && params.item.type === "fileChange" && method === "item/completed" && params.item.status === "completed" && turn.status === "inProgress" && this.scopes.get(conversation.id)?.turnId === turn.id) {
@@ -817,7 +862,7 @@ export class AssistantConversations {
     } else if (method === "turn/plan/updated") {
       const item: AssistantConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
-    } else if (method === "error" && !params.willRetry) { turn.error = permissionError(params.error.message); turn.status = "failed"; this.expireQuestion(conversation, turnId); }
+    } else if (method === "error" && !params.willRetry) { turn.error = permissionError(params.error.message); turn.status = "failed"; this.expireQuestion(conversation, turnId); this.turnEnded(conversation.id, turnId, "failed", `stage=response ${codexErrorFields(params.error)}`); }
 
     if ((method === "turn/completed" || method === "error" && !params.willRetry) && conversation.turns.some(turn => turn.items.some(item => item.question))) this.save(conversation);
   }

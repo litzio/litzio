@@ -8,6 +8,7 @@ import { ProviderUpdates } from "./provider-updates.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions, type CopilotOllama } from "./copilot-acp.ts";
 import { AI_PROVIDERS, providerCli, providerEngine } from "./provider-engine.ts";
 import { PLUGIN_AUTHORING_SKILL_FILE, PLUGIN_AUTHORING_SKILL_NAME } from "./plugins/authoring-skill.ts";
+import { repeatLog } from "./daemon-log.ts";
 
 // Distribution builds inline the Markdown; tsx/Vite read the same source files.
 declare const __LITZIO_ASSISTANT_INSTRUCTIONS__: string | undefined;
@@ -35,14 +36,18 @@ export class ProviderConnections {
   pluginAuthoring = false;
   /** Conversation owner: whether a turn of this provider is in progress. */
   providerBusy: (provider: AiProvider) => boolean = () => false;
+  /** Host owner: the daemon log. Process lines fold repeats; turn lines are written once each. */
+  log: (message: string) => void = () => {};
+  readonly processLog = repeatLog(message => this.log(message));
   readonly updates: ProviderUpdates;
   /** Providers whose CLI was updated and whose connection has not launched it yet. */
   private updated = new Set<AiProvider>();
   private relaunching = new Map<AiProvider, Promise<void>>();
   constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}, hostOrigin?: () => string | undefined) {
     this.templatesDirectory = hostPaths(run).templates;
-    this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()) }); const acpEnv = () => assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.());
-    this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: acpEnv }); this.ollama = new CopilotAcp(cwd, { ...copilotOptions, env: acpEnv, local: true });
+    this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()), log: this.processLog, busy: () => this.providerBusy("codex") }); const acpEnv = () => assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.());
+    this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: acpEnv, log: this.processLog, busy: () => this.providerBusy("copilot") });
+    this.ollama = new CopilotAcp(cwd, { ...copilotOptions, env: acpEnv, local: true, log: this.processLog, busy: () => this.providerBusy("ollama") });
     this.client.on("notification", method => {
       // Rate-limit notifications carry only one bucket. Refetch the full snapshot.
       if (method === "account/updated" || method === "account/rateLimits/updated") this.invalidateUsage();
@@ -240,7 +245,11 @@ export class ProviderConnections {
     } while (cursor);
     return servers;
   }
-  async close() { const results = await Promise.allSettled([this.client.close(), this.copilot.close(), this.ollama.close(), this.updates.close()]); for (const result of results) if (result.status === "rejected") throw result.reason; }
+  async close() {
+    const results = await Promise.allSettled([this.client.close(), this.copilot.close(), this.ollama.close(), this.updates.close()]);
+    this.processLog.flush();
+    for (const result of results) if (result.status === "rejected") throw result.reason;
+  }
 }
 
 function usageBuckets(buckets: Record<string, any>): NonNullable<AssistantDiagnostics["rateLimits"]> {

@@ -5,7 +5,8 @@ import { Readable, Writable } from "node:stream";
 import { EventEmitter } from "node:events";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION, type RequestPermissionRequest, type RequestPermissionResponse, type NewSessionResponse, type SessionConfigOption } from "@agentclientprotocol/sdk";
 import type { AiCopilotOptions } from "../shared/assistant.ts";
-import { stopAgentProcess } from "./codex-app-server.ts";
+import { stopAgentProcess, stoppedByHost } from "./codex-app-server.ts";
+import { launch, modelToken, ollamaAddress, processLog, type Launch, type ProviderDaemonLog } from "./provider-daemon-log.ts";
 
 /** Concrete Copilot stdio connection, following Paseo's copilot --acp integration. */
 export class CopilotAcp extends EventEmitter {
@@ -26,8 +27,12 @@ export class CopilotAcp extends EventEmitter {
   /** Launch setting of the Ollama connection: one process serves exactly one Ollama model. */
   ollama?: CopilotOllama;
   readonly sessions = new Map<string, NewSessionResponse>();
-  /** `local`: the Ollama connection, which only ever launches with an Ollama model (never the GitHub account). */
-  constructor(readonly cwd: string, private options: { bin?: string; args?: string[]; timeoutMs?: number; env?: () => NodeJS.ProcessEnv; local?: boolean } = {}) { super(); }
+  /**
+   * `local`: the Ollama connection, which only ever launches with an Ollama model (never the GitHub account).
+   * `log`: the Host's daemon log; `busy`: whether a turn of this connection is in progress; `probe`: a diagnostic process.
+   */
+  constructor(readonly cwd: string, private options: { bin?: string; args?: string[]; timeoutMs?: number; env?: () => NodeJS.ProcessEnv; local?: boolean; log?: ProviderDaemonLog; busy?: () => boolean; probe?: boolean } = {}) { super(); }
+  private get processLog() { return processLog(this.options.log, this.options.local ? "ollama" : "copilot", this.options.probe ? "probe" : "main"); }
   get executable() {
     if (this.options.bin) return this.options.bin;
     for (const directory of (process.env.PATH ?? "").split(path.delimiter)) for (const ext of process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""]) {
@@ -47,12 +52,23 @@ export class CopilotAcp extends EventEmitter {
     return this.ready ??= this.initialize().catch(async error => { try { await this.stop(); } finally { this.ready = undefined; } throw error; });
   }
   private async initialize() {
-    const bin = this.executable; if (!bin) throw new Error("Copilot CLI is unavailable on the Host.");
+    const state = launch(), log = this.processLog;
+    // Ollama's model is logged by its name and tag; its address only as loopback or remote and the port.
+    if (this.ollama) state.fields = ` model=${modelToken(this.ollama.model)} address=${ollamaAddress(this.ollama.url)}`;
+    try {
+      const connection = await this.launch(state);
+      log.started(state);
+      return connection;
+    } catch (error) { log.failed(state, error); throw error; }
+  }
+  private async launch(state: Launch) {
+    const bin = state.bin = this.executable; if (!bin) throw new Error("Copilot CLI is unavailable on the Host.");
     if (this.options.local && !this.ollama) throw new Error("No Ollama model is chosen for this connection.");
     const shell = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin), command = shell ? `"${bin}"` : bin;
-    this.version = await this.installedVersion();
+    this.version = state.version = await this.installedVersion();
+    state.stage = "spawn";
     if (this.closed) throw new Error("Copilot ACP is closed.");
-    const child = spawn(command, [...(this.options.args ?? []), "--acp", "--allow-tool=litzio_host", ...(this.reasoningEffort ? ["--reasoning-effort", this.reasoningEffort] : [])],
+    const child = state.child = spawn(command, [...(this.options.args ?? []), "--acp", "--allow-tool=litzio_host", ...(this.reasoningEffort ? ["--reasoning-effort", this.reasoningEffort] : [])],
       { cwd: this.cwd, env: copilotEnvironment(this.options.env?.() ?? process.env, this.ollama), shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
     child.stderr.on("data", () => {});
@@ -72,9 +88,11 @@ export class CopilotAcp extends EventEmitter {
         this.emit("update", params);
       },
     }), ndJsonStream(Writable.toWeb(child.stdin) as WritableStream<Uint8Array>, input));
-    let initialized = false;
+    let initialized = false, unexpectedExit = false, activeTurn = false;
     const disconnected = (message: string) => {
       if (this.child !== child) return;
+      // Decided at the first sign of loss, before retire() stops the process and the conversations fail their turns.
+      unexpectedExit = initialized && !stoppedByHost(child); activeTurn = unexpectedExit && !!this.options.busy?.();
       this.child = undefined; if (initialized) this.ready = undefined; this.probe = undefined;
       this.sessions.clear(); this.loadSession = false; this.version = null;
       this.retire(child);
@@ -83,9 +101,13 @@ export class CopilotAcp extends EventEmitter {
     child.on("error", error => disconnected(error.message));
     child.stdin.on("error", error => disconnected(error.message));
     child.stdout.on("error", error => disconnected(error.message));
-    child.once("exit", (code, signal) => disconnected(`Copilot ACP exited (code ${code}, signal ${signal}).`));
+    child.once("exit", (code, signal) => {
+      disconnected(`Copilot ACP exited (code ${code}, signal ${signal}).`);
+      if (unexpectedExit) this.processLog.exited(child, activeTurn);
+    });
     child.once("close", (code, signal) => disconnected(`Copilot ACP exited (code ${code}, signal ${signal}).`));
     void connection.closed.then(() => disconnected(`Copilot ACP stream closed (code ${child.exitCode}, signal ${child.signalCode}).`));
+    state.stage = "initialize";
     const response = await this.call(() => connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "Litzio", version: "0.0.0" } }));
     if (this.child !== child) throw new Error("Copilot ACP disconnected during initialization.");
     this.loadSession = response.agentCapabilities?.loadSession ?? false;
@@ -134,7 +156,8 @@ export class CopilotAcp extends EventEmitter {
       // Host boundaries preserve Error.message; never stringify provider data.
       if (error instanceof Error) throw error;
       const message = error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "Copilot ACP request failed.";
-      throw new Error(message);
+      // providerCode marks a provider's own error response for the daemon log; the message is unchanged.
+      throw Object.assign(new Error(message), { providerCode: error && typeof error === "object" && "code" in error ? error.code : undefined });
     }
     finally { clearTimeout(timer); this.off("disconnected", onDisconnect); }
   }
@@ -147,7 +170,7 @@ export class CopilotAcp extends EventEmitter {
   inspect(ollama?: CopilotOllama): Promise<{ version: string | null; session: NewSessionResponse }> {
     if (this.closed) return Promise.reject(new Error("Copilot ACP is closed."));
     if (this.diagnosis && sameOllama(this.diagnosis.ollama, ollama)) return this.diagnosis;
-    const probe = new CopilotAcp(this.cwd, this.options);
+    const probe = new CopilotAcp(this.cwd, { ...this.options, probe: true, busy: undefined });
     probe.reasoningEffort = this.reasoningEffort; probe.fullAccess = this.fullAccess; probe.ollama = ollama;
     const previous = this.diagnosis;
     this.lastInspection = undefined;
