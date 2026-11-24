@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
 import { onlyStorePowerShell, ProviderConnections, ASSISTANT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
+import { PLUGIN_AUTHORING_SKILL, PLUGIN_AUTHORING_SKILL_FILE } from "../server/plugins/authoring-skill.ts";
 import { canonicalFilePath, RootAccess, fileErrorMessage } from "../server/file-access.ts";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -117,6 +118,13 @@ test("Ollama lists its own models, launches its process with the chosen model an
   await turnSettled(await conversations.send({ ...input, provider: "copilot", model: "copilot-model" }, { ...settings, provider: "copilot", model: "copilot-model" }));
   assert.equal(acpLaunches(log).at(-1).byok, null);
   assert.equal(acpLaunches(log).filter(launch => launch.byok?.baseUrl === "http://parent.invalid/v1").length, 0);
+  // The Copilot CLI already supplies the working folder's AGENTS.md; messages carry neither it nor the authoring skill (#1926).
+  const prompts = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(row => row.method === "session/prompt").map(row => row.params.prompt[0].text as string);
+  assert.ok(prompts.length > 0);
+  for (const text of prompts) {
+    assert.equal(text.includes(ASSISTANT_INSTRUCTIONS.split("\n")[0]!), false);
+    assert.doesNotMatch(text, /Litzio plugin authoring skill|pluginAuthoring/);
+  }
   // The three reasons Ollama cannot be used.
   address = stopped.url;
   const unreachable = await connection.diagnostics("ollama");
@@ -356,7 +364,11 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.equal(JSON.stringify(conversation).includes("Litzio plugin authoring skill"), false);
   assert.equal((await conversations.resume(conversation.id, { ...settings, provider: "codex" })).provider, "copilot");
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-  assert.match(rpc.find(message => message.method === "session/prompt").params.prompt[0].text, /Litzio plugin authoring skill/);
+  // Plan mode too: the CLI supplies AGENTS.md and the authoring skill is a file (#1926).
+  for (const message of rpc.filter(message => message.method === "session/prompt")) {
+    assert.doesNotMatch(message.params.prompt[0].text, /Litzio plugin authoring skill|pluginAuthoring/);
+    assert.equal(message.params.prompt[0].text.includes(ASSISTANT_INSTRUCTIONS.split("\n")[0]!), false);
+  }
   assert.ok(rpc.some(message => message.args?.includes("high")), "CLI fallback receives the selected effort at startup");
   assert.ok(rpc.some(message => message.method === "session/set_mode" && message.params.modeId === "plan"));
   await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "low" }, settings), /new conversation/);
@@ -447,7 +459,8 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       await configConversations.interrupt(auto.id);
     } finally { await configConnection.close(); }
   });
-  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("기존 문서는 표·목록·그림·캡션·수식도 공급자 패치로 본문을 고치고"));
+  // The guidance reaches Copilot as the session folder's AGENTS.md, which the CLI reads itself, not inside the message (#1926).
+  assert.ok(readFileSync(path.join(rpc.find(message => message.method === "session/new").params.cwd, "AGENTS.md"), "utf8").includes("기존 문서는 표·목록·그림·캡션·수식도 공급자 패치로 본문을 고치고"));
   await connection.close();
   const launches = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid);
   assert.ok(children.length > 0);
@@ -516,7 +529,8 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.equal("screen" in context,false);assert.equal("folders" in context,false);
   assert.equal(JSON.stringify(start.input).includes("UNSAVED DOCUMENT TEXT"),false);
   assert.equal(JSON.parse(start.input[1].text.split("(JSON):\n")[1]).permissionMode, "opened-folders");
-  assert.match(start.input[1].text, /Litzio plugin authoring skill/);
+  // Plugin authoring is a skill file read on demand, not part of every message (#1926).
+  assert.doesNotMatch(JSON.stringify(start.input), /Litzio plugin authoring skill|pluginAuthoring/);
   const refs = [{ path: input.document.path, name: "notes.md", kind: "document" }, { path: path.join(root, "image.png"), name: "image.png", kind: "image" }, { path: path.join(root, "report.pdf"), name: "report.pdf", kind: "file" }];
   assert.deepEqual(JSON.parse(start.input[1].text.split("(JSON):\n")[1]).references, refs);
   assert.equal(JSON.stringify(start.input).includes("REFERENCE CONTENT MUST NOT BE IN INPUT"), false);
@@ -642,6 +656,16 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.doesNotMatch(generatedGuide, /docling|convert-pdf/i, "usage guide must not advertise removed conversion features");
   assert.doesNotMatch(instructions, /convert-pdf/i, "review guidance must not advertise removed conversion commands");
   assert.match(instructions, /앱·그림 안내.*litzio-guide.*SKILL\.md.*UTF-8/);
+  assert.match(instructions, /플러그인을 만들거나 고치기 전에.*litzio-authoring\/SKILL\.md.*UTF-8/);
+  // A Host with plugins places the authoring skill beside the guide; one without plugins removes it.
+  const authoring = path.join(cwd, ".agents", "skills", "litzio-authoring", "SKILL.md");
+  assert.equal(existsSync(authoring), false);
+  connection.pluginAuthoring = true;
+  assert.deepEqual(connection.environment().skills.sort(), ["litzio-authoring", "litzio-guide"]);
+  assert.equal(readFileSync(authoring, "utf8"), PLUGIN_AUTHORING_SKILL_FILE);
+  assert.ok(PLUGIN_AUTHORING_SKILL_FILE.endsWith(PLUGIN_AUTHORING_SKILL));
+  connection.pluginAuthoring = false;
+  assert.deepEqual(connection.environment().skills, ["litzio-guide"]);
   assert.match(generatedGuide, /list_templates.*현재 이름/);
   assert.match(generatedGuide, /templates list --json --language <ko\|en>/);
   assert.match(generatedGuide, /templates read <id> --json --language <ko\|en>/);

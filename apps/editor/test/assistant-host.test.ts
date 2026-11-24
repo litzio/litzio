@@ -27,6 +27,18 @@ test("Codex skill discovery waits for plugin startup; Copilot retains tool-only 
   } finally { release(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("the plugin authoring skill is in the assistant working folder only on a Host with plugins", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-authoring-skill-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const plugins = { start: async () => {}, host: {} } as unknown as import("../server/plugin-service.ts").PluginService;
+  // The same working folder: a Host without plugins also drops a copy an earlier Host left.
+  for (const withPlugins of [true, false]) {
+    const host = createAssistantHost(null, path.join(root, "assistant.json"), { agent: new ProviderConnections(path.join(root, "assistant")), ...(withPlugins ? { plugins } : {}) });
+    try { assert.equal((await host.invoke("assistantEnvironment")).skills.includes("litzio-authoring"), withPlugins); }
+    finally { await host.close(); }
+  }
+});
+
 test("assistant history lists both providers in index order and retains explicit filtering", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-assistant-history-"));
   const agent = new ProviderConnections(path.join(root, "assistant"));

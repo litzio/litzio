@@ -1,5 +1,5 @@
 import { SCREEN_UI_GUIDANCE, SDK_VERSION } from "@litzio/plugin-sdk";
-/** Bounded, bundled skill context: no dependence on a checkout or global skill installation. */
+/** Bounded, bundled skill: no dependence on a checkout or global skill installation. */
 export const PLUGIN_AUTHORING_SKILL = `# Litzio plugin authoring skill (SDK ${SDK_VERSION})
 Before building, inspect opened files first; identify only missing inputs (kind/location/example), outputs (screen/document/files), completion criteria, external service address/auth/contract and repeat use. Ask only missing decisions with request_litzio_user_input: plain words, concrete examples and easy choices, a few questions at a time. Each question supports one choice or free text, not multiple selection; several questions may share a card. If cards are unavailable, ask in a message. Never re-ask supplied conditions or facts you can inspect. For bundled work offer smaller plugins connected by files. For nontrivial work first save a Litzio plan document (inputs, outputs, screen, steps, checks); reread user edits before building. Do not force a plan document for a fully specified single-screen task. With sufficient conditions design/build immediately, without confirmation; briefly report assumptions afterward.
 Create/edit plugins on this Host. For new screens use manage_plugins {action:"scaffold",id:"local.example",template:"screen"}. Write files using the predictable environment path: PowerShell Join-Path $env:LITZIO_PLUGINS "local.example"; POSIX "$LITZIO_PLUGINS/local.example". Never retype an absolute returned path.
@@ -38,3 +38,13 @@ For caller-correctable failures import PluginPublicError from @litzio/plugin-sdk
 Secrets belong in user-operated plugin settings; never read, embed or log them. Context supplies immutable secrets/settings. Public PluginOperationError kinds are auth/forbidden/not_found/unavailable/timeout/failed. No private Host imports or custom document/editor engine.
 Use file/location diagnostics from install, fix files and repeat install. Report schema validation, invocation, browser proof and external-service success separately. CLI JSON inputs belong outside the artifact because every artifact file changes its digest.
 `;
+/**
+ * The assistant working folder's copy, read on demand instead of riding every message. The folder name stays outside
+ * the `litzio-plugin-` prefix that plugin-contributed skills own and clear.
+ */
+export const PLUGIN_AUTHORING_SKILL_NAME = "litzio-authoring";
+export const PLUGIN_AUTHORING_SKILL_FILE = `---
+name: ${PLUGIN_AUTHORING_SKILL_NAME}
+description: 리치오 플러그인(화면·작업·스킬)을 만들거나 고치기 전에 반드시 읽는다. 공개 SDK·manifest·화면 코드·설치·검증 절차를 안내한다.
+---
+${PLUGIN_AUTHORING_SKILL}`;

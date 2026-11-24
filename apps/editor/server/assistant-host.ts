@@ -67,6 +67,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     if (!agent) agent = new ProviderConnections(paths.assistant, undefined, undefined, options?.run, options?.origin);
     // The Ollama address is read when an Ollama process launches, never pushed into a running one.
     agent.ollamaUrl = () => settings().ollamaUrl ?? DEFAULT_OLLAMA_URL;
+    agent.pluginAuthoring = !!plugins;
     return agent;
   };
   const readModels = providerReads(async selected => {

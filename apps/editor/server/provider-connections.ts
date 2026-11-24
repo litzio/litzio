@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync, lstatSync } from "node:fs";
+import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync, lstatSync, rmSync } from "node:fs";
 import path from "node:path";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { assistantCliEnvironment, hostCli } from "./assistant-cli.ts";
@@ -7,6 +7,7 @@ import { CodexAppServer } from "./codex-app-server.ts";
 import { ProviderUpdates } from "./provider-updates.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions, type CopilotOllama } from "./copilot-acp.ts";
 import { AI_PROVIDERS, providerCli, providerEngine } from "./provider-engine.ts";
+import { PLUGIN_AUTHORING_SKILL_FILE, PLUGIN_AUTHORING_SKILL_NAME } from "./plugins/authoring-skill.ts";
 
 // Distribution builds inline the Markdown; tsx/Vite read the same source files.
 declare const __LITZIO_ASSISTANT_INSTRUCTIONS__: string | undefined;
@@ -30,6 +31,8 @@ export class ProviderConnections {
   private accountRevision = 0;
   /** Host settings owner: the Ollama provider's address. */
   ollamaUrl: () => string = () => DEFAULT_OLLAMA_URL;
+  /** Host plugin owner: whether this Host offers plugins, and with them the plugin authoring skill. */
+  pluginAuthoring = false;
   /** Conversation owner: whether a turn of this provider is in progress. */
   providerBusy: (provider: AiProvider) => boolean = () => false;
   readonly updates: ProviderUpdates;
@@ -113,6 +116,11 @@ export class ProviderConnections {
     const guideDirectory = path.join(skillsDirectory, "litzio-guide");
     mkdirSync(guideDirectory, { recursive: true });
     writeFileSync(path.join(guideDirectory, "SKILL.md"), LITZIO_GUIDE);
+    const authoringDirectory = path.join(skillsDirectory, PLUGIN_AUTHORING_SKILL_NAME);
+    if (this.pluginAuthoring) {
+      mkdirSync(authoringDirectory, { recursive: true });
+      writeFileSync(path.join(authoringDirectory, "SKILL.md"), PLUGIN_AUTHORING_SKILL_FILE);
+    } else rmSync(path.join(authoringDirectory, "SKILL.md"), { force: true });
     let skills: string[] = [];
     try { skills = readdirSync(skillsDirectory, { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(path.join(skillsDirectory, entry.name, "SKILL.md"))).map(entry => entry.name); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
