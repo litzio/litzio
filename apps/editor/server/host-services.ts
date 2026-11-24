@@ -13,7 +13,10 @@ export type HostServices = {
 };
 
 /** Compose once per Host. Assistant initialization cannot block plugin/view requests. */
-export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, options?: PluginHostLogging & { origin(): string | undefined }) {
+export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, options?: PluginHostLogging & {
+  origin(): string | undefined;
+  spikeAgent?: (origin: () => string | undefined) => import("./provider-connections.ts").ProviderConnections;
+}) {
   const paths = hostPaths(undefined, { ...process.env });
   const plugins = createPluginService(access, paths.settingsFile("plugins"), paths.assistant, options);
   const views = createViewService(access, plugins);
@@ -25,7 +28,7 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, optio
     plugins, views,
     get assistant() {
       if (closed) throw new Error("The Host is closing.");
-      return assistant ??= createAssistantHost(access, undefined, { plugins, paths, origin: options?.origin, log: options?.log });
+      return assistant ??= createAssistantHost(access, undefined, { plugins, paths, origin: options?.origin, log: options?.log, agent: options?.spikeAgent?.(options.origin) });
     },
     close() {
       closed = true;

@@ -26,6 +26,7 @@ type HttpHostOptions = {
   host?: string;
   publicOrigin?: string;
   daemon?: DaemonControl;
+  spikeAgent?: (origin: () => string | undefined) => import("./provider-connections.ts").ProviderConnections;
   removeFile?: (file: string) => void | Promise<void>;
   /** Receives request and plugin records. */
   log?: (message: string) => void;
@@ -67,7 +68,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   const releaseResetGuard = resetGuard.actor("host");
   let services: ReturnType<typeof createHostServices>;
   let origin: string | undefined;
-  try { services = createHostServices(access, { origin: () => origin, log: options.log, warn: options.warn }); }
+  try { services = createHostServices(access, { origin: () => origin, log: options.log, warn: options.warn, spikeAgent: options.spikeAgent }); }
   catch (error) { releaseResetGuard(); throw error; }
   const key = randomBytes(32);
   const origins = new Set<string>();
