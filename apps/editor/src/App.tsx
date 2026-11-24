@@ -17,7 +17,7 @@ import { creationUndoNeedsConfirmation, type FolderTrashConfirmation, type FileI
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { productName } from "../../../brand.ts";
-import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
+import { ASSISTANT_SHORTCUT, CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { useShellLayout } from "./shell/useShellLayout.ts";
 import { AssistantPanel, rememberAssistantWidth, type AssistantLocalSubmission, type AssistantButtonStatus } from "./shell/AssistantPanel.tsx";
 import { NotificationProvider, NotificationSource, ShellNotificationCenter } from "./components/ui/notification-center.tsx";
@@ -641,7 +641,7 @@ function EditorApp() {
     const renamed = await fileAction("rename", root, { path, name: imageUrl.split("/").pop()!, kind: "image" }, name, { documentPath, imageUrl });
     return `./${renamed.slice(directory.length).replaceAll("\\", "/")}`;
   };
-  function closeTab(id: string): boolean {
+  function closeTab(id: string, protectedTabs?: { id: string; session: EditorSession }[]): boolean {
     if (viewTabs.some(tab => tab.id === id)) {
       if (busy || continuation) return false;
       setViewTabs(previous => previous.filter(tab => tab.id !== id));
@@ -656,9 +656,20 @@ function EditorApp() {
     if (!owner || busy || owner.busyRef.current || continuation) return false;
     if (owner.editorRef.current?.hasUnsavedChanges()) {
       continuationReturnFocus.current = globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : null;
-      setContinuation({ id, session: owner });
+      if (protectedTabs) protectedTabs.push({ id, session: owner });
+      else setContinuation({ id, session: owner });
     } else { removeTab(id); return true; }
     return false;
+  }
+  const remainingCloseRequests = useRef<{ id: string; session: EditorSession }[]>([]);
+  function closeTabs(ids: string[]): void {
+    const protectedTabs: typeof remainingCloseRequests.current = [];
+    for (const id of ids) closeTab(id, protectedTabs);
+    remainingCloseRequests.current = protectedTabs;
+    advanceCloseRequest();
+  }
+  function advanceCloseRequest(): void {
+    setContinuation(remainingCloseRequests.current.shift() ?? null);
   }
   const [desktopInfo, setDesktopInfo] = useState<DesktopInfo | null>(null);
   const settingsFocusRequested = useRef(false);
@@ -810,7 +821,7 @@ function EditorApp() {
       }
       removeTab(continuation.id);
     } finally {
-      setContinuation(null);
+      advanceCloseRequest();
       setContinuationPending(false);
       continuationRunning.current = false;
     }
@@ -888,11 +899,14 @@ function EditorApp() {
       openCommandCenter("");
       return;
     }
-    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey ||
-        (event.key.toLowerCase() !== "s" && event.code !== "KeyS")) return;
+    const closeShortcut = desktop && CLOSE_TAB_SHORTCUT.matches(event);
+    if (!closeShortcut && (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey ||
+        (event.key.toLowerCase() !== "s" && event.code !== "KeyS"))) return;
     event.preventDefault();
     if (globalThis.document.querySelector('[data-slot="dialog-content"]') || folderDialog || newDialog || newFolderDialog || reloadDialog || openRefusal || continuation || recoveryReview || saveComparison) return;
-    if (!settingsFocused) void save();
+    if (closeShortcut) {
+      if (activeId && !event.repeat) closeTab(activeId);
+    } else if (!settingsFocused) void save();
   };
   useEffect(() => {
     // Capture, so inputs inside node views (Equation, Figure, code language) cannot swallow it.
@@ -1246,7 +1260,7 @@ function EditorApp() {
               onPointerDownCapture={() => { if (group.active) activateTab(group.active, false); }}>
           <DocumentTabs allTabs={allTabs} tabs={group.tabs.flatMap(id => allTabs.filter(tab => tab.id === id)).map(tab => ({ ...tab,
             dirty: Boolean(sessions.current.get(tab.id)?.documentDirty || sessions.current.get(tab.id)?.draftActive),
-          }))} active={group.active} disabled={groupBusy || Boolean(continuation)} onActivate={activateTab} onClose={closeTab}
+          }))} active={group.active} disabled={groupBusy || Boolean(continuation)} onActivate={activateTab} onClose={closeTab} onCloseMany={closeTabs}
             onOpenRight={id => moveTab(id, true)} onMove={id => moveTab(id)} openRightDisabled={!canSplit || groupBusy} moveDisabled={!split || groupBusy} actions={tabs.some(tab => tab.id === group.active) ?
             <DocumentActions
               documentPath={owner?.openedPath ?? ""}
@@ -1476,6 +1490,7 @@ function EditorApp() {
       </Dialog>
       <UnsavedChangesDialog
         open={continuation !== null}
+        remaining={remainingCloseRequests.current.length}
         pending={continuationPending}
         documentName={splitDocumentPath(continuation?.session.openedPath ?? "").name}
         hasDrafts={continuation?.session.draftActive ?? false}
@@ -1484,7 +1499,7 @@ function EditorApp() {
           : (activeId ? globalThis.document.getElementById(`tab-${activeId}`) : globalThis.document.querySelector<HTMLElement>('[data-testid="document-start"] button')) ?? true}
         onSave={() => void continueSession(true)}
         onDiscard={() => void continueSession(false)}
-        onCancel={() => { if (!continuationRunning.current) setContinuation(null); }}
+        onCancel={() => { if (!continuationRunning.current) advanceCloseRequest(); }}
       />
       <NewDialog
         kind="folder"

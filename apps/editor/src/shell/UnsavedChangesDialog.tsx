@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 
 /** Work-loss confirmation only; the caller owns Save and the action that ends the session. */
-export function UnsavedChangesDialog({ open, pending, documentName, hasDrafts, readOnly = false, finalFocus, onSave, onDiscard, onCancel }: {
+export function UnsavedChangesDialog({ open, pending, remaining = 0, documentName, hasDrafts, readOnly = false, finalFocus, onSave, onDiscard, onCancel }: {
   open: boolean;
   pending: boolean;
+  remaining?: number;
   documentName: string;
   hasDrafts: boolean;
   readOnly?: boolean;
@@ -24,6 +25,7 @@ export function UnsavedChangesDialog({ open, pending, documentName, hasDrafts, r
           <DialogTitle>{i18n.t("Save changes?")}</DialogTitle>
           <DialogDescription render={<div />} className="grid gap-3 [overflow-wrap:anywhere]">
             <p>{i18n.t("Save changes to {{name}} before closing this tab?", { name: documentName })}</p>
+            {remaining > 0 && <p>{i18n.t("Additional tabs to review: {{count}}", { count: remaining })}</p>}
             {readOnly ? <p>{i18n.t("Switch to Edit to save changes.")}</p> : null}
             {hasDrafts ? <p>{i18n.t("Unapplied property drafts will be lost with both Save and Don't save. Save includes applied content only. Cancel to keep editing.")}</p> : null}
           </DialogDescription>

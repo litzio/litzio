@@ -87,6 +87,7 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
     setTitleBarOverlay(overlay: unknown) { this.overlay = overlay; }
     loadURL(url: string) { this.loaded = url; return options.loadError ? Promise.reject(new Error("load rejected")) : Promise.resolve(); }
   }
+  let applicationMenu: unknown;
   const windows: Window[] = [];
   const app = Object.assign(new EventEmitter(), {
     isPackaged: options.packaged ?? false, requestSingleInstanceLock: () => options.lock !== false,
@@ -101,7 +102,7 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
     "electron": {
       app, BrowserWindow: Window, Tray, dialog: { showMessageBoxSync: (_target: unknown, details: any) => { confirmations.push(details); return options.stopChoice ?? 0; }, showErrorBox: (_title: string, message: string) => alerts.push(message) },
       ipcMain: { handle: (name: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(name, handler), on: (name: string, handler: (...args: any[]) => void) => { listeners.set(name, handler); if (name === "desktop:restart-check-result") restartAnswer = handler; } },
-      Menu: { setApplicationMenu() {}, buildFromTemplate: (items: any[]) => items }, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} },
+      Menu: { setApplicationMenu(value: unknown) { applicationMenu = value; }, buildFromTemplate: (items: any[]) => items }, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} },
       session: { defaultSession: { setPermissionRequestHandler() { if (options.startupError) throw new Error("permission setup failed"); }, setPermissionCheckHandler() {} } },
       shell: { openPath: async (directory: string) => { opened.push(directory); return options.openError ?? ""; } },
     },
@@ -183,7 +184,7 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
   const invoke = (channel: string, args: unknown[], trusted = true) => handlers.get(channel)!({
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
-  return { daemons, reportPendingWork, trays, menu, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+  return { applicationMenu, daemons, reportPendingWork, trays, menu, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
 
@@ -302,6 +303,7 @@ test("renderer startup failures notify and reveal before paint; subframe failure
 
 test("close cancels both timers; second launch reveals, restores and focuses the existing window", async () => {
   const h = await start();
+  assert.equal(h.applicationMenu, null, "The native Close Window accelerator must leave Ctrl+W to the Editor");
   h.window.minimized = true;
   h.app.emit("second-instance");
   assert.equal(h.window.visible, true);

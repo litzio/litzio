@@ -298,5 +298,28 @@ async (page, { openPath, openDocument, waitForActivePath, activeDocument, expect
     const r=n.getBoundingClientRect(), b=n.parentElement.getBoundingClientRect();
     return r.left>=b.left-1 && r.right<=b.right+1;
   }), 'Split overflow selection did not reveal its active tab');
+  const tab = n => owner.getByRole('tab', {name:new RegExp('^technical-' + n + '[.]md')});
+  const closeFrom = async (target, action) => {
+    await target.click({button:'right'});
+    await page.getByRole('menuitem', {name:action, exact:true}).click();
+  };
+  const opposite = await groups().first().getByRole('tab').getAttribute('id');
+  await owner.getByRole('tab').first().click({button:'right'});
+  await expect(page.getByRole('menuitem', {name:'Close to the Left', exact:true})).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await closeFrom(tab(5), 'Close to the Right');
+  await expect(tab(6)).toHaveCount(0);
+  await closeFrom(tab(4), 'Close to the Left');
+  await expect(owner.getByRole('tab')).toHaveCount(2);
+  await tab(4).click();
+  await activeDocument(page).locator('.document-editor').evaluate(n => n.editor.commands.insertContentAt(1,'Keep this change. '));
+  await page.getByRole('treeitem', {name:'technical-6.md', exact:true}).click();
+  await expect(tab(6)).toHaveAttribute('aria-selected','true');
+  await closeFrom(tab(5), 'Close Others');
+  await page.getByRole('dialog').getByRole('button', {name:'Cancel', exact:true}).click();
+  await expect(tab(4)).toHaveAccessibleName(/Unsaved changes/);
+  await expect(tab(5)).toHaveCount(1);
+  await expect(tab(6)).toHaveCount(0);
+  await expect(groups().first().getByRole('tab')).toHaveAttribute('id',opposite);
   return {geometry, toolbarGeometry, retainedEditors:true, independentSaveSourceOutline:true, narrowMerge:true};
 }
