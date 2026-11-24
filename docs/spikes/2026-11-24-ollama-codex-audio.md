@@ -2,7 +2,7 @@
 
 - Status: Historical
 - Date: 2026-11-24 (KST)
-- Scope: 가짜 Ollama 서버를 사용한 스파이크 기록. [스파이크 정책](README.md)을 따른다.
+- Scope: 가짜 서버와 실제 Ollama의 `gemma4:e4b`를 사용한 스파이크 기록. [스파이크 정책](README.md)을 따른다.
 
 ## 목적
 
@@ -35,7 +35,30 @@ Codex 측정의 `effort: medium`은 실행기가 선택해 Host가 넘긴 값이
 
 **④ 리치오 도구와 권한은 가짜 모델에서 된다.** 질문 호출 뒤 대기 중인 카드와 `accepted:true`가 남았다. `read_document`는 열린 폴더 문서의 본문을 돌려줬다. `create_document`는 읽기 전용에서 거절하고 전체 접근에서 파일을 만들었다. 읽기 전용에서 승인 필요 셸 쓰기를 요청하니 승인 카드가 왔고, 거절하면 파일이 생기지 않았다.
 
-**검증 범위.** 첫 격리 실행에서 발견한 외부 연결 시도는 로컬 프록시가 차단했다. 관련 플래그를 끈 뒤 최종 시험의 모델 요청은 전부 가짜 서버로 갔다. 실제 Ollama 추론·입력 토큰·받아쓰기, 로그인된 계정과의 동시 추론, 화면 표시·재개는 미확인이다.
+**가짜 서버 단계의 범위.** 첫 격리 실행에서 발견한 외부 연결 시도는 로컬 프록시가 차단했다. 관련 플래그를 끈 뒤 이 단계의 모델 요청은 전부 가짜 서버로 갔다.
+
+### 실모델 단계
+
+Codex app-server 0.172.0, Ollama 0.40.16의 `gemma4:e4b`, 전체 접근으로 시험했다. `/api/show`의 `audio`를 확인했다. Codex의 `안녕?` 요청을 재생해 **입력 12,839토큰, 출력 196토큰, 캐시 0**을 얻었다. 활성 문서가 없는 새 실행기의 사전 확인 요청은 입력 12,787토큰이었다. 비교용 Copilot CLI는 18,685, pi는 3,991 입력 토큰이었다.
+
+같은 Google FLEURS 한국어 `ko_kr` test id 1883 WAV를 두 주소에 보냈다. `/v1/responses`의 `input_audio.audio_url`은 **HTTP 400**과 `unknown content type: input_audio`로 끝났다. `/v1/chat/completions`의 `input_audio.data`는 **HTTP 200**, 정답 대비 글자 오류 **0/53**이었다. 문장부호·공백을 제외하는 pi 스파이크 정규화를 썼다. [Google FLEURS (CC BY 4.0)](https://huggingface.co/datasets/google/fleurs)
+
+[pi 둘째 실험](https://github.com/litzio/litzio/blob/spike/2026-11-24-ollama-pi-audio-tasks/scripts/spike-pi-audio/SPIKE.md#둘째-실험-실제-작업을-끝낼-때까지의-비용과-성공률-2026-11-24)의 과제 글과 판정 코드를 그대로 사용했다. 새 격리 Host에 daemon health 응답과 실행 폴더 전체의 허용 범위를 적용했다. 가짜 서버 사전 확인에서 개인 스킬 10개를 경로별로 제외했고 리치오 스킬 두 개를 확인했다. Codex만 문서와 플러그인 과제를 각각 세 번 돌렸고, Copilot CLI와 pi는 기록의 숫자를 사용했다. Codex는 `medium`을 보냈으며 66번의 모델 응답 모두에 생각 출력이 있었다.
+
+각 칸은 **성공 횟수 / 누적 입력 중앙값(성공한 실행) / 모델 호출 중앙값 / 시간 중앙값** 순이다. 호출과 시간은 전체 실행 기준이다.
+
+| 과제 | Copilot CLI | pi | Codex |
+| --- | --- | --- | --- |
+| 문서 수정 | 3/3 · 36,093 · 2회 · 11.6초 | 3/3 · 12,667 · 3회 · 9.1초 | 0/3 · — · 5회 · 16.5초 |
+| 문서 후속 | 0/3 · — · 2회 · 5.3초 | 0/3 · — · 3회 · 9.7초 | 0/3 · — · 2회 · 10.2초 |
+| 플러그인 제작 | 1/3 · 219,218 · 8회 · 43.7초 | 0/3 · — · 11회 · 51.6초 | 1/3 · 209,337 · 12회 · 54.8초 |
+| 플러그인 후속 | 1/3 · 88,842 · 2회 · 6.4초 | 0/3 · — · 3회 · 12.7초 | 0/3 · — · 3회 · 13.2초 |
+
+문서 수정 실패는 목표 줄 외 변경 두 번과 미수정 한 번이었다. 문서 후속은 글로 되물은 두 번과 뒤쪽 원문을 보존하지 못한 한 번이었다. 플러그인 본 과제는 제작·설치 경로 오류 한 번과 산출물 스키마 검증 실패 한 번이었다. 후속은 소스 쓰기 실패, 재설치 검증 실패, 지원되지 않는 편집 도구 호출이 한 번씩이었다. 설치에 성공한 한 번은 활성·실행 기준을 충족했지만 설치 사본에 요청한 첫 버튼 문구 `누르기`가 없었다. 제외하거나 다시 돌린 과제 실행은 없다.
+
+**사전 기준 판정은 접을 근거가 있다.** Codex는 문서 수정 성공이 Copilot CLI보다 적었고(0 대 3), 성공한 플러그인 제작의 누적 입력은 Copilot CLI의 **95.5%**로 기준인 70%를 넘었다. 문서 수정은 Codex 성공 표본이 없어 성공끼리 토큰을 비교할 수 없다.
+
+**검증 범위.** 한 모델·한 PC에서 과제당 세 번, 음성 표본 한 개를 확인했다. 모델에 따른 차이, 생각 강도 단계의 의미, 실제 화면 버튼 작동, 로그인된 계정과의 동시 추론과 재시작 뒤 대화 재개는 미확인이다.
 
 ## 현재 결정과 어긋나는 점
 
@@ -45,14 +68,15 @@ Codex 측정의 `effort: medium`은 실행기가 선택해 Host가 넘긴 값이
 ## 결론/후속
 
 - 결론 **미정**
-- 작업자 추천은 음성 요구가 있는 Ollama 공급자의 엔진으로 현재 Codex 구성을 채택하지 않는 것이다. 소유자가 엔진과 지원할 음성 경로를 정해야 결론이 난다. 실모델 토큰과 받아쓰기 대조 명령은 아래 원본 기록에 있다.
+- 작업자 추천은 현재 구성으로 Ollama 공급자의 Codex 엔진을 정식 구현으로 넘기지 않는 것이다. 확신은 중간이다. 소유자가 엔진과 지원할 음성 경로를 정해야 결론이 난다. 실행별 사용량과 재현 명령은 아래 원본 기록에 있다.
 
 ## 코드 위치
 
 - 태그 [`spike/2026-11-24-ollama-codex-audio`](https://github.com/litzio/litzio/tree/spike/2026-11-24-ollama-codex-audio)
 - 브랜치 [`spike/ollama-codex-audio`](https://github.com/litzio/litzio/tree/spike/ollama-codex-audio)
-- 마지막 커밋 [`f8efe3ce`](https://github.com/litzio/litzio/commit/f8efe3ce6e91d1bb930f46371dd8c25f6d472a16)
-- 원본 기록 [`scripts/spike-codex-audio/SPIKE.md`](https://github.com/litzio/litzio/blob/spike/2026-11-24-ollama-codex-audio/scripts/spike-codex-audio/SPIKE.md)
+- 실모델 단계 태그 [`spike/2026-11-24-ollama-codex-audio-tasks`](https://github.com/litzio/litzio/tree/spike/2026-11-24-ollama-codex-audio-tasks)
+- 마지막 커밋 [`9583945d`](https://github.com/litzio/litzio/commit/9583945d73fe8e0cd0c0a8c006893a1efee1a96b)
+- 원본 기록 [`scripts/spike-codex-audio/SPIKE.md`](https://github.com/litzio/litzio/blob/spike/2026-11-24-ollama-codex-audio-tasks/scripts/spike-codex-audio/SPIKE.md)
 
 ## 스크린샷
 
