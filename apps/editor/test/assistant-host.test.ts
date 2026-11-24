@@ -427,6 +427,16 @@ test("provider log lookup binds Litzio index, provider RPC ID and original metad
   assert.throws(() => validateProviderLog(log, "codex", other), /another session/);
   assert.throws(() => validateProviderLog(log, "copilot", id), /another session/);
   assert.throws(() => validateProviderLog(log, "codex", "../bad"), /Invalid/);
+  if (process.platform === "win32") {
+    for (const unsupported of [
+      String.raw`\\server\share\session.jsonl`,
+      String.raw`\\?\UNC\server\share\session.jsonl`,
+      "\\\\.\\" + log,
+      String.raw`\\?\Volume{00000000-0000-4000-8000-000000000001}\session.jsonl`,
+    ]) {
+      assert.throws(() => validateProviderLog(unsupported, "codex", id), /Invalid provider log location/);
+    }
+  }
   const link = path.join(directory, "linked");
   mkdirSync(path.join(directory, "original"));
   symlinkSync(path.join(directory, "original"), link, "junction");
@@ -436,7 +446,8 @@ test("provider log lookup binds Litzio index, provider RPC ID and original metad
   t.after(() => agent.close());
   const host = createAssistantHost(undefined, undefined, { agent }); t.after(() => host.close());
   writeFileSync(path.join(directory, "conversations.json"), JSON.stringify([{ id, provider: "codex" }]));
-  const rpc = t.mock.method(agent.client, "request", async () => ({ thread: { id, path: log } }));
+  const providerPath = process.platform === "win32" ? "\\\\?\\" + log : log;
+  const rpc = t.mock.method(agent.client, "request", async () => ({ thread: { id, path: providerPath } }));
   const lookup = (value = id, provider = "codex") => host.invoke("assistantConversation", { action: "provider-log", id: value, provider });
   assert.equal((await lookup()).path, log);
   const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { assistant: host }); });
