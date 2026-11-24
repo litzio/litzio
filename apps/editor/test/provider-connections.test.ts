@@ -63,7 +63,17 @@ async function until(condition: () => unknown, what: string, timeoutMs = 10_000)
 const turnSettled = (conversation: { turns: { status: string }[] }) => until(() => conversation.turns.at(-1)!.status !== "inProgress", "the turn to finish");
 /** A fake Ollama whose installed models the test changes; `stop` frees the port for an unreachable address. */
 async function fakeOllama(models: string[]) {
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
+    if (req.url === "/api/show") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const model = JSON.parse(body).model;
+      const thinking = model === "local-a:4b" ? { values: [false, true], default: true }
+        : model === "local-b:latest" ? { values: ["low", "high"], default: "low" }
+        : model === "disabled" ? { values: [false], default: false } : undefined;
+      res.statusCode = model === "failed" ? 503 : 200;
+      res.end(JSON.stringify({ thinking })); return;
+    }
     if (req.url !== "/api/tags") { res.statusCode = 404; res.end(); return; }
     res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ models: models.map(name => ({ name })) }));
   });
@@ -90,8 +100,11 @@ test("Ollama lists its own models, launches its process with the chosen model an
   const local = await connection.models("ollama", "fresh");
   assert.equal(local.provider, "ollama");
   assert.deepEqual(local.models.map(model => model.model), ["local-a:4b", "local-b:latest"]);
-  // An Ollama session has no reasoning option; the launch argument takes every CLI value, including none.
-  assert.deepEqual(local.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+  ollama.models.push("disabled", "unknown", "failed");
+  const catalog = await connection.models("ollama");
+  assert.deepEqual(catalog.models.map(model => [model.defaultReasoningEffort, model.supportedReasoningEfforts.map(value => value.reasoningEffort)]),
+    [["medium", ["none", "medium"]], ["low", ["low", "high"]], ["none", []], ["", []], ["", []]]);
+  ollama.models.splice(2);
   const ready = await connection.diagnostics("ollama");
   assert.deepEqual([ready.connected, ready.ollama], [true, { url: ollama.url, models: 2 }]);
   const settings = { provider: "ollama" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium", ollamaUrl: ollama.url };
@@ -111,6 +124,14 @@ test("Ollama lists its own models, launches its process with the chosen model an
   await turnSettled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b", reasoningEffort: "none" }, settings));
   assert.equal(effort(acpLaunches(log).at(-1)), "none");
   assert.equal(conversation.reasoningEffort, "none");
+  ollama.models.push("disabled", "unknown");
+  for (const model of ["disabled", "unknown"]) {
+    await turnSettled(await conversations.send({ ...input, id: conversation.id, model }, settings));
+    const launches = acpLaunches(log), args = launches.at(-1).args;
+    assert.deepEqual(args.slice(args.indexOf("--acp") + 2), model === "disabled" ? ["--reasoning-effort", "none"] : []);
+    await turnSettled(await conversations.send({ ...input, id: conversation.id, model, reasoningEffort: "high" }, settings));
+    assert.equal(acpLaunches(log).length, launches.length);
+  }
   // The GitHub account keeps its own catalog and process, without any model-source variable.
   const account = await connection.models("copilot", "fresh");
   assert.deepEqual(account.models.map(model => model.model), ["auto", "copilot-model"]);

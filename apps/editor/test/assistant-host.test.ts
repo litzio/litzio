@@ -127,7 +127,7 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     const choose = (provider: string, model: string) => put({ ...settings, provider, reasoningEffort: "medium", ollamaUrl, model });
     const toOllama = await choose("ollama", "local-a:4b");
     assert.equal(toOllama.status, 200, await toOllama.clone().text());
-    assert.deepEqual(await toOllama.json(), { ...settings, provider: "ollama", reasoningEffort: "medium", ollamaUrl, model: "local-a:4b" });
+    assert.deepEqual(await toOllama.json(), { ...settings, provider: "ollama", reasoningEffort: "", ollamaUrl, model: "local-a:4b" });
     const autoOnOllama = await choose("ollama", "auto");
     assert.equal(autoOnOllama.status, 400); assert.match(await autoOnOllama.text(), /model.*allowed values for ollama: local-a:4b, local-b:4b\./);
     const toAccount = await choose("copilot", "auto");

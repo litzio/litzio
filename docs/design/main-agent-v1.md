@@ -142,7 +142,9 @@ ACP 연결의 상태는 연결마다 따로다. 전송 보호(연결마다 한 �
 #### Ollama
 
 Ollama는 Host가 설정의 Ollama 주소(`ollamaUrl`, 기본 `http://localhost:11434`; http·https, 자격 증명·쿼리·조각 없음, 끝의 `/` 제거)로 닿는 Ollama 서버의 모델을 쓴다. Host는 Ollama 프로세스 환경 변수 `COPILOT_PROVIDER_BASE_URL`(`<주소>/v1`)·빈 `COPILOT_PROVIDER_API_KEY`·`COPILOT_PROVIDER_WIRE_API=responses`·`COPILOT_MODEL`만 더한다. 사용자 홈의 Copilot 설정은 쓰거나 바꾸지 않고 GitHub 로그인도 필요 없다. 오프라인 모드는 켜지 않으며, GitHub Copilot 공급자와 같은 도구·권한·Agent/Plan·승인 카드를 쓴다. 리치오는 Ollama의 설정·모델을 바꾸지 않는다.
-Ollama 프로세스는 모델 하나만 제공하므로 모델 목록은 Host가 Ollama의 모델 목록(`/api/tags`)에서 채우고 GitHub 계정 라우팅인 `auto`는 넣지 않는다. 고른 모델은 추론 강도·전체 접근과 같은 실행 설정이다. Ollama 세션에는 추론 강도 설정 항목이 없으므로, 추론 강도는 CLI가 받는 값(`none`·`minimal`·`low`·`medium`·`high`·`xhigh`·`max`) 가운데 고르고 실행 인자 `--reasoning-effort`로 적용한다. Copilot CLI는 이 값을 Ollama 요청의 `reasoning.effort`로 보낸다. 모델마다 구분하는 값이 달라 고른 값이 응답에 차이를 만들지 않을 수 있으며, 리치오는 모델별 지원 값을 확인하지 않는다. 주소·모델·추론 강도·전체 접근이 바뀌면 그 뒤에 시작하는 Ollama 프로세스부터 적용하고, 다른 Ollama 응답이 진행 중이면 기존 실행 설정 규칙대로 전송을 거절하며 진행 중인 턴을 끊지 않는다.
+Ollama 프로세스는 모델 하나만 제공하므로 모델 목록은 Host가 Ollama의 모델 목록(`/api/tags`)에서 채우고 GitHub 계정 라우팅인 `auto`는 넣지 않는다. 고른 모델은 추론 강도·전체 접근과 같은 실행 설정이다. Host는 모델마다 `/api/show`를 병렬 조회해 `thinking.values`와 `thinking.default`로 입력창과 설정의 선택지와 기본값을 정한다. 켜고 끄는 모델은 끔·켬을 표시하고 CLI에는 각각 `none`·`medium`을 넘긴다. 단계형 모델은 지원하는 단계만 표시하고 그대로 넘긴다. 유일한 값이 false이면 선택을 숨기고 `none`을 넘긴다. 조회 실패·시간 초과·정보 누락·해석할 수 없는 값이면 선택을 숨기고 추론 강도를 정하지 않아 모델 기본값에 맡긴다. 이때 Copilot CLI는 요청에 `reasoning.summary: "auto"`를 넣고 `reasoning.effort`는 생략한다. 전송·재개 시 모델이 지원하지 않는 강도는 그 모델 기본값으로 조정한다. 주소·모델·실제 강도 인자·전체 접근이 바뀌면 그 뒤에 시작하는 Ollama 프로세스부터 적용하고, 다른 Ollama 응답이 진행 중이면 기존 실행 설정 규칙대로 전송을 거절하며 진행 중인 턴을 끊지 않는다.
+
+입력창 예시 · [끔·켬 선택](assets/assistant-ollama-1939/toggle-open-1440.png) · [단계형](assets/assistant-ollama-1939/levels-1440.png) · [선택 숨김](assets/assistant-ollama-1939/hidden-1440.png)
 Host는 Ollama 대화가 쓴 모델을 대화 기록에 남기고, 다시 열 때 그 모델로 연다. 그 모델이 Ollama에 더 없으면 재개를 거절하고 이유(‘이 대화가 쓰던 모델 {{model}}이(가) Ollama에 없습니다.’)를 보이며 다른 모델로 바꾸지 않는다.
 기본 공급자로 Ollama를 고를 수 있다. 공급자·모델·추론 강도를 바꾸는 설정 변경은 저장하는 주소의 Ollama 목록으로 검증하고, 주소만 바꾸는 변경은 모델을 검증하지 않는다. 설정 화면은 주소를 바꾼 뒤 기본 공급자가 Ollama이고 기본 모델이 새 목록에 없으면 첫 모델을 고른다.
 

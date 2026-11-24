@@ -153,16 +153,17 @@ export class ProviderConnections {
       const session = inspectAcp === "fresh" ? (await acp.inspect(ollama?.launch)).session
         : (inspectAcp === "recent" ? acp.recentlyInspectedSession(ollama?.launch) : undefined)
           ?? (acp.ollama?.url === ollama?.launch.url ? await acp.catalog() : (await acp.inspect(ollama?.launch)).session);
+      if (ollama) return { provider, updatedAt: Date.now(), copilot: copilotOptions(session, true),
+        models: await Promise.all(ollama.models.map(name => ollamaModel(ollamaUrl, name))) };
       const reasoning = copilotReasoning(session);
       const supportedReasoningEfforts = reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" }))
         : COPILOT_EFFORTS.map(reasoningEffort => ({ reasoningEffort, description: "" }));
       const available: { modelId: string; name: string; description?: string | null }[] = session.models?.availableModels ?? [];
       // Copilot may return auto twice. Retain the first provider description, and synthesize only if absent.
       // Auto is GitHub's account routing, so Ollama lists only its own models.
-      const models = ollama ? ollama.models.map(name => ({ modelId: name, name, description: "" }))
-        : available.filter((model, index) => available.findIndex(value => value.modelId === model.modelId) === index);
-      if (!ollama && !models.some(model => model.modelId === "auto")) models.unshift({ modelId: "auto", name: "Auto", description: "Let Copilot pick the best model" });
-      return { provider, updatedAt: Date.now(), copilot: copilotOptions(session, !!ollama), models: models.map(model => ({
+      const models = available.filter((model, index) => available.findIndex(value => value.modelId === model.modelId) === index);
+      if (!models.some(model => model.modelId === "auto")) models.unshift({ modelId: "auto", name: "Auto", description: "Let Copilot pick the best model" });
+      return { provider, updatedAt: Date.now(), copilot: copilotOptions(session), models: models.map(model => ({
         id: model.modelId, model: model.modelId, displayName: model.name, description: model.description ?? "",
         defaultReasoningEffort: reasoning?.currentValue ?? "medium", supportedReasoningEfforts,
       })) };
@@ -256,6 +257,27 @@ function usageNumber(value: unknown): number | null {
   if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+export async function ollamaModel(url: string, name: string): Promise<AiModel> {
+  const model: AiModel = { id: name, model: name, displayName: name, description: "", defaultReasoningEffort: "", supportedReasoningEfforts: [] };
+  try {
+    const response = await fetch(`${url}/api/show`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: name }), signal: AbortSignal.timeout(5_000) });
+    if (!response.ok) return model;
+    const thinking = (await response.json())?.thinking;
+    const values: unknown = thinking?.values;
+    if (!Array.isArray(values) || !values.length || !values.includes(thinking.default) || new Set(values).size !== values.length) return model;
+    if (values.length === 1 && values[0] === false) model.defaultReasoningEffort = "none";
+    else if (values.length === 2 && values.includes(false) && values.includes(true)) {
+      model.defaultReasoningEffort = thinking.default ? "medium" : "none";
+      model.supportedReasoningEfforts = [{ reasoningEffort: "none", description: "Thinking off" }, { reasoningEffort: "medium", description: "Thinking on" }];
+    } else if (values.every(value => COPILOT_EFFORTS.includes(value))) {
+      model.defaultReasoningEffort = thinking.default;
+      model.supportedReasoningEfforts = values.map(reasoningEffort => ({ reasoningEffort, description: "" }));
+    }
+  } catch { /* A model without readable thinking information uses its own default. */ }
+  return model;
 }
 
 /** Ollama's own model list; the Copilot CLI's OpenAI-compatible connection serves inference only. */
