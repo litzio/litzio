@@ -1117,7 +1117,7 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
     const skillText = (body: string) => `---\nname: review\ndescription: Review a converted document\n---\n${body}\n`;
     writeFileSync(path.join(skillDirectory, "SKILL.md"), skillText("First procedure"));
     writeFileSync(path.join(skillDirectory, "references", "evidence.md"), "Original evidence");
-    connection.environment();
+    connection.pluginAuthoring = true; connection.environment();
     const userSkill = path.join(skills, "user-skill"); mkdirSync(userSkill); writeFileSync(path.join(userSkill, "SKILL.md"), "User skill");
     const stale = path.join(skills, "litzio-plugin-removed---review"); mkdirSync(stale); writeFileSync(path.join(stale, "SKILL.md"), "Stale");
     await host.start(); assert.equal(existsSync(stale), false);
@@ -1189,6 +1189,7 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
     await host.close(); assert.equal(existsSync(installedSkill), false);
     assert.equal(readFileSync(path.join(userSkill, "SKILL.md"), "utf8"), "User skill");
     assert.ok(existsSync(path.join(skills, "litzio-guide", "SKILL.md")));
+    assert.ok(existsSync(path.join(skills, "litzio-authoring", "SKILL.md")), "plugin skill cleanup keeps the Host's authoring skill");
   } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

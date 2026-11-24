@@ -8,7 +8,6 @@ import { codexApproval } from "./assistant-approvals.ts";
 import { assistantToolFailure, assistantToolResult } from "./assistant-tool-results.ts";
 import { AssistantMcp, type HostToolCall, type HostToolResult } from "./assistant-mcp.ts";
 import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
-import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginOperationTools, executePluginOperationTool } from "./assistant-plugin-tools.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
@@ -23,7 +22,6 @@ import { ollamaModels } from "./provider-connections.ts";
 import { accessPath, type FileAccess } from "./file-access.ts";
 
 import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
-import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copilotModelOption, sameOllama, type CopilotOllama } from "./copilot-acp.ts";
 
@@ -407,7 +405,7 @@ export class AssistantConversations {
       }
       references = checkedReferences(input.references ?? [], folders, this.access, active ? conversation!.permissionMode : settings.permissionMode, this.attachments, conversation.id);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
-      const context = { permissionMode: active ? conversation!.permissionMode : settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), document: input.document ? { path: input.document.path } : null,  references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
+      const context = { permissionMode: active ? conversation!.permissionMode : settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), document: input.document ? { path: input.document.path } : null,  references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -619,7 +617,7 @@ export class AssistantConversations {
         conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort;
       }
       references = checkedReferences(input.references ?? [], folders, this.access, settings.permissionMode, this.attachments, conversation?.id);
-      const context = { permissionMode: settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), document: input.document ? { path: input.document.path } : null,  references };
+      const context = { permissionMode: settings.permissionMode, conversationId: conversation?.id, userMessage: input.message, ...(input.submissionId ? { submissionId: input.submissionId } : {}), document: input.document ? { path: input.document.path } : null,  references };
       const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", userMessageSource: "host", ...(input.submissionId ? { submissionId: input.submissionId } : {}), text: input.message, references }] };
       const questionAnswer = questionAnswerFrom(input.message);
       if (questionAnswer) {
@@ -638,7 +636,7 @@ export class AssistantConversations {
         turn.status = "failed"; turn.error = message;
         // Turn completion failure does not revoke admission.
       };
-      void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Pasted images are also supplied as ACP image inputs.") + "\nUse request_litzio_user_input through the Litzio Host MCP server for structured questions. Native ACP question extensions are not supported.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }, ...this.attachments.images(references)] })).then(result => {
+      void Promise.resolve().then(() => client.prompt({ sessionId: id, prompt: [{ type: "text", text: "Use request_litzio_user_input through the Litzio Host MCP server for structured questions. Native ACP question extensions are not supported.\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }, ...this.attachments.images(references)] })).then(result => {
         if (result.usage) {
           const { totalTokens, inputTokens, outputTokens, thoughtTokens, cachedReadTokens, cachedWriteTokens } = result.usage;
           conversation!.copilotUsage = { ...conversation!.copilotUsage, prompt: { totalTokens, inputTokens, outputTokens, thoughtTokens, cachedReadTokens, cachedWriteTokens } };
