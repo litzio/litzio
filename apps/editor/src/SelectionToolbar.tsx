@@ -110,7 +110,8 @@ export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, o
         <Link2 aria-hidden="true" size={16} />
       </Button>
       <Button variant="ghost" size="icon-sm"
-        aria-label={i18n.t("Inline math")} title={tip(i18n.t("Inline math"))}
+        aria-label={i18n.t("Inline math")} title={tip(i18n.t("Inline math"), EDITOR_SHORTCUTS.inlineMath)}
+        aria-keyshortcuts={EDITOR_SHORTCUTS.inlineMath.aria}
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => (makeInlineMath(editor) ? undefined : onReject())}
       >
@@ -138,7 +139,7 @@ export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, o
  * Turn the selected plain text into inline math whose LaTeX source is that text, keeping the
  * marks that cover the whole selection. Selections containing breaks or math are refused.
  */
-function makeInlineMath(editor: Editor): boolean {
+export function makeInlineMath(editor: Editor): boolean {
   const { state } = editor;
   const { from, to, $from, $to } = state.selection;
   if (!editableInlineContext(editor) || from === to || !$from.sameParent($to)) return false;

@@ -364,8 +364,9 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, wa
     }
     await page.keyboard.type(' /');
     await menu.waitFor();
-    const names = await menu.getByRole('menuitem').allTextContents();
-    assert(names.every(name => /^(Endnote|Citation…|Section reference:)/.test(name.trim())), `${text}: only inline commands are offered: ${names}`);
+    const names = await menu.getByRole('menuitem').evaluateAll(items => items.map(item => item.getAttribute('aria-label')));
+    assert(names.every(name => /^(Inline math|Endnote|Citation…|Section reference:)/.test(name)), `${text}: only inline commands are offered: ${names}`);
+    assert(names.includes('Inline math'), `${text}: Inline math is offered`);
     assert(await menu.getByRole('menuitem', { name: 'Endnote', exact: true }).count() === (text === 'Definition.' ? 0 : 1), `${text}: Endnote follows the Core definition restriction`);
     await insertArticle();
     if (text === 'Definition.') {

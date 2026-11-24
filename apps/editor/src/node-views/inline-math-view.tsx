@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { NodeSelection } from "@tiptap/pm/state";
 import { NodeViewWrapper, useEditorState, type ReactNodeViewProps } from "@tiptap/react";
@@ -12,23 +12,16 @@ import { renderEquation } from "../equation-render.ts";
 import { focusBlock, usePropertyEntry, type DraftListener } from "./shared.ts";
 
 export function InlineMathView({ node, editor, getPos, updateAttributes, selected }: ReactNodeViewProps) {
-  useTranslation();
-  const formId = useId();
   const anchor = useRef<HTMLSpanElement>(null);
-  const input = useRef<HTMLTextAreaElement>(null);
   const value = String(node.attrs.value ?? "");
   const [editing, setEditing] = useState(false);
   const canEdit = useEditorState({ editor, selector: ({ editor: current }) => {
     const pos = getPos();
     return !!current && typeof pos === "number" && canEditEndnoteAt(current.state, pos);
   } });
-  const [draft, setDraft] = useState(value);
-  const [error, setError] = useMessageState("");
   const rendered = renderEquation(value, false);
   const open = () => {
     if (!editor.isEditable || !canEdit || editing) return;
-    setDraft(value);
-    setError("");
     setEditing(true);
   };
   usePropertyEntry(anchor, open);
@@ -36,22 +29,13 @@ export function InlineMathView({ node, editor, getPos, updateAttributes, selecte
   const endnoteOwner = typeof position === "number" ? endnoteAt(editor.state, position) : null;
   const path = typeof position === "number" ? String(editor.state.doc.resolve(position).node(1).attrs.sourcePath) : "";
   const onDraftChange = editor.extensionManager.extensions.find(extension => extension.name === "inlineMath")?.options.onDraftChange as DraftListener | undefined;
-  const dirty = editing && draft !== value;
-  useEffect(() => {
-    onDraftChange?.("Inline math", path, dirty, formId);
-    return () => onDraftChange?.("Inline math", path, false, formId);
-  }, [path, dirty, onDraftChange, formId]);
   const close = () => {
-    setDraft(value);
-    setError("");
     setEditing(false);
     focusBlock(editor.view, getPos);
   };
-  const apply = () => {
+  const apply = (source: string) => {
     if (!canEdit) return;
-    // Core validates the source on Save; only an empty or multi-line source is refused here.
-    if (draft.length === 0) return setError({ key: "Enter LaTeX, or use Remove." });
-    updateAttributes({ value: draft });
+    updateAttributes({ value: source });
     close();
   };
   // Replace the math with its source as ordinary text, keeping bold/italic/link marks.
@@ -80,36 +64,67 @@ export function InlineMathView({ node, editor, getPos, updateAttributes, selecte
         onDoubleClick={open}
         {...(rendered.html ? { dangerouslySetInnerHTML: { __html: rendered.html } } : { children: `$${value}$` })}
       />
-      <BlockProperties anchor={anchor} initialFocus={input} kind={i18n.t("Inline math")} testId="inline-math" className="inline-math-properties"
+      {editing ? <InlineMathProperties anchor={anchor} value={value} path={path} busy={!canEdit}
         endnoteOwner={endnoteOwner ? { label: endnoteOwner, editor: endnoteEditorToken(editor) } : undefined}
-        open={editing} busy={!canEdit} onApply={apply} onCancel={close}>
-        <div className="form-field">
-          <label className="form-label" htmlFor={formId}>LaTeX</label>
-          <textarea
-            id={formId}
-            ref={input}
-            className="inline-math-input"
-            aria-label="LaTeX"
-            data-testid="inline-math-source"
-            value={draft}
-            disabled={!canEdit}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? `${formId}-error` : undefined}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-            onChange={(event) => {
-              setDraft(event.target.value.replace(/[\r\n]+/g, " "));
-              setError("");
-            }}
-          />
-          <FieldError id={`${formId}-error`}>{error}</FieldError>
-        </div>
-        <Button type="button" size="sm" variant="outline" data-testid="inline-math-remove" disabled={!canEdit} onClick={remove}>{i18n.t("Remove")}</Button>
-      </BlockProperties>
+        onDraftChange={onDraftChange} onApply={apply} onCancel={close} onRemove={remove} /> : null}
     </NodeViewWrapper>
+  );
+}
+
+export function InlineMathProperties({ anchor, value, path, busy, endnoteOwner, onDraftChange, onApply, onCancel, onRemove }: {
+  anchor: RefObject<HTMLElement | null>;
+  value: string;
+  path: string;
+  busy: boolean;
+  endnoteOwner?: { label: string; editor: string };
+  onDraftChange?: DraftListener;
+  onApply(source: string): void;
+  onCancel(): void;
+  onRemove?(): void;
+}) {
+  useTranslation();
+  const formId = useId();
+  const input = useRef<HTMLTextAreaElement>(null);
+  const [draft, setDraft] = useState(value);
+  const [error, setError] = useMessageState("");
+  const dirty = draft !== value;
+  useEffect(() => {
+    onDraftChange?.("Inline math", path, dirty, formId);
+    return () => onDraftChange?.("Inline math", path, false, formId);
+  }, [path, dirty, onDraftChange, formId]);
+  return (
+    <BlockProperties anchor={anchor} initialFocus={input} kind={i18n.t("Inline math")} testId="inline-math" className="inline-math-properties"
+      endnoteOwner={endnoteOwner} open busy={busy} onCancel={onCancel} onApply={() => {
+        // Core validates round-trip preservation on Save.
+        if (!draft.length) return setError({ key: onRemove ? "Enter LaTeX, or use Remove." : "Enter LaTeX." });
+        onApply(draft);
+      }}>
+      <div className="form-field">
+        <label className="form-label" htmlFor={formId}>LaTeX</label>
+        <textarea
+          id={formId}
+          ref={input}
+          className="inline-math-input"
+          aria-label="LaTeX"
+          data-testid="inline-math-source"
+          value={draft}
+          disabled={busy}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${formId}-error` : undefined}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+          onChange={(event) => {
+            setDraft(event.target.value.replace(/[\r\n]+/g, " "));
+            setError("");
+          }}
+        />
+        <FieldError id={`${formId}-error`}>{error}</FieldError>
+      </div>
+      {onRemove ? <Button type="button" size="sm" variant="outline" data-testid="inline-math-remove" disabled={busy} onClick={onRemove}>{i18n.t("Remove")}</Button> : null}
+    </BlockProperties>
   );
 }

@@ -30,6 +30,7 @@ const groups: { label: MessageKey; entries: Entry[] }[] = [
     { label: "Italic", shortcuts: [keys.italic] },
     { label: "Strikethrough", shortcuts: [keys.strike] },
     { label: "Inline code", shortcuts: [keys.code] },
+    { label: "Inline math", shortcuts: [keys.inlineMath] },
     { label: "Link", shortcuts: [LINK_SHORTCUT] },
     { label: "Subscript", shortcuts: [keys.subscript] },
     { label: "Superscript", shortcuts: [keys.superscript] },

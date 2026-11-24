@@ -27,10 +27,13 @@ import {
   BLOCK_COMMANDS,
   TABLE_DELETE_META,
   blockCommandGroup,
+  canInsertInlineMathAt,
   changeListFormat,
   filterInsertCommands,
   formattableSelection,
   INSERT_COMMANDS,
+  INLINE_MATH_COMMAND,
+  inlineMathCommandItems,
   inlineInsertionAt,
   slashQueryAt,
   type SlashRange,
@@ -42,9 +45,10 @@ import { CommandMenu, type CommandMenuItem } from "./CommandMenu.tsx";
 import { insertCommandIcon, blockCommandAppearance } from "./command-icons.ts";
 import { admonitionAppearance } from "./admonition-kinds.ts";
 import { OBJECT_ACTION, type ObjectAction } from "./node-views/shared.ts";
+import { InlineMathProperties } from "./node-views/inline-math-view.tsx";
 import { insertReference, referenceCommandItems, referenceOfCommand, ReferenceForm, referencesBrokenByDeletion, referenceTargets, isResolved, type ReferenceTarget } from "./cross-reference.tsx";
 import { ENDNOTE_COMMAND, ENDNOTE_DRAFT_CLOSED, canEditEndnoteAt, endnoteAt, endnoteCommandItems, endnoteEditingKey, endnoteEditorToken, insertEndnote, setEndnoteEditing } from "./endnotes.ts";
-import { LinkForm, linkDraftOf, SelectionToolbar, type LinkDraft } from "./SelectionToolbar.tsx";
+import { LinkForm, linkDraftOf, makeInlineMath, SelectionToolbar, type LinkDraft } from "./SelectionToolbar.tsx";
 import { Extension, getSchema, type Editor } from "@tiptap/core";
 import { EditorContent, useEditor, useEditorState, type UseEditorOptions } from "@tiptap/react";
 import { Placeholder } from "@tiptap/extensions/placeholder";
@@ -66,9 +70,11 @@ import { MARKDOWN_INPUT_RULES } from "./markdown-input-rules.ts";
 import { currentOutlineItem, documentOutline, documentTargets, sameOutline, type DocumentOutline, type NavigationList, type OutlineItem } from "./outline.ts";
 import { documentEnd, runHistoryShortcut } from "./document-interaction.ts";
 import { EditorState, NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
+import type { Mark } from "@tiptap/pm/model";
 import type { SaveErrorLocation } from "./save-error.ts";
 
 type BlockMenu = { kind: "insert" | "block" | "list-format"; index: number; top: number; left?: number; context?: boolean };
+type InlineMathDraft = { pos: number; path: string; marks: readonly Mark[]; deleted: boolean };
 
 /** An insert command or reference item as the insert menu shows it: grouped, with its icon. */
 function insertMenuItem(item: { id: string; label: string; group: string; hint?: string }): CommandMenuItem {
@@ -208,6 +214,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   } | null>(null);
   // The retained caret for the Citation form.
   const [citationDraft, setCitationDraft] = useState<number | null>(null);
+  const [inlineMathDraft, setInlineMathDraft] = useState<InlineMathDraft | null>(null);
+  const inlineMathAnchor = useRef<HTMLSpanElement>(null);
+  const inlineMathKey = useRef<(editor: Editor) => boolean>(() => false);
   const commandInsertion = useRef(false);
   const citationEntries = useBibliographyEntries(bibliography);
   const documentSettings = useRef<DocumentSettingsHandle>(null);
@@ -237,7 +246,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     const initialDeletedPaths: string[] = [];
     const extensions = createEditorExtensions(projection, onStructuralReject, reportDraft, () => documentPathRef.current ?? "", validateFigure, onAssetPendingChange, onAssetError,
       sourcePath => sourcePath === undefined ? activeDrafts.current.size > 0
-        : [...activeDrafts.current.values()].some(draft => draft.path === sourcePath), chooseImage, initialDeletedPaths, onAssetChange, assetClient);
+        : [...activeDrafts.current.values()].some(draft => draft.path === sourcePath), chooseImage, initialDeletedPaths, onAssetChange, assetClient,
+      editor => inlineMathKey.current(editor));
     const restored = initialSnapshot && prepareEditorSnapshot(getSchema(extensions), projection, initialSnapshot);
     if (restored) {
       saved.current = restored.savedDocument;
@@ -304,6 +314,11 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           };
           setLinkDraft(draft => mapRange(draft, false));
           setReferenceDraft(draft => mapRange(draft, true));
+          setInlineMathDraft(draft => {
+            if (!draft) return null;
+            const mapped = transaction.mapping.mapResult(draft.pos);
+            return { ...draft, pos: Math.min(mapped.pos, doc.content.size), deleted: draft.deleted || mapped.deletedAcross };
+          });
           // All locators belong to the submitted snapshot. Invalidate rather than guess
           // after typing, insertion, deletion, split/merge or a move (including Undo).
           if (saveLocationsRef.current.length) updateSaveLocations([]);
@@ -775,7 +790,33 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     return null;
   }
 
+  const openInlineMath = (range: SlashRange) => {
+    if (!editor.isEditable || !canInsertInlineMathAt(editor.state, range.from) ||
+      !canEditEndnoteAt(editor.state, range.from)) return false;
+    if (inlineMathDraft) return true;
+    const point = editor.state.doc.resolve(range.from);
+    // Inline code is text-only in the document projection.
+    const marks = (editor.state.storedMarks ?? point.marks()).filter(mark => mark.type.name !== "code");
+    if (range.from !== range.to) {
+      const tr = editor.state.tr.delete(range.from, range.to).setMeta("addToHistory", false);
+      editor.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, range.from)));
+    }
+    setInlineMathDraft({ pos: range.from, path: String(point.node(1).attrs.sourcePath), marks, deleted: false });
+    return true;
+  };
+  inlineMathKey.current = instance => {
+    if (!instance.isEditable || instance.view.composing) return false;
+    const { selection } = instance.state;
+    if (!(selection instanceof TextSelection)) return false;
+    if (selection.empty) return openInlineMath({ from: selection.from, to: selection.to });
+    if (!makeInlineMath(instance)) onStructuralReject();
+    return true;
+  };
   const runInsert = (id: string, index: number, slash?: SlashRange) => {
+    if (id === INLINE_MATH_COMMAND && slash) {
+      openInlineMath(slash);
+      return;
+    }
     const citationKey = citationKeyOfCommand(id);
     if (citationKey !== undefined && slash) {
       setBlockMenu(null);
@@ -882,7 +923,13 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   const slash = blockMenu ? null : slashQueryAt(editor.state);
   const slashOpen = slash !== null && slash.from !== slashDismissed && focused;
   const slashItems = slash
-    ? [...(slash.blockCommands ? filterInsertCommands(slash.query) : []), ...(slash.endnote ? endnoteCommandItems(slash.query) : []), ...referenceCommandItems(editor.state.doc, slash.query), ...citationCommandItems(citationEntries, slash.query)].map(insertMenuItem)
+    ? [
+      ...(slash.blockCommands ? filterInsertCommands(slash.query) : []),
+      ...(slash.inlineMath && canEditEndnoteAt(editor.state, slash.from) ? inlineMathCommandItems(slash.query) : []),
+      ...(slash.endnote ? endnoteCommandItems(slash.query) : []),
+      ...referenceCommandItems(editor.state.doc, slash.query),
+      ...citationCommandItems(citationEntries, slash.query),
+    ].map(insertMenuItem)
     : [];
   const slashIndex = Math.min(slashActive, Math.max(slashItems.length - 1, 0));
   // Both entry points reuse the engine selection and existing link draft/form.
@@ -946,6 +993,11 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   const linkStyle = linkDraft ? caretStyle(linkDraft.from, false) : undefined;
   const referenceStyle = referenceDraft ? caretStyle(referenceDraft.from, false) : undefined;
   const citationStyle = citationDraft !== null && citationDraft <= editor.state.doc.content.size ? caretStyle(citationDraft, false) : undefined;
+  const inlineMathStyle = inlineMathDraft ? caretStyle(inlineMathDraft.pos, true) : undefined;
+  const inlineMathEndnote = inlineMathDraft ? endnoteAt(editor.state, inlineMathDraft.pos) : null;
+  const canApplyInlineMath = !!inlineMathDraft && !inlineMathDraft.deleted && editor.isEditable &&
+    canInsertInlineMathAt(editor.state, inlineMathDraft.pos) && canEditEndnoteAt(editor.state, inlineMathDraft.pos) &&
+    String(editor.state.doc.resolve(inlineMathDraft.pos).node(1).attrs.sourcePath) === inlineMathDraft.path;
   const slashStyle = !readOnly && slashOpen && slash ? caretStyle(slash.from, true) : undefined;
   const blockMenuStyle: CSSProperties | undefined = visible && !readOnly && blockMenu ? {
     top: blockMenu.top + (blockMenu.context ? 0 : 32), left: blockMenu.left ?? "var(--space-2)",
@@ -1037,6 +1089,32 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       ) : null}
       {linkDraft ? (
         <LinkForm editor={editor} draft={linkDraft} style={linkStyle} anchor={caretAnchor(linkDraft.from, linkDraft.to)} onClose={() => setLinkDraft(null)} onDraftChange={reportDraft} />
+      ) : null}
+      {inlineMathDraft ? (
+        <>
+          <span aria-hidden="true" ref={inlineMathAnchor} style={{ ...inlineMathStyle, position: "absolute", pointerEvents: "none" }} />
+          <InlineMathProperties anchor={inlineMathAnchor} value="" path={inlineMathDraft.path} busy={!canApplyInlineMath}
+            endnoteOwner={inlineMathEndnote ? { label: inlineMathEndnote, editor: endnoteEditorToken(editor) } : undefined}
+            onDraftChange={reportDraft}
+            onApply={value => {
+              if (!canApplyInlineMath) return;
+              const { pos, marks } = inlineMathDraft;
+              const { state, view } = editor;
+              const parent = state.doc.resolve(pos).parent;
+              const node = state.schema.nodes.inlineMath.create({ value }, null, parent.type.allowedMarks(marks));
+              const tr = closeHistory(state.tr).insert(pos, node);
+              view.dispatch(tr.setSelection(TextSelection.create(tr.doc, pos + node.nodeSize)).scrollIntoView());
+              if (view.state.doc === state.doc) return;
+              view.dispatch(closeHistory(editor.state.tr));
+              setInlineMathDraft(null);
+              view.focus();
+            }}
+            onCancel={() => {
+              if (canApplyInlineMath) editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, inlineMathDraft.pos)));
+              setInlineMathDraft(null);
+              editor.view.focus();
+            }} />
+        </>
       ) : null}
       {citationDraft === null && toolbarStyle ? (
         <SelectionToolbar
