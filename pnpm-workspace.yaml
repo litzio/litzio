@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - apps/*
+  - scripts/spike-pi-audio
 
 # tsx uses esbuild's native executable; approve its install-time binary check.
 allowBuilds:
@@ -16,6 +17,7 @@ packageExtensions:
       punycode: 2.3.1
 
 patchedDependencies:
+  '@openma/pi-acp@0.1.8': patches/@openma__pi-acp@0.1.8.patch
   # #346, #11; docs/contributing/dependency-patches.md
   linkify-it@4.0.1: patches/linkify-it@4.0.1.patch
   # #1737; docs/contributing/dependency-patches.md

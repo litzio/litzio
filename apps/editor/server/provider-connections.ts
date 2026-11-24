@@ -42,7 +42,7 @@ export class ProviderConnections {
   constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}, hostOrigin?: () => string | undefined) {
     this.templatesDirectory = hostPaths(run).templates;
     this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()) }); const acpEnv = () => assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.());
-    this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: acpEnv }); this.ollama = new CopilotAcp(cwd, { ...copilotOptions, env: acpEnv, local: true });
+    this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: acpEnv }); this.ollama = new CopilotAcp(cwd, { ...copilotOptions, ...(process.env.LITZIO_SPIKE_PI_ACP ? { bin: process.execPath, args: [process.env.LITZIO_SPIKE_PI_ACP] } : {}), env: acpEnv, local: true }); // spike: pi-acp in place of `copilot --acp`
     this.client.on("notification", method => {
       // Rate-limit notifications carry only one bucket. Refetch the full snapshot.
       if (method === "account/updated" || method === "account/rateLimits/updated") this.invalidateUsage();

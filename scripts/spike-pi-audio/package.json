@@ -1,0 +1,11 @@
+{
+  "name": "@litzio/spike-pi-audio",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@agentclientprotocol/sdk": "0.17.1",
+    "@earendil-works/pi-coding-agent": "1.6.0",
+    "@openma/pi-acp": "0.1.8",
+    "@modelcontextprotocol/sdk": "1.32.2"
+  }
+}

@@ -1,0 +1,26 @@
+diff --git a/dist/chunk-5IXHVFXW.js b/dist/chunk-5IXHVFXW.js
+index 66cdaef59f162237103986520fafcaa42d45621e..fdf35731cee63d68c53c3a335c66d26ca98eef73 100644
+--- a/dist/chunk-5IXHVFXW.js
++++ b/dist/chunk-5IXHVFXW.js
+@@ -601,7 +601,11 @@ ${contextBlock(resource.uri, resource.text)}
+         break;
+       }
+       case "audio":
+-        throw new UnsupportedPromptContentError("audio");
++        // spike: carry audio in pi's image list; the Litzio pi extension moves it out before image normalization.
++        if (block.data.length === 0) throw new UnsupportedPromptContentError("audio (empty)");
++        images.push({ type: "image", data: block.data, mimeType: block.mimeType });
++        display.push("[audio]");
++        break;
+       default:
+         throw new UnsupportedPromptContentError(String(block.type));
+     }
+@@ -4495,7 +4499,7 @@ var PiAcpAgent = class {
+       agentInfo: { name: AGENT_NAME, title: AGENT_TITLE, version: VERSION },
+       agentCapabilities: {
+         loadSession: true,
+-        promptCapabilities: { image: true, audio: false, embeddedContext: true },
++        promptCapabilities: { image: true, audio: true, embeddedContext: true },
+         mcpCapabilities: { http: true, sse: false },
+         sessionCapabilities: {
+           list: {},
