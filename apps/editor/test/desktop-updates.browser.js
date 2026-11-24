@@ -11,6 +11,9 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   check(await page.getByRole('button',{name:'About & updates',exact:true}).count() === 0, 'Browser exposes Desktop-only category');
   check(await page.getByTestId('cli-integration').count() === 0, 'Browser exposes Desktop CLI integration');
   check(await page.getByRole('button',{name:'Open log folder',exact:true}).count() === 0, 'Browser exposes Desktop logs');
+  await page.getByRole('button',{name:'Plugins',exact:true}).click();
+  await page.getByRole('button',{name:'Add plugin…',exact:true}).waitFor();
+  await expect(page.getByRole('button',{name:'Open plugin folder',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Saving & recovery',exact:true}).click();
   check(await page.getByRole('heading',{name:'Local recovery',exact:true}).isVisible() && !await page.getByTestId('app-version').count(), 'Browser settings mixed recovery with Desktop-only information');
   await page.keyboard.press('Escape');
@@ -67,6 +70,13 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
         await new Promise(resolve => window.__desktop.finishLogs = resolve);
         if (window.__desktop.failLogs) throw Error('OS failed');
       },
+      openPluginFolder: async (...args) => {
+        calls.push(['plugin-folder', ...args]);
+        if (!window.__desktop.pluginFolderRetried) {
+          window.__desktop.pluginFolderRetried = true;
+          throw Error('OS failed');
+        }
+      },
       onUpdateState(listener) { listeners.add(listener); return () => listeners.delete(listener); },
       onRestartCheck(check) { restartCheck = check; return () => { if (restartCheck === check) restartCheck = null; }; },
     };
@@ -75,6 +85,23 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand, waitForE
   await page.reload();
   await ready();
   await page.waitForFunction(() => window.__desktop.pendingWork === false);
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('button',{name:'Plugins',exact:true}).click();
+  const pluginFolder = page.getByRole('button',{name:'Open plugin folder',exact:true});
+  await expect(pluginFolder).toBeVisible();
+  await pluginFolder.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(pluginFolder).toBeFocused();
+  await expect(page.getByText('Opens the folder for plugin sources. Plugin folders stay here after removal from the list.',{exact:true})).toBeVisible();
+  await pluginFolder.press('Enter');
+  const pluginFolderError = page.getByText('Could not open the plugin folder.',{exact:true});
+  await expect(pluginFolderError).toBeVisible();
+  await pluginFolder.click();
+  await expect(pluginFolderError).toHaveCount(0);
+  check(await page.evaluate(() => JSON.stringify(window.__desktop.calls.filter(([name]) => name === 'plugin-folder')) === '[["plugin-folder"],["plugin-folder"]]'), 'Plugin folder should use the Desktop action without a path');
+  await page.keyboard.press('Escape');
+  await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   // Shared production controls; only the native boundary is a bridge stand-in.
   await page.getByRole('button', {name:'Desktop menu',exact:true}).click();
   await page.getByRole('menuitem', {name:'Open in browser',exact:true}).click();

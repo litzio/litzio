@@ -1,5 +1,7 @@
 import { hostIdentity } from "./host-identity.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import path from "node:path";
+import { hostPaths } from "./host-paths.ts";
 import { readRequestBody } from "./request-body.ts";
 
 // v4 requires assistant routes and permissionMode; v3 daemons expose the old API.
@@ -18,12 +20,15 @@ function reply(res: ServerResponse, status: number, data: unknown) {
 /** Called after Host/Origin/body checks, before every static, media or API route. */
 export async function daemonRequest(req: IncomingMessage, res: ServerResponse, url: URL, control: DaemonControl): Promise<boolean> {
   const protocol = req.headers["x-litzio-protocol"];
-  const operation = url.pathname === "/daemon/health" || url.pathname === "/daemon/stop";
+  const operation = url.pathname === "/daemon/health" || url.pathname === "/daemon/stop" || url.pathname === "/daemon/plugin-source-folder";
   if ((operation || protocol !== undefined) && protocol !== control.health.protocolVersion) {
     reply(res, 409, { error: "Daemon protocol mismatch. Stop with the CLI version matching the running daemon, or Ctrl+C in its foreground terminal; then start the desired version. Do not kill by PID alone.", protocolVersion: control.health.protocolVersion }); return true;
   }
   if (!url.pathname.startsWith("/daemon/")) return false;
   if (url.pathname === "/daemon/health" && req.method === "GET") { reply(res, 200, { ...control.health, identity: hostIdentity(), screenInstanceGuard: true }); return true; }
+  if (url.pathname === "/daemon/plugin-source-folder" && req.method === "GET" && !url.search && !control.health.nonLoopback) {
+    reply(res, 200, { directory: path.resolve(hostPaths().plugins), instanceId: control.health.instanceId }); return true;
+  }
   if (url.pathname === "/daemon/stop" && req.method === "POST") {
     let body: unknown;
     try { body = JSON.parse((await readRequestBody(req, 4096)).toString("utf8")); }

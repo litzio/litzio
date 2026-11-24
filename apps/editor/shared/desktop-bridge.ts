@@ -73,6 +73,8 @@ export type DesktopBridge = {
   openFolderInExplorer(folder: string): Promise<void>;
   /** Main chooses and creates the app's log directory; no renderer-supplied path. */
   openLogFolder(): Promise<void>;
+  /** Open the connected local Host's plugin source folder in the OS. */
+  openPluginFolder(): Promise<void>;
   providerSessionLog(id: string, provider: import("./assistant.ts").AiProvider, action: "open" | "reveal"): Promise<import("./assistant.ts").ProviderLogFailure | void>;
   /** In-memory native appearance only; preference persistence stays in renderer localStorage. */
   setTheme(theme: "system" | "light" | "dark"): Promise<boolean>;
