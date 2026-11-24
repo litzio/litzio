@@ -9,6 +9,7 @@ export function copilotLogRoot() { return path.resolve(process.env.COPILOT_HOME 
 
 /** Inspect only the bounded first metadata record, never collect the transcript. */
 export function validateProviderLog(file: string, provider: AiProvider, id: string): string {
+  if (process.platform === "win32" && /^\\\\\?\\[a-z]:\\/i.test(file)) file = file.slice(4);
   if (!sessionIdPattern.test(id) || !path.isAbsolute(file) || /^[\\/]{2}/.test(file) || path.extname(file) !== ".jsonl" || file.includes("\0") || (process.platform === "win32" && file.slice(2).includes(":"))) throw new Error("Invalid provider log location.");
   let current = path.resolve(file);
   while (true) {

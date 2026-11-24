@@ -11,7 +11,7 @@ test("Desktop validates local provider session identity and never accepts render
   const id = "00000000-0000-4000-8000-000000000001", file = path.join(directory, "original.jsonl");
   writeFileSync(file, JSON.stringify({ type: "session_meta", payload: { id } }) + "\n");
   const opened: string[] = [], revealed: string[] = []; let calls = 0;
-  const resolve = async () => { calls++; return { id, provider: "codex", path: file }; };
+  const resolve = async () => { calls++; return { id, provider: "codex", path: "\\\\?\\" + file }; };
   const input = { id, provider: "codex", action: "open" };
   const run = (value: typeof input) => openProviderSessionLog(value, resolve, value => { revealed.push(value); }, async value => { opened.push(value); });
   await assert.rejects(run({ ...input, id: "../other-session" })); assert.equal(calls, 0);
