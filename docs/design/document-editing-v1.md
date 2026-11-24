@@ -253,6 +253,7 @@ A changed document recomputes numbering; source semantics and canonical output a
   formula in one Undo step. Cancel or Escape returns the caret without inserting an
   empty formula. With selected text, the shortcut converts it to LaTeX just like
   the selection toolbar's **Inline math** button.
+  [Table cell example](../reviews/assets/1942-inline-math/table-math-light-1440.webp).
   Block Equation's Properties opens a separate label/number metadata popover (#788).
   Its Edit source, formula double-click and node-selected Enter enter the source form directly (#637).
   Only one of these forms can be open: keyboard re-entry while metadata is open retains its
