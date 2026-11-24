@@ -120,14 +120,19 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     assert.equal(await runCliAsync(["assistant", "configure", "--file", local]), 0);
     assert.deepEqual(JSON.parse(output.pop()!), settings);
     // Ollama as the default provider: its model is validated against the Ollama list of the address being saved.
-    const ollama = createServer((req, res) => { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ models: [{ name: "local-a:4b" }, { name: "local-b:4b" }] })); });
+    const ollama = createServer((req, res) => { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(req.url === "/api/show" ? { thinking: { values: ["low", "high"], default: "high" } } : { models: [{ name: "local-a:4b" }, { name: "local-b:4b" }] })); });
     await listenForFetch(ollama);
     t.after(() => new Promise<void>(resolve => ollama.close(() => resolve())));
     const ollamaUrl = `http://127.0.0.1:${(ollama.address() as import("node:net").AddressInfo).port}`;
     const choose = (provider: string, model: string) => put({ ...settings, provider, reasoningEffort: "medium", ollamaUrl, model });
     const toOllama = await choose("ollama", "local-a:4b");
     assert.equal(toOllama.status, 200, await toOllama.clone().text());
-    assert.deepEqual(await toOllama.json(), { ...settings, provider: "ollama", reasoningEffort: "", ollamaUrl, model: "local-a:4b" });
+    const adjusted = { ...settings, provider: "ollama", reasoningEffort: "high", ollamaUrl, model: "local-a:4b" };
+    assert.deepEqual(await toOllama.json(), adjusted);
+    writeFileSync(local, JSON.stringify({ ...adjusted, reasoningEffort: "" }));
+    assert.equal(await runCliAsync(["assistant", "configure", "--file", local]), 0);
+    assert.deepEqual(JSON.parse(output.pop()!), adjusted);
+    assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), adjusted);
     const autoOnOllama = await choose("ollama", "auto");
     assert.equal(autoOnOllama.status, 400); assert.match(await autoOnOllama.text(), /model.*allowed values for ollama: local-a:4b, local-b:4b\./);
     const toAccount = await choose("copilot", "auto");

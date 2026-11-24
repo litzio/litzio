@@ -63,11 +63,14 @@ async function until(condition: () => unknown, what: string, timeoutMs = 10_000)
 const turnSettled = (conversation: { turns: { status: string }[] }) => until(() => conversation.turns.at(-1)!.status !== "inProgress", "the turn to finish");
 /** A fake Ollama whose installed models the test changes; `stop` frees the port for an unreachable address. */
 async function fakeOllama(models: string[]) {
+  const shown: string[] = [];
   const server = createServer(async (req, res) => {
     if (req.url === "/api/show") {
       let body = "";
       for await (const chunk of req) body += chunk;
       const model = JSON.parse(body).model;
+      shown.push(model);
+      if (model === "unresponsive") return;
       const thinking = model === "local-a:4b" ? { values: [false, true], default: true }
         : model === "local-b:latest" ? { values: ["low", "high"], default: "low" }
         : model === "disabled" ? { values: [false], default: false } : undefined;
@@ -78,7 +81,7 @@ async function fakeOllama(models: string[]) {
     res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ models: models.map(name => ({ name })) }));
   });
   await listenForFetch(server);
-  return { models, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, stop: () => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }) };
+  return { models, shown, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, stop: () => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }) };
 }
 const acpRows = (log: string) => readFileSync(log, "utf8").split("\n").slice(0, -1).map(line => JSON.parse(line));
 const acpLaunches = (log: string) => acpRows(log).filter(entry => entry.startedAt);
@@ -109,8 +112,12 @@ test("Ollama lists its own models, launches its process with the chosen model an
   assert.deepEqual([ready.connected, ready.ollama], [true, { url: ollama.url, models: 2 }]);
   const settings = { provider: "ollama" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium", ollamaUrl: ollama.url };
   const input = { provider: "ollama" as const, message: "COMPLETE THIS TURN", folders: [root], model: "local-b:latest", reasoningEffort: "medium" };
+  ollama.models.push("unresponsive");
+  ollama.shown.length = 0;
   const conversation = await conversations.send(input, settings);
   await turnSettled(conversation);
+  assert.deepEqual(ollama.shown, [input.model], "a send never waits for another model's unresponsive show endpoint");
+  ollama.models.pop();
   assert.equal(conversation.turns.at(-1)!.status, "completed");
   assert.equal(conversation.provider, "ollama");
   assert.deepEqual(acpLaunches(log).at(-1).byok, { baseUrl: `${ollama.url}/v1`, apiKey: "", wireApi: "responses", model: "local-b:latest", offline: null });

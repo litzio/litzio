@@ -144,7 +144,7 @@ export class ProviderConnections {
     return { models, launch: { url, model: current?.url === url && models.includes(current.model) ? current.model : models[0]! } };
   }
   /** `ollamaUrl` is the Ollama address to read; a send passes the one it started with. */
-  async models(provider: AiProvider = "codex", inspectAcp?: "fresh" | "recent", ollamaUrl = this.ollamaUrl()): Promise<AiModels> {
+  async models(provider: AiProvider = "codex", inspectAcp?: "fresh" | "recent", ollamaUrl = this.ollamaUrl(), selectedOllamaModel?: string): Promise<AiModels> {
     if (providerEngine(provider) === "acp") {
       this.environment();
       const acp = this.acp(provider);
@@ -153,8 +153,11 @@ export class ProviderConnections {
       const session = inspectAcp === "fresh" ? (await acp.inspect(ollama?.launch)).session
         : (inspectAcp === "recent" ? acp.recentlyInspectedSession(ollama?.launch) : undefined)
           ?? (acp.ollama?.url === ollama?.launch.url ? await acp.catalog() : (await acp.inspect(ollama?.launch)).session);
-      if (ollama) return { provider, updatedAt: Date.now(), copilot: copilotOptions(session, true),
-        models: await Promise.all(ollama.models.map(name => ollamaModel(ollamaUrl, name))) };
+      if (ollama) {
+        const names = selectedOllamaModel === undefined ? ollama.models : ollama.models.filter(name => name === selectedOllamaModel);
+        return { provider, updatedAt: Date.now(), copilot: copilotOptions(session, true),
+          models: await Promise.all(names.map(name => ollamaModel(ollamaUrl, name))) };
+      }
       const reasoning = copilotReasoning(session);
       const supportedReasoningEfforts = reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" }))
         : COPILOT_EFFORTS.map(reasoningEffort => ({ reasoningEffort, description: "" }));

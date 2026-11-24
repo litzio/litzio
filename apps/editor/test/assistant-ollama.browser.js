@@ -143,12 +143,12 @@ async (page, { expect, screenshots, brand }) => {
   const effort = panel.getByRole('button', { name: '추론 강도 설정', exact: true });
   const snapshot = async name => { if (screenshots) await page.screenshot({ path: `tmp/1939/${name}.png` }); };
   const modelButton = panel.getByRole('button', { name: '모델 설정', exact: true });
-  await expect(effort).toHaveText('켬');
+  await expect(effort).toHaveText('생각 켬');
   await snapshot('toggle-1440');
   await effort.click();
-  await expect(page.getByRole('menuitem')).toHaveText(['끔', '켬']);
+  await expect(page.getByRole('menuitem')).toHaveText(['생각 끔', '생각 켬']);
   await snapshot('toggle-open-1440');
-  await page.getByRole('menuitem', { name: '끔', exact: true }).click();
+  await page.getByRole('menuitem', { name: '생각 끔', exact: true }).click();
   await modelButton.click();
   await page.getByRole('menuitem', { name: 'sample-levels' }).click();
   await expect(effort).toHaveText('낮음');

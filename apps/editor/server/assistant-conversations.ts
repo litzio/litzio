@@ -555,7 +555,7 @@ export class AssistantConversations {
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     // Read the Ollama address once: validation and launch use the address this send started with.
     const ollama = settings.provider === "ollama" ? ollamaUrl(settings) : undefined;
-    const catalog = await this.connection.models(settings.provider, "recent", ollama);
+    const catalog = await this.connection.models(settings.provider, "recent", ollama, ollama ? input.model : undefined);
     const selected = catalog.models.find(model => model.model === input.model);
     if (!selected) throw new AssistantModelUnavailable("Invalid Copilot model.");
     if (input.mode !== undefined && !catalog.copilot?.modes.some(mode => mode.id === input.mode)) throw new Error("Invalid Copilot session mode.");
