@@ -180,8 +180,8 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [2026-11-19 Activity Bar 시안 1 후속: 이름 표시와 고유 아이콘 (#1812)](spikes/2026-11-19-activity-bar-labels.md) | Historical | 스파이크 기록. 결론: 채택(1-L). 코드는 태그·브랜치에만 있다. |
 | [2026-11-23 비서의 두 연결 뒤 모델을 Ollama 로컬 모델로 바꾸기](spikes/2026-11-23-ollama-local-model.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
 | [2026-11-23 공용 빈 화면 안내의 점선·바탕 비교](spikes/2026-11-23-empty-state-plain.md) | Historical | 스파이크 기록. 결론은 채택(안 A). |
-| [2026-11-24 Ollama 공급자의 실행 엔진을 pi(ACP 어댑터)로 바꾸기](spikes/2026-11-24-ollama-pi-audio.md) | Historical | 스파이크 기록. 결론: 미정. 코드는 태그·브랜치에만 있다. |
-| [2026-11-24 Ollama 공급자의 Codex 엔진 연결과 음성 전달](spikes/2026-11-24-ollama-codex-audio.md) | Historical | 스파이크 기록. 결론 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-24 Ollama 공급자의 실행 엔진을 pi(ACP 어댑터)로 바꾸기](spikes/2026-11-24-ollama-pi-audio.md) | Historical | 스파이크 기록. 결론: 폐기. 코드는 태그·브랜치에만 있다. |
+| [2026-11-24 Ollama 공급자의 Codex 엔진 연결과 음성 전달](spikes/2026-11-24-ollama-codex-audio.md) | Historical | 스파이크 기록. 결론 폐기. 코드는 태그·브랜치에만 있다. |
 
 ## Verification
 
