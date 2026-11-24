@@ -11,7 +11,7 @@ import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
-import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
+import { DESKTOP_ENTRY, DESKTOP_ORIGIN, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
 import { bundledUiResponse } from "../src/bundled-ui.ts";
 import { daemonPort } from "../../editor/server/daemon-state.ts";
 import * as daemonLog from "../../editor/server/daemon-log.ts";
@@ -20,6 +20,7 @@ import { INSTALLATION_CLOSE_MESSAGE } from "../src/installation-lifecycle.ts";
 import { brand } from "../../../brand.ts";
 
 import type { UpdateState } from "../../editor/shared/desktop-bridge.ts";
+import type { Session, WebContents } from "electron";
 
 const main = new URL("../src/main.ts", import.meta.url);
 const source = transformSync(readFileSync(main, "utf8"), {
@@ -95,6 +96,10 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
     quit: () => { quits++; app.emit("before-quit"); if (windows[0] && !windows[0].destroyed) windows[0].close(); }, exit: (code: number) => { assert.equal(code, 1); exits++; },
     setAppUserModelId() {}, setPath() {}, whenReady: () => Promise.resolve(), getPath: () => "/fake-user-data", getVersion: () => "0.0.3-beta.1",
   });
+  const permissions: {
+    request: Parameters<Session["setPermissionRequestHandler"]>[0];
+    check: Parameters<Session["setPermissionCheckHandler"]>[0];
+  } = { request: null, check: null };
   const require = createRequire(import.meta.url);
   const dependencies: Record<string, unknown> = {
     "./provider-session-log.ts": { openProviderSessionLog: async () => assert.fail("Provider logs must not open during startup.") },
@@ -103,7 +108,13 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
       app, BrowserWindow: Window, Tray, dialog: { showMessageBoxSync: (_target: unknown, details: any) => { confirmations.push(details); return options.stopChoice ?? 0; }, showErrorBox: (_title: string, message: string) => alerts.push(message) },
       ipcMain: { handle: (name: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(name, handler), on: (name: string, handler: (...args: any[]) => void) => { listeners.set(name, handler); if (name === "desktop:restart-check-result") restartAnswer = handler; } },
       Menu: { setApplicationMenu(value: unknown) { applicationMenu = value; }, buildFromTemplate: (items: any[]) => items }, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} },
-      session: { defaultSession: { setPermissionRequestHandler() { if (options.startupError) throw new Error("permission setup failed"); }, setPermissionCheckHandler() {} } },
+      session: { defaultSession: {
+        setPermissionRequestHandler(handler: typeof permissions.request) {
+          if (options.startupError) throw new Error("permission setup failed");
+          permissions.request = handler;
+        },
+        setPermissionCheckHandler(handler: typeof permissions.check) { permissions.check = handler; },
+      } },
       shell: { openPath: async (directory: string) => { opened.push(directory); return options.openError ?? ""; } },
     },
     "node:fs": {
@@ -185,8 +196,38 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
   return { applicationMenu, daemons, reportPendingWork, trays, menu, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+    permissions,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
+
+test("Desktop grants only sanitized clipboard writes from its own top-level bundled UI", async () => {
+  const { window, permissions: { request, check } } = await start();
+  assert.ok(request);
+  assert.ok(check);
+  const appContents = window.webContents as unknown as WebContents;
+  const otherContents = {} as WebContents;
+  const mainFrame = { isMainFrame: true, requestingUrl: DESKTOP_ENTRY };
+  const foreignFrame = { ...mainFrame, requestingUrl: "https://app/index.html" };
+  const subframe = { ...mainFrame, isMainFrame: false };
+  const write = "clipboard-sanitized-write";
+  const cases: [WebContents, Parameters<typeof request>[1], typeof mainFrame, boolean][] = [
+    [appContents, write, mainFrame, true],
+    [appContents, "clipboard-read", mainFrame, false],
+    [appContents, "deprecated-sync-clipboard-read", mainFrame, false],
+    [appContents, "notifications", mainFrame, false],
+    [appContents, write, foreignFrame, false],
+    [appContents, write, subframe, false],
+    [otherContents, write, mainFrame, false],
+  ];
+  for (const [contents, permission, details, allowed] of cases) {
+    const replies: boolean[] = [];
+    request(contents, permission, result => replies.push(result), details);
+    assert.deepEqual(replies, [allowed]);
+    assert.equal(check(contents, permission, DESKTOP_ORIGIN, details), allowed);
+  }
+  assert.equal(check(null, write, DESKTOP_ORIGIN, mainFrame), false);
+  assert.equal(check(appContents, write, "https://app", mainFrame), false);
+});
 
 test("reset handoff requires a reviewed plan, trusted sender and clean work; late unload refusal cancels its helper", async () => {
   const dirty = await start({ restartAllowed: false });
