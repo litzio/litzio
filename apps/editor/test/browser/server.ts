@@ -1,5 +1,5 @@
 import { fork } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
 import { REPOSITORY_ROOT } from "./fixtures.ts";
@@ -48,6 +48,15 @@ if (process.env.LITZIO_BROWSER_HOST === "http") {
     if ((message as { ready?: boolean }).ready) ready(`http://127.0.0.1:${port}`);
   });
 } else {
+  if (JSON.parse(process.env.LITZIO_BROWSER_SCENARIOS ?? "[]").includes("vite-plugins")) {
+    const directory = process.env.LITZIO_BROWSER_DAEMON_DIR!;
+    const fixture = path.join(REPOSITORY_ROOT, "apps/editor/test/fixtures/codex-app-server.mjs");
+    const windows = process.platform === "win32";
+    writeFileSync(path.join(directory, windows ? "codex.cmd" : "codex"), windows
+      ? `@echo off\r\nif "%~1"=="--version" (echo codex-cli 0.166.0 & exit /b 0)\r\nif "%~1"=="--help" exit /b 0\r\n"${process.execPath}" "${fixture}" "" install-screen\r\n`
+      : `#!/bin/sh\nif [ "$1" = "--version" ]; then echo codex-cli 0.166.0; exit 0; fi\nif [ "$1" = "--help" ]; then exit 0; fi\nexec "${process.execPath}" "${fixture}" "" install-screen\n`, { mode: 0o755 });
+    process.env.PATH = directory + path.delimiter + process.env.PATH;
+  }
   // The in-process Host reads GitHub plugin sources from this local fake, never the public API.
   const { browserGitHub } = await import("../fake-github.ts");
   const github = await browserGitHub();

@@ -36,7 +36,8 @@ const receive = line => {
       const item = { type: "dynamicToolCall", id, namespace: null, tool: pending.params.tool, arguments: pending.params.arguments, status: "completed", ...message.result };
       turn.items.push(item); persist(); notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
     }
-    send({ id: pending.id, result: message }); return;
+    if (pending.id !== undefined) send({ id: pending.id, result: message });
+    return;
   }
   if (method === "fixture/cli") {
     const args = [...params.args, ...(params.hostFromEnvironment ? ["--host", process.env.LITZIO_HOST_ORIGIN ?? ""] : [])];
@@ -116,7 +117,7 @@ const receive = line => {
     if (method === "turn/start") { thread.turns.push(turn); notify("turn/started", { threadId: thread.id, turn }); }
     const user = { type: "userMessage", id: randomUUID(), clientId: null, content: params.input }; turn.items.push(user);
     notify("item/completed", { threadId: thread.id, turnId: turn.id, item: user });
-    if (method === "turn/start") {
+    if (method === "turn/start" && mode !== "install-screen") {
       const reasoning = { type: "reasoning", id: randomUUID(), summary: ["Checking the opened document.", "Checking folders."], content: ["PRIVATE RAW REASONING"] };
       const tool = { type: "commandExecution", id: randomUUID(), command: "Get-Content notes.md", cwd: process.cwd(), status: "completed", aggregatedOutput: "fixture", exitCode: 0, durationMs: 1, commandActions: [] };
       notify("item/started", { threadId: thread.id, turnId: turn.id, item: { ...reasoning, summary: [] } });
@@ -130,7 +131,16 @@ const receive = line => {
       notify("item/agentMessage/delta", { threadId: thread.id, turnId: turn.id, itemId: answer.id, delta: answer.text });
       notify("thread/tokenUsage/updated", { threadId: thread.id, turnId: turn.id, tokenUsage: { total: { totalTokens: 2000 }, last: { totalTokens: 810 }, modelContextWindow: 1000 } });
     }
-    persist(); send({ id, result: method === "turn/start" ? { turn } : { turnId: turn.id } }); return;
+    persist(); send({ id, result: method === "turn/start" ? { turn } : { turnId: turn.id } });
+    if (mode === "install-screen" && method === "turn/start") {
+      const directory = params.input.find(part => part.type === "text" && part.text.startsWith("Install fixture from: "))?.text.slice("Install fixture from: ".length);
+      if (!directory) throw new Error("Expected a plugin fixture directory");
+      const callId = randomUUID();
+      const tool = { threadId: thread.id, tool: "manage_plugins", arguments: { action: "install", directory } };
+      toolPending.set(callId, { id: undefined, params: tool });
+      send({ id: callId, method: "item/tool/call", params: { ...tool, namespace: null, turnId: turn.id, callId } });
+    }
+    return;
   }
   if (method === "fixture/edit") {
     const thread = threads[params.threadId], turn = thread.turns.at(-1);
@@ -155,7 +165,8 @@ const receive = line => {
   if (method === "initialize" && hangInitialize) return;
   const responses = {
     initialize:{ userAgent: "fixture" },
-    "model/list": params?.cursor ? { data: [model("next-model", ["low"])], nextCursor: null } : { data: [model("gpt-6.1-sol", ["medium", "high"]), model("chosen-model", ["xhigh"])], nextCursor: "page-2" },
+    "model/list": mode === "install-screen" ? { data: [model("gpt-6-luna", ["low"])], nextCursor: null }
+      : params?.cursor ? { data: [model("next-model", ["low"])], nextCursor: null } : { data: [model("gpt-6.1-sol", ["medium", "high"]), model("chosen-model", ["xhigh"])], nextCursor: "page-2" },
     "account/read": { account: mode === "logged-out" ? null : { type: "chatgpt", email: "fixture@example.invalid", planType: "plus" } },
     "account/rateLimits/read": { rateLimits: { primary: { usedPercent: 28, windowDurationMins: 300, resetsAt: 1900000000 }, secondary: null }, rateLimitsByLimitId: null },
     "mcpServerStatus/list": { data: [{ name: "fixture", runtimeStatus: null, authStatus: "notLoggedIn" }], nextCursor: null },
