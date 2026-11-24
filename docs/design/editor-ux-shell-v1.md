@@ -1068,6 +1068,44 @@ composition, rich static content, unresolved states, list/table chips, scroll di
 `layout-rules` and `quiet-document` retain their interface regressions. CDP composition is not
 a manual native Windows IME/candidate-window check.
 
+### In-document target previews (#1958)
+
+A `#fragment` link and a resolved `{numref}`, `{ref}` or `{eq}` chip show their target block in the
+same `ReadingPreview` card, in Edit, Read and the plugin DocumentView. A table shows the table and
+its caption, a figure its image and caption, an equation its rendered formula and number. A
+heading shows itself and the following blocks up to the next heading, without the next heading's
+`(label)=` target or the trailing endnote definitions. Links resolve by #1956's Core fragment
+lookup and chips by the targets their own display uses. A link to the block that contains it
+also shows the card. Missing targets show no card. Unresolved chips keep their dashed display and
+title tooltip, and resolved chips no longer have a native title tooltip. External http(s) links,
+other documents and image links keep their existing behavior, and nothing is requested remotely.
+
+Hover, caret reading (a collapsed caret inside the link or beside the chip, or chip atom selection),
+dismissal, placement, the 20rem width and the 15rem height cap are those of #752. The card copies
+the block as the document already renders it, at document type scale. It removes hover
+metadata, object tools, draft status, controls, ids, test ids, selection and editability attributes.
+Links become the endnote preview's display-only link text. There is no editor
+instance, NodeView, focusable descendant, transaction or document write. A table is never
+narrowed below its document layout: it takes its content width up to the document column and is
+cut from its top-left. Content beyond the cap fades out at the bottom and/or right edge
+(`--size-overflow-fade`, as for wide tables and formulas). Copying uses the already rendered
+NodeViews, so numbers, captions, math and images need no second renderer. Target lookups are
+cached per engine document. A heading section copies only until the card is full (at most 40
+blocks). No Core operation, CLI command, saved syntax or Host API is added.
+
+`reference-preview` checks table, figure, equation and section content from links and chips,
+read-only/no-focus copies, unchanged editor state, top-left clipping with the fade, missing
+targets, caret reading, and Read view. `plugin-screen-code` checks a DocumentView link preview.
+Table/footnote or NOTE paragraphs after a target are not included.
+
+[Table, 1440](assets/in-document-target-previews-1958/table-1440.png) ·
+[Figure, 1440](assets/in-document-target-previews-1958/figure-1440.png) ·
+[Equation, 1440](assets/in-document-target-previews-1958/equation-1440.png) ·
+[Section, 1440](assets/in-document-target-previews-1958/section-1440.png) ·
+[Clipped long table, 1440](assets/in-document-target-previews-1958/long-table-1440.png) ·
+[Korean dark, 1440](assets/in-document-target-previews-1958/long-table-ko-dark-1440.png) ·
+[Section, 1920 × 1080](assets/in-document-target-previews-1958/section-1920.png)
+
 ### Shortcut contract (#381)
 
 Undo/Redo from nonediting shell focus targets only the active Visual document (#772),
