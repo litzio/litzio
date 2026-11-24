@@ -1,0 +1,59 @@
+# 2026-11-24 Ollama 공급자의 Codex 엔진 연결과 음성 전달
+
+- Status: Historical
+- Date: 2026-11-24 (KST)
+- Scope: 가짜 Ollama 서버를 사용한 스파이크 기록. [스파이크 정책](README.md)을 따른다.
+
+## 목적
+
+리치오가 이미 연결한 Codex app-server를 Ollama 공급자에 재사용할 수 있는지 확인했다. 로그인 없는 연결, 음성 전달, 첫 요청 분량, 질문·문서·권한을 확인 대상으로 삼았다.
+
+## 무엇을 만들었나
+
+기존 Host의 Codex 연결과 대화 동작을 쓰는 실행기, 요청 기록과 도구 호출 응답을 제공하는 가짜 Ollama, pi 스파이크와 같은 방식의 분량 측정기를 만들었다. 첫 요청 측정에 리치오 지시문·스킬 두 개와 Codex 경로의 Host dynamic tools를 사용했다. 전송 자체를 보려고 계정 진단 아래에서 합성 모델 목록 하나로 시작했다.
+
+## 결과·관찰
+
+**① 연결은 된다.** 임시 `CODEX_HOME`의 사용자 정의 Responses 공급자 또는 `model_provider="ollama"`와 `CODEX_OSS_BASE_URL`로 로그인 없이 `POST /v1/responses` 턴을 마쳤다. `app-server` 앞의 `--oss --local-provider ollama`는 실제 실행에서 공급자를 `openai`로 유지했고, 뒤에 붙이면 인자 오류였다. 두 프로세스가 같은 임시 홈에서도 각 공급자로 초기화됐지만 계정용 프로세스에서 Ollama 스레드가 조회됐다. 각자 다른 임시 홈에서도 동시 실행을 확인했다. 사용자의 계정 로그인·설정·세션을 격리하려면 로컬 프로세스에 별도 홈이 필요하다. 계정은 로그인하지 않았다.
+
+**② 음성은 현재 조합에서 안 된다.** 기본 모델 정보에서는 Codex가 음성을 생략했다. `model_catalog_json`의 `input_modalities`에 `audio`를 넣으면 `localAudio`와 `audio` data URL의 WAV 바이트가 `input_audio.audio_url`로 그대로 전달됐다. `audio`의 HTTP URL은 처리 실패로 생략됐고 서버에 WAV GET가 오지 않았다. Ollama 0.40.16의 Responses 파서는 `input_audio`를 거절한다. Chat Completions는 음성을 받지만 Codex 0.172.0의 `wire_api`는 `responses`만 받는다. 주소 접두사를 `/api`로 바꾼 시험도 `/api/responses`로 갔다. [Ollama Responses 파서](https://github.com/ollama/ollama/blob/v0.40.16/openai/responses.go#L104-L171), [Ollama Chat Completions 파서](https://github.com/ollama/ollama/blob/v0.40.16/openai/openai.go#L631-L644), [Codex wire API 소스](https://github.com/openai/codex/blob/rust-v0.172.0/codex-rs/model-provider-info/src/lib.rs#L104-L114)
+
+**③ 입력 분량은 측정했다.** `안녕?`, 전체 접근, 리치오 지시문·스킬·Host 도구를 포함한 첫 요청이다. 도구 수는 첫 요청에서 모델이 보는 값이며, pi는 Host 도구를 나중에 불러온다. Copilot CLI·pi 수치는 [직전 pi 스파이크](2026-11-24-ollama-pi-audio.md)를 따른다.
+
+| 항목 | Copilot CLI 1.0.114 | pi 1.6.0 + pi-acp 0.1.8 | Codex 0.172.0 |
+| --- | ---: | ---: | ---: |
+| 요청 본문 | 82,047자 | 12,180자 | 55,363자 |
+| 도구 | 36개 | 5개 | 18개 |
+| 도구 정의 | 52,422자 | 3,626자 | 28,114자 |
+| 시스템·개발자 지시문 | 27,833자 | 7,573자 | 20,386자 |
+| 리치오 지시문 | 1회 | 1회 | 1회 |
+| 요청하지 않은 추론 값 | `effort: medium`, `summary: auto`, `reasoning.encrypted_content` | 없음 | `summary: auto`, `reasoning.encrypted_content` |
+| `gemma4:e4b` 실제 입력 토큰 | 18,685 | 3,991 | 미측정 |
+| `qwen3.5:4b` 실제 입력 토큰 | 19,110 | 4,072 | 미측정 |
+
+Codex 측정의 `effort: medium`은 실행기가 선택해 Host가 넘긴 값이다. Host는 `summary: auto`를 붙였고 Codex는 `include: ["reasoning.encrypted_content"]`를 더했다. Windows에서는 임시 홈 환경 변수에도 사용자 홈 스킬 10개가 요청에 섞였다. 임시 설정에서 발견한 경로를 개별적으로 제외한 뒤 위 값을 얻었고, 리치오 스킬 두 개는 남았다.
+
+**④ 리치오 도구와 권한은 가짜 모델에서 된다.** 질문 호출 뒤 대기 중인 카드와 `accepted:true`가 남았다. `read_document`는 열린 폴더 문서의 본문을 돌려줬다. `create_document`는 읽기 전용에서 거절하고 전체 접근에서 파일을 만들었다. 읽기 전용에서 승인 필요 셸 쓰기를 요청하니 승인 카드가 왔고, 거절하면 파일이 생기지 않았다.
+
+**검증 범위.** 첫 격리 실행에서 발견한 외부 연결 시도는 로컬 프록시가 차단했다. 관련 플래그를 끈 뒤 최종 시험의 모델 요청은 전부 가짜 서버로 갔다. 실제 Ollama 추론·입력 토큰·받아쓰기, 로그인된 계정과의 동시 추론, 화면 표시·재개는 미확인이다.
+
+## 현재 결정과 어긋나는 점
+
+- [비서 계약](../design/main-agent-v1.md)의 Ollama 엔진은 Copilot CLI다. 스파이크는 Codex를 직접 시작해 기존 계정 진단 아래에서 합성 모델 목록을 주입했다.
+- [ADR-0014](../adr/0014-main-agent-app-server.md)가 정한 계정용 Codex 홈 재사용과 달리, 스파이크는 로컬 실행을 임시 홈으로 격리했다.
+
+## 결론/후속
+
+- 결론 **미정**
+- 작업자 추천은 음성 요구가 있는 Ollama 공급자의 엔진으로 현재 Codex 구성을 채택하지 않는 것이다. 소유자가 엔진과 지원할 음성 경로를 정해야 결론이 난다. 실모델 토큰과 받아쓰기 대조 명령은 아래 원본 기록에 있다.
+
+## 코드 위치
+
+- 태그 [`spike/2026-11-24-ollama-codex-audio`](https://github.com/litzio/litzio/tree/spike/2026-11-24-ollama-codex-audio)
+- 브랜치 [`spike/ollama-codex-audio`](https://github.com/litzio/litzio/tree/spike/ollama-codex-audio)
+- 마지막 커밋 [`f8efe3ce`](https://github.com/litzio/litzio/commit/f8efe3ce6e91d1bb930f46371dd8c25f6d472a16)
+- 원본 기록 [`scripts/spike-codex-audio/SPIKE.md`](https://github.com/litzio/litzio/blob/spike/2026-11-24-ollama-codex-audio/scripts/spike-codex-audio/SPIKE.md)
+
+## 스크린샷
+
+없음.
