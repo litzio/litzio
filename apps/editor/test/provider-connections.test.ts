@@ -128,7 +128,10 @@ test("Ollama lists its own models, launches its process with the chosen model an
   ollama.models.push("local-a:4b");
   t.mock.getter(connection.ollama, "executable", () => null);
   const missing = await connection.diagnostics("ollama");
-  assert.deepEqual([missing.connected, missing.ollama?.unavailable, missing.path], [false, "cli-missing", null]);
+  assert.deepEqual([missing.connected, missing.ollama, missing.path], [false, { url: ollama.url, models: 1, unavailable: "cli-missing" }, null]);
+  address = stopped.url;
+  const bothUnavailable = await connection.diagnostics("ollama");
+  assert.deepEqual([bothUnavailable.connected, bothUnavailable.ollama, bothUnavailable.path], [false, { url: stopped.url, models: null, unavailable: "unreachable" }, null]);
 });
 
 test("Copilot account and Ollama run as separate processes that never take over each other's turns, approvals, tools or resumes", async t => {

@@ -143,6 +143,11 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
     // One run per executable: the Copilot CLI's update shows in both the Copilot and the Ollama diagnostics.
     const cliUpdate = useCliUpdate(providerCli(inspecting), request, () => void loadDiagnostics(inspecting, false).catch(report));
     const copilot = inspecting === "copilot", ollama = inspecting === "ollama";
+    const ollamaModelCount = diagnostics?.ollama?.models ?? 0;
+    const ollamaCliError = ollama && diagnostics
+      ? diagnostics.path === null ? t("Copilot CLI is not installed. Ollama runs through the Copilot CLI.")
+        : ollamaModelCount > 0 ? diagnostics.error : undefined
+      : undefined;
     const defaultModels = settings ? catalogs[settings.provider] : undefined;
     const model = defaultModels?.models.find(item => item.model === settings?.model);
     const valid = !!model && model.supportedReasoningEfforts.some(item => item.reasoningEffort === settings?.reasoningEffort);
@@ -174,9 +179,9 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
         <p className="type-helper">{t("Last checked")}: {date(diagnostics?.checkedAt)}</p>
         <div className="agent-diagnostics">
           {ollama ? <>{ollamaAddress}
-            {row(t("Connection"), diagnostics?.connected ? i18n.t("Connected · Models: {{count}}", { count: diagnostics.ollama?.models ?? 0 }) : <>{t(diagnostics ? "Unavailable" : "Checking…")}{diagnostics?.error ? <Notice tone="error">{unavailableReason(diagnostics)}</Notice> : null}</>)}
+            {row(t("Connection"), ollamaModelCount > 0 ? i18n.t("Connected · Models: {{count}}", { count: ollamaModelCount }) : <>{t(diagnostics ? "Unavailable" : "Checking…")}{diagnostics?.error ? <Notice tone="error">{unavailableReason(diagnostics)}</Notice> : null}</>)}
             {row(t("Runtime"), t("Runs through the Copilot CLI"))}</> : null}
-          {row(`${copilot || ollama ? "Copilot" : "Codex"} CLI`, <>{diagnostics?.version ?? t("Unavailable")}<CliVersionStatus diagnostics={diagnostics} /><CliUpdateButton provider={providerCli(inspecting)} diagnostics={diagnostics} running={cliUpdate.update?.status === "running"} start={cliUpdate.start} /><code>{diagnostics?.path ?? "—"}</code></>)}
+          {row(`${copilot || ollama ? "Copilot" : "Codex"} CLI`, <>{diagnostics?.version ?? t("Unavailable")}<CliVersionStatus diagnostics={diagnostics} /><CliUpdateButton provider={providerCli(inspecting)} diagnostics={diagnostics} running={cliUpdate.update?.status === "running"} start={cliUpdate.start} /><code>{diagnostics?.path ?? "—"}</code>{ollamaCliError ? <Notice tone="error">{ollamaCliError}</Notice> : null}</>)}
           <CliUpdateResult update={cliUpdate.update} problem={cliUpdate.problem} />
           {diagnostics?.storePowerShellOnly ? row("PowerShell 7", <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>{t("Possible shell issue · Install standard PowerShell 7")}</TooltipTrigger><TooltipContent>{t("Only Microsoft Store PowerShell 7 was found. Codex may fail in restricted modes (CreateProcessAsUserW failed: 5). Replace it with the standard PowerShell 7 installer and run diagnostics again.")}</TooltipContent></Tooltip>) : null}
           {ollama ? null : row(copilot ? "ACP" : "app-server", <>{t(diagnostics?.connected ? "Connected" : "Unavailable")}{diagnostics?.error ? <Notice tone="error">{diagnostics.error}</Notice> : null}</>)}
