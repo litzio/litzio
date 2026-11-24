@@ -823,6 +823,30 @@ test("a send already on its way to the provider defers the relaunch after an upd
   assert.equal((await sent).turns.at(-1)!.status, "inProgress", "the send is not cut off by the relaunch");
 });
 
+test("a Copilot send already on its way defers the relaunch after an update", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-cli-pending-")), log = path.join(root, "acp.jsonl");
+  const cli = fakeProviderCli(root, { version: "1.0.114", update: "ok", next: "1.0.115" });
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: cli.bin, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-hold-new-session"] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  t.after(async () => { await conversations.close(); await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  useReleaseSource(connection, { latest: async () => "1.0.115" });
+  connection.environment();
+  await connection.copilot.catalog();
+  const rows = () => readFileSync(log, "utf8").split("\n").slice(0, -1).map(line => JSON.parse(line));
+  const settings = { provider: "copilot", model: "auto", reasoningEffort: "medium", permissionMode: "read-only" } as const;
+  // The new session is held at the provider while the update finishes.
+  const sent = conversations.send({ message: "Wait for cancellation", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
+  while (rows().filter(row => row.method === "session/new").length < 2) await new Promise(resolve => setTimeout(resolve, 50));
+  connection.updateCli("copilot", () => {});
+  const update = await settled(connection, "copilot");
+  assert.deepEqual([update.status, update.deferred], ["succeeded", true]);
+  writeFileSync(log + ".release", "release");
+  const conversation = await sent;
+  assert.equal(conversation.turns.at(-1)!.status, "inProgress", "the send is not cut off by the relaunch");
+  assert.equal(rows().filter(row => row.pid).length, 1, "the Copilot process that received the send keeps running");
+  await conversations.interrupt(conversation.id);
+});
+
 test("dynamic document tools enforce turn scope and preserve results across process resume", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-tools-")), folder = path.join(root, "docs"), outside = path.join(root, "outside"), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
   mkdirSync(folder); mkdirSync(outside);
@@ -1387,6 +1411,36 @@ test("PowerShell inventory warns only for Store-only installations", () => {
   assert.equal(onlyStorePowerShell(store), true);
   assert.equal(onlyStorePowerShell([...store, "C:/Program Files/PowerShell/7/pwsh.exe"]), false);
   assert.equal(onlyStorePowerShell([]), false);
+});
+
+test("a Copilot disconnect cleans up only its own conversations while a Codex turn keeps running", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "provider-disconnect-")), log = path.join(root, "rpc.jsonl"), acpLog = path.join(root, "acp.jsonl");
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] }, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), acpLog] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  t.after(async () => { await conversations.close(); await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const codexSettings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const codex = await conversations.send({ message: "Draft", folders: [root], model: codexSettings.model, reasoningEffort: codexSettings.reasoningEffort }, codexSettings);
+  const copilotSettings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "medium" };
+  const copilot = await conversations.send({ message: "Wait for approval", folders: [root], model: "auto", reasoningEffort: "medium" }, copilotSettings);
+  // The fixture asks to write outside the read-only scope: an approval card waits for the user.
+  while (!copilot.userInput) await new Promise(resolve => setTimeout(resolve, 50));
+  const approval = copilot.userInput;
+  const acp = connection.copilot, client = await acp.connect();
+  const disconnected = new Promise(resolve => acp.once("disconnected", resolve));
+  await assert.rejects(acp.call(() => client.unstable_setSessionModel({ sessionId: copilot.id, modelId: "EXIT PROCESS" })));
+  await disconnected;
+  assert.equal(copilot.turns.at(-1)!.status, "failed");
+  assert.equal(copilot.userInput, undefined);
+  assert.throws(() => conversations.answer(copilot.id, approval.turnId, approval.requestId, { decision: { answers: ["Reject"] } }), /expired/);
+  assert.throws(() => conversations.mcp.lease(copilot.id), /Missing Copilot MCP/, "the lost connection's Host tool endpoint is revoked");
+  assert.equal(codex.turns.at(-1)!.status, "inProgress");
+  assert.equal((await connection.client.request("fixture/tool", { threadId: codex.id, tool: "list_documents", arguments: { path: root } })).result.success, true, "the Codex turn keeps its tool scope");
+  const resumes = () => readFileSync(log, "utf8").split("\n").filter(Boolean).filter(line => JSON.parse(line).method === "thread/resume").length;
+  await conversations.send({ id: codex.id, message: "Also this", folders: [root], model: codexSettings.model, reasoningEffort: codexSettings.reasoningEffort }, codexSettings);
+  assert.equal(resumes(), 0, "the Codex conversation stays loaded");
+  await conversations.send({ id: copilot.id, message: "COMPLETE THIS TURN", folders: [root], model: "auto", reasoningEffort: "medium" }, copilotSettings);
+  assert.ok(readFileSync(acpLog, "utf8").split("\n").filter(Boolean).some(line => JSON.parse(line).method === "session/load" && JSON.parse(line).params.sessionId === copilot.id), "the Copilot conversation is loaded again on the new process");
+  await conversations.interrupt(codex.id);
 });
 
 test("Copilot recovery preserves active prompts and never replays timed out requests", async t => {

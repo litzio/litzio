@@ -18,6 +18,7 @@ import path from "node:path";
 import { ASSISTANT, copilotOllamaUrl } from "../shared/assistant.ts";
 import type { AssistantConversationInfo, AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn, AiProvider } from "../shared/assistant.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
+import { AI_PROVIDERS, conversationProvider, providerEngine } from "./provider-engine.ts";
 import { accessPath, type FileAccess } from "./file-access.ts";
 
 import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
@@ -50,7 +51,8 @@ export class AssistantConversations {
     return changes;
   }
   private conversations = new Map<string, AssistantConversation>();
-  private pending = new Set<string>();
+  /** Send key → its provider. */
+  private pending = new Map<string, AiProvider>();
   private submissions = new Map<string, { receipt: AssistantSubmission; result: Promise<AssistantSubmissionResult>; dispatched: boolean }>();
   submission(id: string): AssistantSubmissionResult {
     const receipt = this.submissions.get(id)?.receipt ?? { id, status: "unknown" as const };
@@ -98,22 +100,27 @@ export class AssistantConversations {
   private loaded = new Set<string>();
   /** A provider is busy with an admitted turn or a send already on its way to it; `except` is the caller's own send. */
   private busy(provider: AiProvider, except?: string) {
-    return [...this.conversations.values()].some(value => (value.provider ?? "codex") === provider && value.turns.some(turn => turn.status === "inProgress"))
-      || [...this.pending].some(key => key !== except && (key === "copilot") === (provider === "copilot"));
+    return [...this.conversations.values()].some(value => conversationProvider(value) === provider && value.turns.some(turn => turn.status === "inProgress"))
+      || [...this.pending].some(([key, owner]) => key !== except && owner === provider);
   }
+  /** An ACP connection's launch settings are process-wide: one send at a time per connection. Codex sends are per conversation. */
+  private sendKey(provider: AiProvider, id?: string) { return providerEngine(provider) === "acp" ? provider : id ?? "new"; }
   constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost) {
     this.attachments = new AssistantAttachments(connection.cwd);
     this.index = new AssistantConversationIndex(connection, this.attachments);
-    connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
-    connection.copilot.on("disconnected", (message: string) => {
-      for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
+    for (const provider of AI_PROVIDERS) if (providerEngine(provider) === "acp") {
+      const acp = connection.acp(provider);
+      acp.on("update", (params: SessionNotification) => this.copilotUpdate(provider, params));
+      acp.on("disconnected", (message: string) => {
+        for (const conversation of this.conversations.values()) if (conversationProvider(conversation) === provider) {
 
-        this.loaded.delete(conversation.id); this.scopes.delete(conversation.id); this.mcp.revokeConversation(conversation.id);
-        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message;  }
-        if (this.expireQuestion(conversation)) this.save(conversation);
-      }
-    });
-    connection.copilot.permission = request => this.copilotPermission(request);
+          this.loaded.delete(conversation.id); this.scopes.delete(conversation.id); this.mcp.revokeConversation(conversation.id);
+          for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message;  }
+          if (this.expireQuestion(conversation)) this.save(conversation);
+        }
+      });
+      acp.permission = request => this.copilotPermission(provider, request);
+    }
     connection.providerBusy = provider => this.busy(provider);
     connection.client.userInput = (requestId, params, respond) => {
       const conversation = this.conversations.get(params?.threadId);
@@ -137,8 +144,8 @@ export class AssistantConversations {
     connection.client.toolCall = params => this.executeTool(params);
     connection.client.on("notification", (method, params) => this.notification(method, params));
     connection.client.on("disconnected", (message: string) => {
-      for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.loaded.delete(id); this.scopes.delete(id); }
-      for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") {
+      for (const [id, conversation] of this.conversations) if (providerEngine(conversationProvider(conversation)) === "codex") { this.loaded.delete(id); this.scopes.delete(id); }
+      for (const conversation of this.conversations.values()) if (providerEngine(conversationProvider(conversation)) === "codex") {
         for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message;  }
         if (this.expireQuestion(conversation)) this.save(conversation);
       }
@@ -239,7 +246,7 @@ export class AssistantConversations {
     }
     const questions = conversation.turns.flatMap(turn => turn.items.map(item => item.question));
     // ACP replay provides message content but does not retain the Host's original turn IDs.
-    const copilotRecords = conversation.provider === "copilot" ? saved ?? [] : [];
+    const copilotRecords = providerEngine(conversationProvider(conversation)) === "acp" ? saved ?? [] : [];
     for (const turn of conversation.turns) for (const item of turn.items.slice()) {
       const reply = item.questionAnswer;
       if (!reply || item.userMessageSource !== "provider-history") continue;
@@ -258,15 +265,16 @@ export class AssistantConversations {
   }
   async providerLog(id: string, provider: unknown) {
     const info = this.list().find(entry => entry.id === id);
-    if (!sessionIdPattern.test(id) || !info || (info.provider ?? "codex") !== provider) return { available: false as const, reason: "unknown" as const };
+    if (!sessionIdPattern.test(id) || !info || conversationProvider(info) !== provider) return { available: false as const, reason: "unknown" as const };
+    const owner = conversationProvider(info);
     try {
       let file: string;
-      if (provider === "codex") {
+      if (providerEngine(owner) === "codex") {
         const result = await this.connection.client.request("thread/read", { threadId: id, includeTurns: false });
         if (result.thread?.id !== id || typeof result.thread.path !== "string") throw new Error("No provider log location.");
         file = result.thread.path;
       } else file = path.join(this.copilotRoot, "session-state", id, "events.jsonl");
-      return { available: true as const, id, provider, path: validateProviderLog(file, provider as "codex" | "copilot", id), checkedAt: Date.now() };
+      return { available: true as const, id, provider, path: validateProviderLog(file, owner, id), checkedAt: Date.now() };
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       return { available: false as const, reason: code === "ENOENT" ? "missing" as const : code === "EACCES" || code === "EPERM" ? "denied" as const : "unverified" as const };
@@ -281,23 +289,25 @@ export class AssistantConversations {
     const grants = ["read-only", "opened-folders", "full-access"];
     const stored = grants.indexOf(info.permissionMode ?? "");
     const restored = stored >= 0 && stored <= grants.indexOf(settings.permissionMode) ? info.permissionMode! : settings.permissionMode;
-    settings = { ...settings, provider: info.provider ?? "codex", permissionMode: turnPermissionMode ?? this.conversations.get(id)?.permissionMode ?? restored };
+    const provider = conversationProvider(info);
+    settings = { ...settings, provider, permissionMode: turnPermissionMode ?? this.conversations.get(id)?.permissionMode ?? restored };
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
-    if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings, (await this.connection.copilotOllama(copilotOllamaUrl(settings)))?.launch);
-    if (info.provider === "copilot" && this.loaded.has(id)) return this.current(id);
+    const acp = providerEngine(provider) === "acp" ? this.connection.acp(provider) : undefined;
+    if (acp) await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? acp.reasoningEffort, settings, (await this.connection.copilotOllama(copilotOllamaUrl(settings)))?.launch);
+    if (acp && this.loaded.has(id)) return this.current(id);
     const conversation: AssistantConversation = { ...info, permissionMode: settings.permissionMode, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage, copilotUsage: this.conversations.get(id)?.copilotUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);
-    if (info.provider === "copilot") {
+    if (acp) {
       try {
         this.loaded.delete(id);
-        const client = await this.connection.copilot.connect();
-        if (!this.connection.copilot.loadSession) throw new Error("This Copilot CLI cannot resume sessions. Start a new conversation.");
-        const session = await this.connection.copilot.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: this.mcp.servers(id) }), true);
+        const client = await acp.connect();
+        if (!acp.loadSession) throw new Error("This Copilot CLI cannot resume sessions. Start a new conversation.");
+        const session = await acp.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: this.mcp.servers(id) }), true);
         conversation.model = session.models?.currentModelId ?? settings.model;
-        this.connection.copilot.remember({ ...session, sessionId: id });
-        conversation.copilot = copilotOptions({ ...session, sessionId: id }, !!this.connection.copilot.ollama);
+        acp.remember({ ...session, sessionId: id });
+        conversation.copilot = copilotOptions({ ...session, sessionId: id }, !!acp.ollama);
         const reasoning = copilotReasoning(session);
         if (conversation.copilot.reasoningEffortSource === "cli" && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
         conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort ?? settings.reasoningEffort;
@@ -331,7 +341,7 @@ export class AssistantConversations {
     const existing = input.id ? this.current(input.id) : undefined;
     if (input.provider !== undefined && input.provider !== "codex" && input.provider !== "copilot") throw new Error("Invalid AI provider.");
     if (input.permissionMode !== undefined && !["opened-folders", "read-only", "full-access"].includes(input.permissionMode)) throw new Error("Invalid permission mode.");
-    if (existing && input.provider !== undefined && input.provider !== (existing.provider ?? "codex")) throw new Error("Provider is locked after a conversation starts.");
+    if (existing && input.provider !== undefined && input.provider !== conversationProvider(existing)) throw new Error("Provider is locked after a conversation starts.");
     settings = { ...settings, provider: existing?.provider ?? input.provider ?? settings.provider,
       permissionMode: input.permissionMode ?? existing?.permissionMode ?? settings.permissionMode };
     const folders = [...new Set(input.folders.map(folder => {
@@ -348,22 +358,22 @@ export class AssistantConversations {
     }
 
     let conversation = input.id ? this.current(input.id) : undefined;
-    const key = settings.provider === "copilot" ? "copilot" : input.id ?? "new";
+    const key = this.sendKey(settings.provider, input.id);
     if (this.pending.has(key)) throw new Error("A conversation request is already pending.");
-    this.pending.add(key);
+    this.pending.set(key, settings.provider);
     try {
       this.connection.environment();
-      if (conversation && (conversation.provider ?? "codex") !== settings.provider) throw new Error("Start a conversation with the selected provider.");
-      if (settings.provider === "copilot") {
+      if (conversation && conversationProvider(conversation) !== settings.provider) throw new Error("Start a conversation with the selected provider.");
+      if (providerEngine(settings.provider) === "acp") {
         if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
         return await this.sendCopilot(input, settings, folders, references, conversation);
       }
-      await this.connection.relaunchUpdated("codex", this.busy("codex", key));
+      await this.connection.relaunchUpdated(settings.provider, this.busy(settings.provider, key));
       if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.permissionMode);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
       if (!active) {
-        const models = await this.connection.models();
+        const models = await this.connection.models(settings.provider);
         const model = models.models.find(model => model.model === input.model);
         if (!model) throw new AssistantModelUnavailable("Invalid AI model or reasoning effort.");
         if (!model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === input.reasoningEffort)) throw new Error("Invalid AI model or reasoning effort.");
@@ -379,7 +389,7 @@ export class AssistantConversations {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: settings.permissionMode === "full-access" ? "never" : "on-request", sandbox: "read-only", ephemeral: false, dynamicTools: this.tools });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, ASSISTANT.conversationTitleLimit), folders, createdAt: Date.now(), updatedAt: Date.now(),
-          turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
+          turns: [], provider: settings.provider, permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
         this.loaded.add(conversation.id);
         this.save(conversation);
@@ -479,7 +489,7 @@ export class AssistantConversations {
     return changed;
   }
   expireProviderQuestions(provider: AssistantSettings["provider"]) {
-    for (const conversation of this.conversations.values()) if ((conversation.provider ?? "codex") === provider && this.expireQuestion(conversation)) this.save(conversation);
+    for (const conversation of this.conversations.values()) if (conversationProvider(conversation) === provider && this.expireQuestion(conversation)) this.save(conversation);
   }
   answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers) {
     const conversation = this.current(id), question = conversation.turns.find(turn => turn.id === turnId)?.items.find(item => item.question?.requestId === requestId)?.question;
@@ -501,7 +511,7 @@ export class AssistantConversations {
       this.save(conversation);
       const message = QUESTION_ANSWER_CONTEXT + JSON.stringify({ requestId: question.requestId, turnId: question.turnId, questions: question.questions, answers });
       await this.send({ id: conversation.id, message, folders: conversation.folders, model: conversation.model, reasoningEffort: conversation.reasoningEffort },
-        { provider: conversation.provider ?? "codex", permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort });
+        { provider: conversationProvider(conversation), permissionMode: conversation.permissionMode ?? "read-only", model: conversation.model, reasoningEffort: conversation.reasoningEffort });
     question.status = "answered"; this.save(conversation);
       return conversation;
     } catch (error) {
@@ -515,19 +525,20 @@ export class AssistantConversations {
     this.expireQuestion(conversation);
     this.save(conversation);
 
-    if (turn && conversation.provider === "copilot") {
+    const provider = conversationProvider(conversation);
+    if (turn && providerEngine(provider) === "acp") {
       this.mcp.endTurn(id);
-      const client = await this.connection.copilot.connect();
-      await this.connection.copilot.call(() => client.cancel({ sessionId: id }));
+      const acp = this.connection.acp(provider), client = await acp.connect();
+      await acp.call(() => client.cancel({ sessionId: id }));
     } else if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
     return conversation;
   }
   private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation) {
-    const acp = this.connection.copilot;
+    const acp = this.connection.acp(settings.provider);
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     // Read the model source once: validation and launch use the source this send started with.
     const ollamaUrl = copilotOllamaUrl(settings);
-    const catalog = await this.connection.models("copilot", "recent", { ollamaUrl });
+    const catalog = await this.connection.models(settings.provider, "recent", { ollamaUrl });
     if (!catalog.models.some(model => model.model === input.model)) throw new AssistantModelUnavailable("Invalid Copilot model.");
     if (input.mode !== undefined && !catalog.copilot?.modes.some(mode => mode.id === input.mode)) throw new Error("Invalid Copilot session mode.");
     const source = conversation?.copilot?.reasoningEffortSource ?? catalog.copilot?.reasoningEffortSource;
@@ -539,7 +550,7 @@ export class AssistantConversations {
     const fullAccess = settings.permissionMode === "full-access";
     // A local model source serves one model per process: the selected model is a launch setting.
     await this.prepareCopilotLaunch(effort, settings, ollamaUrl ? { url: ollamaUrl, model: input.model } : undefined);
-    await this.connection.relaunchUpdated("copilot", this.busy("copilot", "copilot"));
+    await this.connection.relaunchUpdated(settings.provider, this.busy(settings.provider, this.sendKey(settings.provider)));
     if (conversation && !this.loaded.has(conversation.id)) {
       // A running ACP process already owns the session and its MCP endpoint.
       // Retain the snapshot object held by callers while rebuilding provider-owned content.
@@ -555,7 +566,7 @@ export class AssistantConversations {
     try {
       if (!conversation) {
         const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: lease.servers }), true));
-        conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, ASSISTANT.conversationTitleLimit),
+        conversation = { id: session.sessionId, provider: settings.provider, title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, ASSISTANT.conversationTitleLimit),
           folders, createdAt: Date.now(), updatedAt: Date.now(), permissionMode: settings.permissionMode, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session, !!acp.ollama) };
         this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
       }
@@ -641,8 +652,8 @@ export class AssistantConversations {
     }
   }
   private async prepareCopilotLaunch(effort: string, settings: AssistantSettings, ollama: CopilotOllama | undefined) {
-    const acp = this.connection.copilot, fullAccess = settings.permissionMode === "full-access";
-    if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess || !sameOllama(acp.ollama, ollama)) && [...this.conversations.values()].some(value => value.provider === "copilot" && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
+    const acp = this.connection.acp(settings.provider), fullAccess = settings.permissionMode === "full-access";
+    if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess || !sameOllama(acp.ollama, ollama)) && [...this.conversations.values()].some(value => conversationProvider(value) === settings.provider && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
     await acp.useLaunchSettings(effort, fullAccess, ollama);
   }
   private blockingCard(id: string, turnId: string, requestId: string | number, questions: AssistantQuestionRecord["questions"], respond: (answers: AssistantUserInputAnswers) => void, cancel: () => void, validate?: (answers: AssistantUserInputAnswers) => unknown, approval = true) {
@@ -655,9 +666,10 @@ export class AssistantConversations {
     if (validate) this.validators.set(key, validate);
     this.refreshQuestion(conversation); this.save(conversation);
   }
-  private copilotPermission(request: RequestPermissionRequest): RequestPermissionResponse | Promise<RequestPermissionResponse> {
-    const scope = this.scopes.get(request.sessionId), tool = request.toolCall;
-    const active = this.conversations.get(request.sessionId)?.turns.some(turn => turn.id === scope?.turnId && turn.status === "inProgress");
+  /** `provider` owns the ACP connection the request came from; another provider's session is never active there. */
+  private copilotPermission(provider: AiProvider, request: RequestPermissionRequest): RequestPermissionResponse | Promise<RequestPermissionResponse> {
+    const scope = this.scopes.get(request.sessionId), tool = request.toolCall, conversation = this.conversations.get(request.sessionId);
+    const active = !!conversation && conversationProvider(conversation) === provider && conversation.turns.some(turn => turn.id === scope?.turnId && turn.status === "inProgress");
     const reading = tool.kind === "read" || tool.kind === "search";
     let allowed = !!scope && !!active && tool.kind !== "execute" && (reading || scope.permissionMode === "opened-folders");
     if (!tool.locations?.length) allowed = false;
@@ -683,16 +695,16 @@ export class AssistantConversations {
       }, () => resolve({ outcome: { outcome: "cancelled" } }));
     });
   }
-  private copilotUpdate({ sessionId, update }: SessionNotification) {
-    const conversation = this.conversations.get(sessionId); if (!conversation || conversation.provider !== "copilot") return;
+  private copilotUpdate(provider: AiProvider, { sessionId, update }: SessionNotification) {
+    const conversation = this.conversations.get(sessionId); if (!conversation || conversationProvider(conversation) !== provider) return;
     if (update.sessionUpdate === "usage_update") {
       conversation.tokenUsage = { used: update.used, limit: update.size };
       if (update.cost) conversation.copilotUsage = { ...conversation.copilotUsage, cost: { amount: update.cost.amount, currency: update.cost.currency } };
       return;
     }
     if (update.sessionUpdate === "config_option_update" || update.sessionUpdate === "current_mode_update") {
-      const session = this.connection.copilot.sessions.get(sessionId);
-      if (session) { conversation.copilot = copilotOptions(session, !!this.connection.copilot.ollama); conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort; }
+      const acp = this.connection.acp(provider), session = acp.sessions.get(sessionId);
+      if (session) { conversation.copilot = copilotOptions(session, !!acp.ollama); conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort; }
       return;
     }
     let turn = conversation.turns.at(-1);
