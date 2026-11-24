@@ -15,16 +15,20 @@ import { templateTools, executeTemplateOperation, templateOperations } from "./d
 import { statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { ASSISTANT, copilotOllamaUrl } from "../shared/assistant.ts";
+import { ASSISTANT, DEFAULT_OLLAMA_URL, isAiProvider } from "../shared/assistant.ts";
 import type { AssistantConversationInfo, AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn, AiProvider } from "../shared/assistant.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
 import { AI_PROVIDERS, conversationProvider, providerEngine } from "./provider-engine.ts";
+import { ollamaModels } from "./provider-connections.ts";
 import { accessPath, type FileAccess } from "./file-access.ts";
 
 import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
 import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copilotModelOption, sameOllama, type CopilotOllama } from "./copilot-acp.ts";
+
+/** Ollama is reached at the address saved in settings. */
+const ollamaUrl = (settings: AssistantSettings) => settings.ollamaUrl ?? DEFAULT_OLLAMA_URL;
 
 import { questionTool } from "./assistant-question-tool.ts";
 
@@ -280,7 +284,8 @@ export class AssistantConversations {
       return { available: false as const, reason: code === "ENOENT" ? "missing" as const : code === "EACCES" || code === "EPERM" ? "denied" as const : "unverified" as const };
     }
   }
-  async resume(id: string, settings: AssistantSettings, turnPermissionMode?: AssistantSettings["permissionMode"]) {
+  /** `launchModel`: a send's chosen Ollama model; reopening uses the one the conversation recorded. */
+  async resume(id: string, settings: AssistantSettings, turnPermissionMode?: AssistantSettings["permissionMode"], launchModel?: string) {
     if (typeof id !== "string") throw new Error("Invalid conversation selection.");
     const info = this.list().find(entry => entry.id === id);
     if (!info) throw new Error("Conversation was not found.");
@@ -293,7 +298,7 @@ export class AssistantConversations {
     settings = { ...settings, provider, permissionMode: turnPermissionMode ?? this.conversations.get(id)?.permissionMode ?? restored };
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     const acp = providerEngine(provider) === "acp" ? this.connection.acp(provider) : undefined;
-    if (acp) await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? acp.reasoningEffort, settings, (await this.connection.copilotOllama(copilotOllamaUrl(settings)))?.launch);
+    if (acp) await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? acp.reasoningEffort, settings, provider === "ollama" ? await this.ollamaLaunch(info, settings, launchModel) : undefined);
     if (acp && this.loaded.has(id)) return this.current(id);
     const conversation: AssistantConversation = { ...info, permissionMode: settings.permissionMode, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage, copilotUsage: this.conversations.get(id)?.copilotUsage };
@@ -335,11 +340,17 @@ export class AssistantConversations {
     this.loaded.add(id);
     return conversation;
   }
+  /** An Ollama process serves one model: the conversation's model must still be in Ollama, never silently another one. */
+  private async ollamaLaunch(info: ConversationIndexEntry, settings: AssistantSettings, launchModel?: string): Promise<CopilotOllama> {
+    const url = ollamaUrl(settings), model = launchModel ?? info.ollamaModel ?? "";
+    if (!(await ollamaModels(url)).includes(model)) throw new Error(`This conversation's model ${model} is not in Ollama.`);
+    return { url, model };
+  }
   async send(input: AssistantConversationInput, settings: AssistantSettings) {
     if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
     const existing = input.id ? this.current(input.id) : undefined;
-    if (input.provider !== undefined && input.provider !== "codex" && input.provider !== "copilot") throw new Error("Invalid AI provider.");
+    if (input.provider !== undefined && !isAiProvider(input.provider)) throw new Error("Invalid AI provider.");
     if (input.permissionMode !== undefined && !["opened-folders", "read-only", "full-access"].includes(input.permissionMode)) throw new Error("Invalid permission mode.");
     if (existing && input.provider !== undefined && input.provider !== conversationProvider(existing)) throw new Error("Provider is locked after a conversation starts.");
     settings = { ...settings, provider: existing?.provider ?? input.provider ?? settings.provider,
@@ -536,26 +547,26 @@ export class AssistantConversations {
   private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation) {
     const acp = this.connection.acp(settings.provider);
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
-    // Read the model source once: validation and launch use the source this send started with.
-    const ollamaUrl = copilotOllamaUrl(settings);
-    const catalog = await this.connection.models(settings.provider, "recent", { ollamaUrl });
+    // Read the Ollama address once: validation and launch use the address this send started with.
+    const ollama = settings.provider === "ollama" ? ollamaUrl(settings) : undefined;
+    const catalog = await this.connection.models(settings.provider, "recent", ollama);
     if (!catalog.models.some(model => model.model === input.model)) throw new AssistantModelUnavailable("Invalid Copilot model.");
     if (input.mode !== undefined && !catalog.copilot?.modes.some(mode => mode.id === input.mode)) throw new Error("Invalid Copilot session mode.");
     const source = conversation?.copilot?.reasoningEffortSource ?? catalog.copilot?.reasoningEffortSource;
-    // A local source has no reasoning option: the chosen effort is a launch setting like its model.
-    const launchEffort = source === "cli" || !!ollamaUrl;
+    // An Ollama session has no reasoning option: the chosen effort is a launch setting like its model.
+    const launchEffort = source === "cli" || !!ollama;
     if (launchEffort && !COPILOT_EFFORTS.includes(input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort.");
-    if (source === "cli" && !ollamaUrl && conversation && conversation.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
+    if (source === "cli" && !ollama && conversation && conversation.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
     const effort = launchEffort ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.permissionMode === "full-access";
-    // A local model source serves one model per process: the selected model is a launch setting.
-    await this.prepareCopilotLaunch(effort, settings, ollamaUrl ? { url: ollamaUrl, model: input.model } : undefined);
+    // An Ollama process serves one model: the selected model is a launch setting.
+    await this.prepareCopilotLaunch(effort, settings, ollama ? { url: ollama, model: input.model } : undefined);
     await this.connection.relaunchUpdated(settings.provider, this.busy(settings.provider, this.sendKey(settings.provider)));
     if (conversation && !this.loaded.has(conversation.id)) {
       // A running ACP process already owns the session and its MCP endpoint.
       // Retain the snapshot object held by callers while rebuilding provider-owned content.
       const previous = conversation;
-      const restored = await this.resume(previous.id, settings, settings.permissionMode);
+      const restored = await this.resume(previous.id, settings, settings.permissionMode, input.model);
       // Some ACP implementations replay no history; retain the admitted snapshot then.
       if (!restored.turns.length) restored.turns = previous.turns;
       Object.assign(previous, restored);

@@ -4,13 +4,26 @@ export type AssistantExecutionSettings = { model: string; reasoningEffort: strin
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantExecutionSettings = { model: "gpt-6.1-sol", reasoningEffort: "medium" };
 /** Fallback for tasks started without a conversation; never a conversation override. */
 export type AssistantResponseLanguage = "ko" | "en" | "ja";
-export type AiProvider = "codex" | "copilot";
+/** The one list of AI providers; input checks and choices read it. */
+export const AI_PROVIDERS = ["codex", "copilot", "ollama"] as const;
+export type AiProvider = typeof AI_PROVIDERS[number];
+export function isAiProvider(value: unknown): value is AiProvider { return AI_PROVIDERS.includes(value as AiProvider); }
+/**
+ * How a provider's connection speaks: the Codex app-server, or ACP through the Copilot CLI (GitHub account or Ollama).
+ * Protocol questions (resume, prompt, cancel, approvals, questions, skills, session modes, provider logs) branch on the engine;
+ * whose models and account (catalog, account, usage, display) branch on the provider.
+ */
+export type ProviderEngine = "codex" | "acp";
+const ENGINES: Record<AiProvider, ProviderEngine> = { codex: "codex", copilot: "acp", ollama: "acp" };
+export function providerEngine(provider: AiProvider): ProviderEngine { return ENGINES[provider]; }
+/** The executable a provider runs; CLI version checks and updates are per executable. */
+export type ProviderCli = "codex" | "copilot";
+export const PROVIDER_CLIS: readonly ProviderCli[] = ["codex", "copilot"];
+export function providerCli(provider: AiProvider): ProviderCli { return providerEngine(provider) === "acp" ? "copilot" : "codex"; }
 export type AssistantSettings = AssistantExecutionSettings & { provider: AiProvider; permissionMode: "opened-folders" | "read-only" | "full-access";
-  /** Copilot connection only: GitHub account routing, or an Ollama server reached by the Host. */
-  copilotModelSource?: "account" | "ollama"; ollamaUrl?: string };
+  /** Ollama provider: the Ollama server the Host reaches. */
+  ollamaUrl?: string };
 export const DEFAULT_OLLAMA_URL = "http://localhost:11434";
-/** The Ollama address when these settings select the local Copilot model source; undefined means the GitHub account. */
-export function copilotOllamaUrl(settings: Pick<AssistantSettings, "copilotModelSource" | "ollamaUrl">) { return settings.copilotModelSource === "ollama" ? settings.ollamaUrl ?? DEFAULT_OLLAMA_URL : undefined; }
 /** Host-relative base address; the Copilot provider path (/v1) is added at launch. */
 export function checkedOllamaUrl(value: unknown): string {
   const invalid = () => new Error("AI ollamaUrl: expected an http:// or https:// address without credentials, query or fragment, such as http://localhost:11434.");
@@ -65,6 +78,8 @@ export type AiModels = { provider: AiProvider; models: AiModel[]; updatedAt: num
 export type AssistantEnvironment = { cwd: string; instructions: string; skills: string[] };
 export type AssistantDiagnostics = {
   provider: AiProvider; checkedAt: number; path: string | null; version: string | null; connected: boolean; error?: string;
+  /** Ollama provider: its address, installed model count (null when unreachable) and why it cannot be used. */
+  ollama?: { url: string; models: number | null; unavailable?: "unreachable" | "no-models" | "cli-missing" };
   account?: { type: string; email?: string | null; planType?: string } | null;
   accountError?: string; rateLimitsError?: string; mcpError?: string;
   storePowerShellOnly?: boolean;
@@ -81,8 +96,8 @@ export type AssistantDiagnostics = {
 export type ProviderVersion = { versionStatus?: "current" | "available" | "unknown"; latestVersion?: string; latestCheckedAt?: number;
   /** Why the CLI's own update command cannot run on this Host. */
   updateUnavailable?: "missing" | "unsupported" };
-/** Daemon-memory state of the provider CLI's own update command; one run per provider at a time. */
-export type ProviderUpdate = { provider: AiProvider; status: "idle" | "running" | "succeeded" | "failed";
+/** Daemon-memory state of a provider CLI's own update command; one run per executable at a time. */
+export type ProviderUpdate = { provider: ProviderCli; status: "idle" | "running" | "succeeded" | "failed";
   startedAt?: number; finishedAt?: number; exitCode?: number | null; timedOut?: boolean; error?: string;
   /** Combined stdout and stderr in arrival order; only the last part is kept beyond the limit. */
   output: string; outputTruncated?: boolean;

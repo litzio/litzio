@@ -1,6 +1,6 @@
 import { spawn, execFile, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
-import type { AiProvider, ProviderUpdate, ProviderVersion } from "../shared/assistant.ts";
+import type { ProviderCli, ProviderUpdate, ProviderVersion } from "../shared/assistant.ts";
 import { stopAgentProcess } from "./codex-app-server.ts";
 
 /** Adjustable: a stalled CLI update is ended and reported as failed. */
@@ -10,15 +10,15 @@ export const LATEST_RELEASE_CACHE_MS = 10 * 60_000;
 const OUTPUT_LIMIT = 64 * 1024;
 
 /**
- * Provider differences. Both CLIs update themselves with `update` and resolve "latest" from these
+ * Executable differences. Both CLIs update themselves with `update` and resolve "latest" from these
  * public GitHub releases; the request carries no user or project data.
  */
-const PROVIDERS: Record<AiProvider, { repository: string }> = {
+const PROVIDERS: Record<ProviderCli, { repository: string }> = {
   codex: { repository: "openai/codex" },
   copilot: { repository: "github/copilot-cli" },
 };
 
-export async function latestRelease(provider: AiProvider): Promise<string> {
+export async function latestRelease(provider: ProviderCli): Promise<string> {
   // Test and isolated Hosts point the same GitHub API override as plugin sources at a fake.
   const api = process.env.LITZIO_GITHUB_API_URL || "https://api.github.com";
   const response = await fetch(`${api}/repos/${PROVIDERS[provider].repository}/releases/latest`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "cli-version-check" }, signal: AbortSignal.timeout(5_000) });
@@ -43,15 +43,15 @@ function listsUpdate(bin: string): Promise<boolean> {
   return new Promise(resolve => execFile(command, ["--help"], { shell, windowsHide: true, timeout: 5000 }, (error, out) => resolve(!error && /^\s+update\s/m.test(out))));
 }
 
-/** Target Host owner of provider CLI updates; nothing here is persisted. */
+/** Target Host owner of provider CLI updates, one run per executable; nothing here is persisted. */
 export class ProviderUpdates {
-  private runs = new Map<AiProvider, ProviderUpdate>();
-  private releases = new Map<AiProvider, { version: string; checkedAt: number }>();
-  private children = new Map<AiProvider, { child: ChildProcessWithoutNullStreams; timer: ReturnType<typeof setTimeout> }>();
+  private runs = new Map<ProviderCli, ProviderUpdate>();
+  private releases = new Map<ProviderCli, { version: string; checkedAt: number }>();
+  private children = new Map<ProviderCli, { child: ChildProcessWithoutNullStreams; timer: ReturnType<typeof setTimeout> }>();
   private closed = false;
-  constructor(private executable: (provider: AiProvider) => string | null, private options: { latest?: (provider: AiProvider) => Promise<string>; timeoutMs?: number } = {}) {}
+  constructor(private executable: (provider: ProviderCli) => string | null, private options: { latest?: (provider: ProviderCli) => Promise<string>; timeoutMs?: number } = {}) {}
 
-  async version(provider: AiProvider, installed: string | null): Promise<ProviderVersion> {
+  async version(provider: ProviderCli, installed: string | null): Promise<ProviderVersion> {
     const bin = this.executable(provider);
     if (!bin) return { versionStatus: "unknown", updateUnavailable: "missing" };
     // The comparison serves the update command; without one, no release request is made.
@@ -64,7 +64,7 @@ export class ProviderUpdates {
       ...(release ? { latestVersion: release.version, latestCheckedAt: release.checkedAt } : {}),
     };
   }
-  private async release(provider: AiProvider) {
+  private async release(provider: ProviderCli) {
     const cached = this.releases.get(provider);
     if (cached && Date.now() - cached.checkedAt < LATEST_RELEASE_CACHE_MS) return cached;
     try {
@@ -74,13 +74,13 @@ export class ProviderUpdates {
     } catch { return undefined; }
   }
 
-  state(provider: AiProvider): ProviderUpdate { return this.runs.get(provider) ?? { provider, status: "idle", output: "" }; }
+  state(provider: ProviderCli): ProviderUpdate { return this.runs.get(provider) ?? { provider, status: "idle", output: "" }; }
 
   /**
    * Runs the executable's own `update`. The run stays "running" until `finished` has re-read the Host state,
    * so a screen that sees the result also sees the new version. `finished` reports whether a turn deferred the relaunch.
    */
-  start(provider: AiProvider, finished: (succeeded: boolean) => Promise<boolean>): ProviderUpdate {
+  start(provider: ProviderCli, finished: (succeeded: boolean) => Promise<boolean>): ProviderUpdate {
     if (this.closed) throw new Error("The Assistant Host is closing.");
     if (this.runs.get(provider)?.status === "running") throw new Error(`An update of the ${provider} CLI is already running.`);
     const state: ProviderUpdate = { provider, status: "running", startedAt: Date.now(), output: "" };

@@ -52,66 +52,186 @@ test("Copilot session creation errors retain a readable message across the Host 
   });
 });
 
-test("Copilot local Ollama source lists Ollama models and launches the selected one through process variables only", async t => {
-  const root = mkdtempSync(path.join(tmpdir(), "copilot-ollama-")), log = path.join(root, "acp.jsonl");
-  const ollama = createServer((req, res) => {
+/** Waits for a provider event; a regression that never delivers it fails here instead of at the CI job limit. */
+async function until(condition: () => unknown, what: string, timeoutMs = 10_000) {
+  for (const deadline = Date.now() + timeoutMs; !condition();) {
+    if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}.`);
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+}
+const turnSettled = (conversation: { turns: { status: string }[] }) => until(() => conversation.turns.at(-1)!.status !== "inProgress", "the turn to finish");
+/** A fake Ollama whose installed models the test changes; `stop` frees the port for an unreachable address. */
+async function fakeOllama(models: string[]) {
+  const server = createServer((req, res) => {
     if (req.url !== "/api/tags") { res.statusCode = 404; res.end(); return; }
-    res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ models: [{ name: "local-a:4b" }, { name: "local-b:latest" }] }));
+    res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ models: models.map(name => ({ name })) }));
   });
-  await listenForFetch(ollama);
-  const stopped = createServer();
-  await listenForFetch(stopped);
-  const url = `http://127.0.0.1:${(ollama.address() as AddressInfo).port}`, unreachable = `http://127.0.0.1:${(stopped.address() as AddressInfo).port}`;
-  await new Promise<void>(resolve => stopped.close(() => resolve()));
-  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
-  let source: string | undefined = url;
-  connection.copilotOllamaUrl = () => source;
+  await listenForFetch(server);
+  return { models, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, stop: () => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }) };
+}
+const acpRows = (log: string) => readFileSync(log, "utf8").split("\n").slice(0, -1).map(line => JSON.parse(line));
+const acpLaunches = (log: string) => acpRows(log).filter(entry => entry.startedAt);
+/** The fake Copilot names sessions after its process. */
+const sessionPid = (id: string) => Number(id.split("-")[1]);
+
+test("Ollama lists its own models, launches its process with the chosen model and reports why it is unavailable", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "ollama-provider-")), log = path.join(root, "acp.jsonl");
+  const ollama = await fakeOllama(["local-a:4b", "local-b:latest"]), stopped = await fakeOllama([]);
+  await stopped.stop();
+  // Model-source variables inherited from the daemon's parent reach neither process.
+  const parent = () => ({ ...process.env, COPILOT_PROVIDER_BASE_URL: "http://parent.invalid/v1", COPILOT_PROVIDER_TYPE: "azure", COPILOT_MODEL: "parent-model" });
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log], env: parent });
+  let address = ollama.url;
+  connection.ollamaUrl = () => address;
   const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
-  t.after(async () => { await connection.close(); await new Promise<void>(resolve => ollama.close(() => resolve())); rmSync(root, { recursive: true, force: true }); });
-  const launches = () => readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(entry => entry.startedAt);
-  const settled = async (conversation: { turns: { status: string }[] }) => {
-    for (const deadline = Date.now() + 10_000; conversation.turns.at(-1)!.status === "inProgress";) {
-      if (Date.now() > deadline) throw new Error("Copilot fixture turn did not finish."); await new Promise(resolve => setTimeout(resolve, 10));
-    }
-  };
-  // Auto is GitHub's account routing and is not part of a local source.
-  const local = await connection.models("copilot", "fresh");
+  t.after(async () => { await connection.close(); await ollama.stop(); rmSync(root, { recursive: true, force: true }); });
+  // Auto is GitHub's account routing and is not an Ollama model.
+  const local = await connection.models("ollama", "fresh");
+  assert.equal(local.provider, "ollama");
   assert.deepEqual(local.models.map(model => model.model), ["local-a:4b", "local-b:latest"]);
-  // A local session has no reasoning option; the launch argument takes every CLI value, including none.
+  // An Ollama session has no reasoning option; the launch argument takes every CLI value, including none.
   assert.deepEqual(local.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
-  assert.equal((await connection.diagnostics("copilot")).connected, true);
-  // The Host passes the settings it read when the send started; the getter above is the live setting.
-  const settings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium", copilotModelSource: "ollama" as const, ollamaUrl: url };
-  const input = { provider: "copilot" as const, message: "COMPLETE THIS TURN", folders: [root], model: "local-b:latest", reasoningEffort: "medium" };
+  const ready = await connection.diagnostics("ollama");
+  assert.deepEqual([ready.connected, ready.ollama], [true, { url: ollama.url, models: 2 }]);
+  const settings = { provider: "ollama" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium", ollamaUrl: ollama.url };
+  const input = { provider: "ollama" as const, message: "COMPLETE THIS TURN", folders: [root], model: "local-b:latest", reasoningEffort: "medium" };
   const conversation = await conversations.send(input, settings);
-  await settled(conversation);
+  await turnSettled(conversation);
   assert.equal(conversation.turns.at(-1)!.status, "completed");
-  assert.deepEqual(launches().at(-1).byok, { baseUrl: `${url}/v1`, apiKey: "", wireApi: "responses", model: "local-b:latest", offline: null });
-  // One BYOK process serves one model; another local model relaunches it between turns.
-  await settled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b" }, settings));
-  assert.equal(launches().at(-1).byok.model, "local-a:4b");
+  assert.equal(conversation.provider, "ollama");
+  assert.deepEqual(acpLaunches(log).at(-1).byok, { baseUrl: `${ollama.url}/v1`, apiKey: "", wireApi: "responses", model: "local-b:latest", offline: null });
+  // One Ollama process serves one model; another model relaunches it between turns.
+  await turnSettled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b" }, settings));
+  assert.equal(acpLaunches(log).at(-1).byok.model, "local-a:4b");
   assert.equal(conversation.turns.at(-1)!.status, "completed");
   // Reasoning effort is a launch argument too: the chosen value relaunches the process between turns.
   const effort = (launch: { args: string[] }) => launch.args[launch.args.indexOf("--reasoning-effort") + 1];
-  assert.equal(effort(launches().at(-1)), "medium");
-  await settled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b", reasoningEffort: "none" }, settings));
-  assert.equal(effort(launches().at(-1)), "none");
+  assert.equal(effort(acpLaunches(log).at(-1)), "medium");
+  await turnSettled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b", reasoningEffort: "none" }, settings));
+  assert.equal(effort(acpLaunches(log).at(-1)), "none");
   assert.equal(conversation.reasoningEffort, "none");
-  assert.equal(conversation.turns.at(-1)!.status, "completed");
-  // Switching back to the account source launches without provider variables.
-  source = undefined;
+  // The GitHub account keeps its own catalog and process, without any model-source variable.
   const account = await connection.models("copilot", "fresh");
   assert.deepEqual(account.models.map(model => model.model), ["auto", "copilot-model"]);
-  // The account source keeps its own reasoning choices.
   assert.equal(account.copilot?.reasoningEffortSource, "cli");
-  assert.equal(account.copilot?.reasoningEfforts, undefined);
-  await settled(await conversations.send({ ...input, model: "copilot-model" }, { ...settings, model: "copilot-model", copilotModelSource: "account" }));
-  assert.equal(launches().at(-1).byok, null);
-  source = unreachable;
-  const diagnostics = await connection.diagnostics("copilot");
-  assert.equal(diagnostics.connected, false);
-  assert.match(diagnostics.error!, new RegExp(`Ollama is unavailable at ${unreachable.replaceAll(".", "\\.")}`));
-  await assert.rejects(connection.models("copilot"), /Ollama is unavailable/);
+  await turnSettled(await conversations.send({ ...input, provider: "copilot", model: "copilot-model" }, { ...settings, provider: "copilot", model: "copilot-model" }));
+  assert.equal(acpLaunches(log).at(-1).byok, null);
+  assert.equal(acpLaunches(log).filter(launch => launch.byok?.baseUrl === "http://parent.invalid/v1").length, 0);
+  // The three reasons Ollama cannot be used.
+  address = stopped.url;
+  const unreachable = await connection.diagnostics("ollama");
+  assert.deepEqual([unreachable.connected, unreachable.ollama], [false, { url: stopped.url, models: null, unavailable: "unreachable" }]);
+  assert.ok(unreachable.version, "the Copilot CLI version does not depend on Ollama being reachable");
+  await assert.rejects(connection.models("ollama"), /Ollama is unavailable/);
+  address = ollama.url; ollama.models.splice(0);
+  assert.deepEqual((await connection.diagnostics("ollama")).ollama, { url: ollama.url, models: 0, unavailable: "no-models" });
+  ollama.models.push("local-a:4b");
+  t.mock.getter(connection.ollama, "executable", () => null);
+  const missing = await connection.diagnostics("ollama");
+  assert.deepEqual([missing.connected, missing.ollama?.unavailable, missing.path], [false, "cli-missing", null]);
+});
+
+test("Copilot account and Ollama run as separate processes that never take over each other's turns, approvals, tools or resumes", async t => {
+  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
+  const root = mkdtempSync(path.join(tmpdir(), "acp-pair-")), log = path.join(root, "acp.jsonl"), cwd = path.join(root, "assistant");
+  const ollama = await fakeOllama(["local-a:4b", "local-b:latest"]);
+  const options = { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] };
+  const host = () => {
+    const connection = new ProviderConnections(cwd, undefined, options);
+    connection.ollamaUrl = () => ollama.url;
+    return { connection, conversations: new AssistantConversations(connection, new RootAccess([root]), {} as any) };
+  };
+  let { connection, conversations } = host();
+  const server = createServer((req, res) => { void conversations.mcp.handle(req, res); });
+  await listenForFetch(server);
+  conversations.mcp.base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const clients: InstanceType<typeof Client>[] = [];
+  t.after(async () => { await Promise.all(clients.map(client => client.close())); await conversations.close(); await connection.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await ollama.stop(); rmSync(root, { recursive: true, force: true }); });
+  const accountSettings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "medium" };
+  const ollamaSettings = { provider: "ollama" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium", ollamaUrl: ollama.url };
+  // Both turns ask to write outside the read-only scope, so each waits on an approval card at the same time.
+  const account = await conversations.send({ message: "Wait for approval", folders: [root], model: "auto", reasoningEffort: "medium" }, accountSettings);
+  const local = await conversations.send({ message: "Wait for approval", folders: [root], model: "local-b:latest", reasoningEffort: "medium" }, ollamaSettings);
+  await until(() => account.userInput && local.userInput, "both approval cards");
+  assert.notEqual(sessionPid(account.id), sessionPid(local.id), "two processes");
+  const launch = (pid: number) => acpLaunches(log).find(entry => entry.pid === pid);
+  assert.deepEqual([launch(sessionPid(account.id)).byok, launch(sessionPid(local.id)).byok?.model], [null, "local-b:latest"]);
+  // A permission request is active only for a turn of the connection that sent it.
+  writeFileSync(path.join(root, "a.md"), "A\n");
+  const foreign = { sessionId: account.id, toolCall: { toolCallId: "read", kind: "read" as const, title: "Read", locations: [{ path: path.join(root, "a.md") }] }, options: [{ optionId: "once", kind: "allow_once" as const, name: "Once" }] };
+  assert.deepEqual(await connection.ollama.permission!(foreign), { outcome: { outcome: "cancelled" } });
+  assert.equal((await connection.copilot.permission!(foreign) as any).outcome.outcome, "selected");
+  // Each turn's Host tool endpoint answers for its own conversation.
+  const endpoint = async (id: string) => { const client = new Client({ name: "fixture", version: "1" }); clients.push(client); await client.connect(new StreamableHTTPClientTransport(new URL(conversations.mcp.lease(id).servers[0]!.url))); return client; };
+  const accountTools = await endpoint(account.id), localTools = await endpoint(local.id);
+  assert.equal((await accountTools.callTool({ name: "list_documents", arguments: { path: root } })).isError, false);
+  assert.equal((await localTools.callTool({ name: "list_documents", arguments: { path: root } })).isError, false);
+  // The account process exits: only its turn, card and tool endpoint end.
+  const accountCard = account.userInput!;
+  const exited = new Promise(resolve => connection.copilot.once("disconnected", resolve));
+  await assert.rejects(connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: account.id, modelId: "EXIT PROCESS" })));
+  await exited;
+  assert.equal(account.turns.at(-1)!.status, "failed");
+  assert.throws(() => conversations.answer(account.id, accountCard.turnId, accountCard.requestId, { decision: { answers: ["Reject"] } }), /expired/);
+  assert.throws(() => conversations.mcp.lease(account.id), /Missing Copilot MCP/);
+  assert.equal(local.turns.at(-1)!.status, "inProgress");
+  assert.equal((await localTools.callTool({ name: "list_documents", arguments: { path: root } })).isError, false, "the Ollama turn keeps its tool scope");
+  // The surviving card answers its own process: the permission result reaches the Ollama conversation.
+  conversations.answer(local.id, local.userInput!.turnId, local.userInput!.requestId, { decision: { answers: ["1. Allow once"] } });
+  await until(() => local.turns.at(-1)!.items.some(item => item.text.includes("Permission result")), "the Ollama permission result");
+  assert.equal(account.turns.flatMap(turn => turn.items).some(item => item.text.includes("Permission result")), false);
+  await conversations.interrupt(local.id);
+  await turnSettled(local);
+
+  // After a Host restart each conversation reopens on its stored provider's connection, Ollama with its recorded model.
+  await conversations.close(); await connection.close();
+  ({ connection, conversations } = host());
+  ollama.models.splice(1);
+  const otherModel = () => acpLaunches(log).filter(launch => launch.byok?.model === "local-a:4b").length, before = otherModel();
+  await assert.rejects(conversations.resume(local.id, { ...ollamaSettings, model: "local-a:4b" }), /This conversation's model local-b:latest is not in Ollama\./);
+  assert.equal(otherModel(), before, "never reopened with another model");
+  ollama.models.push("local-b:latest");
+  const reopened = await conversations.resume(local.id, { ...ollamaSettings, model: "local-a:4b" });
+  assert.equal(reopened.model, "local-b:latest");
+  const reopenedAccount = await conversations.resume(account.id, accountSettings);
+  assert.equal(reopenedAccount.provider, "copilot");
+  const loads = acpRows(log).filter(row => row.method === "session/load").slice(-2).map(row => row.params.sessionId);
+  assert.deepEqual(loads, [local.id, account.id]);
+  assert.deepEqual(acpLaunches(log).slice(-2).map(launch => launch.byok?.model ?? null), ["local-b:latest", null]);
+});
+
+test("a Copilot CLI update runs once and each connection that uses it relaunches when it alone is idle", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "acp-pair-update-")), log = path.join(root, "acp.jsonl");
+  const ollama = await fakeOllama(["local-a:4b"]);
+  const cli = fakeProviderCli(root, { version: "1.0.114", update: "ok", next: "1.0.115" });
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: cli.bin, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
+  connection.ollamaUrl = () => ollama.url;
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
+  t.after(async () => { await conversations.close(); await connection.close(); await ollama.stop(); rmSync(root, { recursive: true, force: true }); });
+  useReleaseSource(connection, { latest: async () => "1.0.115" });
+  const accountSettings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "medium" };
+  const ollamaSettings = { provider: "ollama" as const, permissionMode: "read-only" as const, model: "local-a:4b", reasoningEffort: "medium", ollamaUrl: ollama.url };
+  const account = await conversations.send({ message: "COMPLETE THIS TURN", folders: [root], model: "auto", reasoningEffort: "medium" }, accountSettings);
+  await turnSettled(account);
+  const local = await conversations.send({ message: "Wait for approval", folders: [root], model: "local-a:4b", reasoningEffort: "medium" }, ollamaSettings);
+  await until(() => local.userInput, "the Ollama approval card");
+  // Launches by connection; the Ollama count also holds the catalog probe of its first send.
+  const launched = (local: boolean) => acpLaunches(log).filter(launch => !!launch.byok === local).length;
+  const [accountLaunches, ollamaLaunches] = [launched(false), launched(true)];
+  connection.updateCli("copilot", () => {});
+  assert.throws(() => connection.updateCli("copilot", () => {}), /already running/, "one run for the executable both connections use");
+  const update = await settled(connection, "copilot");
+  assert.deepEqual([update.status, update.deferred, cli.read().updates], ["succeeded", true, 1]);
+  assert.equal(local.turns.at(-1)!.status, "inProgress", "the Ollama turn keeps its process");
+  // The idle account connection relaunched at once; the busy Ollama connection waits for its own turn.
+  await turnSettled(await conversations.send({ id: account.id, message: "COMPLETE THIS TURN", folders: [root], model: "auto", reasoningEffort: "medium" }, accountSettings));
+  assert.deepEqual([launched(false), launched(true)], [accountLaunches + 1, ollamaLaunches]);
+  await conversations.interrupt(local.id);
+  await turnSettled(local);
+  await turnSettled(await conversations.send({ id: local.id, message: "COMPLETE THIS TURN", folders: [root], model: "local-a:4b", reasoningEffort: "medium" }, ollamaSettings));
+  assert.deepEqual([launched(false), launched(true)], [accountLaunches + 1, ollamaLaunches + 1]);
+  assert.equal(await connection.relaunchUpdated("ollama"), false, "one relaunch per update");
 });
 
 test("Copilot ACP lists its models, streams one turn, applies permission scope, cancels and reports a failed turn", async t => {
@@ -836,7 +956,7 @@ test("a Copilot send already on its way defers the relaunch after an update", as
   const settings = { provider: "copilot", model: "auto", reasoningEffort: "medium", permissionMode: "read-only" } as const;
   // The new session is held at the provider while the update finishes.
   const sent = conversations.send({ message: "Wait for cancellation", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings);
-  while (rows().filter(row => row.method === "session/new").length < 2) await new Promise(resolve => setTimeout(resolve, 50));
+  await until(() => rows().filter(row => row.method === "session/new").length >= 2, "the held session/new request");
   connection.updateCli("copilot", () => {});
   const update = await settled(connection, "copilot");
   assert.deepEqual([update.status, update.deferred], ["succeeded", true]);
@@ -1423,8 +1543,8 @@ test("a Copilot disconnect cleans up only its own conversations while a Codex tu
   const copilotSettings = { provider: "copilot" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "medium" };
   const copilot = await conversations.send({ message: "Wait for approval", folders: [root], model: "auto", reasoningEffort: "medium" }, copilotSettings);
   // The fixture asks to write outside the read-only scope: an approval card waits for the user.
-  while (!copilot.userInput) await new Promise(resolve => setTimeout(resolve, 50));
-  const approval = copilot.userInput;
+  await until(() => copilot.userInput, "the Copilot approval card");
+  const approval = copilot.userInput!;
   const acp = connection.copilot, client = await acp.connect();
   const disconnected = new Promise(resolve => acp.once("disconnected", resolve));
   await assert.rejects(acp.call(() => client.unstable_setSessionModel({ sessionId: copilot.id, modelId: "EXIT PROCESS" })));
