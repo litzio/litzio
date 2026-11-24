@@ -33,7 +33,7 @@ export function checkedAssistantSettings(value: unknown, stored = false): Assist
   const unknown = Object.keys(v).filter(key => !FIELDS.includes(key));
   if (unknown.length) throw new Error(`Assistant settings: unknown field(s): ${unknown.join(", ")}. Allowed: ${FIELDS.join(", ")}.`);
   if (typeof v.model !== "string" || !v.model.trim() || /[\r\n\x00]/u.test(v.model)) throw new Error("AI model: expected a non-empty string without newline or NUL.");
-  if (typeof v.reasoningEffort !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort)) throw new Error("AI reasoningEffort: expected 1-64 lowercase letters, digits or hyphens, starting with a letter.");
+  if (typeof v.reasoningEffort !== "string" || !(v.provider === "ollama" && v.reasoningEffort === "") && !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort)) throw new Error("AI reasoningEffort: expected 1-64 lowercase letters, digits or hyphens, starting with a letter.");
   if (!isAiProvider(v.provider)) throw new Error(`AI provider: allowed values: ${AI_PROVIDERS.join(", ")}.`);
   if (v.permissionMode !== undefined && !["opened-folders", "read-only", "full-access"].includes(v.permissionMode)) throw new Error("AI permissionMode: allowed values: opened-folders, read-only, full-access.");
   if (v.responseLanguage !== undefined && !["ko", "en", "ja"].includes(v.responseLanguage)) throw new Error("AI responseLanguage: allowed values: ko, en, ja.");

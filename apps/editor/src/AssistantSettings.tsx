@@ -150,7 +150,9 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
       : undefined;
     const defaultModels = settings ? catalogs[settings.provider] : undefined;
     const model = defaultModels?.models.find(item => item.model === settings?.model);
-    const valid = !!model && model.supportedReasoningEfforts.some(item => item.reasoningEffort === settings?.reasoningEffort);
+    const hiddenEffort = settings?.provider === "ollama" && model?.supportedReasoningEfforts.length === 0;
+    const ollamaDefaults = settings?.provider === "ollama" && !!model;
+    const valid = hiddenEffort || !!model && model.supportedReasoningEfforts.some(item => item.reasoningEffort === settings?.reasoningEffort);
     const selectModel = (name: string) => {
       const selected = defaultModels?.models.find(item => item.model === name); if (!settings || !selected) return;
       save({ ...settings, model: name, reasoningEffort: selected.supportedReasoningEfforts.some(item => item.reasoningEffort === settings.reasoningEffort) ? settings.reasoningEffort : selected.defaultReasoningEffort });
@@ -206,9 +208,9 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
           options={AI_PROVIDERS.map(value => ({ value, label: providerLabel(value) }))} onChange={value => void selectProvider(value as AiProvider)} />
         <SettingsSelect label={t("Model")} value={settings?.model ?? ""} disabled={!defaultModels || !settings || selectingProvider} onChange={selectModel}
           options={[...(!model ? [{ value: settings?.model ?? "", label: settings?.model ?? t("Checking…") }] : []), ...(defaultModels?.models.map(item => ({ value: item.model, label: item.displayName })) ?? [])]} />
-        <div title={settings && providerEngine(settings.provider) === "acp" && defaultModels?.copilot?.reasoningEffortSource === "cli" ? t("Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.") : undefined}><SettingsSelect label={t("Reasoning effort")} value={settings?.reasoningEffort ?? ""} disabled={!model || !settings || selectingProvider}
+        {!hiddenEffort && <div title={settings && providerEngine(settings.provider) === "acp" && defaultModels?.copilot?.reasoningEffortSource === "cli" ? t("Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.") : undefined}><SettingsSelect label={t("Reasoning effort")} value={ollamaDefaults && !valid ? model.defaultReasoningEffort : settings?.reasoningEffort ?? ""} disabled={!model || !settings || selectingProvider}
           onChange={value => { save({ ...latest.current!, reasoningEffort: value }); }}
-          options={[...(!valid ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(item.reasoningEffort) })) ?? [])]} /></div>
+          options={[...(!valid && !ollamaDefaults ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(settings?.provider === "ollama" && item.description || item.reasoningEffort) })) ?? [])]} /></div>}
         <Tooltip><TooltipTrigger render={<div tabIndex={0} />}>
           <SettingsSelect label={t("Write access")} value={settings?.permissionMode ?? "full-access"} disabled={!settings}
             onChange={value => { save({ ...latest.current!, permissionMode: value as AssistantSettings["permissionMode"] }); }}
@@ -218,7 +220,7 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
           onChange={value => { save({ ...latest.current!, responseLanguage: value as AssistantSettings["responseLanguage"] }); }}
           options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }, { value: "ja", label: "日本語" }]} />
 
-        {defaultModels && !valid ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
+        {defaultModels && !valid && !ollamaDefaults ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
 
         </Section>
         <Section title={t("Common working environment")}>
@@ -234,7 +236,7 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
         <div className="agent-models"><Input aria-label={t("Search models")} placeholder={t("Search models")} value={search} onChange={event => setSearch(event.target.value)} />
           <p className="type-helper">{t("Models")}: {filteredModels?.length ?? "—"}</p>
           <div className="agent-model-list">{!models ? <p>{loading ? t("Checking…") : t("Unavailable")}</p> : filteredModels?.map(item => <article key={item.id}>
-            <div className="agent-model-name"><strong>{item.displayName}</strong><code>{item.model}</code>{item.model === storedSettings?.model ? <small>{t("Default")}</small> : null}</div><p>{item.description}</p><small>{t("Reasoning effort")}: {item.supportedReasoningEfforts.map(effort => t(effort.reasoningEffort)).join(" · ")}</small>
+            <div className="agent-model-name"><strong>{item.displayName}</strong><code>{item.model}</code>{item.model === storedSettings?.model ? <small>{t("Default")}</small> : null}</div><p>{item.description}</p><small>{t("Reasoning effort")}: {item.supportedReasoningEfforts.map(effort => t(inspecting === "ollama" && effort.description || effort.reasoningEffort)).join(" · ")}</small>
           </article>)}
           {filteredModels?.length === 0 ? <p>{t("No matching models.")}</p> : null}</div>
         </div>

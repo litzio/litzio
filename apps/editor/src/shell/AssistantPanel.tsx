@@ -199,6 +199,10 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const currentEffortHelp = copilot?.reasoningEffortSource === "config" && copilot.reasoningEfforts?.length && conversation?.model === model
     ? i18n.t("Current model reasoning effort: {{value}}.", { value: i18n.t(conversation.reasoningEffort as MessageKey) }) : "";
   const catalogModel = models?.models.find(value => value.model === model);
+  const efforts = provider === "ollama" ? catalogModel?.supportedReasoningEfforts : copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts;
+  const effectiveEffort = provider === "ollama" && catalogModel && !efforts?.some(value => value.reasoningEffort === effort) ? catalogModel.defaultReasoningEffort : effort;
+  useEffect(() => { if (effort !== effectiveEffort) setEffort(effectiveEffort); }, [effort, effectiveEffort, setEffort]);
+  const effortLabel = (value: string) => i18n.t((provider === "ollama" && efforts?.find(option => option.reasoningEffort === value)?.description || value) as MessageKey);
   const resultPaths = [...new Set(conversation?.turns.flatMap(turn => turn.items.flatMap(item => {
     const result = createdDocument(item); return result ? [result.path] : [];
   })) ?? [])];
@@ -428,9 +432,9 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
           }} />
 
         <AssistantChoice label={i18n.t("Model")} value={catalogModel?.displayName ?? model} help={catalogModel?.description || i18n.t(effortHelp)} disabled={active || pending || !models} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={model} options={models?.models.map(value => ({ value: value.model, label: value.displayName })) ?? []}
-          onSelect={selection => { const value = models!.models.find(model => model.model === selection)!; setModel(value.model); if (!conversation || provider === "codex") setEffort(value.defaultReasoningEffort); }} />
+          onSelect={selection => { const value = models!.models.find(model => model.model === selection)!; setModel(value.model); if (provider === "ollama" ? !value.supportedReasoningEfforts.some(option => option.reasoningEffort === effort) : !conversation || provider === "codex") setEffort(value.defaultReasoningEffort); }} />
 
-        {copilot?.reasoningEfforts?.length !== 0 && <AssistantChoice label={i18n.t("Reasoning effort")} value={i18n.t(effort as MessageKey)} help={[i18n.t(effortHelp), currentEffortHelp].filter(Boolean).join(" ")} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={effort} options={(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => ({ value: value.reasoningEffort, label: i18n.t(value.reasoningEffort as MessageKey) })) ?? []} onSelect={setEffort} />}
+        {(provider === "ollama" ? !!efforts?.length : copilot?.reasoningEfforts?.length !== 0) && <AssistantChoice label={i18n.t("Reasoning effort")} value={effortLabel(effectiveEffort)} help={[i18n.t(effortHelp), currentEffortHelp].filter(Boolean).join(" ")} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={effectiveEffort} options={efforts?.map(value => ({ value: value.reasoningEffort, label: effortLabel(value.reasoningEffort) })) ?? []} onSelect={setEffort} />}
 
         <AssistantChoice label={i18n.t("Write access")} value={i18n.t(permissionMode === "full-access" ? "Full access" : permissionMode === "read-only" ? "Read-only" : "Opened folders")}
           help={i18n.t("Opened folders allows folder edits and network access; Read-only allows reads. Provider requests beyond these defaults ask for approval. Full access automatically approves provider tools and allows Host tools outside opened folders, within Host roots. Document edits apply directly; supported changes can be viewed and undone.") + (models?.fullAccessAllowed === false ? ` ${i18n.t("Your organization does not allow Full access. Choose Opened folders or Read-only and send again.")}` : "")} disabled={active || pending || !settings} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={permissionMode} options={[

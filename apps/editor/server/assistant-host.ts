@@ -189,7 +189,10 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
           : await assistantOperations.assistantModels({ provider: selected });
         const model = catalog.models.find(model => model.model === next.model);
         if (!model) throw new Error(`AI model: allowed values for ${selected}: ${catalog.models.map(model => model.model).join(", ") || "none available"}.`);
-        if (!model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort)) throw new Error(`AI reasoningEffort: allowed values for ${next.model}: ${model.supportedReasoningEfforts.map(effort => effort.reasoningEffort).join(", ") || "none available"}.`);
+        if (!model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort)) {
+          if (selected === "ollama") next.reasoningEffort = model.defaultReasoningEffort;
+          else throw new Error(`AI reasoningEffort: allowed values for ${next.model}: ${model.supportedReasoningEfforts.map(effort => effort.reasoningEffort).join(", ") || "none available"}.`);
+        }
       }
       if (closed) throw new Error("The Assistant Host is closing.");
       if (selected !== current.provider) conversations?.expireProviderQuestions(current.provider);

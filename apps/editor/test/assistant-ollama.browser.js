@@ -10,7 +10,11 @@ async (page, { expect, screenshots, brand }) => {
   const catalogs = {
     codex: { provider: 'codex', updatedAt: 1, models: [{ id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: '', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low', description: '' }] }] },
     copilot: { provider: 'copilot', updatedAt: 1, copilot: { ...acp, reasoningEffortSource: 'cli', reasoningEfforts: undefined }, models: [{ id: 'auto', model: 'auto', displayName: 'Auto', description: '', defaultReasoningEffort: 'medium', supportedReasoningEfforts: efforts }] },
-    ollama: { provider: 'ollama', updatedAt: 1, copilot: acp, models: ['qwen3.5:4b', 'gemma4:e4b'].map(name => ({ id: name, model: name, displayName: name, description: '', defaultReasoningEffort: 'medium', supportedReasoningEfforts: efforts })) },
+    ollama: { provider: 'ollama', updatedAt: 1, copilot: { ...acp, reasoningEfforts: [] }, models: [
+      { model: 'sample-toggle', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'none', description: 'Thinking off' }, { reasoningEffort: 'medium', description: 'Thinking on' }] },
+      { model: 'sample-levels', defaultReasoningEffort: 'low', supportedReasoningEfforts: efforts.filter(value => ['low', 'high'].includes(value.reasoningEffort)) },
+      { model: 'sample-hidden', defaultReasoningEffort: '', supportedReasoningEfforts: [] },
+    ].map(model => ({ ...model, id: model.model, displayName: model.model, description: '' })) },
   };
   let ollama = 'ok', cliMissing = false, diagnosticReads = 0;
   const cli = { path: 'C:\\Example\\bin\\copilot.exe', version: '1.0.114', versionStatus: 'current', latestVersion: '1.0.114', latestCheckedAt: 1793590000000 };
@@ -134,8 +138,38 @@ async (page, { expect, screenshots, brand }) => {
   if (screenshots) await page.screenshot({ path: 'tmp/1917/composer-providers-1440-light-ko.png' });
   await page.getByRole('menuitem', { name: 'Ollama', exact: true }).click();
   await expect(choice).toHaveText('Ollama');
-  await expect(panel.getByRole('button', { name: '모델 설정', exact: true })).toHaveText('qwen3.5:4b');
+  await expect(panel.getByRole('button', { name: '모델 설정', exact: true })).toHaveText('sample-toggle');
   await expect(panel.getByRole('button', { name: '세션 모드 설정', exact: true })).toBeVisible();
+  const effort = panel.getByRole('button', { name: '추론 강도 설정', exact: true });
+  const snapshot = async name => { if (screenshots) await page.screenshot({ path: `tmp/1939/${name}.png` }); };
+  const modelButton = panel.getByRole('button', { name: '모델 설정', exact: true });
+  await expect(effort).toHaveText('생각 켬');
+  await snapshot('toggle-1440');
+  await effort.click();
+  await expect(page.getByRole('menuitem')).toHaveText(['생각 끔', '생각 켬']);
+  await snapshot('toggle-open-1440');
+  await page.getByRole('menuitem', { name: '생각 끔', exact: true }).click();
+  await modelButton.click();
+  await page.getByRole('menuitem', { name: 'sample-levels' }).click();
+  await expect(effort).toHaveText('낮음');
+  await effort.click();
+  await expect(page.getByRole('menuitem')).toHaveText(['낮음', '높음']);
+  await snapshot('levels-1440');
+  await page.getByRole('menuitem', { name: '높음' }).click();
+  await modelButton.click();
+  await page.getByRole('menuitem', { name: 'sample-hidden' }).click();
+  await expect(effort).toHaveCount(0);
+  await snapshot('hidden-1440');
+  if (screenshots) {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await snapshot('hidden-1920');
+    await page.setViewportSize({ width: 640, height: 900 });
+    await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; document.documentElement.style.colorScheme = 'dark'; });
+    await snapshot('hidden-640-dark');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await snapshot('hidden-1440-dark');
+    await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; document.documentElement.style.colorScheme = 'light'; });
+  }
   if (screenshots) {
     // Capture only: settings beside the panel at the owner's main width, the dark theme and the minimum width.
     await page.setViewportSize({ width: 1920, height: 1080 });
