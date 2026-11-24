@@ -112,10 +112,11 @@ export function PluginSettings() {
       const rowProblem = rowProblems.get(plugin.registrationId ?? plugin.id);
       const hasError = !!(rowProblem || plugin.error || plugin.activationFailure);
       const reinstallHint = plugin.artifactChanged ? i18n.t(ARTIFACT_CHANGED_HINT) : undefined;
-      const activationHint = !reinstallHint && plugin.activationFailure && Object.hasOwn(ACTIVATION_HINTS, plugin.activationFailure)
-        ? i18n.t(ACTIVATION_HINTS[plugin.activationFailure]) : undefined;
-      const rowDetail = rowProblem && !(rowProblem.action === "enable" && activationHint) ? githubErrorText(rowProblem.message) : undefined;
-      const detail = rowDetail ? [rowDetail.text, rowDetail.hint].filter(Boolean).join(" ") : reinstallHint ?? activationHint ??
+      const kind = plugin.activationFailure;
+      const processHint = !reinstallHint && (kind === "timeout" || kind === "processExit") ? i18n.t(ACTIVATION_HINTS[kind]) : undefined;
+      const genericActivationHint = kind === "other" && (plugin.activationFailedAtStartup || !plugin.error) ? i18n.t(ACTIVATION_HINTS.other) : undefined;
+      const rowDetail = rowProblem && !(rowProblem.action === "enable" && processHint) ? githubErrorText(rowProblem.message) : undefined;
+      const detail = rowDetail ? [rowDetail.text, rowDetail.hint].filter(Boolean).join(" ") : reinstallHint ?? processHint ?? genericActivationHint ??
         (plugin.error === PLUGIN_SOURCE_READD_REQUIRED ? i18n.t(PLUGIN_SOURCE_READD_REQUIRED) : plugin.error);
       const version = plugin.artifactChanged ? undefined : plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version");
       return <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>

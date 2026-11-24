@@ -1800,6 +1800,7 @@ test("auto-enable reports a startup deadline separately from an early child exit
   for (const fixture of [
     { kind: "timeout", code: "await new Promise(() => {});", timeoutMs: 100, outcome: "" },
     { kind: "processExit", code: "process.exit(7);", outcome: " exitCode=7" },
+    { kind: "other", code: "throw Object.assign(new Error('Private fixture error'), {kind:'timeout'});", outcome: "" },
   ] as const) await t.test(fixture.kind, async t => {
     const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-startup-failure-"));
     const file = path.join(root, "state.json"), id = "fixture.startup", marker = path.join(root, "fail");
@@ -1827,15 +1828,18 @@ test("auto-enable reports a startup deadline separately from an early child exit
     assert.equal(failed!.running, false);
     assert.equal(failed!.error, "Plugin activation failed");
     assert.equal(failed!.activationFailure, fixture.kind);
+    assert.equal(failed!.activationFailedAtStartup, fixture.kind === "other" ? true : undefined);
     assert.equal(warnings.mock.callCount(), 1);
     const [line, ...extra] = warnings.mock.calls[0]!.arguments;
     assert.deepEqual(extra, []);
     assert.match(String(line), new RegExp(`^Plugin startup activation failed: plugin=fixture\\.startup kind=${fixture.kind} elapsedMs=\\d+ stage=process${fixture.outcome}$`));
 
-    if (fixture.kind === "processExit") {
+    if (fixture.kind !== "timeout") {
       await host.invoke("disable", { id });
       await assert.rejects(host.invoke("enable", { id }), /Plugin request failed/);
-      assert.equal((await host.list())[0]!.activationFailure, "processExit");
+      const [manualFailure] = await host.list();
+      assert.equal(manualFailure!.activationFailure, fixture.kind);
+      assert.equal(manualFailure!.activationFailedAtStartup, undefined);
       assert.equal(warnings.mock.callCount(), 1);
       rmSync(marker);
       await host.invoke("enable", { id });

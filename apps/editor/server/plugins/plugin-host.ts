@@ -117,7 +117,7 @@ export class PluginHost {
   private copies: InstalledArtifacts;
   private loaded = new Map<string, Loaded>();
   private processes = new Map<string, PluginInstance>();
-  private errors = new Map<string, { error: string; activationFailure?: PluginActivationFailure }>();
+  private errors = new Map<string, { error: string; activationFailure?: PluginActivationFailure; activationFailedAtStartup?: true }>();
   private updates = new Map<string, { installationId: string; check: UpdateCheck }>();
   private serial: Promise<unknown> = Promise.resolve();
   private closed = false;
@@ -302,10 +302,13 @@ export class PluginHost {
         const secrets = await this.secretStatus(id, m), failure = this.errors.get(id);
         return { id, registrationId: r.registrationId, name: m.name, description: m.description, version: m.version ?? null, installed: true, trusted: !!r.trusted, enabled: r.enabled, running: !!current,
           iconDigest: m.icon && !!r.trusted ? digest : undefined, healthCheck: m.contributes.healthCheck, secrets, settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null,
-          error: failure?.error, activationFailure: failure?.activationFailure, digest, update, source: sourceSummary(r) };
+          error: failure?.error, activationFailure: failure?.activationFailure, activationFailedAtStartup: failure?.activationFailedAtStartup, digest, update, source: sourceSummary(r) };
       } catch (e) {
         const failure = this.errors.get(id);
-        return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, update, source: sourceSummary(r), activationFailure: failure?.activationFailure, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : failure?.error ?? (e instanceof Error && e.name === "ScreenCompileError" ? e.message : "Plugin status unavailable"), status: null, errors: validationDiagnostics(e, file) };
+        const missing = (e as NodeJS.ErrnoException).code === "ENOENT";
+        return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, update, source: sourceSummary(r),
+          activationFailure: failure?.activationFailure, activationFailedAtStartup: missing ? undefined : failure?.activationFailedAtStartup,
+          error: missing ? "Plugin artifact missing" : failure?.error ?? (e instanceof Error && e.name === "ScreenCompileError" ? e.message : "Plugin status unavailable"), status: null, errors: validationDiagnostics(e, file) };
       }
     }));
   }
@@ -321,7 +324,8 @@ export class PluginHost {
       if (!this.loaded.has(id)) await this.activate({ ...previous, enabled: true }, directory, artifact, previous, false, attempt);
     } catch (error) {
       const processFailure = attempt.processFailure, kind = processFailure?.kind ?? "other";
-      this.errors.set(id, { error: startup ? "Plugin activation failed" : String(error), activationFailure: kind });
+      this.errors.set(id, { error: startup ? "Plugin activation failed" : String(error), activationFailure: kind,
+        ...(startup && kind === "other" ? { activationFailedAtStartup: true } : {}) });
       if (startup) {
         const elapsedMs = Math.round(performance.now() - started);
         const exit = processFailure?.kind === "processExit" ? processFailure : undefined;

@@ -449,12 +449,14 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   expect(await page.evaluate(() => { window.pluginNoticeObserver.disconnect(); return window.pluginNoticeMaximum; }), "A closing dialog must not duplicate the selected-plugin notice").toBe(1);
   // The returned activation kind supplies the tooltip, including after the switch fails.
   const startup = { id: "fixture.startup", name: "Fixture plugin", version: "1.0.0", source: { kind: "local" }, trusted: true, enabled: true, running: false, activationFailure: "timeout", error: "Plugin activation failed" };
+  const secretStoreError = "Windows secret store unavailable";
+  let enableFailure = { kind: "processExit", message: "Plugin request failed" };
   await page.route("**/api/plugins", route => {
     const action = route.request().postDataJSON()?.action;
     if (action === "disable") startup.enabled = false;
     if (action === "enable") {
-      Object.assign(startup, { activationFailure: "processExit", error: "Error: Plugin request failed" });
-      return route.fulfill({ status: 400, json: { error: "Plugin request failed" } });
+      Object.assign(startup, { activationFailure: enableFailure.kind, error: `Error: ${enableFailure.message}` });
+      return route.fulfill({ status: 400, json: { error: enableFailure.message } });
     }
     if (route.request().method() === "GET" || action === "disable") return route.fulfill({ json: { plugins: [startup] } });
     return route.continue();
@@ -481,7 +483,24 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(startupDetails).toBeFocused();
   await expect(page.getByText(exitHint, { exact: true })).toBeVisible();
 
+  enableFailure = { kind: "other", message: secretStoreError };
+  const rejectedByStore = responseFor("enable");
+  await startupToggle.click();
+  expect((await rejectedByStore).status()).toBe(400);
+  await expect(startupDetails).toHaveAccessibleDescription(secretStoreError);
+  await startupDetails.hover();
+  await expect(page.getByText(secretStoreError, { exact: true })).toBeVisible();
+
+  // The Host's list still carries the reason after the action's local row state is gone.
+  await page.reload();
+  await openSettings();
+  await expect(startupDetails).toHaveAccessibleDescription(`Error: ${secretStoreError}`);
+  Object.assign(startup, { enabled: true, activationFailure: "other", activationFailedAtStartup: true, error: "Plugin activation failed" });
+  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
+  await expect(startupDetails).toHaveAccessibleDescription("Could not turn on the plugin. Turn it off and back on.");
+
   if (screenshots) {
+    delete startup.activationFailedAtStartup;
     Object.assign(startup, { enabled: true, activationFailure: "timeout", error: "Plugin activation failed" });
     await page.setViewportSize({ width: 1440, height: 900 });
     for (const theme of ["light", "dark"]) {

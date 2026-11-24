@@ -207,7 +207,7 @@ ContextMenu 항목 실행 뒤 닫힐 때 focus가 메뉴 안이나 body에 남�
 
 기준 화면은 [설치본 불일치 행](assets/plugin-error-row-1909/after-1440-light.png), [추가 실패](assets/plugin-error-row-1909/after-add-error-1440-light.png), [정상 목록](assets/plugin-error-row-1909/after-alignment-list-1440-dark-ko.png), [설정 대화 상자](assets/plugin-error-row-1909/after-alignment-dialog-1440-dark-ko.png)다.
 
-자동으로 켜거나 스위치로 직접 켤 때 실패하면 행의 “플러그인 오류”가 유지되며, 자세히 보기 Tooltip은 [실패 종류](plugin-stage1-v1.md#수명과-공용-작업)에 맞는 안내를 표시한다. 시간 초과 안내는 [한국어 1440px 밝음](assets/plugin-startup-1918/after-1440-light.png)과 [어두움](assets/plugin-startup-1918/after-1440-dark.png)에서 확인할 수 있다.
+자동으로 켜거나 스위치로 직접 켤 때 실패하면 행의 “플러그인 오류”가 유지되며, 자세히 보기 Tooltip은 [실패 종류](plugin-stage1-v1.md#수명과-공용-작업)에 맞는 안내를 표시한다. 시간 초과와 준비 전 프로세스 종료에 정해진 안내를 사용하고, 그 밖의 실패에서 구체적인 사유가 있으면 그대로 표시한다. 시간 초과 안내는 [한국어 1440px 밝음](assets/plugin-startup-1918/after-1440-light.png)과 [어두움](assets/plugin-startup-1918/after-1440-dark.png)에서 확인할 수 있다.
 
 일반 설정은 Dialog 안의 Row·Input·SettingsSwitch·FieldError를 사용한다. 필드별 저장 중·저장됨·실패를 가까이에 표시하고 실패 시 초안을 보존한다. 연결 확인은 순차 저장 완료 뒤 저장값으로 실행하며 저장 실패·꺼짐·미실행이면 막고 이유를 Tooltip으로 보인다. secret은 password Input에 명시적으로 저장한 뒤 비우며 값을 재조회하거나 비서에 입력하지 않는다. 목록 갱신은 picker 초안·focus를 초기화하지 않으며 선택한 등록이 외부에서 제거될 때만 Dialog를 닫고 Notice를 보인다.
 
