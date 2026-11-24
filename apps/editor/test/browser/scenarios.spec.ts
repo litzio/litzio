@@ -205,6 +205,10 @@ for (const name of scenarios) {
     const otherJobInput = path.join(REPOSITORY_ROOT, "tmp", "other-root-request.json");
     if (name === "vite-plugins") {
       mkdirSync(pluginDirectory, { recursive: true });
+      writeFileSync(path.join(pluginDirectory, "screen.jsx"), `export default function Screen({React, ui}) {
+        const [count, setCount] = React.useState(0);
+        return <ui.Button onClick={() => setCount(previous => previous + 1)}>Count: {count}</ui.Button>;
+      }`);
       writeCodePluginManifest(pluginDirectory,{id: "fixture.vite",name: "Vite fixture",version: "0.1.0",entry: "host.mjs",description: "Connection settings fixture",settingsSchema: { type: "object", properties: { serverUrl: { type: "string", title: "Service URL", minLength: 1, description: "HTTP(S) service URL" }, failure: { type: "boolean", title: "Simulate failure", description: "Simulates service availability" } }, additionalProperties: false },secrets: [{ id: "api-key", title: "Access token", scope: "connection", required: false }],operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", additionalProperties: false }, outputSchema: { type: "object" } }],healthCheck: "connection",screen:"screen.jsx"});
       writeFileSync(path.join(pluginDirectory, "host.mjs"), `import { SDK_VERSION } from '@litzio/plugin-sdk';
 export function activate(context){return {operations:{connection:()=>({ok:context.settings.failure !== true,message:context.settings.failure !== true ? "Fixture connected" : "연결하지 못했습니다. 저장된 서버 주소와 자격 증명을 확인한 뒤 다시 시도하세요."})},status:()=>({available:true,message:SDK_VERSION}),dispose(){}}}`);

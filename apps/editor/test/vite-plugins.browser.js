@@ -1,5 +1,59 @@
 async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const originalViewport = page.viewportSize();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const origin = await page.evaluate(() => location.origin);
+  const headers = { Connection: "close", Origin: origin };
+  const managePlugin = async data => {
+    const response = await page.request.post(origin + "/api/plugins", { headers, data });
+    expect(response.ok()).toBe(true);
+    expect((await response.json()).receipt.outcome).toBe("success");
+  };
+  const activityBar = page.getByTestId("activity-bar");
+  const installedScreen = activityBar.getByRole("button", { name: "Vite fixture", exact: true });
+  const installedPlugin = page.getByRole("region", { name: "Vite fixture", exact: true });
+  const initialPlugins = page.waitForResponse(response => response.url() === origin + "/api/plugins" && response.request().method() === "GET");
+  await page.getByRole("button", { name: "Plugins", exact: true }).click();
+  await initialPlugins;
+  await page.evaluate(() => {
+    window.__pluginRefreshFocusEvents = [];
+    window.addEventListener("focus", event => window.__pluginRefreshFocusEvents.push(event.type));
+    document.addEventListener("visibilitychange", event => window.__pluginRefreshFocusEvents.push(event.type));
+  });
+  // An external HTTP client has no same-window activity to trigger a refresh.
+  await managePlugin({ action: "install", directory: pluginFixture.directory });
+  expect((await (await page.request.post(origin + "/api/plugin-screens", { headers, data: { action: "screens", screenCode: false } })).json()).screens)
+    .toEqual(expect.arrayContaining([expect.objectContaining({ title: "Vite fixture" })]));
+  await expect(installedScreen).toHaveCount(0);
+  await expect(installedPlugin).toHaveCount(0);
+  await managePlugin({ action: "unregister", id: "fixture.vite" });
+
+  await page.keyboard.press("Control+Shift+Y");
+  const assistant = page.getByTestId("assistant-panel");
+  const message = assistant.getByRole("textbox", { name: "Message assistant" });
+  const stop = assistant.getByRole("button", { name: "Stop response", exact: true });
+  await message.fill("Install fixture from: " + pluginFixture.directory);
+  await assistant.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect(stop).toBeVisible();
+  await expect.poll(async () => (await (await page.request.get(origin + "/api/plugins", { headers })).json()).plugins.some(plugin => plugin.id === "fixture.vite" && plugin.enabled)).toBe(true);
+  await expect(installedScreen).toBeVisible();
+  await expect(installedPlugin).toBeVisible();
+  await expect(stop).toBeVisible(); // The fake provider leaves the turn running.
+  await installedScreen.click();
+  const workspace = page.getByTestId("view-workspace");
+  await workspace.getByRole("button", { name: "Count: 0", exact: true }).click();
+  const refreshOnStop = page.waitForResponse(response => response.url() === origin + "/api/plugin-screens"
+    && response.request().postDataJSON()?.screenCode !== false); // The open tab requests screen code.
+  await stop.click();
+  await expect(assistant.getByText("Stopped", { exact: true })).toBeVisible();
+  await refreshOnStop;
+  await expect(workspace.getByRole("button", { name: "Count: 1", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.__pluginRefreshFocusEvents)).toEqual([]);
+  await assistant.getByRole("button", { name: "Close assistant" }).click();
+  await managePlugin({ action: "unregister", id: "fixture.vite" });
+  await page.setViewportSize(originalViewport);
+  await page.reload();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Edit path", exact: true }).click();
