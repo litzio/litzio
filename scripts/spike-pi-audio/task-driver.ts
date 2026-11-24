@@ -1,0 +1,208 @@
+// Spike experiment 2 driver: one run of one task on a fresh isolated Litzio HTTP Host (in this process).
+// Usage: tsx task-driver.ts <edit|plugin> <run-root>
+// Env: OLLAMA_URL (the recording proxy), PROXY_LOG (its JSONL), SPIKE_MODEL, SPIKE_TURN_MS (default 20 min per turn),
+//      LITZIO_SPIKE_PI_ACP + PI_SPIKE_ROOT + PI_SPIKE_POWERSHELL for the pi engine (unset = Copilot CLI, the product path).
+// Writes <run-root>/result.json: per turn the outcome, judgement, Host tool items, and the proxy's model requests.
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { isolatedHostEnvironment } from "../../test/helpers/isolated-host-environment.ts";
+import { parse, serialize } from "../../packages/core/src/index.ts";
+
+const [task, root] = process.argv.slice(2) as ["edit" | "plugin", string];
+if (!["edit", "plugin"].includes(task) || !root) throw new Error("Usage: tsx task-driver.ts <edit|plugin> <run-root>");
+const checkout = fileURLToPath(new URL("../../", import.meta.url));
+const docs = path.join(root, "docs"), editorDir = path.join(root, "editor");
+for (const dir of [docs, editorDir]) mkdirSync(dir, { recursive: true });
+writeFileSync(path.join(editorDir, "index.html"), "<!doctype html><title>spike</title>");
+for (const key of Object.keys(process.env)) if (/^LITZIO_.*_SETTINGS_FILE$/.test(key)) delete process.env[key];
+Object.assign(process.env, isolatedHostEnvironment(root));
+// Both engines: an empty .git in the Host's assistant folder stops the skill/instruction walk up into the user's
+// home (the pi wrapper already does this for pi; the same stop is given to Copilot CLI so the conditions match).
+mkdirSync(path.join(process.env.LITZIO_ASSISTANT_CWD!, ".git"), { recursive: true });
+const turnMs = Number(process.env.SPIKE_TURN_MS ?? 20 * 60_000);
+const model = process.env.SPIKE_MODEL ?? "gemma4:e4b";
+const engine = process.env.SPIKE_ENGINE ?? (process.env.LITZIO_SPIKE_PI_ACP ? "pi" : "copilot");
+const started = Date.now();
+const log = (...values: unknown[]) => console.log(`[${((Date.now() - started) / 1000).toFixed(1)}s]`, ...values);
+
+// Task 1 fixture: a canonical Litzio document (two headings, paragraphs, a table). The target paragraph is not last.
+const DOC = "점검.md";
+const TARGET_OLD = "검사 주기는 매주 월요일 오전이다.";
+const docFile = path.join(docs, DOC);
+const original = serialize(parse(`---\nlitzio: 1\ntitle: 설비 점검 안내\n---\n\n# 점검 개요\n\n이 문서는 조립 라인 설비의 정기 점검 방법을 정리한다.\n\n${TARGET_OLD}\n\n점검 결과는 담당자가 기록한다.\n\n# 점검 항목\n\n| 항목 | 기준 |\n| --- | --- |\n| 벨트 장력 | 정상 범위 |\n| 모터 온도 | 70도 이하 |\n\n이상이 있으면 즉시 라인을 멈춘다.\n`));
+const MESSAGES = {
+  edit: [`${DOC}에서 "${TARGET_OLD}" 문단의 요일을 수요일로 고쳐 줘. 다른 곳은 바꾸지 마.`, "방금 고친 문단 아래에 한 문장을 더해 줘."],
+  plugin: ["작은 화면 플러그인 하나를 만들어 이 Host에 설치해 줘. ID는 local.counter, 이름은 '누름 횟수'. 화면에 제목 '누름 횟수'와 [누르기] 버튼 하나가 있고, 버튼을 누를 때마다 누른 횟수를 화면에 보여 주면 돼. 저장은 필요 없어. 다 되면 설치됐는지 확인하고 짧게 알려 줘.", "버튼 글자를 '한 번 더'로 바꿔 줘."],
+}[task];
+if (task === "edit") writeFileSync(docFile, original);
+
+const lines = (s: string) => s.replace(/\r\n/g, "\n").split("\n");
+// Asynchronous: the Host runs in this process, so a blocking child would stall it (one run lost its next send).
+const litzioCheck = (file: string) => new Promise<{ passed: boolean; detail: string }>(resolve => execFile(process.execPath,
+  [path.join(checkout, "node_modules/tsx/dist/cli.mjs"), path.join(checkout, "packages/cli/src/cli.ts"), "check", file, "--format", "json"],
+  { cwd: checkout, encoding: "utf8", timeout: 60_000, windowsHide: true }, (error, stdout, stderr) => resolve({ passed: !error, detail: (stdout + stderr).slice(0, 600) })));
+/** Turn 1: only the target paragraph line changed, now says 수요일 and no longer 월요일. */
+function judgeEdit1(before: string, after: string) {
+  const a = lines(before), b = lines(after), t = a.indexOf(TARGET_OLD);
+  const sameOthers = a.length === b.length && a.every((line, i) => i === t || line === b[i]);
+  const changedOk = /수요일/.test(b[t] ?? "") && !/월요일/.test(b[t] ?? "");
+  return { changed: before !== after, onlyTarget: sameOthers, targetFixed: changedOk, ok: before !== after && sameOthers && changedOk };
+}
+/** Turn 2: everything before the target paragraph and from the next original block on is unchanged; between them
+ *  the edited paragraph remains and new sentence text was added. */
+function judgeEdit2(before: string, after: string) {
+  const a = lines(before), b = lines(after);
+  const t = a.findIndex(line => line.includes("검사 주기")), next = a.findIndex((line, i) => i > t && line.trim() !== "");
+  const head = a.slice(0, t), tail = a.slice(next);
+  const headOk = head.every((line, i) => b[i] === line);
+  const tailStart = b.length - tail.length;
+  const tailOk = tailStart >= t && tail.every((line, i) => b[tailStart + i] === line);
+  const middleBefore = a.slice(t, next).join("\n").trim(), middleAfter = b.slice(t, tailStart).join("\n").trim();
+  const grew = middleAfter.length > middleBefore.length && middleAfter.includes("수요일");
+  return { changed: before !== after, headOk, tailOk, grew, added: middleAfter.slice(middleBefore.length > 0 ? 0 : 0, 400), ok: before !== after && headOk && tailOk && grew };
+}
+
+const proxyLines = () => existsSync(process.env.PROXY_LOG!) ? readFileSync(process.env.PROXY_LOG!, "utf8").split("\n").filter(Boolean).map(l => JSON.parse(l)) : [];
+const { startHttpHost } = await import("../../apps/editor/server/http-host.ts");
+const { DAEMON_PROTOCOL } = await import("../../apps/editor/server/daemon-protocol.ts");
+// The same daemon control `litzio daemon run` passes: without it the Host has no /daemon/health and every
+// `litzio plugins ...` CLI call fails its protocol check (found after the first plugin runs; see SPIKE.md).
+const daemon = { health: { pid: process.pid, startedAt: new Date().toISOString(), instanceId: crypto.randomUUID(), processStartedAt: new Date().toISOString(),
+  daemonHome: process.env.LITZIO_DAEMON_DIR!, executable: process.execPath, roots: [root], nonLoopback: false, launcher: "cli-run" as const, productVersion: "0.0.0-spike", protocolVersion: DAEMON_PROTOCOL },
+  stop: () => {} };
+// Host roots = the whole run folder, as scripts/assistant-acceptance runs `daemon run --root <run>`: with only docs,
+// full-access scaffolding into the Host's plugin authoring folder (under the data folder) is refused (second fix).
+const host: any = await startHttpHost({ roots: [root], editorDir, port: 0, daemon, log: () => {}, warn: (message: string) => log("warn", String(message).slice(0, 300)) });
+const origin: string = host.origin ?? host.url ?? `http://127.0.0.1:${host.port ?? host.server?.address().port}`;
+const call = async (method: string, route: string, body?: unknown) => {
+  const response = await fetch(origin + route, { method, headers: { Origin: origin, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`${method} ${route} -> ${response.status} ${text.slice(0, 500)}`);
+  return text ? JSON.parse(text) : undefined;
+};
+const permissionMode = "full-access", reasoningEffort = "medium";
+const settings = await call("GET", "/api/assistant/settings");
+await call("PUT", "/api/assistant/settings", { ...settings, provider: "ollama", ollamaUrl: process.env.OLLAMA_URL, model, reasoningEffort, permissionMode });
+log("host", origin, "engine", engine, "task", task);
+
+function pluginState() {
+  const settingsFile = process.env.LITZIO_PLUGINS_SETTINGS_FILE!;
+  const record = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, "utf8")) : {};
+  return record;
+}
+/** Files of the Host's installed copy of local.counter (not the assistant's source folder). */
+function installedCopyText(installationId: string | undefined) {
+  if (!installationId) return { dir: null, text: "" };
+  const walk = (dir: string, depth = 0): string[] => depth > 6 ? [] : readdirSync(dir, { withFileTypes: true }).flatMap(e => e.name === "node_modules" ? [] : e.isDirectory() ? walk(path.join(dir, e.name), depth + 1) : [path.join(dir, e.name)]);
+  const all = walk(process.env.LITZIO_DATA_DIR!);
+  const dir = [...new Set(all.map(f => path.dirname(f)))].find(d => path.basename(d) === installationId || d.includes(installationId));
+  if (!dir) return { dir: null, text: "" };
+  const files = walk(dir).filter(f => /\.(jsx?|tsx?|mjs|json|html)$/.test(f) && statSync(f).size < 2_000_000);
+  return { dir: path.relative(root, dir), text: files.map(f => readFileSync(f, "utf8")).join("\n") };
+}
+function findInstallationId(record: any): string | undefined {
+  let found: string | undefined;
+  const visit = (v: any, key?: string) => {
+    if (!v || typeof v !== "object") return;
+    if (key === "local.counter" && typeof v.installationId === "string") found = v.installationId;
+    for (const [k, value] of Object.entries(v)) visit(value, k);
+  };
+  visit(record);
+  return found;
+}
+async function judgePlugin(turn: 1 | 2) {
+  const list = (await call("GET", "/api/plugins")).plugins as any[];
+  const entry = list.find(p => p.id === "local.counter");
+  const installationId = findInstallationId(pluginState());
+  const copy = installedCopyText(installationId);
+  const summary = list.map(p => ({ id: p.id, name: p.name, enabled: p.enabled, running: p.running, error: p.error }));
+  if (turn === 1) return { plugins: summary, ok: !!entry && entry.enabled === true && entry.running === true, copyDir: copy.dir, hasPressLabel: copy.text.includes("누르기") };
+  return { plugins: summary, ok: !!entry && entry.enabled === true && entry.running === true && copy.text.includes("한 번 더"), running: !!entry?.running, copyHasNewLabel: copy.text.includes("한 번 더"), copyDir: copy.dir };
+}
+
+async function runTurn(index: number, conversationId?: string) {
+  const message = MESSAGES[index];
+  const before = proxyLines().length, t0 = Date.now();
+  const docBefore = task === "edit" ? readFileSync(docFile, "utf8") : "";
+  const send = { action: "send", provider: "ollama", model, reasoningEffort, permissionMode, message, folders: [docs], ...(task === "edit" ? { document: { path: docFile } } : {}), references: [], ...(conversationId ? { id: conversationId } : {}) };
+  let conversation = await call("POST", "/api/assistant/conversations", send);
+  const id = conversation.id ?? conversation.conversation?.id;
+  let stop = "timeout";
+  while (Date.now() - t0 < turnMs) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    conversation = await call("GET", `/api/assistant/conversations?id=${encodeURIComponent(id)}`);
+    const turn = conversation.turns.at(-1);
+    if (turn?.items.some((item: any) => item.question?.status === "pending")) {
+      stop = turn.items.some((item: any) => item.question?.status === "pending" && item.question.approval) ? "approval-pending" : "question-pending"; break;
+    }
+    if (turn && turn.status !== "inProgress") { stop = turn.status; break; }
+  }
+  const seconds = +((Date.now() - t0) / 1000).toFixed(1);
+  if (conversation.turns.at(-1)?.status === "inProgress") {
+    await call("POST", "/api/assistant/conversations", { action: "interrupt", id });
+    for (let n = 0; n < 30 && (await call("GET", `/api/assistant/conversations?id=${encodeURIComponent(id)}`)).turns.at(-1)?.status === "inProgress"; n++) await new Promise(r => setTimeout(r, 1000));
+  }
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  const requests = proxyLines().slice(before);
+  const turn = conversation.turns.at(-1);
+  const items = turn?.items ?? [];
+  const tools = items.filter((i: any) => i.kind === "tool").map((i: any) => ({ text: String(i.text ?? "").slice(0, 300), status: i.status, kind: i.work?.kind ?? "host", result: String(i.toolResult ?? "").slice(0, 300) }));
+  const judgement = task === "edit"
+    ? { ...(index === 0 ? judgeEdit1(docBefore, readFileSync(docFile, "utf8")) : judgeEdit2(docBefore, readFileSync(docFile, "utf8"))), check: await litzioCheck(docFile) }
+    : await judgePlugin(index === 0 ? 1 : 2);
+  const ok = task === "edit" ? (judgement as any).ok && (judgement as any).check.passed : (judgement as any).ok;
+  const modelToolCalls = requests.flatMap((r: any) => r.toolCalls ?? []);
+  const result = {
+    turn: index + 1, message, stop, error: turn?.error, seconds, ok, judgement,
+    modelRequests: requests.length,
+    inputTokens: requests.reduce((s: number, r: any) => s + (r.inputTokens ?? 0), 0),
+    outputTokens: requests.reduce((s: number, r: any) => s + (r.outputTokens ?? 0), 0),
+    firstInput: requests[0]?.inputTokens, lastInput: requests.at(-1)?.inputTokens,
+    missingUsage: requests.filter((r: any) => r.inputTokens === undefined).length,
+    reasoningCharsTotal: requests.reduce((s: number, r: any) => s + (r.reasoningChars ?? 0), 0),
+    requestsWithReasoning: requests.filter((r: any) => r.reasoningChars > 0).length,
+    thinkingFields: requests[0]?.thinkingFields,
+    toolsFirst: requests[0]?.tools, toolsMax: Math.max(0, ...requests.map((r: any) => r.tools ?? 0)),
+    toolSearchCalls: modelToolCalls.filter((c: any) => c.name === "tool_search").length,
+    modelToolCalls: modelToolCalls.length, modelToolCallNames: modelToolCalls.map((c: any) => c.name),
+    hostToolItems: tools.length, hostToolFailed: tools.filter((t: any) => t.status === "failed").length, tools,
+    lastAnswer: items.filter((i: any) => i.kind === "assistant").map((i: any) => i.text).join("\n").slice(-800),
+    requests: requests.map((r: any) => ({ n: r.n, ms: r.ms, in: r.inputTokens, out: r.outputTokens, tools: r.tools, msgs: r.messages, reasoning: r.reasoningChars, finish: r.finish, calls: (r.toolCalls ?? []).map((c: any) => c.name), err: r.error ?? r.proxyError })),
+  };
+  log(`turn ${index + 1}`, stop, `${seconds}s`, ok ? "OK" : "FAIL", `requests=${requests.length}`, `in=${result.inputTokens}`);
+  return { id, result };
+}
+
+const out: any = { engine, model, task, root: path.basename(root), startedAt: new Date(started).toISOString(), turns: [] };
+if (process.env.SPIKE_SELFTEST_PLUGIN) {
+  // Judge self-test without a model: scaffold + install a screen plugin with the CLI, judge, relabel, reinstall, judge.
+  const cli = (...args: string[]) => new Promise<string>(resolve => execFile(process.execPath, [path.join(checkout, "node_modules/tsx/dist/cli.mjs"), path.join(checkout, "packages/cli/src/cli.ts"), ...args, "--host", origin + "/", "--json"], { cwd: checkout, encoding: "utf8", timeout: 600_000, windowsHide: true }, (_e, stdout, stderr) => resolve((stdout + stderr).slice(0, 400))));
+  const folder = await (await fetch(origin + "/daemon/plugin-source-folder", { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL } })).json();
+  const src = path.join(folder.directory, "local.counter");
+  log("scaffold", await cli("plugins", "scaffold", "--id", "local.counter", "--template", "screen"));
+  log("install", await cli("plugins", "install", "local.counter"));
+  log("judge1", JSON.stringify(await judgePlugin(1)));
+  const files = readdirSync(src, { recursive: true }).map(String).filter(f => /\.(jsx|tsx|js|mjs)$/.test(f) && !f.includes("node_modules"));
+  for (const f of files) { const p = path.join(src, f); writeFileSync(p, readFileSync(p, "utf8") + "\n// 한 번 더\n"); }
+  log("reinstall", await cli("plugins", "install", "local.counter"));
+  log("judge2", JSON.stringify(await judgePlugin(2)));
+  await host.close?.(); process.exit(0);
+}
+try {
+  const first = await runTurn(0);
+  out.conversationId = first.id; out.turns.push(first.result);
+  writeFileSync(path.join(root, "result.json"), JSON.stringify(out, null, 2));
+  const second = await runTurn(1, first.id);
+  out.turns.push(second.result);
+} catch (error) {
+  out.error = String((error as Error)?.stack ?? error).slice(0, 2000);
+  log("error", out.error);
+} finally {
+  out.finishedAt = new Date().toISOString();
+  writeFileSync(path.join(root, "result.json"), JSON.stringify(out, null, 2));
+  await host.close?.();
+  log("host closed");
+  process.exit(0);
+}
