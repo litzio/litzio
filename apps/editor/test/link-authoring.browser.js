@@ -40,6 +40,8 @@ async (page, { openPath, screenshots, expect }) => {
         if (index >= 0) range = { from: position + index, to: position + index + needle.length };
       });
       if (!range) throw new Error(`text not found: ${needle}`);
+      const { node } = instance.view.domAtPos(range.from);
+      (node instanceof Element ? node : node.parentElement)?.scrollIntoView({block:'nearest'});
       instance.view.focus();
       instance.commands.setTextSelection(range);
       return [range.from, range.to];
@@ -82,7 +84,7 @@ async (page, { openPath, screenshots, expect }) => {
       await page.setViewportSize({width, height:900});
       await page.evaluate(() => document.fonts.ready);
       await page.mouse.move(0, 0);
-      await page.screenshot({path:`tmp/open-link-725/link-en-${width}.png`});
+      await page.screenshot({path:`tmp/in-document-links-1956/link-en-${width}.png`});
     }
     await page.setViewportSize({width:1280, height:720});
   }
@@ -194,17 +196,30 @@ async (page, { openPath, screenshots, expect }) => {
   await existingLink.click({modifiers:['Control']});
   await assertOpens(2);
   await editor.locator('.ProseMirror').dispatchEvent('compositionend', {data:'한'});
-  // A fragment is still editable but never opens or navigates.
+  // A fragment uses the same click gesture but opens inside this document.
   await editor.locator('a[href="#eq-a"]').click({modifiers:['Control']});
+  await expect(editor.getByTestId('link-target-outline')).toBeVisible();
+  if (screenshots) {
+    await page.setViewportSize({width:1440,height:900});
+    await page.mouse.move(0,0);
+    await page.screenshot({path:'tmp/in-document-links-1956/jump-1440.png'});
+    await page.setViewportSize({width:1280,height:720});
+  }
   await assertOpens(2);
   const sourceBeforeOpen = await editor.locator('.ProseMirror').evaluate(el => JSON.stringify(el.editor.getJSON()));
   await select('OpenAI', 'open button');
   await page.keyboard.press("Control+Quote");
-  for (const url of ['./other.md', '#eq-a', '//example.com', 'mailto:a@example.com', 'javascript:alert(1)', 'https://']) {
+  for (const url of ['./other.md', '//example.com', 'mailto:a@example.com', 'javascript:alert(1)', 'https://']) {
     await page.getByTestId('link-url').fill(url);
     if (!await page.getByTestId('link-open').isDisabled() ||
-      await page.getByTestId('link-open').locator('..').getAttribute('title') !== 'Only external http(s) links can be opened.') throw Error(`Open allowed ${url}`);
+      await page.getByTestId('link-open').locator('..').getAttribute('title') !== 'Enter an http(s) URL or a document link to open it.') throw Error(`Open allowed ${url}`);
   }
+  await page.getByTestId('link-url').fill('#missing');
+  await expect(page.getByTestId('link-open')).toBeDisabled();
+  await expect(page.getByTestId('link-open').locator('..')).toHaveAttribute('title', /Unresolved reference/);
+  await page.getByTestId('link-url').fill('#Appendix-Notes');
+  await page.getByTestId('link-open').click();
+  await expect(editor.getByTestId('link-target-outline')).toBeVisible();
   for (const url of ['http://example.com/path', 'https://example.com/preview']) {
     await page.getByTestId('link-url').fill(url);
     await page.getByTestId('link-url').focus();
@@ -369,6 +384,82 @@ async (page, { openPath, screenshots, expect }) => {
     await editor.locator('a[href="https://example.com/linked"]').innerText() === 'linked' &&
     await editor.locator('a[href="https://a.example/docs"]').count() === 0 &&
     await editor.locator('strong', {hasText: 'bold docs text'}).count() === 1;
+
+  await page.getByTestId('view-read').click();
+  const readUrl = page.url();
+  const readPages = page.context().pages().length;
+  await editor.locator('a[href="#Appendix-Notes"]').click();
+  await expect(editor.getByTestId('link-target-outline')).toBeVisible();
+  expect(page.url()).toBe(readUrl);
+  await expect(editor.getByTestId('link-target-outline')).toHaveCount(0);
+  await editor.locator('a[href="#missing"]').click({modifiers:['Control']});
+  expect(page.url()).toBe(readUrl);
+  expect(page.context().pages().length).toBe(readPages);
+  await expect(editor.getByTestId('link-target-outline')).toHaveCount(0);
+  await expect(page.getByTestId('notice')).toContainText('Unresolved reference');
+  await page.getByTestId('view-visual').click();
+
+  const beforePicker = await applied();
+  await select('the attachment', 'choose a section');
+  await page.keyboard.press('Control+Quote');
+  const picker = page.getByRole('button',{name:'Choose document target',exact:true});
+  await picker.click();
+  const search = page.getByRole('textbox',{name:'Find a target in this document'});
+  await expect(search).toBeFocused();
+  if (screenshots) {
+    await page.mouse.move(0,0);
+    for (const [width,height] of [[1920,1080],[1440,900]]) {
+      await page.setViewportSize({width,height});
+      await page.screenshot({path:`tmp/in-document-links-1956/picker-${width}.png`});
+    }
+  }
+  await search.fill('notes');
+  await expect(page.getByRole('menuitem',{name:'Section reference: Appendix Notes'})).toBeVisible();
+  await search.press('ArrowDown');
+  await expect(page.getByRole('menuitem',{name:'Section reference: Appendix Notes'})).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('link-url')).toHaveValue('#sec-appendix-notes');
+  expect(await applied()).toBe(beforePicker);
+  await page.getByTestId('link-apply').click();
+  await expect(editor.locator('a[href="#sec-appendix-notes"]')).toHaveText('the attachment');
+  await expect(editor.getByTestId('label-target').filter({hasText:'sec-appendix-notes'})).toHaveCount(1);
+  await page.keyboard.press('ControlOrMeta+z');
+  expect(await applied()).toBe(beforePicker);
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  await expect(editor.locator('a[href="#sec-appendix-notes"]')).toHaveText('the attachment');
+  const pickerSave = page.waitForResponse(response => response.url().endsWith('/api/document') && response.request().method() === 'POST');
+  await page.getByTestId('save').click();
+  expect((await pickerSave).ok()).toBe(true);
+  expect(await markdown()).toContain('(sec-appendix-notes)=\n\n## Appendix Notes\n\nSee [the attachment](#sec-appendix-notes) for an example.');
+  await editor.locator('.ProseMirror').focus();
+  await page.keyboard.press('ControlOrMeta+z');
+  expect(await applied()).toBe(beforePicker);
+  const undoSave = page.waitForResponse(response => response.url().endsWith('/api/document') && response.request().method() === 'POST');
+  await page.getByTestId('save').click();
+  expect((await undoSave).ok()).toBe(true);
+  expect(await markdown()).toBe(saved);
+
+  if (screenshots) {
+    const configure = async (language, theme) => {
+      await page.getByRole('button',{name:/^(Settings|설정)$/}).click();
+      await page.getByTestId('ui-language').selectOption(language);
+      await page.getByTestId('theme').selectOption(theme);
+      await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+      await page.evaluate(() => document.fonts.ready);
+    };
+    await configure('ko','dark');
+    await select('the attachment','Korean dark picker');
+    await page.keyboard.press('Control+Quote');
+    await page.getByRole('button',{name:'문서 안 대상 고르기'}).click();
+    for (const width of [640,1440]) {
+      await page.setViewportSize({width,height:900});
+      await page.mouse.move(0,0);
+      await page.screenshot({path:`tmp/in-document-links-1956/picker-ko-dark-${width}.png`});
+    }
+    await page.getByTestId('link-cancel').click();
+    await configure('en','light');
+    await page.setViewportSize({width:1280,height:720});
+  }
 
   // A URL the canonical Markdown cannot keep as typed fails at Save; the file is unchanged.
   await setLink('linked', 'https://example.com/한글');

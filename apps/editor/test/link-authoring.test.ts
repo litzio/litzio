@@ -1,5 +1,5 @@
 import { nativeSource } from "./helpers/document.ts";
-import { externalLinkUrl } from "../src/link-opening.ts";
+import { externalLinkUrl, fragmentTarget } from "../src/link-opening.ts";
 import { isRelativeImageLink } from "../src/image-link.ts";
 import { MEDIA_TYPES } from "../server/document-api.ts";
 import assert from "node:assert/strict";
@@ -16,6 +16,8 @@ import { collectSupportedEdits, toTiptapDocument, type TiptapJSON } from "../src
 import { documentRevision, saveDocumentFile } from "../server/document-api.ts";
 import { loadEditableDocument } from "./helpers/document.ts";
 import { saveEdits } from "../server/document-replay.ts";
+import { resolveLinkTargetChoice } from "../src/LinkTargetPicker.tsx";
+import { referenceCandidates } from "../src/cross-reference.tsx";
 
 const source = nativeSource("See [OpenAI](https://openai.com) for **bold [docs](https://a.example/docs) text**.\n");
 const text = (value: string): InlineContent => ({ kind: "text", text: value });
@@ -48,6 +50,23 @@ function editorDoc(markdown: string): { baseline: TiptapJSON; doc: ProseMirrorNo
   const schema = getSchema(editorExtensions());
   return { baseline, schema, doc: schema.nodeFromJSON(baseline) };
 }
+
+test("link target picker refuses a heading when the fragment would open a different block", () => {
+  const chooseSetup = (body: string) => {
+    const { doc, schema } = editorDoc(nativeSource(body));
+    const candidate = referenceCandidates(doc, "setup", true).find(item => item.label === "Section reference: Setup");
+    assert.ok(candidate);
+    return { choice: resolveLinkTargetChoice(EditorState.create({ doc, schema }), candidate), doc };
+  };
+  const labeled = chooseSetup("## Sec Setup\n\n(sec-setup)=\n\n## Setup\n\nJump\n");
+  const mismatch = { error: { key: "This link does not point to the selected block." } };
+  assert.deepEqual(labeled.choice, mismatch);
+  assert.equal(fragmentTarget(labeled.doc, "#sec-setup"), 0);
+  assert.deepEqual(chooseSetup("## Sec Setup\n\n## Setup\n\nJump\n").choice, mismatch);
+  const unique = chooseSetup("## Setup\n\nJump\n").choice;
+  assert.ok("href" in unique);
+  assert.equal(unique.href, "#sec-setup");
+});
 
 /** Apply a transaction through the structure guard and return the saved Markdown. */
 function edit(markdown: string, change: (state: EditorState) => EditorState["tr"]): string {

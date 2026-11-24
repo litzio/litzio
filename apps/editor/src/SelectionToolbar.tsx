@@ -1,8 +1,9 @@
 import { EDITOR_SHORTCUTS, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT } from "./shortcuts.ts";
-import { useMessageState } from "./ui-message.ts";
+import { messageText, useMessageState } from "./ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
 import type { Editor } from "@tiptap/core";
+import { closeHistory } from "@tiptap/pm/history";
 import { useEditorState } from "@tiptap/react";
 import { canEditEndnoteAt, endnoteAt, endnoteEditorToken, insertEndnote } from "./endnotes.ts";
 import { freshBlockPath } from "./tiptap-document.ts";
@@ -12,7 +13,9 @@ import { useEditorAuthoring } from "./editor-visibility.ts";
 import type { DraftListener } from "./node-views/shared.ts";
 import { FieldError } from "./ui/primitives.tsx";
 import { Input } from "@/components/ui/input.tsx";
-import { externalLinkUrl, openExternalLink } from "./link-opening.ts";
+import { externalLinkUrl, fragmentTarget, openExternalLink, unresolvedLink } from "./link-opening.ts";
+import { hasSectionLabel, insertSectionLabel, newSectionLabel } from "./cross-reference.tsx";
+import { LinkTargetPicker, resolveLinkTargetChoice, sectionLinkMatchesHeading } from "./LinkTargetPicker.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { useOverlayBounds, type OverlayAnchor } from "./ui/use-overlay-bounds.ts";
 
@@ -199,13 +202,14 @@ export function linkDraftOf(editor: Editor): LinkDraft {
  * Add, change or remove an ordinary Markdown link on the selected text. The change is an
  * ordinary editor transaction; Core validates the link when the document is saved.
  */
-export function LinkForm({ editor, draft, style, anchor, onClose, onDraftChange }: {
+export function LinkForm({ editor, draft, style, anchor, onClose, onDraftChange, onReveal }: {
   editor: Editor;
   draft: LinkDraft;
   style?: CSSProperties;
   anchor: OverlayAnchor;
   onClose: () => void;
   onDraftChange: DraftListener;
+  onReveal(index: number): void;
 }) {
   useTranslation();
   const visible = useEditorAuthoring();
@@ -213,10 +217,15 @@ export function LinkForm({ editor, draft, style, anchor, onClose, onDraftChange 
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; }, []);
   const [href, setHref] = useState(draft.href);
+  const [picking, setPicking] = useState(false);
+  useEffect(() => { if (!visible) setPicking(false); }, [visible]);
+  const [headingPath, setHeadingPath] = useState<string>();
+  const pickerButton = useRef<HTMLButtonElement>(null);
+  const urlInput = useRef<HTMLInputElement>(null);
   const bounds = useOverlayBounds<HTMLFormElement>(true, anchor);
   const [error, setError] = useMessageState("");
   const path = draft.path;
-  const dirty = href !== draft.href;
+  const dirty = href !== draft.href || headingPath !== undefined;
   const canEdit = useEditorState({ editor, selector: ({ editor: current }) =>
     !!current?.isEditable && canEditEndnoteAt(current.state, draft.from) });
   useEffect(() => {
@@ -229,15 +238,52 @@ export function LinkForm({ editor, draft, style, anchor, onClose, onDraftChange 
     // subsequent link form opened by the shortcut before the next animation frame.
     editor.view.focus();
   };
+  const closePicker = () => {
+    setPicking(false);
+    pickerButton.current?.focus();
+  };
+  const doc = editor.state.doc;
+  const url = href.trim();
+  let heading: number | undefined;
+  if (headingPath !== undefined) doc.forEach((node, _pos, index) => {
+    if (node.type.name === "heading" && node.attrs.sourcePath === headingPath) heading = index;
+  });
+  const target = headingPath === undefined ? fragmentTarget(doc, url) : heading;
+  const external = externalLinkUrl(url);
+  const openHint = external || target !== undefined ? i18n.t("Open") : url.startsWith("#")
+    ? messageText(unresolvedLink(url)) : i18n.t("Enter an http(s) URL or a document link to open it.");
+  const choose = (candidate: Parameters<typeof resolveLinkTargetChoice>[1]) => {
+    setPicking(false);
+    urlInput.current?.focus();
+    const choice = resolveLinkTargetChoice(editor.state, candidate);
+    if ("error" in choice) return setError(choice.error);
+    setHref(choice.href);
+    setHeadingPath(choice.headingPath);
+    setError("");
+  };
   const apply = () => {
     if (!canEdit) return;
-    const url = href.trim();
     if (url.length === 0) return setError({ key: "Enter a URL." });
     if (/\s/.test(url)) return setError({ key: "A URL cannot contain spaces." });
+    if (headingPath !== undefined && (heading === undefined || hasSectionLabel(doc, heading) || url !== `#${newSectionLabel(doc, heading)}`)) {
+      return setError({ key: "The heading changed. Choose it again." });
+    }
+    if (heading !== undefined) {
+      if (!sectionLinkMatchesHeading(editor.state, heading, url)) return setError({ key: "This link does not point to the selected block." });
+      const $from = doc.resolve(draft.from);
+      if (draft.from === draft.to || !$from.sameParent(doc.resolve(draft.to)) ||
+          $from.depth === 0 || $from.node(1).attrs.sourcePath !== draft.path) {
+        return setError({ key: "Selection is no longer within one text block. Undo the outside edit and try again." });
+      }
+    }
     // Keep an existing title; the form edits the URL only.
-    const applied = editor.chain().setTextSelection({ from: draft.from, to: draft.to })
-      .setLink({ href: url, title: draft.title }).run();
-    if (!applied) return setError({ key: "This URL cannot be used as a link." });
+    if (!editor.can().setLink({ href: url, title: draft.title })) return setError({ key: "This URL cannot be used as a link." });
+    editor.chain().setTextSelection({ from: draft.from, to: draft.to }).setLink({ href: url, title: draft.title })
+      .command(({ tr }) => {
+        if (heading !== undefined) insertSectionLabel(closeHistory(tr), heading, url.slice(1));
+        return true;
+      }).run();
+    if (heading !== undefined) editor.view.dispatch(closeHistory(editor.state.tr));
     close();
   };
   const remove = () => {
@@ -269,12 +315,19 @@ export function LinkForm({ editor, draft, style, anchor, onClose, onDraftChange 
         if (event.key !== "Escape") return;
         event.preventDefault();
         event.stopPropagation();
-        close();
+        if (picking) closePicker();
+        else close();
       }}
     >
       <div className="form-field link-url-field">
-        <label className="form-label" htmlFor={formId}>{i18n.t("Link URL")}</label>
+        <div className="link-url-label">
+          <label className="form-label" htmlFor={formId}>{i18n.t("Link URL")}</label>
+          <Button ref={pickerButton} size="sm" variant="ghost" type="button" aria-expanded={picking}
+            aria-controls={picking ? `${formId}-targets` : undefined} disabled={!canEdit}
+            onClick={() => setPicking(!picking)}>{i18n.t("Choose document target")}</Button>
+        </div>
         <Input
+          ref={urlInput}
           id={formId}
           autoFocus={!mounted.current}
           aria-label={i18n.t("Link URL")}
@@ -286,15 +339,20 @@ export function LinkForm({ editor, draft, style, anchor, onClose, onDraftChange 
           aria-describedby={error ? `${formId}-error` : undefined}
           onChange={(event) => {
             setHref(event.target.value);
+            setHeadingPath(undefined);
             setError("");
           }}
         />
         <FieldError id={`${formId}-error`}>{error}</FieldError>
       </div>
+      {picking ? <LinkTargetPicker id={`${formId}-targets`} doc={doc} onChoose={choose} onClose={closePicker} /> : null}
       <div className="form-actions">
-        <span title={externalLinkUrl(href) ? i18n.t("Open") : i18n.t("Only external http(s) links can be opened.")}>
+        <span title={openHint}>
           <Button size="sm" variant="outline" type="button" data-testid="link-open"
-            disabled={!externalLinkUrl(href)} onClick={() => openExternalLink(href)}>{i18n.t("Open")}</Button>
+            disabled={!external && target === undefined} onClick={() => {
+              if (target === undefined) openExternalLink(url);
+              else onReveal(target);
+            }}>{i18n.t("Open")}</Button>
         </span>
         {draft.href ? (
           <Button size="sm" variant="outline" disabled={!canEdit} data-testid="link-remove" onClick={remove}>{i18n.t("Remove")}</Button>

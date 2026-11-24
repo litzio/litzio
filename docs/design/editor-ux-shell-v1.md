@@ -985,15 +985,29 @@ Historical listed-search verification, measurements and result-limit decisions: 
 
 ### Open ordinary links (#725)
 
-An ordinary click keeps editing and never opens a link. Ctrl/Cmd+single click on an ordinary
-link mark opens an absolute http(s) URL with `window.open(url, "_blank", "noopener")`.
+An ordinary click in Edit keeps editing. Ctrl/Cmd+single click on an ordinary
+link mark opens an absolute http(s) URL with `window.open(url, "_blank", "noopener")` in Edit view.
 The web Host opens a new tab; Desktop's existing `setWindowOpenHandler` sends it to the
 system browser. Composition, selection drags, multi-clicks and read-only endnotes do not open links.
-The existing Link form also has a keyboard-accessible **Open / 열기** button using its current
-URL input, without applying that draft to the document. Relative paths, fragments, incomplete
-URLs and other schemes disable Open; its wrapper tooltip explains that only external http(s)
-links can be opened. Authoring and preserving those links remain unchanged. This is Editor-only
-interaction; no Core operation or CLI command is needed.
+The same gesture follows a `#fragment` in Edit, Read and the plugin DocumentView (#1956). Read and
+DocumentView also follow fragments on ordinary click or keyboard activation. The editor
+scrolls to the block and briefly shows the shared accent outline. Core resolves the target from
+the live block order. A missing target leaves the scroll position alone and uses the existing
+unresolved-reference message in the notification center.
+
+The Link form's keyboard-accessible **Open / 열기** uses the current URL draft for http(s) or a
+resolved fragment. Unsupported URLs disable Open with a tooltip. **Choose document target / 문서 안
+대상 고르기** expands a search input and the same candidate rows, names and search rules as slash
+reference insertion. The picker includes unlabeled headings when browsing. A choice fills the URL
+with `#label`. Applying a choice for an unlabeled heading inserts its `sec-<slug>` target in the same
+Undo step as the link. The URL can also be entered directly.
+The picker rejects a choice if Core resolves its fragment to a different block, including after a provisional label is inserted for an unlabeled heading.
+
+[Target picker, 1440](assets/in-document-links-1956/picker-1440.png) ·
+[After following a link, 1440](assets/in-document-links-1956/jump-1440.png) ·
+[Korean dark, 1440](assets/in-document-links-1956/picker-ko-dark-1440.png) ·
+[Korean dark, 640](assets/in-document-links-1956/picker-ko-dark-640.png) ·
+[Target picker, 1920 × 1080](assets/in-document-links-1956/picker-1920.png)
 
 ### Relative image link previews (#731)
 

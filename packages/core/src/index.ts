@@ -49,7 +49,7 @@ export type { BlockConversion, TableCellInput } from "./operations.ts";
 export type { UnresolvedReference } from "./references.ts";
 export { figureContentError } from "./figure.ts";
 export { labelError, labelKey, targetLabelError } from "./label.ts";
-export { planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "./myst/label-rename-plan.ts";
+export { fragmentTargetLookup, planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "./myst/label-rename-plan.ts";
 export { assertPastedLabelsAvailable } from "./myst/label.ts";
 export { planEndnoteLifecycle } from "./numbering.ts";
 export type { FootnoteDefinition } from "./operations.ts";

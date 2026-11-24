@@ -1,9 +1,9 @@
-import { writeIssueOf, planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "@litzio/core";
+import { writeIssueOf, planLabelRename, type LabelRenameReference } from "@litzio/core";
 import type { UiMessage } from "./ui-message.ts";
 import { closeHistory } from "@tiptap/pm/history";
 import type { Fragment } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
-import { fromTiptapContent } from "./tiptap-inline.ts";
+import { referenceContext } from "./reference-context.ts";
 
 /** Editor transaction carrying Core's plan for updating references to a renamed label. */
 export const LABEL_PROPERTIES_META = "labelProperties";
@@ -19,12 +19,6 @@ export function updateLabelProperties(state: EditorState, position: number, attr
   if (caption === undefined) tr.setNodeMarkup(position, undefined, attrs);
   else tr.replaceWith(position, position + current.nodeSize, current.type.create(attrs, caption));
   if (current.attrs.label && label && current.attrs.label !== label) {
-    const blocks: LabelRenameBlock[] = [];
-    tr.doc.forEach(node => blocks.push({
-      block: node.type.name === "labelTarget" ? "target" : node.type.name,
-      label: node.attrs.label, level: node.attrs.level,
-      ...(node.type.name === "heading" ? { content: fromTiptapContent({ type: "doc", content: [{ type: "paragraph", content: node.toJSON().content }] }) } : {}),
-    }));
     const references: LabelRenameReference[] = [];
     const apply: ((reference: LabelRenameReference) => void)[] = [];
     const add = (reference: LabelRenameReference, change: (reference: LabelRenameReference) => void) => {
@@ -42,7 +36,7 @@ export function updateLabelProperties(state: EditorState, position: number, attr
         });
       }
     });
-    const plan = planLabelRename(blocks, tr.doc.resolve(position).index(0), String(label), references);
+    const plan = planLabelRename(referenceContext(tr.doc), tr.doc.resolve(position).index(0), String(label), references);
     for (const edit of plan) apply[edit.index](edit.reference);
   }
   return tr.setNodeMarkup(position, undefined, { ...tr.doc.nodeAt(position)!.attrs, label }).setMeta(LABEL_PROPERTIES_META, true);
