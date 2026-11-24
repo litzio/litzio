@@ -118,7 +118,7 @@ export function activate(context) {
 
 설정의 [플러그인 추가…]와 `plugins register <폴더>`는 Host 전용 복사본을 검증하고 비활성 상태로 등록한다. 처음 켤 때 목록의 registrationId를 확인하고 등록 단위를 신뢰한다. 등록 교체·제거 후 재추가에는 다시 확인한다. `plugins install <폴더 또는 제작 ID>`는 복사본의 검증·등록·신뢰·활성을 하나의 Host 작업으로 수행한다. 비서 관리도 같은 작업을 사용하며 활동에는 metadata만 남긴다.
 
-daemon 시작 때 켜져 있던 플러그인의 활성화가 실패하면 daemon 출력에 플러그인 ID, 종류, 경과 밀리초, 실패 단계와 확인된 종료 코드 또는 신호를 한 줄로 남긴다. `list`의 `activationFailure`는 자동 또는 직접 켜기 실패를 `timeout`(준비 응답 시간 초과), `processExit`(준비 전 프로세스 종료), `other`(그 밖)로 구분한다. 자동 켜기의 `other` 오류가 공통 문구로 반환될 때만 `activationFailedAtStartup: true`를 담는다. 설정의 플러그인 오류 행은 hover와 키보드 focus에서 실패에 맞는 안내를 표시하고, `other`의 구체적인 사유가 있으면 우선 표시한다.
+공용 관리 작업의 결과, 자동 켜기, 설치본 digest 불일치와 실행 중 프로세스 종료는 [daemon 로그](http-host-v1.md#daemon-log-1915)에 남긴다. `list`의 `activationFailure`는 자동 또는 직접 켜기 실패를 `timeout`(준비 응답 시간 초과), `processExit`(준비 전 프로세스 종료), `other`(그 밖)로 구분한다. 자동 켜기의 `other` 오류가 공통 문구로 반환될 때만 `activationFailedAtStartup: true`를 담는다. 설정의 플러그인 오류 행은 hover와 키보드 focus에서 실패에 맞는 안내를 표시하고, `other`의 구체적인 사유가 있으면 우선 표시한다.
 
 로컬 등록·설치·다시 읽기·업데이트는 원본의 `litzio-plugin.json`을 먼저 검증한다. 설명서가 없거나 유효하지 않으면 복사 전에 거절하고, 복사에 성공한 뒤에는 복사본의 설명서를 다시 검증한다. 설정의 추가 대화상자는 등록 중에 단추를 비활성화하고 진행 상태를 표시한다. 설명서가 없으면 대화상자 안에 오류를 표시하고 다른 폴더를 고를 수 있게 한다. [1440px 밝음](assets/plugin-register-precheck-1913/after-1440-light.png) · [어두움](assets/plugin-register-precheck-1913/after-1440-dark.png).
 

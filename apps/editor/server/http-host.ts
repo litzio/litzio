@@ -27,8 +27,9 @@ type HttpHostOptions = {
   publicOrigin?: string;
   daemon?: DaemonControl;
   removeFile?: (file: string) => void | Promise<void>;
-  /** Receives failed, slow and aborted request records; omitted, requests are not recorded. */
+  /** Receives request and plugin records. */
   log?: (message: string) => void;
+  warn?: (message: string) => void;
 };
 
 const loopback = (host: string) => host === "::1" || /^127\./.test(host);
@@ -66,7 +67,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   const releaseResetGuard = resetGuard.actor("host");
   let services: ReturnType<typeof createHostServices>;
   let origin: string | undefined;
-  try { services = createHostServices(access, { origin: () => origin }); }
+  try { services = createHostServices(access, { origin: () => origin, log: options.log, warn: options.warn }); }
   catch (error) { releaseResetGuard(); throw error; }
   const key = randomBytes(32);
   const origins = new Set<string>();

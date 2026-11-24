@@ -62,7 +62,7 @@ export class PluginAssistantSkills {
   private directory: string;
   private labels = new Map<string, { plugin: string; displayName: string }>();
   displayName(file: string) { return this.labels.get(path.resolve(file))?.displayName; }
-  constructor(assistantDirectory: string) { this.directory = path.join(assistantDirectory, ".agents", "skills"); }
+  constructor(assistantDirectory: string, private warn = console.warn) { this.directory = path.join(assistantDirectory, ".agents", "skills"); }
   clear(plugin?: string) {
     for (const [file, value] of this.labels) if (!plugin || value.plugin === plugin) this.labels.delete(file);
     for (const name of this.names(plugin)) {
@@ -116,7 +116,7 @@ export class PluginAssistantSkills {
       throw error;
     } finally {
       try { if (cleanup) removeOwned(parent, path.basename(stage)); }
-      catch { console.warn("Unable to clean up staged plugin skills"); }
+      catch { this.warn("Unable to clean up staged plugin skills"); }
     }
   }
 }

@@ -267,6 +267,7 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
   const first = repo.push("main", { ...base, ...plugin("alpha", "alpha-1", "0.1.0") });
   const alphaUrl = "https://github.com/acme/tools/tree/main/plugins/alpha", betaUrl = "https://github.com/acme/tools/tree/main/plugins/beta";
   const credentials: NodeJS.ProcessEnv = { GH_TOKEN: "fixture-primary-token", GITHUB_TOKEN: "fixture-secondary-token" };
+  const logs: string[] = [];
   let cliCalls = 0, cliFailure = false;
   const host = new PluginHost(state, { github: new GitHubSource(await github.start(), {
     env: credentials,
@@ -275,7 +276,7 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
       if (cliFailure) throw new Error("simulated missing or signed-out gh");
       return "fixture-cli-token\n";
     },
-  }) });
+  }), log: line => logs.push(line) });
   const read = async (id: string) => ((await host.invokeOperation(`${id}.read`, {})) as { result?: unknown }).result;
   const check = async () => Object.fromEntries(((await host.invoke("check-updates", {})) as any).updates.map((update: any) => [update.id, update]));
   const leftovers = () => existsSync(staging) ? fs.readdirSync(staging) : [];
@@ -335,13 +336,21 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
     // Download, dependency and preparation failures leave the running copy in place.
     repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-3", "3.0.0", {}, { type: "module", dependencies: { "left-pad": "1.3.0" } }) });
     await assert.rejects(host.invoke("update", { id: "acme.beta" }), /without package-lock\.json/);
+    assert.match(logs.at(-1)!, /stage=dependencies: GitHubSourceError: This plugin declares dependencies without package-lock\.json/);
+    const privateRegistryPath = "fixture-private-registry-token";
+    github.failures.set(/\/left-pad-1\.3\.0\.tgz/, { status: 503, body: privateRegistryPath });
     repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-3", "3.0.0", { "package-lock.json": JSON.stringify({ name: "beta", lockfileVersion: 3, requires: true,
-      packages: { "": { dependencies: { "left-pad": "1.3.0" } }, "node_modules/left-pad": { version: "1.3.0", resolved: "http://127.0.0.1:9/left-pad-1.3.0.tgz", integrity: "sha512-AAAA" } } }) }, { type: "module", dependencies: { "left-pad": "1.3.0" } }) });
+      packages: { "": { dependencies: { "left-pad": "1.3.0" } }, "node_modules/left-pad": { version: "1.3.0", resolved: `${github.url}/${privateRegistryPath}/left-pad-1.3.0.tgz`, integrity: "sha512-AAAA" } } }) }, { type: "module", dependencies: { "left-pad": "1.3.0" } }) });
     await assert.rejects(host.invoke("update", { id: "acme.beta" }), /Package download failed/);
+    assert.match(logs.at(-1)!, /^plugin update failed plugin=acme\.beta source=github elapsedMs=\d+ kind=other stage=dependencies: GitHubSourceError: npm registry request failed \(HTTP 503\)\.$/);
+    assert.ok(github.requests.some(route => route.includes(privateRegistryPath)), "npm reached the fixture registry");
+    assert.doesNotMatch(logs.join("\n"), /fixture-private-registry-token/);
+    github.failures.clear();
     repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-3", "3.0.0", { host: "export function activate( {" }) });
     await assert.rejects(host.invoke("update", { id: "acme.beta" }));
-    github.failures.set(/\/tarball\//, { status: 500 });
+    github.failures.set(/\/tarball\//, { status: 500, body: "fixture-private-github-body" });
     await assert.rejects(host.invoke("update", { id: "acme.beta" }), /GitHub request failed/);
+    assert.match(logs.at(-1)!, /^plugin update failed plugin=acme\.beta source=github elapsedMs=\d+ kind=other stage=artifact: GitHubSourceError: GitHub request failed \(HTTP 500\)\.$/);
     github.failures.clear();
     assert.equal(await read("acme.beta"), "beta-1");
     assert.deepEqual(leftovers(), [], "staging is removed after every attempt");
@@ -367,11 +376,13 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
     github.failures.clear();
 
     cliFailure = false;
-    github.failures.set(/commits\//, { status: 401 });
+    github.failures.set(/commits\//, { status: 401, body: "Bearer fixture-cli-token" });
     const rejected = await host.invoke("install", { source: alphaUrl }) as any;
     assert.equal(rejected.receipt.outcome, "failure");
     assert.match(rejected.errors[0].message, /GitHub rejected the token/);
     assert.doesNotMatch(JSON.stringify(rejected), /fixture-cli-token/);
+    assert.match(logs.at(-1)!, /stage=artifact: GitHubSourceError: GitHub rejected the token \(HTTP 401\)\.$/);
+    assert.doesNotMatch(logs.join("\n"), /fixture-(?:primary|secondary|cli)-token|fixture-private-github-body|Bearer/);
     github.failures.clear();
 
     const archive = new FakeGitHub();
@@ -413,7 +424,8 @@ test("GitHub folders resolve once by address or plugin ID, then stay pinned to t
     [`${folder}/screen.jsx`]: "export default function Screen(){return null}",
     [`${folder}/host.js`]: `export function activate() { return { operations: { read: () => ${JSON.stringify(label)} }, status: () => ({ available: true, message: "Ready" }), dispose() {} }; }`,
   });
-  const host = new PluginHost(state, { github: new GitHubSource(await github.start()) });
+  const logs: string[] = [];
+  const host = new PluginHost(state, { github: new GitHubSource(await github.start()), log: line => logs.push(line) });
   const read = async (id: string) => ((await host.invokeOperation(`${id}.read`, {})) as { result?: unknown }).result;
   const check = async (id: string) => ((await host.invoke("check-updates", { id })) as any).updates[0];
   const installed = async (args: Record<string, unknown>) => { const value = await host.invoke("install", args) as any; assert.equal(value.receipt.outcome, "success", JSON.stringify(value.errors)); return value; };
@@ -462,6 +474,7 @@ test("GitHub folders resolve once by address or plugin ID, then stay pinned to t
 
     // A mismatched installed copy lists the registered source and reloads the applied commit.
     const solo = (await host.list()).find(p => p.id === "acme.solo")!;
+    assert.match(logs.find(line => line.startsWith("plugin update ok plugin=acme.solo"))!, /^plugin update ok plugin=acme\.solo source=github elapsedMs=\d+$/);
     await host.invoke("disable", { id: solo.id });
     writeFileSync(path.join(registeredCopy(state, solo.id), "changed.txt"), "changed");
     await assert.rejects(host.invoke("enable", { id: solo.id }), /Artifact changed/);
@@ -470,6 +483,16 @@ test("GitHub folders resolve once by address or plugin ID, then stay pinned to t
     assert.deepEqual(damaged.source, solo.source);
     assert.equal(damaged.name, undefined);
     assert.equal(damaged.version, undefined);
+    const changeLines = () => logs.filter(line => line.startsWith("plugin artifact changed plugin=acme.solo "));
+    const change = `plugin artifact changed plugin=${solo.id} recorded=${solo.digest!.slice(0, 12)} observed=${artifactDigest(registeredCopy(state, solo.id)).slice(0, 12)}`;
+    await host.list();
+    await host.list();
+    assert.deepEqual(changeLines(), [change]);
+
+    writeFileSync(path.join(registeredCopy(state, solo.id), "changed.txt"), "changed again");
+    await assert.rejects(host.invoke("enable", { id: solo.id }), /Artifact changed/);
+    const secondChange = `plugin artifact changed plugin=${solo.id} recorded=${solo.digest!.slice(0, 12)} observed=${artifactDigest(registeredCopy(state, solo.id)).slice(0, 12)}`;
+    assert.deepEqual(changeLines(), [change, secondChange]);
     single.push("feat/x", plugin("plugins/solo", "acme.solo", "solo-3", "3.0.0"));
     await host.invoke("reload", { id: solo.id });
     const restored = (await host.list()).find(p => p.id === solo.id)!;
@@ -477,6 +500,11 @@ test("GitHub folders resolve once by address or plugin ID, then stay pinned to t
     assert.equal(restored.registrationId, solo.registrationId);
     assert.equal(restored.version, "2.0.0");
     assert.equal(await read(solo.id), "solo-2");
+    await host.invoke("disable", { id: solo.id });
+    writeFileSync(path.join(registeredCopy(state, solo.id), "changed.txt"), "changed again");
+    await assert.rejects(host.invoke("enable", { id: solo.id }), /Artifact changed/);
+    assert.deepEqual(changeLines(), [change, secondChange, secondChange], "reload forgets the last observed digest");
+    assert.doesNotMatch(logs.join("\n"), /https?:\/\/|plugins\/solo/);
 
     // A local manifest naming the repository root finds the folder with its plugin ID for check and update.
     const shared = github.repository("acme", "shared");
@@ -961,7 +989,8 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-secret-host-"));
   const values = new Map<string, string>(), broken = new Set<string>();
   const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { if (broken.has(`${p}/${n}`)) throw new Error("raw-store-error-private"); return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); broken.delete(`${p}/${n}`); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) { values.delete(key); broken.delete(key); } } };
-  const host = new PluginHost(path.join(root, "state.json"), { secrets: store }), value = 'fixture-PAT-"-private';
+  const logs: string[] = [];
+  const host = new PluginHost(path.join(root, "state.json"), { secrets: store, log: line => logs.push(line) }), value = 'fixture-PAT-"-private';
   try {
     for (const id of ["example.first", "example.second"]) {
       const directory = path.join(root, id); mkdirSync(directory);
@@ -995,6 +1024,16 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     assert.equal("error" in (await host.list()).find(p => p.id === "example.first")!.secrets!.declarations[0]!, false);
     await host.setSecret("example.first", "pat", value);
     assert.equal((await host.list()).find(p => p.id === "example.first")!.secrets?.declarations[0]?.configured, true);
+    const privatePath = "C:\\Users\\fixture-account\\private-folder\\secret-store.json";
+    const readFault = new Error(`Store failed at ${privatePath} with ${value} and fixture-private-setting`);
+    const read = store.read;
+    store.read = async () => { throw readFault; };
+    try { await assert.rejects(host.invoke("enable", { id: "example.first" }), error => error === readFault); }
+    finally { store.read = read; }
+    assert.match(logs.at(-1)!, /^plugin enable failed plugin=example\.first source=local elapsedMs=\d+ kind=other stage=secrets: Error: Plugin secrets step failed$/);
+    for (const privateText of [root, "fixture-account", "private-folder", value, "fixture-private-setting"]) {
+      assert.equal(logs.join("\n").includes(privateText), false);
+    }
     await host.invoke("secret-delete", { id: "example.first", name: "pat" });
     assert.equal(await store.status("example.first", "pat"), false);
     await assert.rejects(host.invoke("enable", { id: "example.first" }), /not configured/);
@@ -1062,7 +1101,8 @@ test("operation invoke publishes declared public rows and refuses row-type misma
 
 
 test("subprocess isolation, fresh artifact reload, trust failure recovery and crash status", async t => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"), { });
+  const logs: string[] = [];
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"), { log: line => logs.push(line) });
   const connection = new ProviderConnections(path.join(root, "assistant"));
   const skills = path.join(root, "assistant", ".agents", "skills"), installedSkill = path.join(skills, "litzio-plugin-fixture--reload---review");
   const marker = path.join(root, "disposed");
@@ -1131,11 +1171,12 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
     // Process exit notification can follow a rejected status RPC on a busy Host.
     const deadline = Date.now() + 5000;
     let failed = (await host.list())[0]!;
-    while (!/process failed/.test(failed.error ?? "") && Date.now() < deadline) {
+    while ((!/process failed/.test(failed.error ?? "") || !logs.some(line => line.startsWith("plugin process "))) && Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 25));
       failed = (await host.list())[0]!;
     }
     assert.equal(failed.running, false); assert.match(failed.error!, /process failed/);
+    assert.deepEqual(logs.filter(line => line.startsWith("plugin process ")), ["plugin process exited plugin=fixture.reload exitCode=7"]);
     assert.equal(existsSync(installedSkill), false, "crashed plugin instructions are removed");
     await new Promise(r => setTimeout(r, 100)); assert.equal((await host.list())[0]!.running, false);
     writeFileSync(path.join(directory, "host.js"), code("final"));
@@ -1815,13 +1856,14 @@ test("auto-enable reports a startup deadline separately from an early child exit
         }
         return {operations:{},status:()=>({available:true,message:"ready"}),dispose(){}};
       }`);
-    const warnings = t.mock.method(console, "warn", () => {});
+    const warnings: string[] = [], logs: string[] = [];
     await host.invoke("register", { directory });
     await host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
     await host.invoke("enable", { id });
     await host.close();
     writeFileSync(marker, "");
-    host = new PluginHost(file, { ...options, activationTimeoutMs: "timeoutMs" in fixture ? fixture.timeoutMs : undefined });
+    host = new PluginHost(file, { ...options, activationTimeoutMs: "timeoutMs" in fixture ? fixture.timeoutMs : undefined,
+      log: line => logs.push(line), warn: line => warnings.push(line) });
     await host.start();
     const [failed] = await host.list();
     assert.equal(failed!.enabled, true);
@@ -1829,20 +1871,21 @@ test("auto-enable reports a startup deadline separately from an early child exit
     assert.equal(failed!.error, "Plugin activation failed");
     assert.equal(failed!.activationFailure, fixture.kind);
     assert.equal(failed!.activationFailedAtStartup, fixture.kind === "other" ? true : undefined);
-    assert.equal(warnings.mock.callCount(), 1);
-    const [line, ...extra] = warnings.mock.calls[0]!.arguments;
-    assert.deepEqual(extra, []);
-    assert.match(String(line), new RegExp(`^Plugin startup activation failed: plugin=fixture\\.startup kind=${fixture.kind} elapsedMs=\\d+ stage=process${fixture.outcome}$`));
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0]!, new RegExp(`^Plugin startup activation failed: plugin=fixture\\.startup kind=${fixture.kind} elapsedMs=\\d+ stage=process${fixture.outcome}$`));
+    assert.deepEqual(logs, []);
 
     if (fixture.kind !== "timeout") {
       await host.invoke("disable", { id });
       await assert.rejects(host.invoke("enable", { id }), /Plugin request failed/);
+      assert.match(logs.at(-1)!, new RegExp(`^plugin enable failed plugin=fixture\\.startup source=local elapsedMs=\\d+ kind=${fixture.kind} stage=process${fixture.outcome}: Error: Plugin request failed$`));
       const [manualFailure] = await host.list();
       assert.equal(manualFailure!.activationFailure, fixture.kind);
       assert.equal(manualFailure!.activationFailedAtStartup, undefined);
-      assert.equal(warnings.mock.callCount(), 1);
+      assert.equal(warnings.length, 1);
       rmSync(marker);
       await host.invoke("enable", { id });
+      assert.match(logs.at(-1)!, /^plugin enable ok plugin=fixture\.startup source=local elapsedMs=\d+$/);
       const [recovered] = await host.list();
       assert.equal(recovered!.running, true);
       assert.equal(recovered!.activationFailure, undefined);
@@ -2041,7 +2084,8 @@ test("screen dependency bundle stays offline and shares the app React instance",
 test("install uses the authoring ID, preserves the active copy on failure and refuses private CLI calls", async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-install-"));
   const state = path.join(root, "state.json");
-  const options = { authoringDirectory: path.join(root, "plugins") };
+  const logs: string[] = [];
+  const options = { authoringDirectory: path.join(root, "plugins"), log: (line: string) => logs.push(line) };
   let host = new PluginHost(state, options);
   const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
   const id = "local.install";
@@ -2065,6 +2109,8 @@ test("install uses the authoring ID, preserves the active copy on failure and re
     for (const action of ["validate","install"]) {
       assert.equal((await host.invoke(action,{directory}) as any).receipt.outcome,"failure");
     }
+    assert.equal(logs.length, 1);
+    assert.match(logs[0]!, /^plugin install failed plugin=\(unknown\) source=local elapsedMs=\d+ kind=other stage=artifact: Error: Invalid icon path$/);
     writeFileSync(manifestFile,JSON.stringify(manifest));
     writeFileSync(path.join(directory,manifest.icon),Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFYQAAAAASUVORK5CYII=","base64"));
     assert.equal(validateManifest(manifest).icon,"icon.PNG");
@@ -2077,6 +2123,7 @@ test("install uses the authoring ID, preserves the active copy on failure and re
     writeFileSync(path.join(directory, "screen.bundle.js"), "// stale local bundle");
     const installed: any = await executePluginTool(host,{action:"install",id},()=>{},scope);
     assert.equal(installed.error, undefined, JSON.stringify(installed));
+    assert.match(logs.at(-1)!, /^plugin install ok plugin=local\.install source=local elapsedMs=\d+$/);
     assert.equal((await host.list())[0]!.running, true);
     assert.equal((await host.list())[0]!.version, "0.1.0");
     const originalCopy = registeredCopy(state, id);

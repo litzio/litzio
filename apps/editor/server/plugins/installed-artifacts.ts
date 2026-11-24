@@ -25,7 +25,7 @@ function canonicalRecordedPath(directory: string): string {
 export class InstalledArtifacts {
   private readonly location: string;
   private pinnedRoot?: string;
-  constructor(settingsFile: string) { this.location = path.resolve(`${settingsFile}.artifacts`); }
+  constructor(settingsFile: string, private warn = console.warn) { this.location = path.resolve(`${settingsFile}.artifacts`); }
 
   private root(): string {
     const directory = canonicalFilePath(path.dirname(this.location));
@@ -88,7 +88,7 @@ export class InstalledArtifacts {
 
   remove(installationId: string) {
     try { rmSync(this.directory(installationId), { recursive: true, force: true }); }
-    catch { console.warn("Unable to clean up a Host plugin artifact"); }
+    catch { this.warn("Unable to clean up a Host plugin artifact"); }
   }
 
   cleanOrphans(retained: ReadonlySet<string>, sources: readonly string[]) {

@@ -78,7 +78,8 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
     if (desktopOwned) process.once("disconnect", parentDisconnected);
     try {
       host = await startHttpHost({ roots: config.root ?? [], host: config.host, port: config.port, editorDir, publicOrigin: config["public-origin"],
-        daemon: { health: { ...identity, ...details, productVersion, protocolVersion: DAEMON_PROTOCOL }, stop: () => signalStop("HTTP stop request") }, log: daemonLog });
+        daemon: { health: { ...identity, ...details, productVersion, protocolVersion: DAEMON_PROTOCOL }, stop: () => signalStop("HTTP stop request") },
+        log: daemonLog, warn: message => daemonLog(message, process.stderr) });
       if (details.nonLoopback) daemonLog("WARNING: this daemon has no authentication. Anyone on the same network who can reach this port can access it. Without --root, the entire disk and assistant (AI) execution are exposed with this OS user's permissions.", process.stderr);
       if (desktopOwned && (parentGone || !process.connected)) { await stop("Desktop disconnected"); return; }
       if (config.local) {
