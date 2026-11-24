@@ -6,7 +6,7 @@ import { EventEmitter } from "node:events";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION, type RequestPermissionRequest, type RequestPermissionResponse, type NewSessionResponse, type SessionConfigOption } from "@agentclientprotocol/sdk";
 import type { AiCopilotOptions } from "../shared/assistant.ts";
 import { stopAgentProcess, stoppedByHost } from "./codex-app-server.ts";
-import { launch, ollamaAddress, processLog, token, type Launch, type ProviderDaemonLog } from "./provider-daemon-log.ts";
+import { launch, modelToken, ollamaAddress, processLog, type Launch, type ProviderDaemonLog } from "./provider-daemon-log.ts";
 
 /** Concrete Copilot stdio connection, following Paseo's copilot --acp integration. */
 export class CopilotAcp extends EventEmitter {
@@ -53,8 +53,8 @@ export class CopilotAcp extends EventEmitter {
   }
   private async initialize() {
     const state = launch(), log = this.processLog;
-    // Ollama's model is logged as is; its address only as loopback or remote and the port.
-    if (this.ollama) state.fields = ` model=${token(this.ollama.model)} address=${ollamaAddress(this.ollama.url)}`;
+    // Ollama's model is logged by its name and tag; its address only as loopback or remote and the port.
+    if (this.ollama) state.fields = ` model=${modelToken(this.ollama.model)} address=${ollamaAddress(this.ollama.url)}`;
     try {
       const connection = await this.launch(state);
       log.started(state);

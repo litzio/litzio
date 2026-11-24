@@ -117,16 +117,24 @@ test("Ollama lists its own models, launches its process with the chosen model an
   assert.equal(ollamaAddress("http://gpu-box.corp.example:11434"), "remote:11434");
   assert.equal(conversation.provider, "ollama");
   assert.deepEqual(acpLaunches(log).at(-1).byok, { baseUrl: `${ollama.url}/v1`, apiKey: "", wireApi: "responses", model: "local-b:latest", offline: null });
-  // One Ollama process serves one model; another model relaunches it between turns.
+  // One Ollama process serves one model; another model relaunches it between turns and reloads the conversation.
   await turnSettled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b" }, settings));
   assert.equal(acpLaunches(log).at(-1).byok.model, "local-a:4b");
   assert.equal(conversation.turns.at(-1)!.status, "completed");
+  assert.ok(lines.includes(`assistant turn started provider=ollama conversation=${conversation.id} session=resumed model=local-a:4b effort=medium permission=read-only mode=agent`), lines.join("\n"));
   // Reasoning effort is a launch argument too: the chosen value relaunches the process between turns.
   const effort = (launch: { args: string[] }) => launch.args[launch.args.indexOf("--reasoning-effort") + 1];
   assert.equal(effort(acpLaunches(log).at(-1)), "medium");
   await turnSettled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b", reasoningEffort: "none" }, settings));
   assert.equal(effort(acpLaunches(log).at(-1)), "none");
   assert.equal(conversation.reasoningEffort, "none");
+  // A model under a registry host and account namespace is logged by its name and tag only.
+  ollama.models.push("registry.corp.example/review-account/local-c:4b");
+  const namespaced = await conversations.send({ ...input, model: "registry.corp.example/review-account/local-c:4b" }, settings);
+  await turnSettled(namespaced);
+  assert.ok(lines.some(line => line.startsWith("provider process started provider=ollama engine=acp role=main") && line.includes(" model=local-c:4b address=")), lines.join("\n"));
+  assert.ok(lines.includes(`assistant turn started provider=ollama conversation=${namespaced.id} session=new model=local-c:4b effort=medium permission=read-only mode=agent`), lines.join("\n"));
+  ollama.models.pop();
   // The GitHub account keeps its own catalog and process, without any model-source variable.
   const account = await connection.models("copilot", "fresh");
   assert.deepEqual(account.models.map(model => model.model), ["auto", "copilot-model"]);
@@ -156,7 +164,7 @@ test("Ollama lists its own models, launches its process with the chosen model an
   address = stopped.url;
   const bothUnavailable = await connection.diagnostics("ollama");
   assert.deepEqual([bothUnavailable.connected, bothUnavailable.ollama, bothUnavailable.path], [false, { url: stopped.url, models: null, unavailable: "unreachable" }, null]);
-  assertPrivate(lines, "MARKER-USER-TEXT", "127.0.0.1", root);
+  assertPrivate(lines, "MARKER-USER-TEXT", "127.0.0.1", "review-account", "registry.corp.example", root);
 });
 
 test("Copilot account and Ollama run as separate processes that never take over each other's turns, approvals, tools or resumes", async t => {

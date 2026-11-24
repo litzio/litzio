@@ -25,7 +25,7 @@ import { accessPath, type FileAccess } from "./file-access.ts";
 import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copilotModelOption, sameOllama, type CopilotOllama } from "./copilot-acp.ts";
-import { codexErrorFields, conversationField, errorFields, token } from "./provider-daemon-log.ts";
+import { codexErrorFields, conversationField, errorFields, modelToken, token } from "./provider-daemon-log.ts";
 
 /** Ollama is reached at the address saved in settings. */
 const ollamaUrl = (settings: AssistantSettings) => settings.ollamaUrl ?? DEFAULT_OLLAMA_URL;
@@ -108,7 +108,7 @@ export class AssistantConversations {
     const provider = conversationProvider(conversation), mode = conversation.copilot?.currentMode?.replace(/^.*[#/]/, "");
     attempt.admitted = true;
     this.loggedTurns.set(`${conversation.id} ${turnId}`, { provider, started: attempt.started });
-    this.connection.log(`assistant turn started provider=${provider} ${conversationField(conversation.id)} session=${attempt.session} model=${token(conversation.model)} effort=${token(conversation.reasoningEffort)} permission=${conversation.permissionMode}${mode ? ` mode=${token(mode)}` : ""}`);
+    this.connection.log(`assistant turn started provider=${provider} ${conversationField(conversation.id)} session=${attempt.session} model=${modelToken(conversation.model)} effort=${token(conversation.reasoningEffort, "default")} permission=${conversation.permissionMode}${mode ? ` mode=${token(mode)}` : ""}`);
     // The provider may report the end before its start response arrives.
     const status = conversation.turns.find(turn => turn.id === turnId)?.status;
     if (status && status !== "inProgress") this.turnEnded(conversation.id, turnId, status);
@@ -395,7 +395,7 @@ export class AssistantConversations {
     this.pending.set(key, settings.provider);
     // Steering an active turn starts no turn, so its failure writes no turn line.
     const steering = !!conversation?.turns.some(turn => turn.status === "inProgress");
-    const attempt: SendAttempt = { stage: "prepare", session: !conversation ? "new" : this.loaded.has(conversation.id) ? "continued" : "resumed", started: performance.now() };
+    const attempt: SendAttempt = { stage: "prepare", session: conversation ? "continued" : "new", started: performance.now() };
     try {
       this.connection.environment();
       if (conversation && conversationProvider(conversation) !== settings.provider) throw new Error("Start a conversation with the selected provider.");
@@ -404,7 +404,7 @@ export class AssistantConversations {
         return await this.sendCopilot(input, settings, folders, references, conversation, attempt);
       }
       await this.connection.relaunchUpdated(settings.provider, this.busy(settings.provider, key));
-      if (conversation && !this.loaded.has(conversation.id)) { attempt.stage = "resume"; conversation = await this.resume(conversation.id, settings, settings.permissionMode); attempt.stage = "prepare"; }
+      if (conversation && !this.loaded.has(conversation.id)) { attempt.stage = "resume"; attempt.session = "resumed"; conversation = await this.resume(conversation.id, settings, settings.permissionMode); attempt.stage = "prepare"; }
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
       if (!active) {
@@ -597,7 +597,8 @@ export class AssistantConversations {
       // A running ACP process already owns the session and its MCP endpoint.
       // Retain the snapshot object held by callers while rebuilding provider-owned content.
       const previous = conversation;
-      attempt.stage = "resume";
+      // Also after a relaunch for another model or launch setting, which unloads the conversation.
+      attempt.stage = "resume"; attempt.session = "resumed";
       const restored = await this.resume(previous.id, settings, settings.permissionMode, input.model);
       // Some ACP implementations replay no history; retain the admitted snapshot then.
       if (!restored.turns.length) restored.turns = previous.turns;

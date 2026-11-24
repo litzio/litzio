@@ -16,9 +16,11 @@ export function launch(): Launch { return { stage: "executable", started: perfor
 
 const elapsed = (started: number) => `elapsedMs=${Math.round(performance.now() - started)}`;
 /** The version number only, not the rest of the CLI's output. */
-const versionNumber = (text?: string | null) => text?.match(/\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?/)?.[0];
-/** Model, effort and mode names as one token. */
-export const token = (value: unknown) => String(value ?? "").replace(/[^\w.:@/+-]/g, "_").slice(0, 80) || "(none)";
+const versionNumber = (text?: string | null) => text?.match(/\d+\.\d+\.\d+(?:-[0-9A-Za-z.]{1,40})?/)?.[0];
+/** Effort, mode and kind names as one token; `empty` stands for an empty value. */
+export const token = (value: unknown, empty = "(none)") => String(value ?? "").replace(/[^\w.:@/+-]/g, "_").slice(0, 80) || empty;
+/** A model's name and tag only: a registry host or account namespace before the last `/` is dropped. */
+export const modelToken = (value: unknown) => token(String(value ?? "").replace(/^.*\//, ""));
 
 /** The Host's conversation key (the provider's session UUID), never its title, folders or documents. */
 export const conversationField = (id: string) => `conversation=${/^[A-Za-z0-9-]{1,64}$/.test(id) ? id : "(other)"}`;
@@ -42,7 +44,7 @@ const exited = (child?: ChildProcess) => child?.exitCode != null || !!child?.sig
  */
 export function errorFields(error: unknown): string {
   const value = error && typeof error === "object" ? error as { code?: unknown; providerCode?: unknown; message?: unknown } : undefined;
-  if (typeof value?.code === "string" && /^E[A-Z0-9_]+$/.test(value.code)) return `error=${value.code}`;
+  if (typeof value?.code === "string" && /^E[A-Z0-9_]{1,40}$/.test(value.code)) return `error=${value.code}`;
   const rpc = value && "providerCode" in value ? value.providerCode : error instanceof Error ? undefined : value?.code;
   if (typeof rpc === "number") return `error=provider code=${rpc}`;
   if (value && "providerCode" in value) return "error=provider";
