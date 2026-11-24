@@ -1,7 +1,8 @@
 async (page, { expect, screenshots, brand }) => {
   // #1917: Ollama as the third AI provider — its settings row, diagnostics with the three reasons it cannot be used,
   // the address it is reached at, and the composer's provider choice. Synthetic Host values only.
-  await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'ko'); localStorage.setItem(prefix + '.theme', 'light'); }, brand.storagePrefix);
+  // An earlier scenario may leave its remembered conversation; this one starts with none.
+  await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'ko'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantConversation.v2'); }, brand.storagePrefix);
   let settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'full-access', responseLanguage: 'ko', ollamaUrl: 'http://localhost:11434' };
   const writes = [];
   const efforts = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map(reasoningEffort => ({ reasoningEffort, description: '' }));
@@ -34,7 +35,8 @@ async (page, { expect, screenshots, brand }) => {
     return route.fulfill({ json: diagnostics(provider(route)) });
   });
   await page.route('**/api/assistant/provider-update*', route => route.fulfill({ json: { provider: provider(route) === 'codex' ? 'codex' : 'copilot', status: 'idle', output: '' } }));
-  await page.route('**/api/assistant/conversations*', route => route.fulfill({ json: [] }));
+  // No history on this Host: the list is empty and any conversation action finds nothing.
+  await page.route('**/api/assistant/conversations*', route => route.fulfill(route.request().method() === 'GET' ? { json: [] } : { status: 400, json: { error: 'Conversation was not found.' } }));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.reload();
   const dialog = page.getByTestId('settings-dialog');
