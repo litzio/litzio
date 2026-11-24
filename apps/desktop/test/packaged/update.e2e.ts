@@ -41,10 +41,9 @@ const BETA = LIVE || PUBLISHED_BASE || process.env.LITZIO_TEST_UPDATE_CHANNEL ==
 const sharedData = path.join(os.homedir(), brand.folders.shared);
 process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
 process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
-// LIVE updates the latest public Beta to the Stable candidate on the Beta channel; both releases
-// must be published before this opt-in harness can run. PUBLISHED_BASE expects a Beta candidate
-// (Beta daemon namespace and beta.yml), so a Stable candidate uses the same-source Beta fixture.
-const [OLD, NEW] = LIVE ? ["0.0.3-beta.6", "0.0.3"]
+// The first Beta after Stable uses that Stable as the starting point in both cases.
+// LIVE requires both public releases. PUBLISHED_BASE builds the Beta candidate locally.
+const [OLD, NEW] = LIVE || PUBLISHED_BASE ? ["0.0.3", "0.0.4-beta.1"]
   : BETA ? ["0.1.0-beta.1", "0.1.0-beta.2"] : ["0.0.1", "0.0.2"];
 // The public beta.3 predates native documents (#232) and edits leading frontmatter as a body block.
 const NATIVE_PREFIX = LIVE && OLD === "0.0.1-beta.3" ? "" : "---\nlitzio: 1\n---\n\n";
@@ -279,9 +278,7 @@ test("installs per user, then updates from Settings only after the open document
     await page.evaluate(prefix => localStorage.setItem(`${prefix}.uiLanguage`, "en"), brand.storagePrefix);
     const phase = () => page.getByTestId("update-status").getAttribute("data-phase");
     await page.getByRole("button", { name: /^Settings/ }).click();
-    // LIVE starts an older published build whose Settings has no categories.
-    if (await page.getByRole("button", { name: "About & updates", exact: true }).count())
-      await page.getByRole("button", { name: "About & updates", exact: true }).click();
+    await page.getByRole("button", { name: "About & updates", exact: true }).click();
     assert.equal(await page.getByTestId("app-version").innerText(), OLD);
     if (!LIVE) {
       assert.deepEqual((await cliEnvironment.read()).user, originalUserPath, "installation must not opt in");
@@ -319,8 +316,11 @@ test("installs per user, then updates from Settings only after the open document
       });
     }
     if (LIVE) {
-      // The public beta.1 binary predates the release-channel combobox.
-      await expect(page.getByRole("radio", { name: /^Beta/ })).toBeChecked();
+      // The public Stable uses radio buttons and defaults to Stable on a fresh install.
+      await expect(page.getByRole("radio", { name: /^Stable/ })).toBeChecked();
+      const betaRadio = page.getByRole("radio", { name: /^Beta/ });
+      await betaRadio.click();
+      await expect(betaRadio).toBeChecked();
     } else {
       await expect(page.getByRole("combobox", { name: "Release channel", exact: true }), "first install uses its own channel").toHaveValue(BETA ? "beta" : "stable");
     }
