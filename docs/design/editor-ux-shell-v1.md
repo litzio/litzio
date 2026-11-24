@@ -1001,6 +1001,7 @@ resolved fragment. Unsupported URLs disable Open with a tooltip. **Choose docume
 reference insertion. The picker includes unlabeled headings when browsing. A choice fills the URL
 with `#label`. Applying a choice for an unlabeled heading inserts its `sec-<slug>` target in the same
 Undo step as the link. The URL can also be entered directly.
+The picker rejects a choice if Core resolves its fragment to a different block, including after a provisional label is inserted for an unlabeled heading.
 
 [Target picker, 1440](assets/in-document-links-1956/picker-1440.png) ·
 [After following a link, 1440](assets/in-document-links-1956/jump-1440.png) ·

@@ -3,7 +3,6 @@ import { messageText, useMessageState } from "./ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
 import type { Editor } from "@tiptap/core";
-import { bodyEndIndex, createDocument, insertParagraph } from "@litzio/core";
 import { closeHistory } from "@tiptap/pm/history";
 import { useEditorState } from "@tiptap/react";
 import { canEditEndnoteAt, endnoteAt, endnoteEditorToken, insertEndnote } from "./endnotes.ts";
@@ -15,8 +14,8 @@ import type { DraftListener } from "./node-views/shared.ts";
 import { FieldError } from "./ui/primitives.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { externalLinkUrl, fragmentTarget, openExternalLink, unresolvedLink } from "./link-opening.ts";
-import { hasSectionLabel, insertSectionLabel, newSectionLabel, referenceOfCommand } from "./cross-reference.tsx";
-import { LinkTargetPicker } from "./LinkTargetPicker.tsx";
+import { hasSectionLabel, insertSectionLabel, newSectionLabel } from "./cross-reference.tsx";
+import { LinkTargetPicker, resolveLinkTargetChoice, sectionLinkMatchesHeading } from "./LinkTargetPicker.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { useOverlayBounds, type OverlayAnchor } from "./ui/use-overlay-bounds.ts";
 
@@ -253,23 +252,13 @@ export function LinkForm({ editor, draft, style, anchor, onClose, onDraftChange,
   const external = externalLinkUrl(url);
   const openHint = external || target !== undefined ? i18n.t("Open") : url.startsWith("#")
     ? messageText(unresolvedLink(url)) : i18n.t("Enter an http(s) URL or a document link to open it.");
-  const choose = (id: string) => {
-    const choice = referenceOfCommand(id);
-    if (!choice) return;
-    const unlabeled = "heading" in choice;
-    const picked = `#${unlabeled ? newSectionLabel(doc, choice.heading) : choice.label}`;
+  const choose = (candidate: Parameters<typeof resolveLinkTargetChoice>[1]) => {
     setPicking(false);
     urlInput.current?.focus();
-    try {
-      // A label can be valid for a role but fail the canonical ordinary-link format.
-      const empty = createDocument();
-      insertParagraph(empty, bodyEndIndex(empty), [{ kind: "link", url: picked, children: [{ kind: "text", text: "link" }] }]);
-    } catch {
-      return setError({ key: "This URL cannot be used as a link." });
-    }
-    if (!unlabeled && fragmentTarget(doc, picked) === undefined) return setError(unresolvedLink(picked));
-    setHref(picked);
-    setHeadingPath(unlabeled ? String(doc.child(choice.heading).attrs.sourcePath) : undefined);
+    const choice = resolveLinkTargetChoice(editor.state, candidate);
+    if ("error" in choice) return setError(choice.error);
+    setHref(choice.href);
+    setHeadingPath(choice.headingPath);
     setError("");
   };
   const apply = () => {
@@ -280,6 +269,7 @@ export function LinkForm({ editor, draft, style, anchor, onClose, onDraftChange,
       return setError({ key: "The heading changed. Choose it again." });
     }
     if (heading !== undefined) {
+      if (!sectionLinkMatchesHeading(editor.state, heading, url)) return setError({ key: "This link does not point to the selected block." });
       const $from = doc.resolve(draft.from);
       if (draft.from === draft.to || !$from.sameParent(doc.resolve(draft.to)) ||
           $from.depth === 0 || $from.node(1).attrs.sourcePath !== draft.path) {

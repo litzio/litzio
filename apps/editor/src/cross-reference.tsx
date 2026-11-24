@@ -111,9 +111,9 @@ function labeledHeading(doc: ProseMirrorNode, index: number): number | undefined
  * current document, in document order. Labels come from Core's read model and the label edits
  * applied since. A section label is a target directly before its heading.
  */
-export function referenceTargets(doc: ProseMirrorNode): ReferenceTarget[] {
+function indexedReferenceTargets(doc: ProseMirrorNode): { target: ReferenceTarget; blockIndex: number }[] {
   const numbers = blockNumbers(doc);
-  const targets: ReferenceTarget[] = [];
+  const targets: ReturnType<typeof indexedReferenceTargets> = [];
   const blocks: { block: string; level?: number }[] = [];
   doc.forEach(node => blocks.push({ block: node.type.name, level: node.attrs.level }));
   const sections = headingNumbers(blocks, doc.attrs.headingNumbering);
@@ -121,7 +121,8 @@ export function referenceTargets(doc: ProseMirrorNode): ReferenceTarget[] {
     const label = String(node.attrs.label ?? "");
     if (node.type.name === "labelTarget") {
       const heading = labeledHeading(doc, index);
-      if (label.length > 0 && heading !== undefined) targets.push({ role: "ref", label, title: headingText(doc.child(heading)), ...(sections[heading] ? { number: sections[heading] } : {}) });
+      if (label.length > 0 && heading !== undefined) targets.push({ blockIndex: heading,
+        target: { role: "ref", label, title: headingText(doc.child(heading)), ...(sections[heading] ? { number: sections[heading] } : {}) } });
       return;
     }
     const role: ReferenceRole | undefined = node.type.name === "equation" ? "eq" : ["figure", "table"].includes(node.type.name) ? "numref" : undefined;
@@ -129,9 +130,14 @@ export function referenceTargets(doc: ProseMirrorNode): ReferenceTarget[] {
     const kind = node.type.name as NumberedKind;
     const number = numbers[index][kind];
     const template = (doc.attrs.referenceTemplates as ReferenceTemplates | null)?.[kind];
-    targets.push({ role, label, ...(template === undefined ? {} : { template }), ...(kind === "table" ? { kind } : {}), ...(number === undefined ? {} : { number }) });
+    targets.push({ blockIndex: index,
+      target: { role, label, ...(template === undefined ? {} : { template }), ...(kind === "table" ? { kind } : {}), ...(number === undefined ? {} : { number }) } });
   });
   return targets;
+}
+
+export function referenceTargets(doc: ProseMirrorNode): ReferenceTarget[] {
+  return indexedReferenceTargets(doc).map(({ target }) => target);
 }
 
 /** `referenceTargets` as JSON, computed once per engine document. */
@@ -277,7 +283,11 @@ function revealReferenceTarget(editor: Editor, role: ReferenceRole, label: strin
 
 /** Slash menu items that insert a reference to each target matching the query, then to each
  * unlabeled heading the query searches for (which inserting the reference labels). */
-export function referenceCommandItems(doc: ProseMirrorNode, query: string, includeUnlabeledWithoutQuery = false): { id: string; label: string; group: string }[] {
+export function referenceCommandItems(doc: ProseMirrorNode, query: string): { id: string; label: string; group: string }[] {
+  return referenceCandidates(doc, query).map(({ id, label, group }) => ({ id, label, group }));
+}
+
+export function referenceCandidates(doc: ProseMirrorNode, query: string, includeUnlabeledWithoutQuery = false): { id: string; label: string; group: string; blockIndex: number }[] {
   const needle = query.toLowerCase().replace(/\s+/g, " ").trim();
   const matches = (words: string[]) => needle.length === 0 || ["reference", "ref", "참조", ...words].some((word) => word.toLowerCase().replace(/\s+/g, " ").startsWith(needle));
   const titleWords = (title: string) => [title, ...title.split(/\s+/)];
@@ -302,8 +312,8 @@ export function referenceCommandItems(doc: ProseMirrorNode, query: string, inclu
     return target.number === undefined && !caption ? display(target) : `${display(target)} · ${summary}`;
   };
   return [
-    ...referenceTargets(doc)
-      .filter((target) => {
+    ...indexedReferenceTargets(doc)
+      .filter(({ target }) => {
         const caption = captions.get(target.label);
         return matches([kindName(target), target.kind ?? target.role, target.label, display(target),
           ...({eq: ["equation", "수식"], numref: target.kind === "table" ? ["table", "표"] : ["figure", "그림"], ref: ["section", "절", "제목"]}[target.role]),
@@ -312,11 +322,11 @@ export function referenceCommandItems(doc: ProseMirrorNode, query: string, inclu
           ...(caption ? [caption, ...caption.split(/[\s\p{P}]+/u)] : []),
           ...(target.title ? ["heading", ...titleWords(target.title)] : [])]);
       })
-      .map((target) => ({ id: referenceCommandId(target), label: menuLabel(target, captions.get(target.label)), group: i18n.t("References") })),
+      .map(({ target, blockIndex }) => ({ id: referenceCommandId(target), label: menuLabel(target, captions.get(target.label)), group: i18n.t("References"), blockIndex })),
     // Slash menus show unlabeled headings only on search; the Link picker also browses them.
     ...unlabeledHeadings(doc)
       .filter((choice) => (includeUnlabeledWithoutQuery || needle.length > 0) && matches(["section", "heading", "절", "제목", ...titleWords(choice.title)]))
-      .map((choice) => ({ id: `reference:heading:${choice.heading}`, label: i18n.t("Section reference: {{title}}", { title: choice.title }), group: i18n.t("References") })),
+      .map((choice) => ({ id: `reference:heading:${choice.heading}`, label: i18n.t("Section reference: {{title}}", { title: choice.title }), group: i18n.t("References"), blockIndex: choice.heading })),
   ];
 }
 
