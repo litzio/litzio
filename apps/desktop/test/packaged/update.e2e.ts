@@ -75,6 +75,14 @@ function packageVersion(version: string): string {
   return out;
 }
 
+async function selectBetaOnPublishedStable(page: Page): Promise<void> {
+  const channel = page.getByRole("combobox", { name: "Release channel", exact: true });
+  await expect(channel, "public Stable starts on Stable").toHaveValue("stable");
+  await channel.selectOption("beta");
+  await expect(channel).toHaveValue("beta");
+  await page.waitForFunction(() => window.litzioDesktop?.info().then(info => info.channel === "beta"));
+}
+
 /** Opt-in, public read/download only. Both releases must already exist; no publication API calls. */
 async function publicBeta(versions = [OLD, NEW], startVersion = OLD): Promise<string> {
   const folder = path.join(work, `public-${startVersion}`);
@@ -316,17 +324,13 @@ test("installs per user, then updates from Settings only after the open document
       });
     }
     if (LIVE) {
-      // The public Stable uses radio buttons and defaults to Stable on a fresh install.
-      await expect(page.getByRole("radio", { name: /^Stable/ })).toBeChecked();
-      const betaRadio = page.getByRole("radio", { name: /^Beta/ });
-      await betaRadio.click();
-      await expect(betaRadio).toBeChecked();
+      await selectBetaOnPublishedStable(page);
     } else {
       await expect(page.getByRole("combobox", { name: "Release channel", exact: true }), "first install uses its own channel").toHaveValue(BETA ? "beta" : "stable");
     }
     // CLI verification can outlast the scheduled initial check. Wait for its actual offer,
-    // which replaces Check for updates with Download update; manual checking is exercised
-    // after relaunch below. All offer/no-download/consent assertions remain the same.
+    // which replaces Check for updates with Download update; local-feed cases exercise
+    // manual checking after relaunch below.
     await page.getByRole("button", { name: "Download update" }).waitFor({ timeout: 30_000 });
     assert.match(await page.getByTestId("update-status").innerText(), new RegExp(`${brand.name.en.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} ${NEW.replaceAll(".", "\\.")} \\(${NEW.includes("-beta.") ? "Beta" : "Stable"}\\) is available`));
     if (!LIVE) {
@@ -372,8 +376,14 @@ test("installs per user, then updates from Settings only after the open document
     if (await page.getByRole("button", { name: "About & updates", exact: true }).count())
       await page.getByRole("button", { name: "About & updates", exact: true }).click();
     assert.equal(await page.getByTestId("app-version").innerText(), OLD);
-    await page.getByRole("button", { name: "Check for updates" }).click();
-    await page.getByRole("button", { name: "Download update" }).click();
+    const download = page.getByRole("button", { name: "Download update" });
+    if (LIVE) {
+      // The public app checks on startup. It may already be offering the update.
+      await download.waitFor({ timeout: 30_000 });
+    } else {
+      await page.getByRole("button", { name: "Check for updates" }).click();
+    }
+    await download.click();
     await page.getByRole("button", { name: "Restart to update" }).waitFor({ timeout: 120_000 });
 
     // Fault probes share the fixture but have separate results; Beta runs them once.
@@ -570,24 +580,19 @@ test("published 0.0.3 Stable upgrades to the candidate and preserves installed d
     await page.getByRole("button", { name: /^Settings/ }).click();
     await page.getByRole("button", { name: "About & updates", exact: true }).click();
     assert.equal(await page.getByTestId("app-version").innerText(), published);
-    assert.equal(await page.getByRole("radio", { name: /^Stable/ }).isChecked(), true, "public Stable starts on Stable");
-    // The controlled radio reflects the channel only after the save/check IPC returns.
-    const betaRadio = page.getByRole("radio", { name: /^Beta/ });
-    await betaRadio.click();
     try {
-      await expect(betaRadio).toBeChecked();
+      await selectBetaOnPublishedStable(page);
     } catch (error) {
       const screen = await page.evaluate(() => ({
         updateStatus: document.querySelector('[data-testid="update-status"]')?.textContent,
         errors: [...document.querySelectorAll('[data-testid="update-problem"], [role="alert"]')]
           .filter(node => node.getClientRects().length > 0).map(node => node.textContent),
-        radios: [...document.querySelectorAll<HTMLInputElement>('input[name="release-channel"]')]
-          .map(node => ({ value: node.value, checked: node.checked, disabled: node.matches(":disabled") })),
+        channel: [...document.querySelectorAll<HTMLSelectElement>('select[data-testid="release-channel"]')]
+          .map(node => ({ value: node.value, disabled: node.matches(":disabled") })),
       })).catch(cause => ({ unavailable: String(cause) }));
       const desktopLog = publishedLogTail(path.join(appData, "logs/desktop.log"));
       throw new Error(redactPublishedDiagnostic(`${String(error)}\nChannel selection: ${JSON.stringify(screen)}\ndesktop.log (tail):\n${desktopLog}`));
     }
-    await page.waitForFunction(() => window.litzioDesktop?.info().then(info => info.channel === "beta"));
     await oldApp.close(); oldApp = undefined;
     const canary = path.join(appData, "published-update-canary.txt");
     writeFileSync(canary, "Preserve existing 0.0.3 Stable user data.\n");
