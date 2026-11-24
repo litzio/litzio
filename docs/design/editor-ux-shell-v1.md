@@ -140,6 +140,8 @@ wrap or scroll within the group. It observes that viewport as well as the overla
 window resize, group resize/movement and document scrolling refit the same controls.
 Single-group mode retains the previous window/header bounds and CSS size limits.
 
+The tab context menu offers Close, Close Others, Close to the Left and Close to the Right. These actions use the clicked tab and its group. Empty ranges are disabled. Clean tabs close immediately. Each unsaved tab keeps its own Save, Don’t save and Cancel decision, with the remaining review count. Desktop Ctrl+W closes the focused group’s active tab, including while editing. A modal dialog or an empty group blocks it. In a browser Ctrl+W belongs to the browser. See the [light menu](assets/tab-close-1940/after-light.png), [dark menu](assets/tab-close-1940/after-dark.png) and [leftmost tab](assets/tab-close-1940/after-disabled.png).
+
 Open to the right is available in tab context menus, document File actions, Explorer
 document context menus and Command Center. It targets the right group, creating it
 when necessary. Move to other group is available from tab/File menus and Command
@@ -865,7 +867,7 @@ an active Visual document, while busy, or when that history has no corresponding
 They do not require an editor-origin opener: clicking the TopBar center can dispatch history.
 After the center releases its modal focus, the command runs and synchronously focuses the
 same editor. Other tabs' history and unapplied property forms are not separate history targets.
-The Save, Undo and Redo rows show their shared platform labels (Ctrl+S/Z/Y, or ⌘S/Z/Y).
+The Desktop close-tab row shows Ctrl+W on Windows. The Save, Undo and Redo rows show their shared platform labels (Ctrl+S/Z/Y, or ⌘S/Z/Y).
 The guide also shows the existing Ctrl/Cmd+Shift+Z redo alternative.
 
 `Keyboard shortcuts` / `키보드 단축키` opens a read-only shared Dialog after the center

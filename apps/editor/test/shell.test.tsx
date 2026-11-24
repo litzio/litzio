@@ -82,7 +82,7 @@ import { ACCENT_COLORS, ACCENT_COLOR_KEY, readAccentColor, writeAccentColor, rea
 import { filterInsertCommands } from "../src/block-commands.ts";
 import { FileText } from "lucide-react";
 import { filterCommandCenterItems, type CommandCenterItem } from "../src/shell/command-center.ts";
-import { COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, SAVE_SHORTCUT, UNDO_SHORTCUT, REDO_SHORTCUT, shortcutLabel } from "../src/shortcuts.ts";
+import { CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, SAVE_SHORTCUT, UNDO_SHORTCUT, REDO_SHORTCUT, shortcutLabel } from "../src/shortcuts.ts";
 import { KeyboardShortcutGroups, keyboardShortcutGroups } from "../src/shell/KeyboardShortcutsDialog.tsx";
 import { SelectionToolbar } from "../src/SelectionToolbar.tsx";
 import { extensions, flattenExtensions, getExtensionField, type Editor } from "@tiptap/core";
@@ -140,7 +140,7 @@ test("displayed shortcuts match existing bindings on Windows and macOS", () => {
       Object.defineProperty(globalThis, "navigator", {configurable:true, value:{platform:mac ? "MacIntel" : "Win32", userAgent:"test"}});
       const registered = registeredBindings();
       // Shell handlers use these shared definitions outside the engine keymap.
-      for (const shortcut of [COMMAND_CENTER_SHORTCUT, SAVE_SHORTCUT, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT]) registered.add(normalizeBinding(shortcut.binding));
+      for (const shortcut of [CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, SAVE_SHORTCUT, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT]) registered.add(normalizeBinding(shortcut.binding));
       for (const group of keyboardShortcutGroups()) for (const entry of group.entries) for (const shortcut of entry.shortcuts) {
         assert.equal(shortcut.label, shortcutLabel(shortcut.binding, mac));
         assert.ok(registered.has(normalizeBinding(shortcut.binding)), `Unregistered ${mac ? "macOS" : "Windows"} guide binding: ${shortcut.binding}`);
@@ -182,7 +182,7 @@ test("shortcut guide and formatting tooltips display shared labels for existing 
     }
   } finally { await i18n.changeLanguage("en"); }
   // A changed shared label must reach both surfaces; equal hand-written strings would fail.
-  const shortcuts = [COMMAND_CENTER_SHORTCUT, SAVE_SHORTCUT, LINK_SHORTCUT, ...Object.values(EDITOR_SHORTCUTS)];
+  const shortcuts = [CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, SAVE_SHORTCUT, LINK_SHORTCUT, ...Object.values(EDITOR_SHORTCUTS)];
   const descriptors = shortcuts.map(shortcut => Object.getOwnPropertyDescriptor(shortcut, "label")!);
   try {
     shortcuts.forEach((shortcut, index) => Object.defineProperty(shortcut, "label", { configurable: true, value: `shared label ${index}` }));

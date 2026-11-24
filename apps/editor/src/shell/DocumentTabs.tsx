@@ -7,13 +7,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { tabLabels } from "../document-tabs.ts";
 import { ContextMenu } from "@/components/ui/context-menu.tsx";
 
-export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivate, onClose, actions, onOpenRight, onMove, openRightDisabled, moveDisabled }: {
+export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivate, onClose, onCloseMany, actions, onOpenRight, onMove, openRightDisabled, moveDisabled }: {
   actions?: ReactNode;
   tabs: { id: string; path: string; dirty: boolean; icon?: ReactNode; title?: string }[];
   allTabs?: { id: string; path: string; title?: string }[];
   active: string | null;
   disabled: boolean;
   onActivate(id: string): void;
+  onCloseMany?(ids: string[]): void;
   onClose(id: string): void;
   onOpenRight?(id: string): void;
   onMove?(id: string): void;
@@ -99,6 +100,15 @@ export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivat
           return onOpenRight && onMove ? <ContextMenu key={tab.id} trigger={tabRow} disabled={disabled} actions={[
             { id: "open-right", label: i18n.t("Open to the right"), icon: <PanelRightOpen aria-hidden="true" />, disabled: openRightDisabled, run: () => onOpenRight(tab.id) },
             { id: "move-group", label: i18n.t("Move to other group"), icon: <ArrowLeftRight aria-hidden="true" />, disabled: moveDisabled, run: () => onMove(tab.id) },
+            { id: "close", label: i18n.t("Close"), icon: <X />, run: () => onClose(tab.id) },
+            ...([
+              ["Close Others", tabs.filter(other => other.id !== tab.id)],
+              ["Close to the Left", tabs.slice(0, index)],
+              ["Close to the Right", tabs.slice(index + 1)],
+            ] as const).map(([label, targets]) => ({
+              id: label, label: i18n.t(label), icon: <X />, disabled: !targets.length || !onCloseMany,
+              run: () => onCloseMany?.(targets.map(target => target.id)),
+            })),
           ]} /> : tabRow;
         })}
       </div>

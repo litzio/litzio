@@ -38,6 +38,7 @@ function shortcut(code: string, key: string, virtualKey: number, shift = false) 
 export const COMMAND_CENTER_SHORTCUT = shortcut("Slash", "/", 191);
 export const ASSISTANT_SHORTCUT = shortcut("KeyY", "Y", 89, true);
 export const LINK_SHORTCUT = shortcut("Quote", "'", 222);
+export const CLOSE_TAB_SHORTCUT = shortcut("KeyW", "W", 87);
 export const SAVE_SHORTCUT = shortcut("KeyS", "S", 83);
 export const UNDO_SHORTCUT = shortcut("KeyZ", "Z", 90);
 export const REDO_SHORTCUT = shortcut("KeyY", "Y", 89);
