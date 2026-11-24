@@ -16,11 +16,25 @@ import {
   type MystDocument,
 } from "./core-internal.ts";
 import { referenceTargetIndex } from "../src/myst/label.ts";
-import { assertPastedLabelsAvailable, planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "@litzio/core";
+import { assertPastedLabelsAvailable, fragmentTargetLookup, planLabelRename, type LabelRenameBlock, type LabelRenameReference } from "@litzio/core";
 
 const source = readFileSync(new URL("./fixtures/technical-document.md", import.meta.url), "utf8");
 const EQUATION = 9;
 const FIGURE = 6;
+
+test("live fragment lookup maps MyST targets back to their blocks", () => {
+  const heading = (text: string): LabelRenameBlock => ({ block: "heading", content: [{ kind: "text", text }] });
+  const lookup = fragmentTargetLookup([
+    heading("Install Notes"), { block: "target", label: "sec-setup" }, heading("Setup"),
+    { block: "target", label: "example" }, { block: "paragraph" },
+    { block: "equation", label: "eq-A" }, { block: "figure", label: "fig-A" }, { block: "table", label: "tbl-A" },
+    heading("toString"), { block: "target", label: "before-note" }, { block: "footnote", label: "note" }, { block: "target", label: "trailing" },
+  ]);
+  assert.deepEqual(["#Install-Notes", "#sec-setup", "#example", "#EQ-A", "#fig-A", "#tbl-A", "#tostring"].map(lookup), [0, 2, 4, 5, 6, 7, 8]);
+  for (const url of ["#setup", "#missing", "#before-note", "#trailing", "#toString", "#Install%20Notes", "other.md#eq-a"]) {
+    assert.equal(lookup(url), undefined, url);
+  }
+});
 
 test("live label rename plans share updateLabel resolution, canonical refusal and target context", () => {
   const references: LabelRenameReference[] = [

@@ -230,6 +230,8 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   // A separately saved copy has a fresh document-scoped image URL: the ordinary tab
   // must not supply an already decoded tall image to the delayed-loading regression.
   const origin=page.url().split('/').slice(0,3).join('/');
+  creationInput.authoring.inputs[0].blocks.find(block=>block.content?.some(item=>item.kind==='reference')).content.push(
+    {kind:'text',text:' or '},{kind:'link',url:'#complex',children:[{kind:'text',text:'see the complex equation'}]});
   const copy=await page.request.put(origin+'/api/document',{headers:{Connection:'close',Origin:origin},data:{...creationInput,path:documentPath.replace(/\.md$/,'-preview.md')}});
   expect(copy.status()).toBe(201);documentPath=(await copy.json()).path;
   const inspected = pluginFixture.cli(['inspect',documentPath]);
@@ -614,6 +616,11 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect.poll(layoutMatches).toBe(true);
   const clicksBeforeReference=await page.evaluate(()=>window.__viewClicks.length);
   await preview.getByTestId('cross-reference').click();
+  expect(await page.evaluate(()=>window.__viewClicks.length)).toBe(clicksBeforeReference);
+  const fragment = preview.getByRole('link',{name:'see the complex equation'});
+  await fragment.click();
+  await expect(preview.getByTestId('link-target-outline')).toBeInViewport();
+  await expect(preview.locator(`[data-source-path="${complexPath.join(',')}"]`).first()).toBeInViewport();
   expect(await page.evaluate(()=>window.__viewClicks.length)).toBe(clicksBeforeReference);
 
   await workspace.getByRole('button',{name:'Go to last block',exact:true}).click();

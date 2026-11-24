@@ -184,8 +184,11 @@ function blockPosition(doc: ProseMirrorNode, index: number): number {
 
 /** Label the heading at `index` with a new `(label)=` target before it. */
 export function addSectionLabel(state: EditorState, index: number): Transaction {
-  const target = state.schema.nodes.labelTarget.create({ label: newSectionLabel(state.doc, index) });
-  return state.tr.insert(blockPosition(state.doc, index), target).scrollIntoView();
+  return insertSectionLabel(state.tr, index, newSectionLabel(state.doc, index)).scrollIntoView();
+}
+
+export function insertSectionLabel(tr: Transaction, index: number, label: string): Transaction {
+  return tr.insert(blockPosition(tr.doc, index), tr.doc.type.schema.nodes.labelTarget.create({ label }));
 }
 
 /** The target a reference names here, compared the way MyST resolves labels. */
@@ -274,7 +277,7 @@ function revealReferenceTarget(editor: Editor, role: ReferenceRole, label: strin
 
 /** Slash menu items that insert a reference to each target matching the query, then to each
  * unlabeled heading the query searches for (which inserting the reference labels). */
-export function referenceCommandItems(doc: ProseMirrorNode, query: string): { id: string; label: string; group: string }[] {
+export function referenceCommandItems(doc: ProseMirrorNode, query: string, includeUnlabeledWithoutQuery = false): { id: string; label: string; group: string }[] {
   const needle = query.toLowerCase().replace(/\s+/g, " ").trim();
   const matches = (words: string[]) => needle.length === 0 || ["reference", "ref", "참조", ...words].some((word) => word.toLowerCase().replace(/\s+/g, " ").startsWith(needle));
   const titleWords = (title: string) => [title, ...title.split(/\s+/)];
@@ -310,9 +313,9 @@ export function referenceCommandItems(doc: ProseMirrorNode, query: string): { id
           ...(target.title ? ["heading", ...titleWords(target.title)] : [])]);
       })
       .map((target) => ({ id: referenceCommandId(target), label: menuLabel(target, captions.get(target.label)), group: i18n.t("References") })),
-    // Generic reference, section and heading-word searches include unlabeled headings; empty queries do not.
+    // Slash menus show unlabeled headings only on search; the Link picker also browses them.
     ...unlabeledHeadings(doc)
-      .filter((choice) => needle.length > 0 && matches(["section", "heading", "절", "제목", ...titleWords(choice.title)]))
+      .filter((choice) => (includeUnlabeledWithoutQuery || needle.length > 0) && matches(["section", "heading", "절", "제목", ...titleWords(choice.title)]))
       .map((choice) => ({ id: `reference:heading:${choice.heading}`, label: i18n.t("Section reference: {{title}}", { title: choice.title }), group: i18n.t("References") })),
   ];
 }
@@ -346,7 +349,7 @@ export function insertReference(editor: Editor, range: { from: number; to: numbe
   let target = choice as ReferenceTarget;
   if ("heading" in choice) {
     target = { role: "ref", label: newSectionLabel(state.doc, choice.heading) };
-    tr.insert(blockPosition(state.doc, choice.heading), state.schema.nodes.labelTarget.create({ label: target.label }));
+    insertSectionLabel(tr, choice.heading, target.label);
   }
   const from = tr.mapping.map(range.from);
   const reference = state.schema.nodes.crossReference.create({ role: target.role, label: target.label }, null, marks);

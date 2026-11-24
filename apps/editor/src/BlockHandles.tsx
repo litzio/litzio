@@ -18,6 +18,7 @@ type BlockHandlesProps = {
   showHeadingLevels?: boolean;
   editor: Editor;
   saveLocations: readonly SaveErrorLocation[];
+  linkTargetPath?: string;
   /** Block whose menu is open; its controls stay visible. */
   menuIndex?: number;
   onInsert(index: number, top: number): void;
@@ -59,7 +60,7 @@ const HandleControls = memo(function HandleControls({ index, name, endnote, bloc
   </>;
 });
 
-export const BlockHandles = memo(function BlockHandles({ readOnly = false, showHeadingLevels = false, editor, saveLocations, menuIndex, onInsert, onOpenMenu, moveBlockedHint }: BlockHandlesProps) {
+export const BlockHandles = memo(function BlockHandles({ readOnly = false, showHeadingLevels = false, editor, saveLocations, linkTargetPath, menuIndex, onInsert, onOpenMenu, moveBlockedHint }: BlockHandlesProps) {
   useTranslation();
   const gutter = useRef<HTMLDivElement>(null);
   const drag = useRef<{ index: number; doc: ProseMirrorNode } | null>(null);
@@ -349,6 +350,8 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
     setMoving({top: block.top, height: block.height});
   }, [editor]);
   const cursor = !readOnly && cursorFocused && !moving ? blocks[cursorBlock] : undefined;
+  const linkTargetIndex = linkTargetPath === undefined ? -1 : blocks.findIndex(block => block.sourcePath === linkTargetPath);
+  const linkTarget = blocks[linkTargetIndex];
   return <div className="block-gutter" ref={gutter}>
     {cursor && editingFlowBlocks.has(cursor.name) && <div className="editing-block-bar" data-testid="editing-block-bar"
       data-block-index={cursorBlock} aria-hidden="true" style={{ top: cursor.top, height: cursor.height }} />}
@@ -370,6 +373,9 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
       data-heading-level={showHeadingLevels ? blocks[hovered].heading?.level : undefined}
       style={{top: `calc(${blocks[hovered].top}px - var(--space-block-hover-block))`,
         height: `calc(${blocks[hovered].height}px + 2 * var(--space-block-hover-block))`}} />}
+    {linkTarget && <div className="block-hover-outline block-link-target" data-testid="link-target-outline" aria-hidden="true"
+      data-block-index={linkTargetIndex} style={{top: `calc(${linkTarget.top}px - var(--space-block-hover-block))`,
+        height: `calc(${linkTarget.height}px + 2 * var(--space-block-hover-block))`}} />}
     {saveLocations.map((location, index) => {
       const block = blocks[location.index];
       if (!block) return null;

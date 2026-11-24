@@ -7,7 +7,8 @@ import { useDocumentReading, type ReadingCallbacks } from "./document-reading.ts
 import { NumberingNotice, editorNumberingReport, changeEditorNumbering } from "./numbering-properties.tsx";
 import { documentScrollContainer } from "./document-scroll.ts";
 import type { OverlayAnchor } from "./ui/use-overlay-bounds.ts";
-import { handleLinkClick, handleLinkMouseDown } from "./link-opening.ts";
+import { fragmentTarget, handleLinkActivation, handleLinkClick, handleLinkMouseDown, unresolvedLink } from "./link-opening.ts";
+import type { EditorView } from "@tiptap/pm/view";
 import { ReadingPreview } from "./ReadingPreview.tsx";
 import { ImageRenameContext, imageRenameKey, renameSnapshot, type ImageRenamer } from "./image-rename.ts";
 import type { MediaReplacement } from "../shared/file-operations.ts";
@@ -208,6 +209,12 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   const [focused, setFocused] = useState(false);
   const toolbar = useRef<HTMLDivElement>(null);
   const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
+  const [linkTarget, setLinkTarget] = useState<{ path: string } | null>(null);
+  useEffect(() => {
+    if (!linkTarget) return;
+    const timer = setTimeout(() => setLinkTarget(null), 1800);
+    return () => clearTimeout(timer);
+  }, [linkTarget]);
   // The selected paragraph text a new cross-reference will replace.
   const [referenceDraft, setReferenceDraft] = useState<{
     from: number; to: number; text: string; path: string; lastValid: LinkDraft["lastValid"];
@@ -357,8 +364,11 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         }
       },
       editorProps: {
-        handleClick: handleLinkClick,
-        handleDOMEvents: { mousedown: handleLinkMouseDown },
+        handleClick: (view, pos, event) => !comparison && handleLinkClick(view, pos, event, href => followFragment(view, href)),
+        handleDOMEvents: {
+          mousedown: handleLinkMouseDown,
+          click: (view, event) => !comparison && handleLinkActivation(view, event, href => followFragment(view, href)),
+        },
         handleKeyDown: (_view, event) => linkKey.current(event) || slashKeys.current(event),
         scrollThreshold: caretRoom(host, 0),
         scrollMargin: caretRoom(host, 5),
@@ -592,6 +602,22 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     }
     revealed.current = { index, scrollTop: documentScrollContainer(editor.view.dom)?.scrollTop ?? 0 };
     scheduleOutline.current();
+  }
+
+  function followFragment(view: EditorView, href: string): void {
+    const index = fragmentTarget(view.state.doc, href);
+    if (index === undefined) onNotice?.(unresolvedLink(href));
+    else revealLinkBlock(view, index);
+  }
+
+  function revealLinkBlock(view: EditorView, index: number): void {
+    const node = view.state.doc.child(index);
+    let pos = 0;
+    for (let i = 0; i < index; i++) pos += view.state.doc.child(i).nodeSize;
+    const element = view.nodeDOM(pos);
+    if (!(element instanceof HTMLElement)) return;
+    element.scrollIntoView({ block: "center", inline: "nearest" });
+    setLinkTarget({ path: String(node.attrs.sourcePath) });
   }
 
   useImperativeHandle(
@@ -1035,6 +1061,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       {visible && !comparison ? <BlockHandles
         readOnly={readOnly} showHeadingLevels={showHeadingLevels} editor={editor}
         saveLocations={saveLocations}
+        linkTargetPath={linkTarget?.path}
         menuIndex={blockMenu?.index}
         onInsert={insertBlockMenu}
         onOpenMenu={openBlockMenu}
@@ -1088,7 +1115,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         />
       ) : null}
       {linkDraft ? (
-        <LinkForm editor={editor} draft={linkDraft} style={linkStyle} anchor={caretAnchor(linkDraft.from, linkDraft.to)} onClose={() => setLinkDraft(null)} onDraftChange={reportDraft} />
+        <LinkForm editor={editor} draft={linkDraft} style={linkStyle} anchor={caretAnchor(linkDraft.from, linkDraft.to)} onClose={() => setLinkDraft(null)}
+          onReveal={index => revealLinkBlock(editor.view, index)} onDraftChange={reportDraft} />
       ) : null}
       {inlineMathDraft ? (
         <>

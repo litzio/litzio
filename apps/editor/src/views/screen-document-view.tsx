@@ -7,6 +7,8 @@ import { createDocumentRequests } from "../document-session.ts";
 import { DocumentEditor } from "../DocumentEditor.tsx";
 import type { ReadingPosition } from "../document-reading.ts";
 import { Notice } from "../ui/primitives.tsx";
+import { MessageArea } from "../shell/MessageArea.tsx";
+import { messageText, type UiMessage } from "../ui-message.ts";
 import { i18n } from "../i18n.ts";
 import "./screen-document-view.css";
 import { useDocumentViewInteractions } from "./screen-document-view-interactions.ts";
@@ -114,7 +116,10 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
   }, [file, stale, problem, positions, previewScale, onGeometry]);
   const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
   const fillHeight = height === "fill";
+  const [linkNotice, setLinkNotice] = useState<UiMessage>("");
+  useEffect(() => setLinkNotice(""), [path, file?.revision, reloadKey]);
   return <section className="screen-document-view" aria-label={label} data-state={state} data-fill-height={fillHeight || undefined}>
+    <MessageArea error="" notice={messageText(linkNotice)} noticeCause={linkNotice} onNoticeExpired={() => setLinkNotice("")} />
     {message ? <Notice tone={problem ? "error" : "warning"}>{message}</Notice> : null}
     {!file && !problem ? <p role="status">{i18n.t("Loading document…")}</p> : null}
     {file && scope && !problem ? <HostClientContext.Provider value={scope.client}>
@@ -125,7 +130,7 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
         <div className="screen-document-view-content" style={{"--document-view-scale":previewScale} as CSSProperties}>
           {onGeometry && <div className="screen-document-view-actions" ref={actions} />}
           <DocumentEditor key={JSON.stringify([path, file.revision, reloadKey])} readOnly preview document={file.document} bibliography={file.bibliography}
-            documentPath={file.path} onStructuralReject={reject} onReadingLayout={setPositions} />
+            documentPath={file.path} onStructuralReject={reject} onReadingLayout={setPositions} onNotice={setLinkNotice} />
           {clip ? <div className="screen-document-view-highlight-clip" style={{top:clip.top,left:clip.left,width:clip.width,height:clip.height}}>{highlight}</div> : highlight}
         </div>
       </div>

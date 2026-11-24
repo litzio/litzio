@@ -2,7 +2,7 @@ import { DocumentDiagnosticError } from "../write-error.ts";
 import type { InlineContent } from "../inline.ts";
 import { inlineContentToNodes, projectInlineContent } from "../inline.ts";
 import { updateLabel } from "../operations.ts";
-import { labelIdentifier } from "./label.ts";
+import { labelIdentifier, referenceTargetIndex, resolveReference } from "./label.ts";
 import { createFigureNode } from "./figure.ts";
 import { createTableNode, tableBlockNode } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
@@ -17,14 +17,8 @@ export type LabelRenameBlock = {
 };
 export type LabelRenameReference = Extract<InlineContent, { kind: "reference" }> | { kind: "link"; url: string };
 
-/** Plan reference attribute changes for a live interface snapshot, without requiring its
- * unfinished body content to be writable. Target lookup, refusal and reference rewriting use
- * the same MyST operation as updateLabel; this is not a second reference resolver.
- * Indices address the supplied reference list, never persistent document identities.
- * The caller must supply every target block and role/link reference in the current snapshot. */
-export function planLabelRename(blocks: readonly LabelRenameBlock[], index: number, label: string,
-  references: readonly LabelRenameReference[]): { index: number; reference: LabelRenameReference }[] {
-  const targets: MystNode[] = blocks.map(block => {
+function targetContext(blocks: readonly LabelRenameBlock[]): MystNode[] {
+  return blocks.map(block => {
     const name = block.label ?? "";
     const attrs = name ? { label: name, identifier: labelIdentifier(name) } : {};
     switch (block.block) {
@@ -36,13 +30,37 @@ export function planLabelRename(blocks: readonly LabelRenameBlock[], index: numb
       default: return { type: "paragraph", children: [{ type: "text", value: "x" }] };
     }
   });
+}
+
+/** Resolve fragment links against the live block order, using the same lookup as check.
+ * The result indexes the supplied blocks, including a block named by a preceding target. */
+export function fragmentTargetLookup(blocks: readonly LabelRenameBlock[]): (url: string) => number | undefined {
+  const children = targetContext(blocks);
+  // Keep endnotes in the live order, while allowing MyST to exclude them as fragment targets.
+  blocks.forEach((block, index) => {
+    if (block.block === "footnote") children[index] = { type: "footnoteDefinition", identifier: block.label ?? "", children: [] };
+  });
+  const { lookup, path } = referenceTargetIndex({ type: "root", children });
+  return url => {
+    const target = resolveReference({ type: "link", url }, lookup)?.target;
+    return target && path(target.node)?.[0];
+  };
+}
+
+/** Plan reference attribute changes for a live interface snapshot, without requiring its
+ * unfinished body content to be writable. Target lookup, refusal and reference rewriting use
+ * the same MyST operation as updateLabel; this is not a second reference resolver.
+ * Indices address the supplied reference list, never persistent document identities.
+ * The caller must supply every target block and role/link reference in the current snapshot. */
+export function planLabelRename(blocks: readonly LabelRenameBlock[], index: number, label: string,
+  references: readonly LabelRenameReference[]): { index: number; reference: LabelRenameReference }[] {
   const queries: MystNode[] = references.map(reference => {
     const content: InlineContent = reference.kind === "link"
       ? { ...reference, children: [{ kind: "text", text: "link" }] } : reference;
     return { type: "paragraph", children: inlineContentToNodes([content]) };
   });
   // Queries precede the target context so a trailing, unattached target cannot attach to one.
-  const document: MystDocument = { type: "root", children: [...queries, ...targets] };
+  const document: MystDocument = { type: "root", children: [...queries, ...targetContext(blocks)] };
   const next = updateLabel(document, [references.length + index], label, { updateReferences: true });
   return references.flatMap<{ index: number; reference: LabelRenameReference }>((before, index) => {
     const after = projectInlineContent(next.children[index])![0];
