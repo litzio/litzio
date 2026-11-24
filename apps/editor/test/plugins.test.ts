@@ -267,6 +267,7 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
   const first = repo.push("main", { ...base, ...plugin("alpha", "alpha-1", "0.1.0") });
   const alphaUrl = "https://github.com/acme/tools/tree/main/plugins/alpha", betaUrl = "https://github.com/acme/tools/tree/main/plugins/beta";
   const credentials: NodeJS.ProcessEnv = { GH_TOKEN: "fixture-primary-token", GITHUB_TOKEN: "fixture-secondary-token" };
+  const logs: string[] = [];
   let cliCalls = 0, cliFailure = false;
   const host = new PluginHost(state, { github: new GitHubSource(await github.start(), {
     env: credentials,
@@ -275,7 +276,7 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
       if (cliFailure) throw new Error("simulated missing or signed-out gh");
       return "fixture-cli-token\n";
     },
-  }) });
+  }), log: line => logs.push(line) });
   const read = async (id: string) => ((await host.invokeOperation(`${id}.read`, {})) as { result?: unknown }).result;
   const check = async () => Object.fromEntries(((await host.invoke("check-updates", {})) as any).updates.map((update: any) => [update.id, update]));
   const leftovers = () => existsSync(staging) ? fs.readdirSync(staging) : [];
@@ -335,13 +336,21 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
     // Download, dependency and preparation failures leave the running copy in place.
     repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-3", "3.0.0", {}, { type: "module", dependencies: { "left-pad": "1.3.0" } }) });
     await assert.rejects(host.invoke("update", { id: "acme.beta" }), /without package-lock\.json/);
+    assert.match(logs.at(-1)!, /stage=dependencies: GitHubSourceError: This plugin declares dependencies without package-lock\.json/);
+    const privateRegistryPath = "fixture-private-registry-token";
+    github.failures.set(/\/left-pad-1\.3\.0\.tgz/, { status: 503, body: privateRegistryPath });
     repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-3", "3.0.0", { "package-lock.json": JSON.stringify({ name: "beta", lockfileVersion: 3, requires: true,
-      packages: { "": { dependencies: { "left-pad": "1.3.0" } }, "node_modules/left-pad": { version: "1.3.0", resolved: "http://127.0.0.1:9/left-pad-1.3.0.tgz", integrity: "sha512-AAAA" } } }) }, { type: "module", dependencies: { "left-pad": "1.3.0" } }) });
+      packages: { "": { dependencies: { "left-pad": "1.3.0" } }, "node_modules/left-pad": { version: "1.3.0", resolved: `${github.url}/${privateRegistryPath}/left-pad-1.3.0.tgz`, integrity: "sha512-AAAA" } } }) }, { type: "module", dependencies: { "left-pad": "1.3.0" } }) });
     await assert.rejects(host.invoke("update", { id: "acme.beta" }), /Package download failed/);
+    assert.match(logs.at(-1)!, /^plugin update failed plugin=acme\.beta source=github elapsedMs=\d+ kind=other stage=dependencies: GitHubSourceError: npm registry request failed \(HTTP 503\)\.$/);
+    assert.ok(github.requests.some(route => route.includes(privateRegistryPath)), "npm reached the fixture registry");
+    assert.doesNotMatch(logs.join("\n"), /fixture-private-registry-token/);
+    github.failures.clear();
     repo.push("main", { ...base, ...plugin("alpha", "alpha-2", "0.2.0"), ...plugin("beta", "beta-3", "3.0.0", { host: "export function activate( {" }) });
     await assert.rejects(host.invoke("update", { id: "acme.beta" }));
-    github.failures.set(/\/tarball\//, { status: 500 });
+    github.failures.set(/\/tarball\//, { status: 500, body: "fixture-private-github-body" });
     await assert.rejects(host.invoke("update", { id: "acme.beta" }), /GitHub request failed/);
+    assert.match(logs.at(-1)!, /^plugin update failed plugin=acme\.beta source=github elapsedMs=\d+ kind=other stage=artifact: GitHubSourceError: GitHub request failed \(HTTP 500\)\.$/);
     github.failures.clear();
     assert.equal(await read("acme.beta"), "beta-1");
     assert.deepEqual(leftovers(), [], "staging is removed after every attempt");
@@ -367,11 +376,13 @@ test("GitHub sources list plugins, follow release or branch by folder tree and k
     github.failures.clear();
 
     cliFailure = false;
-    github.failures.set(/commits\//, { status: 401 });
+    github.failures.set(/commits\//, { status: 401, body: "Bearer fixture-cli-token" });
     const rejected = await host.invoke("install", { source: alphaUrl }) as any;
     assert.equal(rejected.receipt.outcome, "failure");
     assert.match(rejected.errors[0].message, /GitHub rejected the token/);
     assert.doesNotMatch(JSON.stringify(rejected), /fixture-cli-token/);
+    assert.match(logs.at(-1)!, /stage=artifact: GitHubSourceError: GitHub rejected the token \(HTTP 401\)\.$/);
+    assert.doesNotMatch(logs.join("\n"), /fixture-(?:primary|secondary|cli)-token|fixture-private-github-body|Bearer/);
     github.failures.clear();
 
     const archive = new FakeGitHub();

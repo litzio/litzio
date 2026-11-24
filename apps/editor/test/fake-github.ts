@@ -20,7 +20,7 @@ export class FakeGitHub {
   /** Routes requested, for asserting what a check needed. */
   readonly requests: string[] = [];
   readonly authorization: (string | undefined)[] = [];
-  failures = new Map<RegExp, { status: number; headers?: Record<string, string> }>();
+  failures = new Map<RegExp, { status: number; headers?: Record<string, string>; body?: string }>();
   /** GitHub truncates recursive trees of large repositories. */
   truncated = false;
   /** Runs after each archive is served, so a fixture can publish the next commit. */
@@ -80,7 +80,7 @@ export class FakeGitHub {
 
   private async handle(url: string): Promise<{ status: number; body?: string | Buffer; type?: string; headers?: Record<string, string> }> {
     this.requests.push(url);
-    for (const [pattern, failure] of this.failures) if (pattern.test(url)) return { status: failure.status, headers: failure.headers, body: "{}" };
+    for (const [pattern, failure] of this.failures) if (pattern.test(url)) return { status: failure.status, headers: failure.headers, body: failure.body ?? "{}" };
     const { pathname, searchParams } = new URL(url, "http://fake");
     const parts = pathname.split("/").slice(1).map(decodeURIComponent);
     const missing = { status: 404, body: JSON.stringify({ message: "Not Found" }) };

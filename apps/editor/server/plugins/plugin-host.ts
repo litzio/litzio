@@ -1,6 +1,6 @@
 import { availableHostCli } from "../host-cli.ts";
 import type { PluginCli } from "@litzio/plugin-sdk";
-import { installScreenDependencies } from "./screen-dependencies.ts";
+import { installScreenDependencies, ScreenDependencyError } from "./screen-dependencies.ts";
 import { compileScreen, bundleScreens } from "./screen-code.ts";
 import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { PluginArtifactChangedError } from "../../shared/plugin-artifact-error.ts";
@@ -108,12 +108,12 @@ function localOrigin(sourceDirectory: string, manifest: PluginManifest, kept: In
     ...(manifest.repository ? sourceKey(manifest.repository) !== sourceKey(pinned.url) ? { moved: manifest.repository } : {} : pinned.moved ? { moved: pinned.moved } : {}) } };
 }
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
-type ActivationAttempt = {
-  stage: "artifact" | "settings" | "screen" | "secrets" | "process" | "skills";
+type ManagementAttempt = {
+  id?: string;
+  stage: "artifact" | "dependencies" | "settings" | "screen" | "secrets" | "process" | "skills";
   processFailure?: PluginProcessActivationFailure;
   timeoutMs?: number;
 };
-type ManagementAttempt = ActivationAttempt & { id?: string };
 export type PluginHostLogging = { log?: (message: string) => void; warn?: (message: string) => void };
 
 const managementLogActions = new Set(["register", "install", "reload", "update", "enable", "disable", "unregister"]);
@@ -122,23 +122,21 @@ const exitDetails = (exit?: { code: number | null; signal: NodeJS.Signals | null
 
 const safeManagementMessages = new Set([
   PLUGIN_MANIFEST_MISSING, PLUGIN_REGISTRATION_CHANGED, PLUGIN_SOURCE_READD_REQUIRED,
-  PLUGIN_SOURCE_UNAVAILABLE, PLUGIN_SOURCE_MOVED,
+  PLUGIN_SOURCE_UNAVAILABLE,
   "Artifact changed; reload the plugin", "Artifact ID changed", "Invalid entry",
   "Plugin operation ID collision", "Plugin manifest must be a real file", "Invalid icon path",
   "Plugin is not registered", "Explicit plugin trust is required", "Plugin request failed",
   "Plugin disposal failed; reload to recover", "Disable the plugin before replacing its registration",
   "Stored settings do not satisfy this artifact schema", "Required plugin secret is not configured",
   "Plugin secrets unsupported on this Host (Windows required)",
-  "This address holds several plugins. Choose one.",
-  "This address holds several plugins. Install one with its folder address.",
   "Plugin source validation failed",
 ]);
 
-function describeManagementError(error: unknown, stage: ActivationAttempt["stage"]) {
+function describeManagementError(error: unknown, stage: ManagementAttempt["stage"]) {
   if (!(error instanceof Error)) return describeError(error);
   // JSON, compilers, filesystem and secret-store errors can quote private input.
   // Log only Host-owned descriptions and omit stacks that can contain source text.
-  const detail = error instanceof GitHubSourceError ? { name: "GitHubSourceError", message: "Unable to apply the GitHub source" }
+  const detail = error instanceof GitHubSourceError ? { name: "GitHubSourceError", message: error.logMessage }
     : error instanceof SyntaxError ? { name: "SyntaxError", message: "Invalid artifact syntax" }
     : error instanceof FileAccessError ? { name: "FileAccessError", message: "Plugin folder access was rejected" }
     : error.name === "ZodError" ? { name: "ZodError", message: `Plugin ${stage} validation failed` }
@@ -365,7 +363,7 @@ export class PluginHost {
       }
     }));
   }
-  private async enable(id: string, startup = false, attempt: ActivationAttempt = { stage: "artifact" }) {
+  private async enable(id: string, startup = false, attempt: ManagementAttempt = { stage: "artifact" }) {
     const started = performance.now();
     attempt.timeoutMs = this.activationTimeoutMs;
     try {
@@ -389,7 +387,7 @@ export class PluginHost {
       throw error;
     }
   }
-  private async activate(record: InstalledPlugin, directory: string, artifact: Artifact, previous?: PluginRegistration, checkCandidate = false, attempt?: ActivationAttempt) {
+  private async activate(record: InstalledPlugin, directory: string, artifact: Artifact, previous?: PluginRegistration, checkCandidate = false, attempt?: ManagementAttempt) {
     const { manifest } = artifact, { id } = manifest;
     if (attempt) attempt.stage = "settings";
     assertStoredSettings(manifest, record.settings);
@@ -489,10 +487,13 @@ export class PluginHost {
     if (!existsSync(packageFile) || existsSync(path.join(directory, "node_modules"))) return;
     if (!Object.keys((readArtifactJson(packageFile) as { dependencies?: Record<string, string> }).dependencies ?? {}).length) return;
     if (!["package-lock.json", "npm-shrinkwrap.json"].some(file => existsSync(path.join(directory, file)))) {
-      throw new GitHubSourceError("This plugin declares dependencies without package-lock.json. Ask its author to commit the lockfile.");
+      throw GitHubSourceError.fromHost("This plugin declares dependencies without package-lock.json. Ask its author to commit the lockfile.");
     }
     try { await installScreenDependencies(directory, this.npmData(), "ci"); }
-    catch (error) { throw new GitHubSourceError(error instanceof Error ? error.message : "Package download failed."); }
+    catch (error) {
+      throw new GitHubSourceError(error instanceof Error ? error.message : "Package download failed.",
+        error instanceof ScreenDependencyError ? error.logMessage : "npm dependency installation failed.");
+    }
   }
   /**
    * Download one commit's plugin folder into Host staging, prepare dependencies, then use
@@ -503,9 +504,13 @@ export class PluginHost {
     const staging = this.staging();
     try {
       await source.download(location, target.commit, staging);
-      const manifest = this.precheckSourceManifest(staging, options.inspecting, () => new GitHubSourceError("No litzio-plugin.json in this GitHub folder."));
-      if (options.attempt) options.attempt.id ??= manifest.id;
+      const manifest = this.precheckSourceManifest(staging, options.inspecting, () => GitHubSourceError.fromHost("No litzio-plugin.json in this GitHub folder."));
+      if (options.attempt) {
+        options.attempt.id ??= manifest.id;
+        options.attempt.stage = "dependencies";
+      }
       await this.prepareDependencies(staging);
+      if (options.attempt) options.attempt.stage = "artifact";
       const origin = {
         ...(options.sourceDirectory ? { sourceDirectory: options.sourceDirectory } : {}),
         // The resolved repository, folder and track are pinned; checks and updates never re-resolve the address.
@@ -516,10 +521,10 @@ export class PluginHost {
   }
   /** The pinned folder, or for a local manifest not yet applied from GitHub, its repository resolved by this plugin ID. */
   private async githubTarget(source: GitHubSource, id: string, github: GitHubRegistration) {
-    if (github.moved) throw new GitHubSourceError(PLUGIN_SOURCE_MOVED);
+    if (github.moved) throw GitHubSourceError.fromHost(PLUGIN_SOURCE_MOVED);
     if (github.path === undefined) {
       const resolved = await source.resolve(github.url, { track: github.track, id });
-      if ("candidates" in resolved) throw new GitHubSourceError("Several folders at this GitHub address hold this plugin. Use its exact folder address.");
+      if ("candidates" in resolved) throw GitHubSourceError.fromHost("Several folders at this GitHub address hold this plugin. Use its exact folder address.");
       return resolved;
     }
     const location = { owner: github.owner, repo: github.repo, ...(github.ref !== undefined ? { ref: github.ref } : {}), path: github.path };
@@ -552,7 +557,7 @@ export class PluginHost {
     this.updates.set(id, { installationId: record.installationId, check });
     return check;
   }
-  private async disable(id: string, attempt?: ActivationAttempt) {
+  private async disable(id: string, attempt?: ManagementAttempt) {
     this.disabling.add(id);
     let skillCleanupError: unknown;
     try { this.assistantSkills.clear(id); } catch (error) { skillCleanupError = error; }
@@ -748,7 +753,7 @@ export class PluginHost {
             file = "GitHub source";
             const resolved = await github.resolve(args.source, { track: args.track });
             if ("candidates" in resolved) return { valid: false, plugins: resolved.candidates, errors: [{ file, line: null, column: null, kind: "GitHub source unavailable", path: "source", code: "github_source",
-              message: "This address holds several plugins. Install one with its folder address from plugins[].source." }], receipt: receipt("failure", new GitHubSourceError("This address holds several plugins. Install one with its folder address.")) };
+              message: "This address holds several plugins. Install one with its folder address from plugins[].source." }], receipt: receipt("failure", GitHubSourceError.fromHost("This address holds several plugins. Install one with its folder address.")) };
             const result = await this.applyGitHub(github, "install", args.source, resolved, undefined, { inspecting: current => { file = current; }, attempt });
             id = result.id;
             if (result.errors) return { id, valid: false, errors: result.errors, receipt: receipt("failure", new Error("Plugin source validation failed")) };
@@ -802,7 +807,7 @@ export class PluginHost {
       if (action === "register") {
         if (args.source) {
           const resolved = await github.resolve(args.source, { track: args.track });
-          if ("candidates" in resolved) throw new GitHubSourceError("This address holds several plugins. Choose one.");
+          if ("candidates" in resolved) throw GitHubSourceError.fromHost("This address holds several plugins. Choose one.");
           ({ id } = await this.applyGitHub(github, "register", args.source, resolved, undefined, { attempt }));
           return { id, plugins: await this.list(), receipt: receipt("success") };
         }

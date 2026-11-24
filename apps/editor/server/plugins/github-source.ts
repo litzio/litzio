@@ -16,7 +16,13 @@ export type GitHubPlugin = { path: string; source: string; id?: string; name?: s
 /** Listing more manifests than this cannot prove which folder is the only one with an ID. */
 const LISTED_PLUGINS = 50;
 
-export class GitHubSourceError extends Error { override name = "GitHubSourceError"; }
+export class GitHubSourceError extends Error {
+  override name = "GitHubSourceError";
+  constructor(message: string, readonly logMessage: string) { super(message); }
+
+  /** Both messages must come from the Host, with only validated metadata interpolated. */
+  static fromHost(message: string, logMessage = message) { return new GitHubSourceError(message, logMessage); }
+}
 const MISSING = "GitHub repository, ref or plugin folder not found. Only public repositories are supported.";
 
 type TreeEntry = { path: string; type: string; sha: string };
@@ -46,15 +52,21 @@ export class GitHubSource {
   private async request(route: string, timeout = 15_000) {
     let response: Response;
     let token: string | undefined;
+    let signal: AbortSignal | undefined;
     try {
       token = await (this.#token ??= this.readToken());
       const headers = new Headers({ Accept: "application/vnd.github+json", "User-Agent": "litzio-plugin-host", "X-GitHub-Api-Version": "2022-11-28" });
       if (token) headers.set("Authorization", `Bearer ${token}`);
       // Node fetch drops Authorization on cross-origin redirects, including codeload.github.com.
-      response = await fetch(`${this.api.replace(/\/+$/, "")}/${route}`, { headers, signal: AbortSignal.timeout(timeout) });
-    } catch { throw new GitHubSourceError("Unable to reach GitHub. Check the network connection."); }
-    if (response.ok) return response;
-    if (response.status === 401 && token) throw new GitHubSourceError(GITHUB_TOKEN_REJECTED);
+      signal = AbortSignal.timeout(timeout);
+      response = await fetch(`${this.api.replace(/\/+$/, "")}/${route}`, { headers, signal });
+    } catch {
+      const message = "Unable to reach GitHub. Check the network connection.";
+      throw GitHubSourceError.fromHost(message, signal?.aborted ? "GitHub request timed out." : message);
+    }
+    if (response.ok) return { response, signal };
+    const status = response.status, http = `HTTP ${status}`;
+    if (status === 401 && token) throw GitHubSourceError.fromHost(GITHUB_TOKEN_REJECTED, `GitHub rejected the token (${http}).`);
     const remaining = response.headers.get("x-ratelimit-remaining");
     const retryAfter = response.headers.get("retry-after");
     if (response.status === 429 || response.status === 403 && (remaining === "0" || retryAfter !== null)) {
@@ -65,12 +77,13 @@ export class GitHubSource {
       const retry = Number.isFinite(date.getTime())
         ? GITHUB_RETRY_AFTER.replace("{{time}}", date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "long" }))
         : GITHUB_RETRY_LATER;
-      throw new GitHubSourceError(`${GITHUB_RATE_LIMIT} ${retry}${token ? "" : ` ${GITHUB_LOGIN_HINT}`}`);
+      throw GitHubSourceError.fromHost(`${GITHUB_RATE_LIMIT} ${retry}${token ? "" : ` ${GITHUB_LOGIN_HINT}`}`, `GitHub rate limit reached (${http}). ${retry}`);
     }
-    if (response.status === 404 || response.status === 422) throw new GitHubSourceError(MISSING);
-    throw new GitHubSourceError(`GitHub request failed (HTTP ${response.status}).`);
+    if (status === 404 || status === 422) throw GitHubSourceError.fromHost(MISSING, `${MISSING} (${http})`);
+    const message = `GitHub request failed (${http}).`;
+    throw GitHubSourceError.fromHost(message, status === 401 || status === 403 ? `GitHub access denied (${http}).` : message);
   }
-  private async json<T>(route: string): Promise<T> { return await (await this.request(route)).json() as T; }
+  private async json<T>(route: string): Promise<T> { return await (await this.request(route)).response.json() as T; }
   private async optional<T>(route: string): Promise<T | undefined> {
     try { return await this.json<T>(route); }
     catch (error) { if (error instanceof GitHubSourceError && error.message === MISSING) return undefined; throw error; }
@@ -82,7 +95,7 @@ export class GitHubSource {
   /** Split `/tree/<ref>/<folder>` by asking GitHub which prefix names a ref, shortest first. */
   async locate(address: string): Promise<GitHubLocation> {
     const parsed = parseGitHubSource(address);
-    if (!parsed) throw new GitHubSourceError("Expected a public GitHub address: https://github.com/<owner>/<repo> or https://github.com/<owner>/<repo>/tree/<ref>/<folder>");
+    if (!parsed) throw GitHubSourceError.fromHost("Expected a public GitHub address: https://github.com/<owner>/<repo> or https://github.com/<owner>/<repo>/tree/<ref>/<folder>", "Expected a public GitHub address.");
     const { owner, repo, tree } = parsed;
     if (!tree.length) {
       await this.json(this.repoRoute(parsed, ""));
@@ -92,7 +105,7 @@ export class GitHubSource {
       const ref = tree.slice(0, length).join("/");
       if (await this.optional(this.repoRoute(parsed, `commits/${segments(ref)}`))) return { owner, repo, ref, path: tree.slice(length).join("/") };
     }
-    throw new GitHubSourceError(MISSING);
+    throw GitHubSourceError.fromHost(MISSING);
   }
 
   private async commit(location: GitHubLocation, ref: string) {
@@ -156,7 +169,7 @@ export class GitHubSource {
    */
   async target(location: GitHubLocation, track?: GitHubTrack): Promise<GitHubTarget> {
     const target = await this.lookup(location, track);
-    if (typeof target === "string") throw new GitHubSourceError(target);
+    if (typeof target === "string") throw GitHubSourceError.fromHost(target);
     return target;
   }
 
@@ -170,15 +183,15 @@ export class GitHubSource {
     const location = await this.locate(address);
     const exact = await this.lookup(location, options.track);
     if (typeof exact !== "string") {
-      if (options.id && exact.id !== options.id) throw new GitHubSourceError("The plugin at this GitHub address has a different ID.");
+      if (options.id && exact.id !== options.id) throw GitHubSourceError.fromHost("The plugin at this GitHub address has a different ID.");
       return { location, target: exact };
     }
     const { plugins, limited } = await this.plugins(location);
-    if (limited) throw new GitHubSourceError("This address holds too many plugins to choose from. Use the exact plugin folder address.");
+    if (limited) throw GitHubSourceError.fromHost("This address holds too many plugins to choose from. Use the exact plugin folder address.");
     const candidates = plugins.filter(plugin => !plugin.error && plugin.path !== location.path && (!options.id || plugin.id === options.id));
-    if (!candidates.length) throw new GitHubSourceError(options.id && plugins.length ? "No folder with this plugin ID at this GitHub address. Use its exact folder address." : exact);
+    if (!candidates.length) throw GitHubSourceError.fromHost(options.id && plugins.length ? "No folder with this plugin ID at this GitHub address. Use its exact folder address." : exact);
     if (candidates.length > 1) {
-      if (options.id) throw new GitHubSourceError("Several folders at this GitHub address hold this plugin. Use its exact folder address.");
+      if (options.id) throw GitHubSourceError.fromHost("Several folders at this GitHub address hold this plugin. Use its exact folder address.");
       return { location, candidates };
     }
     const folder = { ...location, path: candidates[0]!.path };
@@ -199,7 +212,7 @@ export class GitHubSource {
     const found = release ?? branch;
     if (!found) {
       const invalid = tracks.find((target): target is GitHubTarget => typeof target !== "string" && !!target.invalid);
-      if (invalid) throw new GitHubSourceError(invalid.invalid!);
+      if (invalid) throw new GitHubSourceError(invalid.invalid!, "Invalid litzio-plugin.json in the GitHub source.");
       return this.plugins(location);
     }
     return { ...(release?.tag ? { release: release.tag } : {}), plugins: [{ path: location.path, source: address, ...(found.id ? { id: found.id, name: found.name } : {}),
@@ -210,7 +223,7 @@ export class GitHubSource {
     const ref = location.ref ?? await this.defaultBranch(location);
     const listed = async (sha: string) => {
       const { tree, truncated } = await this.tree(location, sha, true);
-      if (truncated) throw new GitHubSourceError("This repository is too large to list. Use the exact plugin folder address.");
+      if (truncated) throw GitHubSourceError.fromHost("This repository is too large to list. Use the exact plugin folder address.");
       const prefix = location.path ? `${location.path}/` : "";
       return tree.filter(entry => entry.type === "blob" && (entry.path === `${prefix}litzio-plugin.json` || entry.path.startsWith(prefix) && entry.path.endsWith("/litzio-plugin.json")) &&
         !entry.path.split("/").includes("node_modules"));
@@ -232,8 +245,8 @@ export class GitHubSource {
 
   /** Extract only the plugin folder of one commit into an empty staging directory. */
   async download(location: GitHubLocation, commit: string, staging: string) {
-    const response = await this.request(this.repoRoute(location, `tarball/${commit}`), 120_000);
-    if (!response.body) throw new GitHubSourceError("GitHub returned an empty archive.");
+    const { response, signal } = await this.request(this.repoRoute(location, `tarball/${commit}`), 120_000);
+    if (!response.body) throw GitHubSourceError.fromHost("GitHub returned an empty archive.");
     await mkdir(staging, { recursive: true });
     const folder = location.path ? location.path.split("/") : [];
     let bytes = 0, linked = false;
@@ -247,8 +260,12 @@ export class GitHubSource {
       return true;
     } });
     try { await pipeline(Readable.fromWeb(response.body as never), count, extract); }
-    catch (error) { if (error instanceof GitHubSourceError) throw error; throw new GitHubSourceError("Unable to read the GitHub archive."); }
-    if (linked) throw new GitHubSourceError("Artifact must contain real files, not linked dependencies");
+    catch (error) {
+      if (error instanceof GitHubSourceError) throw error;
+      const message = "Unable to read the GitHub archive.";
+      throw GitHubSourceError.fromHost(message, signal.aborted ? "GitHub archive download timed out." : message);
+    }
+    if (linked) throw GitHubSourceError.fromHost("Artifact must contain real files, not linked dependencies");
     return { bytes };
   }
 }
