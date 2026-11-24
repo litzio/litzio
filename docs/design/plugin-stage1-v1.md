@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [AGENTS.md](../../AGENTS.md).
-- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
+- Last verified: 2026-11-24 — 비서용 제작 안내의 전달(#1926)을 단위 검사와 실제 Host의 Codex 제작·설치 한 번으로 확인했다. 그 밖의 절은 2026-11-16 정적 대조(현재 계약·코드와 삭제된 기능의 잔재) 그대로이며 제품·브라우저·Desktop 재검증은 없다.
 
 ## 현재 범위
 
