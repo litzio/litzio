@@ -1,4 +1,4 @@
-async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
+async (page, { expect, pluginFixture, screenshots, openFolderPicker, brand }) => {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const originalViewport = page.viewportSize();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -28,6 +28,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(installedPlugin).toHaveCount(0);
   await managePlugin({ action: "unregister", id: "fixture.vite" });
 
+  // This scenario uses a real Host; preceding scenarios can remember mocked threads.
+  const forgetConversation = () => page.evaluate(key => localStorage.removeItem(key), brand.storagePrefix + ".assistantConversation.v2");
+  await forgetConversation();
   await page.keyboard.press("Control+Shift+Y");
   const assistant = page.getByTestId("assistant-panel");
   const message = assistant.getByRole("textbox", { name: "Message assistant" });
@@ -50,6 +53,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(workspace.getByRole("button", { name: "Count: 1", exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.__pluginRefreshFocusEvents)).toEqual([]);
   await assistant.getByRole("button", { name: "Close assistant" }).click();
+  await forgetConversation();
   await managePlugin({ action: "unregister", id: "fixture.vite" });
   await page.setViewportSize(originalViewport);
   await page.reload();
