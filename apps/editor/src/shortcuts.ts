@@ -61,6 +61,7 @@ export const EDITOR_SHORTCUTS = {
   italic: editorShortcut("Mod-i"),
   strike: editorShortcut("Mod-Shift-s"),
   code: editorShortcut("Mod-e"),
+  inlineMath: editorShortcut("Mod-Shift-6"),
   subscript: editorShortcut("Mod-,"),
   superscript: editorShortcut("Mod-."),
   newBlock: editorShortcut("Enter"),

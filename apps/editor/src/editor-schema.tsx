@@ -3,7 +3,8 @@ import { createAssetHost } from "./image-assets.ts";
 import type { UiMessage } from "./ui-message.ts";
 import { i18n } from "./i18n.ts";
 import { allocateBlockPath } from "./block-locators.ts";
-import { Extension, Node, type Attribute, type Extensions, type NodeViewRenderer } from "@tiptap/core";
+import { Extension, Node, type Attribute, type Editor, type Extensions, type NodeViewRenderer } from "@tiptap/core";
+import { EDITOR_SHORTCUTS } from "./shortcuts.ts";
 import { BulletList, ListItem, ListKeymap, OrderedList, TaskItem, TaskList } from "@tiptap/extension-list";
 import { Code } from "@tiptap/extension-code";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
@@ -799,8 +800,15 @@ export function createEditorExtensions(
   initialDeletedPaths: readonly string[] = [],
   onAssetChange?: (path: string) => void,
   client?: HostClient,
+  onInlineMathShortcut?: (editor: Editor) => boolean,
 ): Extensions {
   return [...editorExtensions(onDraftChange, documentPath, validateFigure, hasActiveDraft, chooseImage),
+    Extension.create({
+      name: "inlineMathShortcut",
+      addKeyboardShortcuts: () => ({
+        [EDITOR_SHORTCUTS.inlineMath.binding]: ({ editor }) => onInlineMathShortcut?.(editor) ?? false,
+      }),
+    }),
     ...(documentPath ? [imageAssets({ host: client && createAssetHost(client), documentPath, reject: onAssetError ?? onReject, pending: onAssetPendingChange, changed: onAssetChange, hasActiveDraft })] : []),
     documentInteraction(onReject), structureGuard(baseline, onReject, initialDeletedPaths)];
 }

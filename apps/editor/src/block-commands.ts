@@ -13,6 +13,7 @@ import { updateLabelProperties } from "./label-rename.ts";
 import { AUTHORABLE_ADMONITION_KINDS, admonitionAppearance, admonitionSearchTerms } from "./admonition-kinds.ts";
 import { blockMoveTarget, blockMoveBlockedHint, reorderBlock } from "./block-reorder.ts";
 import { hangulJamo, searchJamo } from "./qwerty-hangul.ts";
+import { EDITOR_SHORTCUTS } from "./shortcuts.ts";
 
 // Editor commands for block insert/delete and table rows/columns. Each command is one engine
 // transaction; Save maps the result to Core insertParagraph/insertHeading/insertEquation/
@@ -912,7 +913,23 @@ export function deleteBlock(state: EditorState, index: number): Transaction {
   return tr.setMeta(BLOCK_COMMAND_META, true).scrollIntoView();
 }
 
-type SlashQuery = SlashRange & { index: number; query: string; blockCommands: boolean; endnote: boolean };
+export const INLINE_MATH_COMMAND = "inline-math";
+
+export function inlineMathCommandItems(query: string) {
+  const needle = query.toLowerCase();
+  const keywords = ["inline math", "math", "equation", "latex", "인라인 수식", "수식"];
+  const matches = keywords.some(word => word.startsWith(needle));
+  const jamo = matches ? undefined : searchJamo(query);
+  return matches || (jamo && ["인라인 수식", "수식"].some(word => hangulJamo(word).startsWith(jamo)))
+    ? [{ id: INLINE_MATH_COMMAND, label: i18n.t("Inline math"), group: i18n.t("Technical"), hint: EDITOR_SHORTCUTS.inlineMath.label }]
+    : [];
+}
+
+export function canInsertInlineMathAt(state: EditorState, pos: number): boolean {
+  const $pos = state.doc.resolve(pos);
+  return $pos.parent.inlineContent &&
+    $pos.parent.canReplaceWith($pos.index(), $pos.index(), state.schema.nodes.inlineMath);
+}
 
 /** The shared schema-backed caret surface for inline insertion, independent of a trigger. */
 export function inlineInsertionAt(state: EditorState) {
@@ -932,7 +949,7 @@ export function inlineInsertionAt(state: EditorState) {
 
 /** A `/` at the start of editable inline content or after whitespace opens the insert menu.
  * The schema mirrors Core's supported inline content, including no endnotes in definitions. */
-export function slashQueryAt(state: EditorState): SlashQuery | null {
+export function slashQueryAt(state: EditorState) {
   const caret = inlineInsertionAt(state);
   if (!caret) return null;
   const { $from } = state.selection;
@@ -958,6 +975,7 @@ export function slashQueryAt(state: EditorState): SlashQuery | null {
     query: match[1],
     blockCommands: caret.blockCommands,
     endnote: caret.endnote,
+    inlineMath: canInsertInlineMathAt(state, $from.pos),
   };
 }
 

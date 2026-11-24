@@ -136,6 +136,8 @@ async (page, { openPath, expect, screenshots }) => {
 
   // Closing inline math must restore a caret at that formula, even if the engine previously
   // selected its atom or text elsewhere. Check immediately, then type without a focus helper.
+  // Reopen the saved source so the preceding form exercise cannot share a history event.
+  await open();
   for (const start of ['selected math', 'other text']) for (const action of ['escape', 'apply']) {
     await editor.locator('.ProseMirror').evaluate((el, start) => {
       el.editor.state.doc.descendants((node, pos) => {
@@ -271,6 +273,9 @@ async (page, { openPath, expect, screenshots }) => {
   // Create inline math from selected text.
   await select('v_q');
   await page.getByRole('button', {name:'Inline math', exact:true}).click();
+  await page.keyboard.press('Control+z');
+  await select('v_q');
+  await page.keyboard.press('Control+Shift+6');
   result.createdFromSelection = (await sources()).includes('v_q');
 
   // Plain text edit in a math paragraph.
@@ -303,16 +308,123 @@ async (page, { openPath, expect, screenshots }) => {
   result.reloaded = JSON.stringify(await sources()) === JSON.stringify(['i_q', 'v_q', 'x']) &&
     await editor.locator('a[href="https://a.example"]').getByTestId('inline-math').count() === 1;
 
-  // A source the canonical Markdown cannot write back fails at Save; the file is unchanged.
-  await editSource('v_q', '`v$');
+  const prose = editor.locator('p.paragraph', {hasText:'The current is'});
+  const engine = editor.locator('.ProseMirror');
+  const snapshot = () => engine.evaluate(el => ({
+    document: el.editor.getJSON(), caret: el.editor.state.selection.from, focused: el.editor.view.hasFocus(),
+  }));
+  const insertMenu = page.getByRole('menu', {name:'Insert block', exact:true});
+  const mathItem = insertMenu.getByRole('menuitem', {name:'Inline math', exact:true});
+  const field = page.getByTestId('inline-math-source');
+  const cancel = page.getByTestId('inline-math-cancel');
+  const capture = async name => {
+    if (screenshots) {
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({path:`tmp/1942/${name}.png`});
+    }
+  };
+  await page.setViewportSize({width:1440, height:900});
+  await prose.click();
+  await page.keyboard.press('Home');
+  await expect.poll(() => engine.evaluate(el => el.editor.state.selection.$from.parentOffset)).toBe(0);
+  const beforeInsert = await snapshot();
+  await page.keyboard.type('/math');
+  await expect(mathItem).toBeVisible();
+  await capture('paragraph-light-1440');
+  await mathItem.click();
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue('');
+  await capture('properties-light-1440');
+  await cancel.click();
+  await expect(field).toHaveCount(0);
+  expect(await snapshot()).toEqual(beforeInsert);
+  await page.keyboard.press('Control+Shift+6');
+  await expect(field).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(field).toHaveCount(0);
+  expect(await snapshot()).toEqual(beforeInsert);
+  await page.keyboard.press('Control+Shift+6');
+  await expect(field).toBeFocused();
+  await field.fill('x-1');
+  await field.press('Enter');
+  await expect(field).toHaveCount(0);
+  expect(await sources()).toContain('x-1');
+  await page.keyboard.press('Control+z');
+  expect(await snapshot()).toEqual(beforeInsert);
+  await page.keyboard.type('/latex');
+  await expect(mathItem).toBeVisible();
+  await mathItem.click();
+  await field.fill('x+1');
+  await field.press('Enter');
+  await expect(field).toHaveCount(0);
+  expect(await sources()).toContain('x+1');
+  await page.keyboard.press('Control+z');
+  expect(await snapshot()).toEqual(beforeInsert);
+
+  // The slash item uses the inline path in a table. This exercised edit survives a real Save and reopen.
+  await page.keyboard.type('/table');
+  await insertMenu.getByRole('menuitem', {name:'Table', exact:true}).click();
+  const table = editor.locator('[data-block="table"]');
+  const cells = table.locator('td');
+  const values = [String.raw`\dfrac{a}{b}`, String.raw`\begin{aligned} a &= b \\ c &= d \end{aligned}`, '|a|'];
+  const beforeRowHeight = (await table.locator('tr').nth(1).boundingBox()).height;
+  for (const [index, value] of values.entries()) {
+    const cell = cells.nth(index);
+    await cell.click();
+    await page.keyboard.type(index === 0 ? '/' : '/latex');
+    await expect(mathItem).toBeVisible();
+    if (index === 0) {
+      await expect(insertMenu.getByRole('menuitem', {name:'Endnote', exact:true})).toBeVisible();
+      await capture('table-menu-light-1440');
+    }
+    await mathItem.click();
+    await expect(field).toBeFocused();
+    await field.fill(value);
+    await field.press('Enter');
+    await expect(cell.locator('.katex')).toHaveCount(1);
+  }
+  const tableSources = () => cells.locator('.inline-math-rendered').evaluateAll(nodes => nodes.map(node => node.title));
+  await page.getByTestId('save').click();
+  await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+  const savedWithTable = await markdown();
+  expect(savedWithTable).toContain('\\|a\\|');
+  await open();
+  await expect(table.locator('.katex')).toHaveCount(values.length);
+  expect(await tableSources()).toEqual(values);
+  let tableGeometry;
+  if (screenshots) {
+    await table.scrollIntoViewIfNeeded();
+    await capture('table-math-light-1440');
+    tableGeometry = {
+      beforeRowHeight,
+      cells: await cells.locator('.katex-html').evaluateAll(formulas => formulas.map(formula => {
+        const cell = formula.closest('td');
+        const mathBounds = formula.getBoundingClientRect(), cellBounds = cell.getBoundingClientRect();
+        return {width: mathBounds.width, height: mathBounds.height, rowHeight: cellBounds.height,
+          outsideCell: mathBounds.top < cellBounds.top || mathBounds.bottom > cellBounds.bottom ||
+            mathBounds.left < cellBounds.left || mathBounds.right > cellBounds.right};
+      })),
+    };
+    const colorMode = page.getByRole('button', {name:/^Color mode:/});
+    await colorMode.click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+    await capture('table-math-dark-1440');
+    await colorMode.click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+    await page.setViewportSize({width:1920, height:1080});
+    await capture('table-math-light-1920');
+  }
+
+  // The form accepts the source, but Core refuses a cell formula it cannot round-trip.
+  await editSource('|a|', '`v$');
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.getByText('Save failed', {exact:true}).filter({visible:true}).waitFor();
-  result.unpreservableRejected = await markdown() === saved;
+  result.unpreservableRejected = await markdown() === savedWithTable;
 
   result.consoleErrors = problems.filter(message => !message.includes('Failed to load resource'));
   const failed = Object.entries(result).filter(([key, value]) => key !== 'consoleErrors' && value !== true);
   if (failed.length > 0 || result.consoleErrors.length > 0) {
     throw new Error(`Inline math authoring failed: ${JSON.stringify(result)}\n${saved}`);
   }
-  return result;
+  return {...result, tableGeometry};
 }
