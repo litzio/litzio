@@ -24,6 +24,7 @@ import { scaffoldPlugin } from "./plugin-authoring.ts";
 import { startPluginProcess, type PluginProcessActivationFailure } from "./plugin-process.ts";
 import { parseGitHubSource, type GitHubTrack, healthCheckResultSchema, validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
 import { hostPaths } from "../host-paths.ts";
+import { describeError } from "../daemon-log.ts";
 
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
 
@@ -110,10 +111,51 @@ type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set
 type ActivationAttempt = {
   stage: "artifact" | "settings" | "screen" | "secrets" | "process" | "skills";
   processFailure?: PluginProcessActivationFailure;
+  timeoutMs?: number;
 };
+type ManagementAttempt = ActivationAttempt & { id?: string };
+export type PluginHostLogging = { log?: (message: string) => void; warn?: (message: string) => void };
+
+const managementLogActions = new Set(["register", "install", "reload", "update", "enable", "disable", "unregister"]);
+const exitDetails = (exit?: { code: number | null; signal: NodeJS.Signals | null }) =>
+  exit?.code != null ? ` exitCode=${exit.code}` : exit?.signal ? ` signal=${exit.signal}` : "";
+
+const safeManagementMessages = new Set([
+  PLUGIN_MANIFEST_MISSING, PLUGIN_REGISTRATION_CHANGED, PLUGIN_SOURCE_READD_REQUIRED,
+  PLUGIN_SOURCE_UNAVAILABLE, PLUGIN_SOURCE_MOVED,
+  "Artifact changed; reload the plugin", "Artifact ID changed", "Invalid entry",
+  "Plugin operation ID collision", "Plugin manifest must be a real file", "Invalid icon path",
+  "Plugin is not registered", "Explicit plugin trust is required", "Plugin request failed",
+  "Plugin disposal failed; reload to recover", "Disable the plugin before replacing its registration",
+  "Stored settings do not satisfy this artifact schema", "Required plugin secret is not configured",
+  "Plugin secrets unsupported on this Host (Windows required)",
+  "This address holds several plugins. Choose one.",
+  "This address holds several plugins. Install one with its folder address.",
+  "Plugin source validation failed",
+]);
+
+function describeManagementError(error: unknown, stage: ActivationAttempt["stage"]) {
+  if (!(error instanceof Error)) return describeError(error);
+  // JSON, compilers, filesystem and secret-store errors can quote private input.
+  // Log only Host-owned descriptions and omit stacks that can contain source text.
+  const detail = error instanceof GitHubSourceError ? { name: "GitHubSourceError", message: "Unable to apply the GitHub source" }
+    : error instanceof SyntaxError ? { name: "SyntaxError", message: "Invalid artifact syntax" }
+    : error instanceof FileAccessError ? { name: "FileAccessError", message: "Plugin folder access was rejected" }
+    : error.name === "ZodError" ? { name: "ZodError", message: `Plugin ${stage} validation failed` }
+    : error.name === "ScreenCompileError" ? { name: "ScreenCompileError", message: "Plugin screen compilation failed" }
+    : { name: "Error", message: `Plugin ${stage} step failed` };
+  if (safeManagementMessages.has(error.message)) detail.message = error.message;
+  else {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR" || code === "EACCES" || code === "EPERM") detail.message += ` (${code})`;
+  }
+  return describeError(Object.assign(new Error(detail.message), { name: detail.name, stack: undefined }));
+}
+
 export class PluginHost {
   private installed: Record<string, PluginRegistration>;
   private artifacts = new Map<string, Artifact>();
+  private reportedDigests = new Map<string, string>();
   private copies: InstalledArtifacts;
   private loaded = new Map<string, Loaded>();
   private processes = new Map<string, PluginInstance>();
@@ -137,12 +179,16 @@ export class PluginHost {
   private authoringRoot?: RootAccess;
   private github: GitHubSource;
   private activationTimeoutMs?: number;
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; github?: GitHubSource; activationTimeoutMs?: number } = {}) {
+  private readonly log?: PluginHostLogging["log"];
+  private readonly warn: NonNullable<PluginHostLogging["warn"]>;
+  constructor(private file = hostPaths().settingsFile("plugins"), options: PluginHostLogging & { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; github?: GitHubSource; activationTimeoutMs?: number } = {}) {
+    this.log = options.log;
+    this.warn = options.warn ?? console.warn;
     this.activationTimeoutMs = options.activationTimeoutMs;
     this.github = options.github ?? new GitHubSource();
-    this.copies = new InstalledArtifacts(file);
+    this.copies = new InstalledArtifacts(file, this.warn);
     this.cli = options.cli === null ? undefined : options.cli ?? availableHostCli();
-    this.assistantSkills = new PluginAssistantSkills(options.assistantDirectory ?? path.join(path.dirname(file), "assistant"));
+    this.assistantSkills = new PluginAssistantSkills(options.assistantDirectory ?? path.join(path.dirname(file), "assistant"), this.warn);
     this.authoringDirectory = options.authoringDirectory ?? hostPaths().plugins;
     this.access = options.access ?? LOCAL_FILE_ACCESS;
     this.secrets = options.secrets ?? new WindowsPluginSecretStore(`${file}.secrets`);
@@ -212,9 +258,16 @@ export class PluginHost {
     this.copies.remove(record.installationId);
   }
   /** Loading reads the whole artifact, including node_modules, without holding the event loop. */
-  private async artifact(directory: string, inspecting: (file: string) => void = () => {}) {
+  private async artifact(directory: string, inspecting: (file: string) => void = () => {}, registered?: { id: string; record: PluginRegistration }) {
     directory = realpathSync(directory);
     const digest = await artifactDigestAsync(directory);
+    if (this.log && registered && this.installed[registered.id] === registered.record && digest !== registered.record.digest) {
+      const { id, record } = registered;
+      if (this.reportedDigests.get(id) !== digest) {
+        this.reportedDigests.set(id, digest);
+        this.log(`plugin artifact changed plugin=${id} recorded=${record.digest.slice(0, 12)} observed=${digest.slice(0, 12)}`);
+      }
+    }
     const cached = this.artifacts.get(directory);
     if (cached?.digest === digest) {
       for (const file of ["litzio-plugin.json", "package.json", "host entry"]) inspecting(file);
@@ -238,9 +291,9 @@ export class PluginHost {
     return copyArtifact({ manifest, digest, entry, icon });
   }
   /** Only the Host writes installed copies, so calls reuse the digest checked when the copy was loaded. */
-  private async installedArtifact(record: PluginRegistration, inspecting: (file: string) => void = () => {}) {
+  private async installedArtifact(id: string, record: PluginRegistration, inspecting: (file: string) => void = () => {}) {
     const directory = realpathSync(this.installedDirectory(record)), cached = this.artifacts.get(directory);
-    if (!cached) return this.artifact(directory, inspecting);
+    if (!cached) return this.artifact(directory, inspecting, { id, record });
     for (const file of ["litzio-plugin.json", "package.json", "host entry"]) inspecting(file);
     return copyArtifact(cached);
   }
@@ -259,7 +312,7 @@ export class PluginHost {
       const retained = new Set(Object.values(registrations).flatMap(record => "installationId" in record ? [record.installationId] : []));
       const sources = Object.values(registrations).flatMap(record => "installationId" in record ? record.sourceDirectory ? [record.sourceDirectory] : [] : [record.directory]);
       try { this.copies.cleanOrphans(retained, sources); }
-      catch { console.warn("Unable to inspect Host plugin artifact storage for cleanup"); }
+      catch { this.warn("Unable to inspect Host plugin artifact storage for cleanup"); }
     }
     for (const [id, record] of Object.entries(this.installed)) if ("installationId" in record && record.enabled && !this.errors.has(id)) {
       try { await this.enable(id, true); } catch { /* enable records this failure; keep starting other plugins. */ }
@@ -279,7 +332,7 @@ export class PluginHost {
     return result;
   }
   async icon(id: string, digest: string) {
-    const record = this.record(id), artifact = await this.installedArtifact(record);
+    const record = this.record(id), artifact = await this.installedArtifact(id, record);
     if (artifact.manifest.id !== id || artifact.digest !== record.digest || record.digest !== digest || !artifact.icon || !record.trusted) throw new Error("Plugin icon unavailable");
     // Serve the bytes checked when the copy was loaded; the disk may have changed since.
     return artifact.icon;
@@ -292,7 +345,7 @@ export class PluginHost {
       const last = this.updates.get(id), update = last?.installationId === r.installationId ? last.check : undefined;
       let file = "artifact directory";
       try {
-        const { manifest: m, digest } = await this.installedArtifact(r, current => { file = current; }), live = this.loaded.get(id);
+        const { manifest: m, digest } = await this.installedArtifact(id, r, current => { file = current; }), live = this.loaded.get(id);
         if (m.id !== id || digest !== r.digest) {
           return { id, registrationId: r.registrationId, installed: true, trusted: !!r.trusted, enabled: r.enabled, running: false, status: null,
             error: "Artifact changed; reload the plugin", artifactChanged: true, activationFailure: this.errors.get(id)?.activationFailure, source: sourceSummary(r) };
@@ -312,16 +365,18 @@ export class PluginHost {
       }
     }));
   }
-  private async enable(id: string, startup = false) {
-    const started = performance.now(), attempt: ActivationAttempt = { stage: "artifact" };
+  private async enable(id: string, startup = false, attempt: ActivationAttempt = { stage: "artifact" }) {
+    const started = performance.now();
+    attempt.timeoutMs = this.activationTimeoutMs;
     try {
       const previous = this.record(id);
       if (!("installationId" in previous)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);
-      const directory = this.installedDirectory(previous), artifact = await this.artifact(directory);
+      const directory = this.installedDirectory(previous), artifact = await this.artifact(directory, undefined, { id, record: previous });
       if (artifact.manifest.id !== id) throw new Error("Artifact ID changed");
       if (!previous.trusted) throw new Error("Explicit plugin trust is required");
       if (artifact.digest !== previous.digest) throw new PluginArtifactChangedError();
       if (!this.loaded.has(id)) await this.activate({ ...previous, enabled: true }, directory, artifact, previous, false, attempt);
+      if (startup) this.log?.(`plugin enable ok plugin=${id} source=${previous.sourceDirectory ? "local" : "github"} elapsedMs=${Math.round(performance.now() - started)}`);
     } catch (error) {
       const processFailure = attempt.processFailure, kind = processFailure?.kind ?? "other";
       this.errors.set(id, { error: startup ? "Plugin activation failed" : String(error), activationFailure: kind,
@@ -329,8 +384,7 @@ export class PluginHost {
       if (startup) {
         const elapsedMs = Math.round(performance.now() - started);
         const exit = processFailure?.kind === "processExit" ? processFailure : undefined;
-        const outcome = exit?.code != null ? ` exitCode=${exit.code}` : exit?.signal ? ` signal=${exit.signal}` : "";
-        console.warn(`Plugin startup activation failed: plugin=${id} kind=${kind} elapsedMs=${elapsedMs} stage=${attempt.stage}${outcome}`);
+        this.warn(`Plugin startup activation failed: plugin=${id} kind=${kind} elapsedMs=${elapsedMs} stage=${attempt.stage}${exitDetails(exit)}`);
       }
       throw error;
     }
@@ -346,12 +400,13 @@ export class PluginHost {
     let candidate: PluginInstance | undefined;
     try {
       if (attempt) attempt.stage = "process";
-      candidate = await startPluginProcess(artifact.entry, manifest, structuredClone(record.settings), secrets, () => {
+      candidate = await startPluginProcess(artifact.entry, manifest, structuredClone(record.settings), secrets, exited => {
         if (!candidate || this.processes.get(id) !== candidate) return;
         this.loaded.delete(id); this.errors.set(id, { error: "Plugin process failed; reload to recover" });
+        if (this.log) void exited.then(exit => this.log?.(`plugin process ${exit ? "exited" : "failed"} plugin=${id}${exitDetails(exit)}`));
         try { this.assistantSkills.clear(id); } catch { this.errors.set(id, { error: "Plugin process failed; skill cleanup failed" }); }
       }, directory, this.cli, attempt && {
-        timeoutMs: this.activationTimeoutMs,
+        timeoutMs: attempt.timeoutMs,
         onFailure: failure => { attempt.processFailure = failure; },
       });
       if (checkCandidate) statusSchema.parse(safePluginValue(await candidate.status(), Object.values(secrets)));
@@ -369,15 +424,15 @@ export class PluginHost {
       this.errors.delete(id);
       // Remaining calls belong to the previous process even after routing switches.
       try { await this.drainAndDispose(oldLive, oldProcess); }
-      catch { console.warn("Previous plugin process disposal failed after activation"); }
+      catch { this.warn("Previous plugin process disposal failed after activation"); }
     } finally {
       if (candidate && this.processes.get(id) !== candidate) {
-        try { await candidate.dispose(); } catch { console.warn("Candidate plugin process disposal failed"); }
+        try { await candidate.dispose(); } catch { this.warn("Candidate plugin process disposal failed"); }
       }
     }
   }
   private async declaredSecret(id: string, name: string) {
-    const m = (await this.installedArtifact(this.record(id))).manifest;
+    const m = (await this.installedArtifact(id, this.record(id))).manifest;
     if (!m.secrets.some(s => s.id === name)) throw new Error("Undeclared plugin secret");
     return m;
   }
@@ -444,17 +499,19 @@ export class PluginHost {
    * the same apply path as a local folder. Staging is removed whether or not it applies.
    */
   private async applyGitHub(source: GitHubSource, action: "register" | "install" | "reload" | "update", url: string, { location, target }: { location: GitHubLocation; target: Pick<GitHubTarget, "commit" | "tree" | "track"> },
-    expectedId?: string, options: { sourceDirectory?: string; inspecting?: (file: string) => void } = {}) {
+    expectedId?: string, options: { sourceDirectory?: string; inspecting?: (file: string) => void; attempt?: ManagementAttempt } = {}) {
     const staging = this.staging();
     try {
       await source.download(location, target.commit, staging);
-      this.precheckSourceManifest(staging, options.inspecting, () => new GitHubSourceError("No litzio-plugin.json in this GitHub folder."));
+      const manifest = this.precheckSourceManifest(staging, options.inspecting, () => new GitHubSourceError("No litzio-plugin.json in this GitHub folder."));
+      if (options.attempt) options.attempt.id ??= manifest.id;
       await this.prepareDependencies(staging);
-      return await this.applySource(action, staging, expectedId, options.inspecting, {
+      const origin = {
         ...(options.sourceDirectory ? { sourceDirectory: options.sourceDirectory } : {}),
         // The resolved repository, folder and track are pinned; checks and updates never re-resolve the address.
         github: { url, owner: location.owner, repo: location.repo, ...(location.ref !== undefined ? { ref: location.ref } : {}), path: location.path, track: target.track, commit: target.commit, tree: target.tree },
-      });
+      };
+      return await this.applySource(action, staging, { expectedId, origin, inspecting: options.inspecting, attempt: options.attempt });
     } finally { await rm(staging, { recursive: true, force: true }); }
   }
   /** The pinned folder, or for a local manifest not yet applied from GitHub, its repository resolved by this plugin ID. */
@@ -473,7 +530,7 @@ export class PluginHost {
     const record = this.record(id);
     if (!("installationId" in record)) return { currentVersion: null, sourceVersion: null, available: false, error: PLUGIN_SOURCE_READD_REQUIRED };
     let currentVersion: string | null = null;
-    try { currentVersion = (await this.installedArtifact(record)).manifest.version ?? null; } catch { /* list reports the installed copy */ }
+    try { currentVersion = (await this.installedArtifact(id, record)).manifest.version ?? null; } catch { /* list reports the installed copy */ }
     let check: UpdateCheck;
     if (record.github) {
       // Even a local installation follows its manifest repository for updates.
@@ -495,15 +552,19 @@ export class PluginHost {
     this.updates.set(id, { installationId: record.installationId, check });
     return check;
   }
-  private async disable(id: string) {
+  private async disable(id: string, attempt?: ActivationAttempt) {
     this.disabling.add(id);
     let skillCleanupError: unknown;
     try { this.assistantSkills.clear(id); } catch (error) { skillCleanupError = error; }
     const live = this.loaded.get(id), instance = this.processes.get(id); this.loaded.delete(id);
+    if (attempt) attempt.stage = "process";
     try { await this.drainAndDispose(live, instance); }
     catch { this.errors.set(id, { error: "Plugin disposal failed; reload to recover" }); throw new Error("Plugin disposal failed; reload to recover"); }
     finally { this.processes.delete(id); }
-    if (skillCleanupError) throw skillCleanupError;
+    if (skillCleanupError) {
+      if (attempt) attempt.stage = "skills";
+      throw skillCleanupError;
+    }
   }
   private async drainAndDispose(live?: Loaded, instance?: PluginInstance) {
     if (live) await Promise.allSettled([...live.pending]);
@@ -531,7 +592,7 @@ export class PluginHost {
       const entry = lstatSync(file, { throwIfNoEntry: false });
       if (!entry) throw missing();
       if (!entry.isFile()) throw new Error("Plugin manifest must be a real file");
-      validateManifest(readArtifactJson(file));
+      return validateManifest(readArtifactJson(file));
     } catch (error) {
       inspecting("litzio-plugin.json");
       if ((error as NodeJS.ErrnoException).code === "ENOENT") throw missing();
@@ -539,9 +600,12 @@ export class PluginHost {
     }
   }
   /** Stage the same local snapshot for folder registration, install, reload and update. */
-  private async applySource(action: "register" | "install" | "reload" | "update", sourceDirectory: string, expectedId?: string,
-    inspecting: (file: string) => void = () => {}, origin?: Pick<InstalledPlugin, "sourceDirectory" | "github">) {
-    if (!origin) this.precheckSourceManifest(sourceDirectory, inspecting);
+  private async applySource(action: "register" | "install" | "reload" | "update", sourceDirectory: string,
+    { expectedId, inspecting = () => {}, origin, attempt }: { expectedId?: string; inspecting?: (file: string) => void; origin?: Pick<InstalledPlugin, "sourceDirectory" | "github">; attempt?: ManagementAttempt } = {}) {
+    if (!origin) {
+      const manifest = this.precheckSourceManifest(sourceDirectory, inspecting);
+      if (attempt) attempt.id ??= manifest.id;
+    }
     const copy = await this.copies.copy(sourceDirectory);
     let applied = false;
     try {
@@ -578,14 +642,16 @@ export class PluginHost {
       const record: InstalledPlugin = { registrationId: (active || kept?.trusted) && previous && "installationId" in previous ? previous.registrationId : randomUUID(),
         installationId: copy.installationId, ...(origin ?? localOrigin(sourceDirectory, manifest, (action === "reload" || action === "update") && previous && "installationId" in previous ? previous : undefined, copy.sourceDigest)), sourceDigest: copy.sourceDigest,
         digest: artifact.digest, trusted: kept ? !!kept.trusted : active, enabled: active, settings: previous?.settings ?? {}, operationNames };
-      if (active) await this.activate(record, copy.directory, artifact, previous, true);
+      if (active) await this.activate(record, copy.directory, artifact, previous, true, attempt);
       else {
+        if (attempt) attempt.stage = "settings";
         assertStoredSettings(manifest, record.settings);
         this.setRecord(id, record);
         this.errors.delete(id);
       }
       applied = true;
       this.updates.delete(id);
+      this.reportedDigests.delete(id);
       if (previous) this.removeCopy(previous);
       return { id };
     } finally {
@@ -626,7 +692,7 @@ export class PluginHost {
         { id: local, version: 1, effect: "write" as const, scope: "host", assistant: false, inputSchema: {}, outputSchema: {} } : undefined);
     if (!live || !op) throw new Error("Operation unavailable or plugin disabled");
     const record = this.record(live.manifest.id);
-    if (!record.trusted || (await this.installedArtifact(record)).digest !== record.digest) throw new Error("Artifact changed; reload the plugin");
+    if (!record.trusted || (await this.installedArtifact(live.manifest.id, record)).digest !== record.digest) throw new Error("Artifact changed; reload the plugin");
     if (this.disabling.has(live.manifest.id) || this.loaded.get(live.manifest.id) !== live) throw new Error("Plugin is stopping");
     if (op.scope === "folder") throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
     const requestId = randomUUID();
@@ -655,9 +721,26 @@ export class PluginHost {
     const github = this.github.forOperation();
     if (action === "source-plugins") return github.find(args.source!).then(found => ({ ...found,
       receipt: { requestId: randomUUID(), operation: "plugins.source-plugins", version: 1, scope: "host", outcome: "success" } }));
+    const attempt: ManagementAttempt | undefined = this.log && managementLogActions.has(action) ? { id: args.id, stage: "artifact" } : undefined;
+    let started: number, source: "github" | "local" | undefined;
+    const logResult = (outcome: "success" | "failure", error?: unknown) => {
+      if (!attempt) return;
+      const operation = action === "unregister" ? "remove" : action;
+      const elapsedMs = Math.round(performance.now() - started);
+      const processFailure = attempt.processFailure;
+      const detail = outcome === "failure"
+        ? ` kind=${processFailure?.kind ?? "other"} stage=${attempt.stage}${exitDetails(processFailure?.kind === "processExit" ? processFailure : undefined)}: ${describeManagementError(error, attempt.stage)}`
+        : "";
+      this.log?.(`plugin ${operation} ${outcome === "success" ? "ok" : "failed"} plugin=${attempt.id ?? "(unknown)"}${source ? ` source=${source}` : ""} elapsedMs=${elapsedMs}${detail}`);
+    };
     const run = this.serial.then(async () => {
+      started = performance.now();
+      if (action === "register" || action === "install") source = args.source ? "github" : "local";
       let id = args.id!;
-      const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
+      const receipt = (outcome: "success" | "failure", error?: unknown) => {
+        logResult(outcome, error);
+        return { requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome };
+      };
       if (action === "install") {
         let file = "artifact directory";
         try {
@@ -665,20 +748,20 @@ export class PluginHost {
             file = "GitHub source";
             const resolved = await github.resolve(args.source, { track: args.track });
             if ("candidates" in resolved) return { valid: false, plugins: resolved.candidates, errors: [{ file, line: null, column: null, kind: "GitHub source unavailable", path: "source", code: "github_source",
-              message: "This address holds several plugins. Install one with its folder address from plugins[].source." }], receipt: receipt("failure") };
-            const result = await this.applyGitHub(github, "install", args.source, resolved, undefined, { inspecting: current => { file = current; } });
+              message: "This address holds several plugins. Install one with its folder address from plugins[].source." }], receipt: receipt("failure", new GitHubSourceError("This address holds several plugins. Install one with its folder address.")) };
+            const result = await this.applyGitHub(github, "install", args.source, resolved, undefined, { inspecting: current => { file = current; }, attempt });
             id = result.id;
-            if (result.errors) return { id, valid: false, errors: result.errors, receipt: receipt("failure") };
+            if (result.errors) return { id, valid: false, errors: result.errors, receipt: receipt("failure", new Error("Plugin source validation failed")) };
             return { id, plugins: await this.list(), receipt: receipt("success") };
           }
           const requested = args.directory ?? path.join(this.authoringAccess().roots[0]!, id);
           const directory = this.artifactDirectory(requested, creationScope);
-          const result = await this.applySource("install", directory, args.id, current => { file = current; });
+          const result = await this.applySource("install", directory, { expectedId: args.id, inspecting: current => { file = current; }, attempt });
           id = result.id;
-          if (result.errors) return { id, valid: false, errors: result.errors, receipt: receipt("failure") };
+          if (result.errors) return { id, valid: false, errors: result.errors, receipt: receipt("failure", new Error("Plugin source validation failed")) };
           return { id, plugins: await this.list(), receipt: receipt("success") };
         } catch (error) {
-          return { id, valid: false, errors: validationDiagnostics(error, file), receipt: receipt("failure") };
+          return { id, valid: false, errors: validationDiagnostics(error, file), receipt: receipt("failure", error) };
         }
       }
       if (action === "scaffold") {
@@ -720,30 +803,34 @@ export class PluginHost {
         if (args.source) {
           const resolved = await github.resolve(args.source, { track: args.track });
           if ("candidates" in resolved) throw new GitHubSourceError("This address holds several plugins. Choose one.");
-          ({ id } = await this.applyGitHub(github, "register", args.source, resolved));
+          ({ id } = await this.applyGitHub(github, "register", args.source, resolved, undefined, { attempt }));
           return { id, plugins: await this.list(), receipt: receipt("success") };
         }
         const directory = this.artifactDirectory(args.directory!, creationScope);
-        ({ id } = await this.applySource("register", directory));
+        ({ id } = await this.applySource("register", directory, { attempt }));
         return { id, plugins: await this.list(), receipt: receipt("success") };
       } else {
         const r = this.record(id);
+        if (attempt && "installationId" in r) source = r.github && (action === "update" || !r.sourceDirectory) ? "github" : "local";
         if (action === "trust" || action === "enable" && (args.trust || args.registrationId !== undefined)) {
           if (!args.registrationId || args.registrationId !== r.registrationId) throw new Error(PLUGIN_REGISTRATION_CHANGED);
         }
         if (action === "unregister") {
-          r.enabled = false; this.save(); await this.disable(id);
+          r.enabled = false; this.save(); await this.disable(id, attempt);
+          if (attempt) attempt.stage = "secrets";
           if (this.secrets.supported) await this.secrets.delete(id);
+          if (attempt) attempt.stage = "artifact";
           this.redactionSecrets.delete(id);
           const next = { ...this.installed };
           delete next[id];
           this.save(next);
           this.installed = next;
           this.errors.delete(id);
+          this.reportedDigests.delete(id);
           this.removeCopy(r);
           return { id, plugins: await this.list(), receipt: receipt("success") };
         } else if (action === "secret-status") {
-          return { id, secrets: await this.secretStatus(id, (await this.installedArtifact(r)).manifest), receipt: { requestId: randomUUID(), operation: "plugins.secret-status", version: 1, scope: "host", outcome: "success" } };
+          return { id, secrets: await this.secretStatus(id, (await this.installedArtifact(id, r)).manifest), receipt: { requestId: randomUUID(), operation: "plugins.secret-status", version: 1, scope: "host", outcome: "success" } };
         } else if (action === "secret-delete") {
           await this.declaredSecret(id, args.name!);
           await this.changeConfiguration(id, async () => {
@@ -751,36 +838,36 @@ export class PluginHost {
             if (!r.enabled) this.redactionSecrets.get(id)?.delete(args.name!);
           });
         } else if (action === "trust") {
-          const a = await this.installedArtifact(r);
+          const a = await this.installedArtifact(id, r);
           if (a.manifest.id !== id || a.digest !== r.digest || args.digest !== undefined && args.digest !== a.digest) throw new Error("Artifact digest does not match");
           r.trusted = true;
         } else if (action === "enable") {
           if (args.trust) {
-            if ((await this.installedArtifact(r)).manifest.id !== id) throw new Error("Artifact ID changed");
+            if ((await this.installedArtifact(id, r)).manifest.id !== id) throw new Error("Artifact ID changed");
             r.trusted = true;
           }
           this.save();
-          await this.enable(id);
+          await this.enable(id, false, attempt);
         }
         else if (action === "reload" || action === "update") {
           if (!("installationId" in r)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);
           // The pinned source may disappear or become invalid without affecting the running copy.
           // Reload rereads the folder it was added from; update follows GitHub whenever the record names it.
-          if (r.sourceDirectory && (action === "reload" || !r.github)) await this.applySource(action, this.sourceDirectory({ ...r, sourceDirectory: r.sourceDirectory }, creationScope), id);
+          if (r.sourceDirectory && (action === "reload" || !r.github)) await this.applySource(action, this.sourceDirectory({ ...r, sourceDirectory: r.sourceDirectory }, creationScope), { expectedId: id, attempt });
           else if (r.github) {
             const { commit, tree, track, path: folder } = r.github;
             // Reload of a GitHub-only registration downloads the commit it applied again.
             const resolved = action === "reload" && commit && tree && track && folder !== undefined
               ? { location: { owner: r.github.owner, repo: r.github.repo, ...(r.github.ref !== undefined ? { ref: r.github.ref } : {}), path: folder }, target: { commit, tree, track } }
               : await this.githubTarget(github, id, r.github);
-            await this.applyGitHub(github, action, r.github.url, resolved, id, { sourceDirectory: r.sourceDirectory });
+            await this.applyGitHub(github, action, r.github.url, resolved, id, { sourceDirectory: r.sourceDirectory, attempt });
           } else throw new Error(PLUGIN_SOURCE_UNAVAILABLE);
           return { id, plugins: await this.list(), receipt: receipt("success") };
         }
-        else if (action === "disable") { r.enabled = false; this.save(); await this.disable(id); }
+        else if (action === "disable") { r.enabled = false; this.save(); await this.disable(id, attempt); }
         else if (action === "settings") {
-          if (args.settings === undefined) return { id, secrets: await this.secretStatus(id, (await this.installedArtifact(r)).manifest), settings: r.settings, settingsSchema: (await this.installedArtifact(r)).manifest.settingsSchema };
-          const m = (await this.installedArtifact(r)).manifest;
+          if (args.settings === undefined) return { id, secrets: await this.secretStatus(id, (await this.installedArtifact(id, r)).manifest), settings: r.settings, settingsSchema: (await this.installedArtifact(id, r)).manifest.settingsSchema };
+          const m = (await this.installedArtifact(id, r)).manifest;
           const validate = compileSchema(m.settingsSchema);
           if (!validate(args.settings)) {
             const properties = m.settingsSchema.properties as Record<string, { title?: string }> | undefined;
@@ -798,7 +885,10 @@ export class PluginHost {
         } else throw new Error("Unknown plugin management action");
       }
       this.save();
-      return { id, plugins: await this.list(), receipt: { requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome: "success" } };
+      return { id, plugins: await this.list(), receipt: receipt("success") };
+    }).catch(error => {
+      logResult("failure", error);
+      throw error;
     });
     this.serial = run.catch(() => {}); return run;
   }

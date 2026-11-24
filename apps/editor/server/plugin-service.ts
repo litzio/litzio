@@ -1,10 +1,10 @@
-import { PluginHost } from "./plugins/plugin-host.ts";
+import { PluginHost, type PluginHostLogging } from "./plugins/plugin-host.ts";
 import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { hostPaths } from "./host-paths.ts";
 
 /** Host-owned plugin lifetime and management API, independent of AI providers. */
-export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile = hostPaths().settingsFile("plugins"), assistantDirectory = hostPaths().assistant) {
-  const host = new PluginHost(settingsFile, { access, assistantDirectory });
+export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile = hostPaths().settingsFile("plugins"), assistantDirectory = hostPaths().assistant, logging?: PluginHostLogging) {
+  const host = new PluginHost(settingsFile, { access, assistantDirectory, log: logging?.log, warn: logging?.warn });
   let ready: Promise<void> | undefined, closing: Promise<void> | undefined;
   let closed = false;
   const start = () => {

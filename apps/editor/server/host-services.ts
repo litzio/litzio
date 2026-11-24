@@ -1,6 +1,7 @@
 import { hostPaths } from "./host-paths.ts";
 import { createAssistantHost } from "./assistant-host.ts";
 import { createPluginService } from "./plugin-service.ts";
+import type { PluginHostLogging } from "./plugins/plugin-host.ts";
 import { createViewService } from "./view-service.ts";
 import { LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { resetHostPaths } from "./app-reset.ts";
@@ -12,9 +13,9 @@ export type HostServices = {
 };
 
 /** Compose once per Host. Assistant initialization cannot block plugin/view requests. */
-export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, options?: { origin(): string | undefined }) {
+export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, options?: PluginHostLogging & { origin(): string | undefined }) {
   const paths = hostPaths(undefined, { ...process.env });
-  const plugins = createPluginService(access, paths.settingsFile("plugins"), paths.assistant);
+  const plugins = createPluginService(access, paths.settingsFile("plugins"), paths.assistant, options);
   const views = createViewService(access, plugins);
   let assistant: ReturnType<typeof createAssistantHost> | undefined;
   let closed = false;
