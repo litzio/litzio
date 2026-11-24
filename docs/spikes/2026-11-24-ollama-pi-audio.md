@@ -54,6 +54,41 @@ pi 쪽은 두 가지를 바로잡은 값이다: 프로젝트 신뢰를 켜야 �
 
 **추천(작업자).** pi 경로를 정식 구현 이슈로 이어갈 가치가 있다(확신 중간). 입력이 약 19,000토큰에서 약 4,000토큰으로 줄고, 음성이 pi 본체 수정 없이 모델까지 가며, Host 도구·질문 카드·취소·재개가 맞물렸다. 먼저 제한 권한을 지키는 방법과 Desktop 실행을 확인하는 작은 단계가 필요하다. 채택 범위 추정(엔진 표·실행 환경 격리·권한·음성 첨부·셸·진단과 계약·패키징)은 원본 기록에 있다.
 
+## 둘째 실험: 실제 작업을 끝낼 때까지의 비용과 성공률
+
+첫 실험은 "안녕?" 한마디의 입력만 쟀다. 둘째 실험은 실제 작업을 끝낼 때까지의 누적 입력과 성공 횟수를 두 엔진(지금 제품의 Copilot CLI 경로, 첫 실험의 pi 경로)에 같은 조건으로 쟀다. pi 쪽 지시문·도구 구성은 새로 다듬지 않았다. 판정 기준은 실행 전에 정했다.
+
+- 조건: `gemma4:e4b` 하나(소유자 지시로 `qwen3.5:4b` 제외, 돌린 실행 없음), 전체 접근, 실행마다 새 격리 Host와 새 대화, 엔진을 번갈아 과제마다 3번. 두 엔진 모두 생각 출력이 켜져 있었다(Copilot CLI는 `reasoning.effort: medium`을 보내고 pi는 모델 기본값).
+- 과제: ① 합성 리치오 문서의 문단 하나 고치기(성공 = 그 줄만 바뀌고 `litzio check` 통과) + 후속 "방금 고친 문단 아래에 한 문장을 더해 줘", ② 플러그인 제작 기준 글(`local.counter` 누름 횟수 화면, 성공 = Host 목록에서 켜짐·실행) + 후속 "버튼 글자를 '한 번 더'로 바꿔 줘"(성공 = 설치 사본에 그 글자), ③ pi만 음성 세 턴.
+- 사용량은 Ollama 앞에 둔 기록용 프록시(응답을 모으지 않고 그대로 넘김)로 쟀다.
+
+**사용자 홈 자료.** 실모델 전에 가짜 서버로 첫 요청을 확인했다. pi 경로는 깨끗했다. **Copilot CLI 경로는 작업 폴더와 상관없이 사용자 홈의 스킬 목록(이름·설명 10개)을 요청에 실었다**(지금 제품 경로에서도 그렇다는 뜻이다). 이 실험에서는 pi와 같은 조건으로 Copilot CLI의 HOME을 임시 폴더로 바꾼 래퍼와 사용자 홈 밖의 실험 폴더로 막았다.
+
+**실험 환경을 고친 것.** 실행기의 Host에 daemon health 응답이 없어 비서의 `litzio plugins` CLI가 모두 실패했고, Host 허용 폴더가 좁아 Copilot CLI가 쓰는 Host 도구 scaffold가 막혔다. 둘 다 제품(daemon)에서는 되는 경로라 고친 뒤 과제 1·2를 모두 같은 환경에서 다시 돌렸고, 앞선 실행은 판정에서 뺐다. 실패한 실행을 고쳐 다시 돌린 것은 없다.
+
+| 엔진 | 과제 | 성공 | 누적 입력 중앙값(성공한 실행) | 모델 호출 중앙값 | 시간 중앙값 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Copilot CLI | ① 문서 수정 | 3/3 | 36,093 | 2 | 11.6초 |
+| pi | ① 문서 수정 | 3/3 | 12,667 | 3 | 9.1초 |
+| Copilot CLI | ① 후속 | 0/3 | - | 2 | 5.3초 |
+| pi | ① 후속 | 0/3 | - | 3 | 9.7초 |
+| Copilot CLI | ② 플러그인 | 1/3 | 219,218 | 8 | 43.7초 |
+| pi | ② 플러그인 | 0/3 | - | 11 | 51.6초 |
+| Copilot CLI | ② 후속 | 1/3 | 88,842 | 2 | 6.4초 |
+| pi | ② 후속 | 0/3 | - | 3 | 12.7초 |
+
+**판정(미리 정한 기준).** 과제 1은 성공 3 대 3, 입력 35%(기준 70% 이하)로 pi 이득이 남았다. 과제 2는 성공이 pi 0 대 Copilot CLI 1로 pi가 뒤졌고, pi 성공이 없어 입력은 비교할 수 없다. 기준에 따른 결론은 **"접을 근거가 있다"**이다. 다만 과제마다 3번뿐이고 갈린 것은 한 번이다. 판정에서 뺀 좁은 환경의 실행에서는 거꾸로 pi 1/3, Copilot CLI 0/3이었다.
+
+**실패의 종류.** ① 후속은 두 엔진 모두 6번 다 "어떤 문장을 더할지" 되물었다(질문에서 멈춤). ② Copilot CLI의 두 실패는 스킬·scaffold를 쓰지 않고 지어낸 코드를 쓴 뒤 Host 도구 인자를 반복해 틀렸다. pi의 세 실패는 모두 **Host 도구를 찾지 못한 것**이다. pi 쪽 모델은 `tool_search`를 한 번도 부르지 않았고(pi 쪽 모델 요청 159개 중 0번), 스킬 글의 `manage_plugins {…}`를 PowerShell 명령으로 실행하다 실패한 뒤 CLI로 돌아가 설치 거절·검증 오류를 반복했다. 다른 ID로 설치하거나 시간 초과된 경우는 없었다.
+
+**대화가 길어질 때.** 요청 하나의 입력은 Copilot CLI가 약 17,800토큰에서 시작해 과제 2에서 21,000~31,600, pi는 약 3,800토큰에서 시작해 16,900~21,100까지 늘었다(대부분 모델이 읽은 제작 스킬과 도구 결과). 과제 2의 누적 입력은 전체 실행 중앙값으로 pi가 Copilot CLI의 72%였고, 모델 호출은 pi가 더 많았다(11 대 8).
+
+**음성 후속 턴(pi).** FLEURS 한국어 id 1883·영어 id 1620으로 한 세션 세 턴(받아쓰기 → "두 번째로 말한 내용" → 무관한 질문)을 했다. 둘째 턴 답은 두 표본 모두 문장의 뒷부분을 맞게 말했고, 셋째 턴은 "서울"이었다. **음성 바이트(약 0.8 MB·1.0 MB)는 무관한 셋째 턴까지 매 요청 다시 실렸다.** 그런데 Ollama가 보고한 입력 토큰은 턴마다 50~100토큰만 늘어(약 3,700 → 3,900), 보고값에 음성 몫이 들어가는지는 확인하지 못했다. 영어 표본은 첫 실험처럼 "Javanese"를 "Japanese"로 들었다.
+
+**검증하지 않은 것.** 다른 모델·GPU, 화면에서의 플러그인 동작, pi의 Host 도구를 지연 없이 보이게 했을 때의 성공률, 음성 몫의 토큰 수. 표본이 작다.
+
+**추천(작업자, 판정과 별도).** pi 경로를 지금 정식 구현으로 넘기지 않는다(확신 중간). 문서 수정처럼 기본 도구로 되는 일에서는 입력 이득이 남았지만, 리치오 Host 도구가 필요한 일에서는 작은 모델이 `tool_search`를 부르지 않아 Host 도구에 한 번도 닿지 못했다. 이어 가려면 Host 도구를 처음부터 보이게 한 조건 하나만 바꾼 작은 재실험이 먼저다(그만큼 첫 요청의 입력이 늘어난다).
+
 ## 현재 결정과 어긋나는 점
 
 - [비서 계약](../design/main-agent-v1.md)의 "GitHub Copilot과 Ollama는 Copilot CLI의 `copilot --acp`" 엔진 표를 환경 변수로 바꿨다. 진단의 Copilot CLI 실행 안내·버전·업데이트는 pi 경로에 맞지 않는다.
@@ -63,14 +98,14 @@ pi 쪽은 두 가지를 바로잡은 값이다: 프로젝트 신뢰를 켜야 �
 ## 결론/후속
 
 - 결론: **미정**.
-- 무엇이 정해져야 하나: Ollama 공급자의 엔진을 pi로 바꿀지와, 바꾼다면 제한 권한을 승인 확장·어댑터 수정·리치오 쪽 판정 가운데 어느 방식으로 지킬지.
+- 무엇이 정해져야 하나: Ollama 공급자의 엔진을 pi로 바꿀지와, 바꾼다면 제한 권한을 승인 확장·어댑터 수정·리치오 쪽 판정 가운데 어느 방식으로 지킬지. 둘째 실험의 미리 정한 판정은 "접을 근거가 있다"(플러그인 제작 성공 pi 0/3 대 Copilot CLI 1/3)이며, 이것을 받아들일지 Host 도구 노출을 바꾼 재실험을 할지도 함께 정해야 한다.
 
 ## 코드 위치
 
-- 태그: [`spike/2026-11-24-ollama-pi-audio`](https://github.com/litzio/litzio/tree/spike/2026-11-24-ollama-pi-audio)
-- 브랜치: [`spike/ollama-pi-audio`](https://github.com/litzio/litzio/tree/spike/ollama-pi-audio) (master 대비 커밋 1개)
-- 마지막 커밋: [`14fed61f`](https://github.com/litzio/litzio/commit/14fed61feade654d8e330a6f7b1cfb4acf6fe3f0)
-- 원본 기록: [`scripts/spike-pi-audio/SPIKE.md`](https://github.com/litzio/litzio/blob/spike/2026-11-24-ollama-pi-audio/scripts/spike-pi-audio/SPIKE.md)
+- 태그: [`spike/2026-11-24-ollama-pi-audio`](https://github.com/litzio/litzio/tree/spike/2026-11-24-ollama-pi-audio) (첫 실험), [`spike/2026-11-24-ollama-pi-audio-tasks`](https://github.com/litzio/litzio/tree/spike/2026-11-24-ollama-pi-audio-tasks) (둘째 실험)
+- 브랜치: [`spike/ollama-pi-audio`](https://github.com/litzio/litzio/tree/spike/ollama-pi-audio) (master 대비 커밋 2개)
+- 마지막 커밋: [`40b89e85`](https://github.com/litzio/litzio/commit/40b89e859d6df14eee3ccf783801d49585c7b383) (첫 실험 [`14fed61f`](https://github.com/litzio/litzio/commit/14fed61feade654d8e330a6f7b1cfb4acf6fe3f0))
+- 원본 기록: [`scripts/spike-pi-audio/SPIKE.md`](https://github.com/litzio/litzio/blob/spike/2026-11-24-ollama-pi-audio-tasks/scripts/spike-pi-audio/SPIKE.md) (둘째 실험 절에 실행별 원자료 표)
 
 ## 스크린샷
 
