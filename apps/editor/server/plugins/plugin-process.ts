@@ -78,12 +78,17 @@ process.on('message', async ({id, method, args}) => {
 });
 `;
 
-export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: () => void, artifactDirectory = path.dirname(entry), cli?: PluginCli): Promise<PluginInstance> {
+export type PluginProcessActivationFailure =
+  | { kind: "timeout" }
+  | { kind: "processExit"; code: number | null; signal: NodeJS.Signals | null };
+
+export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: () => void, artifactDirectory = path.dirname(entry), cli?: PluginCli, activation?: { timeoutMs?: number; onFailure(failure: PluginProcessActivationFailure): void }): Promise<PluginInstance> {
   const runtimeUrl = await hostSdkUrl();
   const child = spawn(process.execPath, ["--input-type=module", "--eval", bootstrap], {
     stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true, env: { ...withoutGitHubTokens(process.env), ELECTRON_RUN_AS_NODE: "1" },
   });
   let sequence = 0, stopped = false, dead = false;
+  let activationFailure: PluginProcessActivationFailure | undefined;
   const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
   const exited = new Promise<void>(resolve => child.once("close", () => resolve()));
   const fail = (kind: "failed" | "timeout" = "failed") => {
@@ -93,7 +98,12 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
     pending.clear();
     if (!stopped) failed();
   };
-  child.on("error", () => fail()); child.on("exit", () => fail());
+  child.on("error", () => fail());
+  child.on("exit", (code, signal) => {
+    // A Host-initiated kill during cleanup is not an early exit by the plugin.
+    if (!child.killed) activationFailure ??= { kind: "processExit", code, signal };
+    fail();
+  });
   child.on("message", (message: any) => {
     const call = pending.get(message?.id);
     if (!call) return;
@@ -104,14 +114,22 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
     if (dead) { reject(new Error("Plugin process unavailable")); return; }
     const id = ++sequence;
     // This deadline bounds one RPC response, never an accepted background job.
-    const timer = setTimeout(() => { fail("timeout"); child.kill(); }, 10_000);
+    const timer = setTimeout(() => {
+      if (method === "activate") activationFailure = { kind: "timeout" };
+      fail("timeout");
+      child.kill();
+    }, method === "activate" ? activation?.timeoutMs ?? 10_000 : 10_000);
     pending.set(id, { resolve, reject, timer });
     child.send({ id, method, args }, error => { if (error) { fail(); child.kill(); } });
   });
   const stop = async () => { stopped = true; child.kill(); await exited; };
   let operationNames: string[];
   try { operationNames = await request("activate", { entry, settings, secrets, cli, artifactDirectory, internalRoot, sdkUrl: runtimeUrl, nodeSdkUrl: await hostSdkUrl(true), sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id), codeScreen: manifest.contributes.screens?.some(screen => screen.entry) ?? false }); }
-  catch (error) { await stop(); throw error; }
+  catch (error) {
+    await stop();
+    if (activationFailure) activation?.onFailure(activationFailure);
+    throw error;
+  }
   return {
     operations: Object.fromEntries(operationNames.map(id => [id, (input: unknown) => request("invoke", { operation: id, input })])),
     status: () => request("status"),
