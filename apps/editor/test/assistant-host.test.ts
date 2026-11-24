@@ -130,7 +130,10 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     const adjusted = { ...settings, provider: "ollama", reasoningEffort: "high", ollamaUrl, model: "local-a:4b" };
     assert.deepEqual(await toOllama.json(), adjusted);
     writeFileSync(local, JSON.stringify({ ...adjusted, reasoningEffort: "" }));
-    assert.equal(await runCliAsync(["assistant", "configure", "--file", local]), 0);
+    // CLI configure constructs its own Host. Use the same fixture-backed catalog for that call.
+    const catalog = t.mock.method(ProviderConnections.prototype, "models", agent.models.bind(agent));
+    try { assert.equal(await runCliAsync(["assistant", "configure", "--file", local]), 0); }
+    finally { catalog.mock.restore(); }
     assert.deepEqual(JSON.parse(output.pop()!), adjusted);
     assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), adjusted);
     const autoOnOllama = await choose("ollama", "auto");
