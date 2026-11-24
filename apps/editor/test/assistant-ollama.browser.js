@@ -12,15 +12,15 @@ async (page, { expect, screenshots, brand }) => {
     copilot: { provider: 'copilot', updatedAt: 1, copilot: { ...acp, reasoningEffortSource: 'cli', reasoningEfforts: undefined }, models: [{ id: 'auto', model: 'auto', displayName: 'Auto', description: '', defaultReasoningEffort: 'medium', supportedReasoningEfforts: efforts }] },
     ollama: { provider: 'ollama', updatedAt: 1, copilot: acp, models: ['qwen3.5:4b', 'gemma4:e4b'].map(name => ({ id: name, model: name, displayName: name, description: '', defaultReasoningEffort: 'medium', supportedReasoningEfforts: efforts })) },
   };
-  // Ollama's state on the synthetic Host: ok, unreachable, no-models or cli-missing.
-  let ollama = 'ok', diagnosticReads = 0;
+  let ollama = 'ok', cliMissing = false, diagnosticReads = 0;
   const cli = { path: 'C:\\Example\\bin\\copilot.exe', version: '1.0.114', versionStatus: 'current', latestVersion: '1.0.114', latestCheckedAt: 1793590000000 };
+  const copilotCli = () => cliMissing ? { path: null, version: null, versionStatus: 'unknown', updateUnavailable: 'missing' } : cli;
   const diagnostics = provider => provider === 'ollama' ? {
-    provider, checkedAt: 1793590000000, ...cli, connected: ollama === 'ok',
-    ...(ollama === 'cli-missing' ? { path: null, version: null, versionStatus: 'unknown', updateUnavailable: 'missing' } : {}),
-    ollama: { url: settings.ollamaUrl, models: ollama === 'unreachable' ? null : ollama === 'no-models' ? 0 : 2, ...(ollama === 'ok' ? {} : { unavailable: ollama }) },
-    ...(ollama === 'ok' ? {} : { error: 'Synthetic Host message' }),
-  } : provider === 'copilot' ? { provider, checkedAt: 1793590000000, ...cli, connected: true }
+    provider, checkedAt: 1793590000000, ...copilotCli(), connected: ollama === 'ok' && !cliMissing,
+    ollama: { url: settings.ollamaUrl, models: ollama === 'unreachable' ? null : ollama === 'no-models' ? 0 : 2,
+      unavailable: ollama !== 'ok' ? ollama : cliMissing ? 'cli-missing' : undefined },
+    ...(ollama === 'ok' && !cliMissing ? {} : { error: 'Synthetic Host message' }),
+  } : provider === 'copilot' ? { provider, checkedAt: 1793590000000, ...copilotCli(), connected: !cliMissing }
     : { provider, checkedAt: 1793590000000, path: 'C:\\Example\\bin\\codex.exe', version: 'codex-cli 0.172.0', versionStatus: 'current', connected: true, account: { type: 'apiKey' }, mcp: [], rateLimits: [] };
   // Scenarios run in a VM context without URL: read the query by pattern.
   const provider = route => /[?&]provider=([a-z]+)/.exec(route.request().url())?.[1] ?? settings.provider;
@@ -82,20 +82,46 @@ async (page, { expect, screenshots, brand }) => {
   expect(settings).toMatchObject({ provider: 'codex', model: 'gpt-6-luna' });
   expect('copilotModelSource' in settings).toBe(false);
 
-  // The three reasons Ollama cannot be used, each in its own words.
-  for (const [state, reason] of [['unreachable', 'Ollama에 연결할 수 없습니다. 주소와 Ollama 실행 여부를 확인하세요.'], ['no-models', 'Ollama에 받아 둔 모델이 없습니다.'], ['cli-missing', 'Copilot CLI가 설치돼 있지 않습니다. Ollama는 Copilot CLI로 실행합니다.']]) {
+  const fact = label => dialog.locator('dl').filter({ has: page.locator('dt').getByText(label, { exact: true }) });
+  const connection = fact('연결'), cliRow = fact('Copilot CLI');
+  const rerun = () => dialog.getByRole('button', { name: '다시 진단', exact: true }).click();
+  const unreachableReason = 'Ollama에 연결할 수 없습니다. 주소와 Ollama 실행 여부를 확인하세요.';
+  const missingReason = 'Copilot CLI가 설치돼 있지 않습니다. Ollama는 Copilot CLI로 실행합니다.';
+  for (const [state, reason] of [['unreachable', unreachableReason], ['no-models', 'Ollama에 받아 둔 모델이 없습니다.']]) {
     ollama = state;
-    await dialog.getByRole('button', { name: '다시 진단', exact: true }).click();
-    await expect(dialog.getByRole('alert').filter({ hasText: reason })).toBeVisible();
+    await rerun();
+    await expect(connection.getByRole('alert')).toHaveText(reason);
     await expect(dialog).not.toContainText('Synthetic Host message');
     await capture(`diagnostics-${state}-1440-light-ko`);
   }
+  ollama = 'ok';
+  cliMissing = true;
+  await rerun();
+  await expect(connection.locator('dd')).toHaveText('연결됨 · 모델 2개');
+  await expect(cliRow.getByRole('alert')).toHaveText(missingReason);
+  await expect(dialog).not.toContainText('Synthetic Host message');
+  await expect(cliRow.getByRole('button', { name: '업데이트', exact: true })).toBeDisabled();
+  await capture('diagnostics-cli-missing-1440-light-ko');
+  if (screenshots) {
+    await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; document.documentElement.style.colorScheme = 'dark'; });
+    await capture('diagnostics-cli-missing-1440-dark-ko');
+    await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; document.documentElement.style.colorScheme = 'light'; });
+  }
+
+  ollama = 'unreachable';
+  await rerun();
+  await expect(connection.getByRole('alert')).toHaveText(unreachableReason);
+  await expect(cliRow.getByRole('alert')).toHaveText(missingReason);
+  await capture('diagnostics-unreachable-cli-missing-1440-light-ko');
+  ollama = 'ok';
+  await rerun();
+  await expect(connection.locator('dd')).toHaveText('연결됨 · 모델 2개');
   // The settings row shows the same reason in its status tooltip.
   await dialog.getByRole('button', { name: '← 비서', exact: true }).click();
   await expect(ollamaRow).toContainText('사용 불가');
   await ollamaRow.getByText('사용 불가', { exact: true }).hover();
   await expect(page.locator('[data-slot=tooltip-content][data-open]')).toContainText('Copilot CLI가 설치돼 있지 않습니다.');
-  ollama = 'ok';
+  cliMissing = false;
 
   // The composer offers Ollama third; choosing it lists Ollama's models.
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
