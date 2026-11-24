@@ -2,6 +2,7 @@
 
 - Status: Historical
 - Date: 2026-11-24 (KST)
+- 결론: **폐기**
 - Scope: 가짜 서버와 실제 Ollama의 `gemma4:e4b`를 사용한 스파이크 기록. [스파이크 정책](README.md)을 따른다.
 
 ## 목적
@@ -67,8 +68,13 @@ Codex app-server 0.172.0, Ollama 0.40.16의 `gemma4:e4b`, 전체 접근으로 �
 
 ## 결론/후속
 
-- 결론 **미정**
-- 작업자 추천은 현재 구성으로 Ollama 공급자의 Codex 엔진을 정식 구현으로 넘기지 않는 것이다. 확신은 중간이다. 소유자가 엔진과 지원할 음성 경로를 정해야 결론이 난다. 실행별 사용량과 재현 명령은 아래 원본 기록에 있다.
+**폐기**. Ollama 공급자의 실행 엔진은 Copilot CLI를 유지한다. Codex는 문서 수정에 세 번 모두 실패했고(0/3), 플러그인 제작의 누적 입력은 Copilot CLI의 95.5%여서 미리 정한 기준에 미치지 못했다. Ollama의 `/v1/responses`는 `input_audio`를 거절했다. 음성은 지금 도입하지 않는다.
+
+### 나중에 꺼내 쓸 것
+
+음성이 필요해지면 실행 엔진을 유지하고 Host가 Ollama의 `/v1/chat/completions`에 음성 파일을 직접 보낼 수 있다. `input_audio`의 `data`에는 base64로 인코딩한 데이터를, `format`에는 `wav`를 넣는다. 실모델 단계에서 이 요청으로 `gemma4:e4b`가 한국어 FLEURS 표본 하나를 글자 오류 없이 받아썼다. Host가 전사문을 비서에게 도구 결과로 돌려주는 도구는 구현하지 않았고, 비서가 이를 골라 쓰는지도 확인하지 않았다.
+
+Ollama의 `/v1/responses`가 음성 입력을 지원하면 Codex 경로에서는 모델 카탈로그에 `audio`를 추가하는 설정만으로 음성을 전달할 수 있다. Copilot CLI가 ACP에서 `audio`를 지원하게 될 때도 음성 전달을 다시 검토한다. pi 재검토 조건은 [pi 스파이크의 후속 기록](2026-11-24-ollama-pi-audio.md#나중에-꺼내-쓸-것)에 있다.
 
 ## 코드 위치
 
