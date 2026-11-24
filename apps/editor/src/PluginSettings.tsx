@@ -22,12 +22,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { usePlugins, type Plugin } from "./plugin-state.ts";
 
 const ARTIFACT_CHANGED_HINT = "The installed files differ from when the plugin was installed. Reinstall to restore it from its source.";
+const ACTIVATION_HINTS = {
+  timeout: "The plugin was not ready in time. Turn it off and back on.",
+  processExit: "The plugin process exited before it was ready. Turn it off and back on.",
+  other: "Could not turn on the plugin. Turn it off and back on.",
+} as const satisfies Record<NonNullable<Plugin["activationFailure"]>, string>;
+type RowAction = "enable" | "disable" | "reload" | "update";
 
 export function PluginSettings() {
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
   const [removing, setRemoving] = useState(false), [checking, setChecking] = useState<string | true>(), [fromGitHub, setFromGitHub] = useState(false);
   const [listProblem, setListProblem] = useState("");
-  const [rowProblems, setRowProblems] = useState(new Map<string, string>());
+  const [rowProblems, setRowProblems] = useState(new Map<string, { action: RowAction; message: string }>());
   const [reinstalling, setReinstalling] = useState<string>();
   const githubButton = useRef<HTMLButtonElement>(null);
   const removeButton = useRef<HTMLButtonElement>(null);
@@ -51,11 +57,11 @@ export function PluginSettings() {
     catch (error) { report(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   };
-  const runRow = async (plugin: Plugin, action: "enable" | "disable" | "reload" | "update", confirmTrust = false) => {
+  const runRow = async (plugin: Plugin, action: RowAction, confirmTrust = false) => {
     const key = plugin.registrationId ?? plugin.id;
     const report = (message: string) => setRowProblems(previous => {
       const next = new Map(previous);
-      if (message) next.set(key, message);
+      if (message) next.set(key, { action, message });
       else next.delete(key);
       return next;
     });
@@ -104,10 +110,13 @@ export function PluginSettings() {
     {error || listProblem ? <Notice tone="error" className="plugin-list-error"><GitHubError message={error || listProblem} /></Notice> : null}
     {plugins.map(plugin => {
       const rowProblem = rowProblems.get(plugin.registrationId ?? plugin.id);
-      const hasError = !!(rowProblem || plugin.error);
+      const hasError = !!(rowProblem || plugin.error || plugin.activationFailure);
       const reinstallHint = plugin.artifactChanged ? i18n.t(ARTIFACT_CHANGED_HINT) : undefined;
-      const rowDetail = rowProblem ? githubErrorText(rowProblem) : undefined;
-      const detail = rowDetail ? [rowDetail.text, rowDetail.hint].filter(Boolean).join(" ") : reinstallHint ??
+      const kind = plugin.activationFailure;
+      const processHint = !reinstallHint && (kind === "timeout" || kind === "processExit") ? i18n.t(ACTIVATION_HINTS[kind]) : undefined;
+      const genericActivationHint = kind === "other" && (plugin.activationFailedAtStartup || !plugin.error) ? i18n.t(ACTIVATION_HINTS.other) : undefined;
+      const rowDetail = rowProblem && !(rowProblem.action === "enable" && processHint) ? githubErrorText(rowProblem.message) : undefined;
+      const detail = rowDetail ? [rowDetail.text, rowDetail.hint].filter(Boolean).join(" ") : reinstallHint ?? processHint ?? genericActivationHint ??
         (plugin.error === PLUGIN_SOURCE_READD_REQUIRED ? i18n.t(PLUGIN_SOURCE_READD_REQUIRED) : plugin.error);
       const version = plugin.artifactChanged ? undefined : plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version");
       return <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>

@@ -4,6 +4,7 @@ import { installScreenDependencies } from "./screen-dependencies.ts";
 import { compileScreen, bundleScreens } from "./screen-code.ts";
 import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { PluginArtifactChangedError } from "../../shared/plugin-artifact-error.ts";
+import type { PluginActivationFailure } from "../../shared/plugin-activation.ts";
 import { AssistantSkillValidationError, PluginAssistantSkills, validateAssistantSkills } from "./assistant-skills.ts";
 import { PLUGIN_REGISTRATION_CHANGED } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
@@ -20,7 +21,7 @@ import { existsSync, readFileSync, realpathSync, statSync, lstatSync, mkdirSync,
 import path from "node:path";
 import { accessPath, canonicalFilePath, inside, RootAccess, FileAccessError, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
 import { scaffoldPlugin } from "./plugin-authoring.ts";
-import { startPluginProcess } from "./plugin-process.ts";
+import { startPluginProcess, type PluginProcessActivationFailure } from "./plugin-process.ts";
 import { parseGitHubSource, type GitHubTrack, healthCheckResultSchema, validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
 import { hostPaths } from "../host-paths.ts";
 
@@ -106,13 +107,17 @@ function localOrigin(sourceDirectory: string, manifest: PluginManifest, kept: In
     ...(manifest.repository ? sourceKey(manifest.repository) !== sourceKey(pinned.url) ? { moved: manifest.repository } : {} : pinned.moved ? { moved: pinned.moved } : {}) } };
 }
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
+type ActivationAttempt = {
+  stage: "artifact" | "settings" | "screen" | "secrets" | "process" | "skills";
+  processFailure?: PluginProcessActivationFailure;
+};
 export class PluginHost {
   private installed: Record<string, PluginRegistration>;
   private artifacts = new Map<string, Artifact>();
   private copies: InstalledArtifacts;
   private loaded = new Map<string, Loaded>();
   private processes = new Map<string, PluginInstance>();
-  private errors = new Map<string, string>();
+  private errors = new Map<string, { error: string; activationFailure?: PluginActivationFailure; activationFailedAtStartup?: true }>();
   private updates = new Map<string, { installationId: string; check: UpdateCheck }>();
   private serial: Promise<unknown> = Promise.resolve();
   private closed = false;
@@ -131,7 +136,9 @@ export class PluginHost {
   readonly authoringDirectory: string;
   private authoringRoot?: RootAccess;
   private github: GitHubSource;
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; github?: GitHubSource } = {}) {
+  private activationTimeoutMs?: number;
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; github?: GitHubSource; activationTimeoutMs?: number } = {}) {
+    this.activationTimeoutMs = options.activationTimeoutMs;
     this.github = options.github ?? new GitHubSource();
     this.copies = new InstalledArtifacts(file);
     this.cli = options.cli === null ? undefined : options.cli ?? availableHostCli();
@@ -255,10 +262,10 @@ export class PluginHost {
       catch { console.warn("Unable to inspect Host plugin artifact storage for cleanup"); }
     }
     for (const [id, record] of Object.entries(this.installed)) if ("installationId" in record && record.enabled && !this.errors.has(id)) {
-      try { await this.enable(id); } catch (error) { this.errors.set(id, "Plugin activation failed"); }
+      try { await this.enable(id, true); } catch { /* enable records this failure; keep starting other plugins. */ }
     }
     if (skillCleanupFailed) for (const id of Object.keys(this.installed)) {
-      if (!this.errors.has(id)) this.errors.set(id, "Assistant skill cleanup failed; reload to recover");
+      if (!this.errors.has(id)) this.errors.set(id, { error: "Assistant skill cleanup failed; reload to recover" });
     }
   }
   private async status(live: Loaded) {
@@ -288,38 +295,68 @@ export class PluginHost {
         const { manifest: m, digest } = await this.installedArtifact(r, current => { file = current; }), live = this.loaded.get(id);
         if (m.id !== id || digest !== r.digest) {
           return { id, registrationId: r.registrationId, installed: true, trusted: !!r.trusted, enabled: r.enabled, running: false, status: null,
-            error: "Artifact changed; reload the plugin", artifactChanged: true, source: sourceSummary(r) };
+            error: "Artifact changed; reload the plugin", artifactChanged: true, activationFailure: this.errors.get(id)?.activationFailure, source: sourceSummary(r) };
         }
         const observed = live ? await this.status(live) : null;
         const current = live && this.loaded.get(id) === live;
+        const secrets = await this.secretStatus(id, m), failure = this.errors.get(id);
         return { id, registrationId: r.registrationId, name: m.name, description: m.description, version: m.version ?? null, installed: true, trusted: !!r.trusted, enabled: r.enabled, running: !!current,
-          iconDigest: m.icon && !!r.trusted ? digest : undefined, healthCheck: m.contributes.healthCheck, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest, update, source: sourceSummary(r) };
-      } catch (e) { return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, update, source: sourceSummary(r), error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : this.errors.get(id) ?? (e instanceof Error && e.name === "ScreenCompileError" ? e.message : "Plugin status unavailable"), status: null, errors: validationDiagnostics(e, file) }; }
+          iconDigest: m.icon && !!r.trusted ? digest : undefined, healthCheck: m.contributes.healthCheck, secrets, settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null,
+          error: failure?.error, activationFailure: failure?.activationFailure, activationFailedAtStartup: failure?.activationFailedAtStartup, digest, update, source: sourceSummary(r) };
+      } catch (e) {
+        const failure = this.errors.get(id);
+        const missing = (e as NodeJS.ErrnoException).code === "ENOENT";
+        return { id, registrationId: r.registrationId, installed: true, enabled: r.enabled, running: false, update, source: sourceSummary(r),
+          activationFailure: failure?.activationFailure, activationFailedAtStartup: missing ? undefined : failure?.activationFailedAtStartup,
+          error: missing ? "Plugin artifact missing" : failure?.error ?? (e instanceof Error && e.name === "ScreenCompileError" ? e.message : "Plugin status unavailable"), status: null, errors: validationDiagnostics(e, file) };
+      }
     }));
   }
-  private async enable(id: string) {
-    const previous = this.record(id);
-    if (!("installationId" in previous)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);
-    const directory = this.installedDirectory(previous), artifact = await this.artifact(directory);
-    if (artifact.manifest.id !== id) throw new Error("Artifact ID changed");
-    if (!previous.trusted) throw new Error("Explicit plugin trust is required");
-    if (artifact.digest !== previous.digest) throw new PluginArtifactChangedError();
-    if (!this.loaded.has(id)) await this.activate({ ...previous, enabled: true }, directory, artifact, previous);
+  private async enable(id: string, startup = false) {
+    const started = performance.now(), attempt: ActivationAttempt = { stage: "artifact" };
+    try {
+      const previous = this.record(id);
+      if (!("installationId" in previous)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);
+      const directory = this.installedDirectory(previous), artifact = await this.artifact(directory);
+      if (artifact.manifest.id !== id) throw new Error("Artifact ID changed");
+      if (!previous.trusted) throw new Error("Explicit plugin trust is required");
+      if (artifact.digest !== previous.digest) throw new PluginArtifactChangedError();
+      if (!this.loaded.has(id)) await this.activate({ ...previous, enabled: true }, directory, artifact, previous, false, attempt);
+    } catch (error) {
+      const processFailure = attempt.processFailure, kind = processFailure?.kind ?? "other";
+      this.errors.set(id, { error: startup ? "Plugin activation failed" : String(error), activationFailure: kind,
+        ...(startup && kind === "other" ? { activationFailedAtStartup: true } : {}) });
+      if (startup) {
+        const elapsedMs = Math.round(performance.now() - started);
+        const exit = processFailure?.kind === "processExit" ? processFailure : undefined;
+        const outcome = exit?.code != null ? ` exitCode=${exit.code}` : exit?.signal ? ` signal=${exit.signal}` : "";
+        console.warn(`Plugin startup activation failed: plugin=${id} kind=${kind} elapsedMs=${elapsedMs} stage=${attempt.stage}${outcome}`);
+      }
+      throw error;
+    }
   }
-  private async activate(record: InstalledPlugin, directory: string, artifact: Artifact, previous?: PluginRegistration, checkCandidate = false) {
+  private async activate(record: InstalledPlugin, directory: string, artifact: Artifact, previous?: PluginRegistration, checkCandidate = false, attempt?: ActivationAttempt) {
     const { manifest } = artifact, { id } = manifest;
+    if (attempt) attempt.stage = "settings";
     assertStoredSettings(manifest, record.settings);
+    if (attempt) attempt.stage = "screen";
     const screens = Object.fromEntries(manifest.contributes.screens.filter(s => s.entry).map(s => [s.id, compileScreen(directory, s.entry!)]));
+    if (attempt) attempt.stage = "secrets";
     const secrets = await this.runtimeSecrets(id, manifest);
     let candidate: PluginInstance | undefined;
     try {
+      if (attempt) attempt.stage = "process";
       candidate = await startPluginProcess(artifact.entry, manifest, structuredClone(record.settings), secrets, () => {
         if (!candidate || this.processes.get(id) !== candidate) return;
-        this.loaded.delete(id); this.errors.set(id, "Plugin process failed; reload to recover");
-        try { this.assistantSkills.clear(id); } catch { this.errors.set(id, "Plugin process failed; skill cleanup failed"); }
-      }, directory, this.cli);
+        this.loaded.delete(id); this.errors.set(id, { error: "Plugin process failed; reload to recover" });
+        try { this.assistantSkills.clear(id); } catch { this.errors.set(id, { error: "Plugin process failed; skill cleanup failed" }); }
+      }, directory, this.cli, attempt && {
+        timeoutMs: this.activationTimeoutMs,
+        onFailure: failure => { attempt.processFailure = failure; },
+      });
       if (checkCandidate) statusSchema.parse(safePluginValue(await candidate.status(), Object.values(secrets)));
       const oldLive = this.loaded.get(id), oldProcess = this.processes.get(id);
+      if (attempt) attempt.stage = "skills";
       this.assistantSkills.install(directory, manifest, () => {
         const current = Object.hasOwn(this.installed, id) ? this.installed[id] : undefined;
         if (current !== previous) throw new Error(PLUGIN_REGISTRATION_CHANGED);
@@ -464,7 +501,7 @@ export class PluginHost {
     try { this.assistantSkills.clear(id); } catch (error) { skillCleanupError = error; }
     const live = this.loaded.get(id), instance = this.processes.get(id); this.loaded.delete(id);
     try { await this.drainAndDispose(live, instance); }
-    catch { this.errors.set(id, "Plugin disposal failed; reload to recover"); throw new Error("Plugin disposal failed; reload to recover"); }
+    catch { this.errors.set(id, { error: "Plugin disposal failed; reload to recover" }); throw new Error("Plugin disposal failed; reload to recover"); }
     finally { this.processes.delete(id); }
     if (skillCleanupError) throw skillCleanupError;
   }
@@ -483,8 +520,7 @@ export class PluginHost {
         record.enabled = false;
         this.save();
         await this.disable(id);
-        try { await this.enable(id); }
-        catch (error) { this.errors.set(id, String(error)); throw error; }
+        await this.enable(id);
       }
     } finally { this.disabling.delete(id); }
   }
@@ -724,8 +760,7 @@ export class PluginHost {
             r.trusted = true;
           }
           this.save();
-          try { await this.enable(id); }
-          catch (error) { this.errors.set(id, String(error)); throw error; }
+          await this.enable(id);
         }
         else if (action === "reload" || action === "update") {
           if (!("installationId" in r)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);

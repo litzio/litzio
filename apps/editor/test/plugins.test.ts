@@ -1796,6 +1796,60 @@ test("plugin service shutdown waits for startup and confirms the started child e
   assert.throws(() => process.kill(pid, 0), "shutdown confirms the exact child has exited");
 });
 
+test("auto-enable reports a startup deadline separately from an early child exit", async t => {
+  for (const fixture of [
+    { kind: "timeout", code: "await new Promise(() => {});", timeoutMs: 100, outcome: "" },
+    { kind: "processExit", code: "process.exit(7);", outcome: " exitCode=7" },
+    { kind: "other", code: "throw Object.assign(new Error('Private fixture error'), {kind:'timeout'});", outcome: "" },
+  ] as const) await t.test(fixture.kind, async t => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-startup-failure-"));
+    const file = path.join(root, "state.json"), id = "fixture.startup", marker = path.join(root, "fail");
+    const options = { assistantDirectory: path.join(root, "assistant"), cli: null };
+    let host = new PluginHost(file, options);
+    t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
+    const directory = lifecycleFixture(root, id, `import {existsSync} from 'node:fs';
+      export async function activate() {
+        if (existsSync(${JSON.stringify(marker)})) {
+          console.warn("Private fixture output");
+          ${fixture.code}
+        }
+        return {operations:{},status:()=>({available:true,message:"ready"}),dispose(){}};
+      }`);
+    const warnings = t.mock.method(console, "warn", () => {});
+    await host.invoke("register", { directory });
+    await host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
+    await host.invoke("enable", { id });
+    await host.close();
+    writeFileSync(marker, "");
+    host = new PluginHost(file, { ...options, activationTimeoutMs: "timeoutMs" in fixture ? fixture.timeoutMs : undefined });
+    await host.start();
+    const [failed] = await host.list();
+    assert.equal(failed!.enabled, true);
+    assert.equal(failed!.running, false);
+    assert.equal(failed!.error, "Plugin activation failed");
+    assert.equal(failed!.activationFailure, fixture.kind);
+    assert.equal(failed!.activationFailedAtStartup, fixture.kind === "other" ? true : undefined);
+    assert.equal(warnings.mock.callCount(), 1);
+    const [line, ...extra] = warnings.mock.calls[0]!.arguments;
+    assert.deepEqual(extra, []);
+    assert.match(String(line), new RegExp(`^Plugin startup activation failed: plugin=fixture\\.startup kind=${fixture.kind} elapsedMs=\\d+ stage=process${fixture.outcome}$`));
+
+    if (fixture.kind !== "timeout") {
+      await host.invoke("disable", { id });
+      await assert.rejects(host.invoke("enable", { id }), /Plugin request failed/);
+      const [manualFailure] = await host.list();
+      assert.equal(manualFailure!.activationFailure, fixture.kind);
+      assert.equal(manualFailure!.activationFailedAtStartup, undefined);
+      assert.equal(warnings.mock.callCount(), 1);
+      rmSync(marker);
+      await host.invoke("enable", { id });
+      const [recovered] = await host.list();
+      assert.equal(recovered!.running, true);
+      assert.equal(recovered!.activationFailure, undefined);
+    }
+  });
+});
+
 test("health check publication enforces the SDK result even with a permissive plugin schema", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-health-"));
   const host = new PluginHost(path.join(root, "state.json"), {  });

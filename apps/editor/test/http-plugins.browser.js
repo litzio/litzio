@@ -447,6 +447,73 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(page.getByRole("dialog", { name: "Drive fixture", exact: true })).not.toBeVisible();
   await expect(page.getByRole("alert").filter({ hasText: "The selected plugin is no longer available." })).toBeVisible();
   expect(await page.evaluate(() => { window.pluginNoticeObserver.disconnect(); return window.pluginNoticeMaximum; }), "A closing dialog must not duplicate the selected-plugin notice").toBe(1);
+  // The returned activation kind supplies the tooltip, including after the switch fails.
+  const startup = { id: "fixture.startup", name: "Fixture plugin", version: "1.0.0", source: { kind: "local" }, trusted: true, enabled: true, running: false, activationFailure: "timeout", error: "Plugin activation failed" };
+  const secretStoreError = "Windows secret store unavailable";
+  let enableFailure = { kind: "processExit", message: "Plugin request failed" };
+  await page.route("**/api/plugins", route => {
+    const action = route.request().postDataJSON()?.action;
+    if (action === "disable") startup.enabled = false;
+    if (action === "enable") {
+      Object.assign(startup, { activationFailure: enableFailure.kind, error: `Error: ${enableFailure.message}` });
+      return route.fulfill({ status: 400, json: { error: enableFailure.message } });
+    }
+    if (route.request().method() === "GET" || action === "disable") return route.fulfill({ json: { plugins: [startup] } });
+    return route.continue();
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
+  const startupRow = page.getByRole("region", { name: "Fixture plugin", exact: true });
+  const startupDetails = startupRow.getByRole("button", { name: "Plugin status details", exact: true });
+  const startupToggle = startupRow.getByRole("switch");
+  const timeoutHint = "The plugin was not ready in time. Turn it off and back on.";
+  const exitHint = "The plugin process exited before it was ready. Turn it off and back on.";
+  await expect(startupRow.getByRole("status")).toHaveText("Plugin error");
+  await expect(startupToggle).toBeChecked();
+  await startupDetails.hover();
+  await expect(page.getByText(timeoutHint, { exact: true })).toBeVisible();
+  await startupToggle.click();
+  await expect(startupToggle).not.toBeChecked();
+  const manualEnable = responseFor("enable");
+  await startupToggle.click();
+  expect((await manualEnable).status()).toBe(400);
+  await expect(startupDetails).toHaveAccessibleDescription(exitHint);
+  await startupToggle.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Shift+Tab");
+  await expect(startupDetails).toBeFocused();
+  await expect(page.getByText(exitHint, { exact: true })).toBeVisible();
+
+  enableFailure = { kind: "other", message: secretStoreError };
+  const rejectedByStore = responseFor("enable");
+  await startupToggle.click();
+  expect((await rejectedByStore).status()).toBe(400);
+  await expect(startupDetails).toHaveAccessibleDescription(secretStoreError);
+  await startupDetails.hover();
+  await expect(page.getByText(secretStoreError, { exact: true })).toBeVisible();
+
+  // The Host's list still carries the reason after the action's local row state is gone.
+  await page.reload();
+  await openSettings();
+  await expect(startupDetails).toHaveAccessibleDescription(`Error: ${secretStoreError}`);
+  Object.assign(startup, { enabled: true, activationFailure: "other", activationFailedAtStartup: true, error: "Plugin activation failed" });
+  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
+  await expect(startupDetails).toHaveAccessibleDescription("Could not turn on the plugin. Turn it off and back on.");
+
+  if (screenshots) {
+    delete startup.activationFailedAtStartup;
+    Object.assign(startup, { enabled: true, activationFailure: "timeout", error: "Plugin activation failed" });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(theme => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", theme); }, theme);
+      await page.reload();
+      await page.getByRole("button", { name: "설정", exact: true }).click();
+      await page.getByRole("button", { name: "플러그인", exact: true }).click();
+      await startupRow.getByRole("button", { name: "플러그인 상태 자세히", exact: true }).hover();
+      await expect(page.getByText("플러그인이 제한 시간 안에 준비되지 않았습니다. 껐다가 다시 켜 보세요.", { exact: true })).toBeVisible();
+      await page.getByTestId("settings-dialog").screenshot({ path: `tmp/plugin-startup-1918/after-1440-${theme}.png` });
+    }
+  }
+  await page.unrouteAll({ behavior: "wait" });
   await page.keyboard.press("Escape");
   return { alignment };
   } finally { await observer.close(); }
