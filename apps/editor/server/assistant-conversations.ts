@@ -760,9 +760,9 @@ export class AssistantConversations {
       if (session) { conversation.copilot = copilotOptions(session, !!acp.ollama); conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort; }
       return;
     }
-    let turn = conversation.turns.at(-1);
+    const latestTurn = conversation.turns.at(-1);
     if (update.sessionUpdate === "user_message_chunk" && update.content.type === "text") {
-      if (turn?.status === "inProgress") return;
+      if (latestTurn?.status === "inProgress") return;
       const text = update.content.text, marker = text.indexOf("User message:\n");
       const item = itemFrom({ type: "userMessage", id: randomUUID(), content: [{ type: "text", text: marker < 0 ? text : text.slice(marker + "User message:\n".length) }] });
       if (item) {
@@ -770,13 +770,21 @@ export class AssistantConversations {
       }
       return;
     }
-    if (!turn) { turn = { id: randomUUID(), status: "completed", items: [] }; conversation.turns.push(turn); }
+    // Only updates we record as transcript items can create a fallback turn.
+    const turnForContent = () => {
+      if (latestTurn) return latestTurn;
+      const turn: AssistantConversationTurn = { id: randomUUID(), status: "completed", items: [] };
+      conversation.turns.push(turn);
+      return turn;
+    };
     if ((update.sessionUpdate === "agent_message_chunk" || update.sessionUpdate === "agent_thought_chunk") && update.content.type === "text") {
+      const turn = turnForContent();
       const kind = update.sessionUpdate === "agent_message_chunk" ? "assistant" : "reasoning";
       let item = turn.items.at(-1);
       if (item?.kind !== kind) { item = { id: randomUUID(), kind, text: "" }; turn.items.push(item); }
       item.text += update.content.text;
     } else if (update.sessionUpdate === "tool_call" || update.sessionUpdate === "tool_call_update") {
+      const turn = turnForContent();
       let item = turn.items.find(item => item.id === update.toolCallId);
       if (!item) { item = { id: update.toolCallId, kind: "tool", text: "" }; turn.items.push(item); }
       if (update.title) item.text = update.title;
