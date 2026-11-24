@@ -1,10 +1,10 @@
 # 비서: 현재 동작 계약
 
 - Status: Implemented
-- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
+- Last verified: 2026-11-24 — Ollama 공급자(#1917): 연결·설정·대화·CLI 업데이트는 단위 검사, 설정·진단·입력창은 브라우저 검사, 실제 Host에서 Ollama·Codex 한 턴씩과 Copilot 계정 진단을 확인했다. 그 밖의 절은 2026-11-16 정적 대조 그대로다.
 - Authority: [ADR-0021](../adr/0021-general-agent-assistant.md), [ADR-0014](../adr/0014-main-agent-app-server.md), [ADR-0017](../adr/0017-bundled-client-and-official-ai.md).
 
-- Scope: 대상 Host의 Codex·Copilot 연결, 설정과 대화. 플러그인의 세부는 화면 코드·실행 계약을 따른다.
+- Scope: 대상 Host의 Codex·GitHub Copilot·Ollama 연결, 설정과 대화. 플러그인의 세부는 화면 코드·실행 계약을 따른다.
 
 ## 역할과 운영 원칙
 
@@ -109,13 +109,13 @@
 저장된 값이 없으면 전체 접근이 기본값이다. 사용자가 다음 턴의 권한을 고르고, Codex 실행 중 추가 메시지는 해당 턴의 권한을 유지한다.
 아래는 현재 매핑이며, 공급자의 승인·조직 정책까지 동일한 격리라고 뜻하지 않는다.
 
-| 권한 | Codex | Copilot | 전용 Host 도구 |
+| 권한 | Codex | Copilot·Ollama | 전용 Host 도구 |
 | --- | --- | --- | --- |
 | 읽기 전용 | `readOnly`, 네트워크 꺼짐, `on-request` 승인 | 열린 폴더·Host Roots 안 읽기/검색 자동 허용. 나머지는 승인 카드 | 제한 폴더 안 조회. 생성·이미지 가져오기 거절 |
 | 열린 폴더 | `workspaceWrite`, 열린 폴더와 플러그인 제작 경로를 writableRoots로 전달, 네트워크 켜짐, OS 임시 경로 쓰기 예외 끔, `on-request` 승인 | 범위 안 경로 있는 파일 작업과 경로 없는 fetch 자동 허용. 셸·범위 밖·위치 불명 요청은 승인 카드 | 열린 폴더와 Host Roots 안에서 작업 |
 | 전체 접근 | `dangerFullAccess`, `never` 승인 | 지원 시 `allow_all=on`, 도구·경로·네트워크 요청 자동 승인 | 열린 폴더 제한 없이 선택 Host의 파일 정책 적용 |
 
-Copilot 제한 모드는 `allow_all=off`이며 셸 금지 실행 플래그는 없다. Copilot에는 OS sandbox가 없고 상속한 사전 승인이 승인 요청을 생략할 수 있다.
+Copilot·Ollama 제한 모드는 `allow_all=off`이며 셸 금지 실행 플래그는 없다. Copilot에는 OS sandbox가 없고 상속한 사전 승인이 승인 요청을 생략할 수 있다.
 Codex 조직 정책이 전체 접근을 명시적으로 거부하면 실행 전 `turn/start` 거절에 한해 열린 폴더로 한 번 낮춰 시작한다. 전송 실패·실행 오류는 재실행하지 않는다.
 전용 Host 도구의 거부를 공급자 승인으로 해제하는 별도 권한 상태는 없다.
 
@@ -133,43 +133,47 @@ loopback(127.* 또는 ::1) HTTP Host는 listen을 완료한 자신의 정규화�
 
 비서 CLI의 자동 주소 전달은 기존 HTTP 허용 목록을 바꾸지 않는다. non-loopback·wildcard·IPv4-mapped IPv6 bind에는 주소를 전달하지 않는다. 이 개발/검사용 구성에서는 자동 주소를 필요로 하는 비서의 Host 대상 CLI 호출만 주소 없음으로 분명히 실패하며, public-origin이나 다른 loopback 주소를 추측하지 않는다. 수동으로 명시한 CLI --host와 기존 HTTP 허용 판정은 유지한다.
 
-Codex는 `codex app-server`, Copilot은 `copilot --acp`를 Host가 필요할 때 시작한다.
-설정은 대상 Host의 공급자·현재 카탈로그 모델·추론 강도·기본 언어·권한과 Copilot 모델 출처·Ollama 주소를 저장한다.
+AI 공급자는 Codex·GitHub Copilot·Ollama 셋이고 사용자가 대화마다 고른다. 공급자는 실행 엔진 하나를 쓴다: Codex는 `codex app-server`, GitHub Copilot과 Ollama는 Copilot CLI의 `copilot --acp`다. 공급자→엔진 표는 [중립 타입](../../apps/editor/shared/assistant.ts) 한 곳에 있고 실행 엔진을 고르는 설정은 없다. 프로세스는 Host가 필요할 때 시작하며, GitHub Copilot과 Ollama는 같은 실행 파일의 별도 프로세스다. 쓰지 않는 공급자의 프로세스는 띄우지 않는다.
+설정은 대상 Host의 기본 공급자(`codex`·`copilot`·`ollama`)·현재 카탈로그 모델·추론 강도·기본 언어·권한과 Ollama 주소를 저장한다. 저장된 설정 파일을 읽을 때 지금 버전에 없는 필드는 값 변환 없이 버리고 다음 저장 때 파일에서 사라지며, 새로 들어오는 설정 입력의 알 수 없는 필드는 거절한다.
 설정 UI는 변경을 순차 자동 저장하며, 대화별 선택은 전역 기본값을 바꾸지 않는다.
 
-Copilot 연결의 모델 출처는 설정의 ‘Copilot 모델 출처’에서 ‘GitHub 계정’(기본)과 ‘로컬 (Ollama)’ 가운데 고른다. 설정 필드는 `copilotModelSource`(`account`·`ollama`)와 `ollamaUrl`(기본 `http://localhost:11434`; http·https, 자격 증명·쿼리·조각 없음, 끝의 `/` 제거)이며 CLI `assistant configure`가 같은 Host 작업으로 바꾼다. 주소 칸은 로컬 출처일 때만 보이고 입력을 마치면(focus 이동·Enter) 저장하며, 형식 오류는 칸 아래에 표시하고 값을 유지한다.
-로컬 출처이면 Host는 Copilot 프로세스 환경 변수 `COPILOT_PROVIDER_BASE_URL`(`<주소>/v1`)·빈 `COPILOT_PROVIDER_API_KEY`·`COPILOT_PROVIDER_WIRE_API=responses`·`COPILOT_MODEL`만 더한다. 사용자 홈의 Copilot 설정은 쓰거나 바꾸지 않는다. 오프라인 모드는 켜지 않으므로 계정 출처에서 쓸 수 있는 GitHub·웹 도구는 그대로 남고, GitHub 로그인 없이도 연결한다.
-Copilot의 로컬 모델 연결은 프로세스마다 모델 하나만 제공하므로, 모델 목록은 Host가 Ollama의 모델 목록(`/api/tags`)에서 채우고 GitHub 계정 라우팅인 `auto`는 넣지 않는다. 고른 로컬 모델은 추론 강도·전체 접근과 같은 Copilot 실행 설정이다. 로컬 모델 세션에는 추론 강도 설정 항목이 없으므로, 추론 강도는 CLI가 받는 값(`none`·`minimal`·`low`·`medium`·`high`·`xhigh`·`max`) 가운데 고르고 실행 인자 `--reasoning-effort`로 적용한다. Copilot은 이 값을 Ollama 요청의 `reasoning.effort`로 보낸다. 모델마다 구분하는 값이 달라 고른 값이 응답에 차이를 만들지 않을 수 있으며, 리치오는 모델별 지원 값을 확인하지 않는다. 출처·주소·로컬 모델·추론 강도가 바뀌면 그 뒤에 시작하는 Copilot 연결부터 적용하고, 다른 Copilot 응답이 진행 중이면 기존 실행 설정 규칙대로 전송을 거절하며 진행 중인 턴을 끊지 않는다. 대화는 공급자만 고정하고 모델 출처는 고정하지 않는다. 로컬 출처의 기록을 다시 열면 같은 주소로 마지막에 시작한 Copilot 연결의 모델을 우선하고, 없으면 Ollama 목록의 첫 모델로 재개하므로 처음 대화한 모델과 다를 수 있다. 다음 전송에서는 고른 모델로 연결된다.
-출처·주소만 바꾸는 설정 변경은 모델을 검증하지 않는다. 공급자·모델·추론 강도를 함께 바꾸면 새 출처의 목록으로 검증한다. 설정 화면은 출처·주소를 바꾼 뒤 기본 공급자가 Copilot이고 기본 모델이 새 목록에 없으면 첫 모델을 고른다. Ollama에 연결할 수 없거나 받아 둔 모델이 없으면 Copilot 진단이 연결 안 됨과 주소를 포함한 이유를 보고하며, 설정의 상태는 사용 불가로 보인다. 리치오는 Ollama의 설정·모델을 바꾸지 않는다. 컨텍스트 길이 안내(64k 이상)는 주소 칸의 hover·keyboard focus 안내에 둔다.
+ACP 연결의 상태는 연결마다 따로다. 전송 보호(연결마다 한 번에 하나의 전송), 연결 끊김 때의 정리(그 연결의 대화의 턴 실패·승인 만료·Host 도구 회수·다시 불러오기 표시), 권한 요청 콜백, 업데이트 뒤 다시 띄우기 대기는 그 연결의 공급자 대화에만 적용된다. 한 연결의 취소·장애·다시 띄우기는 다른 연결의 대화를 건드리지 않는다. 두 프로세스 모두 daemon의 부모 환경에서 물려받은 모델 출처 환경 변수(`COPILOT_PROVIDER_*`·`COPILOT_MODEL`)를 받지 않는다.
 
-모델 출처: 계정 [전](assets/assistant-model-source-1891/before-account-1440-light-ko.png) / [후](assets/assistant-model-source-1891/after-account-1440-light-ko.png) · 로컬 [밝음](assets/assistant-model-source-1891/after-local-1440-light-ko.png) / [어두움](assets/assistant-model-source-1891/after-local-1440-dark-ko.png) · [주소 형식 오류](assets/assistant-model-source-1891/after-local-invalid-1440-light-ko.png) · [Ollama 연결 불가](assets/assistant-model-source-1891/after-local-unavailable-1440-light-ko.png)
+#### Ollama
 
-로컬 출처의 입력창 추론 강도: [전](assets/assistant-local-reasoning-1908/before-1440-light-ko.png) / [후](assets/assistant-local-reasoning-1908/after-1440-light-ko.png) · [후 1920](assets/assistant-local-reasoning-1908/after-1920-light-ko.png)
+Ollama는 Host가 설정의 Ollama 주소(`ollamaUrl`, 기본 `http://localhost:11434`; http·https, 자격 증명·쿼리·조각 없음, 끝의 `/` 제거)로 닿는 Ollama 서버의 모델을 쓴다. Host는 Ollama 프로세스 환경 변수 `COPILOT_PROVIDER_BASE_URL`(`<주소>/v1`)·빈 `COPILOT_PROVIDER_API_KEY`·`COPILOT_PROVIDER_WIRE_API=responses`·`COPILOT_MODEL`만 더한다. 사용자 홈의 Copilot 설정은 쓰거나 바꾸지 않고 GitHub 로그인도 필요 없다. 오프라인 모드는 켜지 않으며, GitHub Copilot 공급자와 같은 도구·권한·Agent/Plan·승인 카드를 쓴다. 리치오는 Ollama의 설정·모델을 바꾸지 않는다.
+Ollama 프로세스는 모델 하나만 제공하므로 모델 목록은 Host가 Ollama의 모델 목록(`/api/tags`)에서 채우고 GitHub 계정 라우팅인 `auto`는 넣지 않는다. 고른 모델은 추론 강도·전체 접근과 같은 실행 설정이다. Ollama 세션에는 추론 강도 설정 항목이 없으므로, 추론 강도는 CLI가 받는 값(`none`·`minimal`·`low`·`medium`·`high`·`xhigh`·`max`) 가운데 고르고 실행 인자 `--reasoning-effort`로 적용한다. Copilot CLI는 이 값을 Ollama 요청의 `reasoning.effort`로 보낸다. 모델마다 구분하는 값이 달라 고른 값이 응답에 차이를 만들지 않을 수 있으며, 리치오는 모델별 지원 값을 확인하지 않는다. 주소·모델·추론 강도·전체 접근이 바뀌면 그 뒤에 시작하는 Ollama 프로세스부터 적용하고, 다른 Ollama 응답이 진행 중이면 기존 실행 설정 규칙대로 전송을 거절하며 진행 중인 턴을 끊지 않는다.
+Host는 Ollama 대화가 쓴 모델을 대화 기록에 남기고, 다시 열 때 그 모델로 연다. 그 모델이 Ollama에 더 없으면 재개를 거절하고 이유(‘이 대화가 쓰던 모델 {{model}}이(가) Ollama에 없습니다.’)를 보이며 다른 모델로 바꾸지 않는다.
+기본 공급자로 Ollama를 고를 수 있다. 공급자·모델·추론 강도를 바꾸는 설정 변경은 저장하는 주소의 Ollama 목록으로 검증하고, 주소만 바꾸는 변경은 모델을 검증하지 않는다. 설정 화면은 주소를 바꾼 뒤 기본 공급자가 Ollama이고 기본 모델이 새 목록에 없으면 첫 모델을 고른다.
+
+비서 설정의 AI 공급자 줄은 Codex·GitHub Copilot·Ollama 셋이며 같은 부품이다. Ollama 줄의 상태는 사용 가능 또는 사용 불가이고, 사용 불가의 이유는 상태의 hover·keyboard focus 안내에 있다. 이유는 Ollama에 연결할 수 없음(`unreachable`), 받아 둔 모델 없음(`no-models`), Copilot CLI 미설치(`cli-missing`) 가운데 하나이며 진단 결과의 `ollama.unavailable`로 보고한다. Ollama 진단은 주소 칸(입력을 마치면(focus 이동·Enter) 저장, 형식 오류는 칸 아래에 표시하고 값을 유지, 컨텍스트 길이 안내(64k 이상)는 칸의 hover·keyboard focus 안내), 연결(‘연결됨 · 모델 N개’ 또는 사용 불가 이유), 실행(‘Copilot CLI로 실행’), Copilot CLI의 설치 버전·새 버전 상태·[업데이트]를 보인다.
+
+AI 공급자 [전](assets/assistant-ollama-1917/before-settings-1440-light-ko.png) / [후](assets/assistant-ollama-1917/settings-1440-light-ko.png) · Ollama 진단 [정상](assets/assistant-ollama-1917/diagnostics-1440-light-ko.png) / [연결할 수 없음](assets/assistant-ollama-1917/diagnostics-unreachable-1440-light-ko.png) / [모델 없음](assets/assistant-ollama-1917/diagnostics-no-models-1440-light-ko.png) / [CLI 미설치](assets/assistant-ollama-1917/diagnostics-cli-missing-1440-light-ko.png) / [어두움](assets/assistant-ollama-1917/diagnostics-1440-dark-ko.png) / [640](assets/assistant-ollama-1917/diagnostics-640-dark-ko.png) · [입력창 공급자 선택](assets/assistant-ollama-1917/composer-providers-1440-light-ko.png) · [설정과 비서 1920](assets/assistant-ollama-1917/settings-panel-1920-light-ko.png)
 
 연결됨은 전송 준비 상태이며 로그인·모델 사용 자격·잔여 한도를 증명하지 않는다.
 Host는 마지막 모델 목록·진단 결과를 공급자별로 daemon 메모리에 보관한다. 설정과 사이드바는 진입 시 마지막 결과를 먼저 표시하고 백그라운드에서 확인한 뒤 갱신한다. 같은 확인은 진행 중인 요청을 공유하며, 3초 이내에 완료된 결과도 재사용해 두 화면을 연달아 열 때 공급자를 반복 실행하지 않는다.
-설정의 상태에 마우스를 올리거나 키보드로 포커스하면 마지막 확인 시각을 볼 수 있다. 모델 목록의 새로고침과 진단 실행은 공급자를 다시 조회하며 확인 중에도 기존 결과를 표시한다. Copilot 진단은 진행 대화와 분리된 짧은 연결을 사용한다. 끊기거나 초기화에 실패한 Copilot 프로세스와 초기화에 실패한 Codex 프로세스의 종료를 확인하지 못하면 그 시점에 기다리던 요청만 실패하고, 다음 요청은 새 프로세스로 연결한다.
+설정의 상태에 마우스를 올리거나 키보드로 포커스하면 마지막 확인 시각을 볼 수 있다. 모델 목록의 새로고침과 진단 실행은 공급자를 다시 조회하며 확인 중에도 기존 결과를 표시한다. Copilot·Ollama 진단은 진행 대화와 분리된 짧은 연결을 사용한다. 끊기거나 초기화에 실패한 Copilot CLI 프로세스와 초기화에 실패한 Codex 프로세스의 종료를 확인하지 못하면 그 시점에 기다리던 요청만 실패하고, 다음 요청은 새 프로세스로 연결한다.
 공급자 확인 중에도 설정과 대화 입력을 조작할 수 있다. 모델·추론 강도 선택에는 모델 목록이 필요하다. 목록에서 현재 모델이 사라지면 현재 선택을 보존하고 사용 가능한 다른 모델을 고르도록 안내한다. 새 작업이 공급자 사용 불가 또는 모델 제거로 거절되면 Host는 해당 공급자의 결과를 무효화하고 재확인한다.
 
 [공급자 상태와 마지막 확인 시각](assets/assistant-provider-1699/settings-1440-light.png)
 
 #### CLI 새 버전과 업데이트
 
-진단은 설치 버전(CLI `--version`의 첫 줄)과 함께 새 버전 상태 `versionStatus`를 보고한다. 값은 최신(`current`), 업데이트 있음(`available`), 확인하지 못함(`unknown`)이며, 공개 버전 확인이 실패하거나 5초 안에 끝나지 않으면 최신이 아니라 확인하지 못함이다. Copilot의 설치 버전은 모델 출처(계정·Ollama)에 닿지 못해도 읽는다.
+진단은 설치 버전(CLI `--version`의 첫 줄)과 함께 새 버전 상태 `versionStatus`를 보고한다. 값은 최신(`current`), 업데이트 있음(`available`), 확인하지 못함(`unknown`)이며, 공개 버전 확인이 실패하거나 5초 안에 끝나지 않으면 최신이 아니라 확인하지 못함이다. Copilot CLI의 설치 버전은 Ollama에 닿지 못해도 읽는다.
 
-| 공급자 | 업데이트 명령 | 새 버전 확인 출처 |
-| --- | --- | --- |
-| Codex | 진단의 실행 파일로 `codex update` | GitHub `openai/codex` 최신 릴리스 |
-| Copilot | 진단의 실행 파일로 `copilot update` | GitHub `github/copilot-cli` 최신 릴리스 |
+| 실행 파일 | 쓰는 공급자 | 업데이트 명령 | 새 버전 확인 출처 |
+| --- | --- | --- | --- |
+| `codex` | Codex | 진단의 실행 파일로 `codex update` | GitHub `openai/codex` 최신 릴리스 |
+| `copilot` | GitHub Copilot·Ollama | 진단의 실행 파일로 `copilot update` | GitHub `github/copilot-cli` 최신 릴리스 |
 
 두 CLI의 `update`가 스스로 최신을 고르는 같은 공개 출처이며, 요청에는 사용자·프로젝트 정보를 싣지 않는다. 시험·격리 Host는 플러그인 출처와 같은 `LITZIO_GITHUB_API_URL`로 주소를 바꾼다. 확인 결과는 대상 Host가 10분 동안 재사용하고, 설정 화면을 열 때와 다시 진단·새로고침 때만 확인하며 주기 확인은 없다. 설치 버전이나 공개 릴리스가 사전 릴리스 형식(숫자 세 자리 바로 뒤의 `-`, 예: `0.151.0-rc.1`)이면 비교하지 않고 확인하지 못함이다. 실행 파일이 없거나 CLI 도움말에 `update` 명령이 없으면 확인하지 않고 `updateUnavailable`(`missing`·`unsupported`)을 보고한다. 리치오는 CLI를 대신 설치하거나 설치 방법별 명령을 고르지 않는다.
 
-업데이트는 대상 Host가 진단과 같은 실행 파일(PATH에서 다시 찾지 않는다)의 `update`를 실행하는 공용 작업이다. 진행 상태와 마지막 결과(상태·종료 코드·표준 출력과 오류를 도착 순서로, 마지막 65,536자(UTF-16 코드 단위)까지)는 daemon 메모리에만 두며 저장하지 않는다. 공급자마다 한 번에 하나만 실행하고 진행 중인 요청은 거절한다. 화면을 닫아도 계속되고 다시 열면 진행이나 마지막 결과를 보인다. 시간 제한은 10분이며 넘으면 프로세스를 끝내고 실패로 보고한다. 취소는 없다. Host가 닫히면 실행 중인 업데이트를 끝내며 그 실행은 실패로 남는다. 끝나면 Host는 연결을 다시 띄울지 정하고 그 공급자의 진단 결과를 버려 다시 읽기를 시작한 뒤 결과를 보고한다. 화면과 CLI는 결과를 받은 뒤 진단을 다시 읽으며, 진행 중인 다시 읽기가 있으면 그 결과를 함께 받는다.
-성공하면 그 공급자에 진행 중인 턴도, 공급자에 이미 보낸 전송도 없을 때 연결을 닫아 다음 사용부터 새 실행 파일로 띄운다. 진행 중인 턴과 보낸 전송은 끊지 않으며, 그 경우 결과의 `deferred`가 참이고 턴이 끝난 뒤 그 공급자의 다음 전송이 연결을 새로 띄운다. 연결을 새로 띄우는 동안 들어온 전송은 그 일이 끝난 뒤 진행한다.
+업데이트는 대상 Host가 진단과 같은 실행 파일(PATH에서 다시 찾지 않는다)의 `update`를 실행하는 공용 작업이다. 진행 상태와 마지막 결과(상태·종료 코드·표준 출력과 오류를 도착 순서로, 마지막 65,536자(UTF-16 코드 단위)까지)는 daemon 메모리에만 두며 저장하지 않는다. 업데이트는 실행 파일 단위다. 실행 파일마다 한 번에 하나만 실행하고 진행 중인 요청은 거절한다. 화면을 닫아도 계속되고 다시 열면 진행이나 마지막 결과를 보인다. 시간 제한은 10분이며 넘으면 프로세스를 끝내고 실패로 보고한다. 취소는 없다. Host가 닫히면 실행 중인 업데이트를 끝내며 그 실행은 실패로 남는다. 끝나면 Host는 그 실행 파일을 쓰는 연결마다 다시 띄울지 정하고 그 공급자들의 진단 결과를 버려 다시 읽기를 시작한 뒤 결과를 보고한다. 화면과 CLI는 결과를 받은 뒤 진단을 다시 읽으며, 진행 중인 다시 읽기가 있으면 그 결과를 함께 받는다.
+성공하면 그 실행 파일을 쓰는 연결마다, 그 연결에 진행 중인 턴도 이미 보낸 전송도 없을 때 연결을 닫아 다음 사용부터 새 실행 파일로 띄운다. 진행 중인 턴과 보낸 전송은 끊지 않으며, 그런 연결이 하나라도 있으면 결과의 `deferred`가 참이고 턴이 끝난 뒤 그 공급자의 다음 전송이 그 연결만 새로 띄운다. 연결을 새로 띄우는 동안 들어온 전송은 그 일이 끝난 뒤 진행한다.
 
-HTTP는 `GET /api/assistant/provider-update?provider=<codex|copilot>`(상태)와 `POST`(`{ provider }`, 시작)이며, CLI는 `assistant provider-update <codex|copilot> [--check] --host <origin>`이다. CLI는 시작한 실행을 끝까지 따라가 실행 결과와 다시 읽은 버전을 JSON으로 출력하고, 실패·거절이면 0이 아닌 코드로 끝난다. `--check`는 실행하지 않고 설치 버전·새 버전 상태와 마지막 실행만 출력한다.
+HTTP는 `GET /api/assistant/provider-update?provider=<codex|copilot>`(상태)와 `POST`(`{ provider }`, 시작)이며, CLI는 `assistant provider-update <codex|copilot> [--check] --host <origin>`이다. 대상은 실행 파일이며 `ollama`는 받지 않는다. CLI는 시작한 실행을 끝까지 따라가 실행 결과와 다시 읽은 버전을 JSON으로 출력하고, 실패·거절이면 0이 아닌 코드로 끝난다. `--check`는 실행하지 않고 설치 버전·새 버전 상태와 마지막 실행만 출력한다.
 
-비서 설정의 공급자 진단에서 CLI 줄의 설치 버전 옆에 상태(plain Status: 정상 ‘최신 버전’, 경고 ‘업데이트 있음’, 중립 ‘확인하지 못함’)와 테두리 sm [업데이트]를 둔다. 최신 공개 버전과 확인 시각은 상태의 hover·keyboard focus 안내, 실행할 명령은 단추 안내에 있다. 업데이트할 수 없거나 이미 최신 버전이면 단추는 비활성이고 이유(‘이미 최신 버전입니다.’ 등)를 hover·keyboard focus 안내에 둔다. 확인하지 못함과 업데이트 있음에서는 누를 수 있다. 화면만 막으며 Host 작업과 CLI는 최신일 때도 실행한다. 진행 중에는 단추가 ‘업데이트 중…’이 되고 줄 아래에 출력이 보인다. 성공은 ‘업데이트했습니다. 진행 중인 응답이 있으면 끝난 뒤 새 버전을 씁니다.’, 실패는 종료 코드를 담은 오류 Notice이며 출력은 접힌 ‘출력’에서 본다. 로컬(Ollama) 출처의 Copilot도 같은 자리·같은 동작이다.
+비서 설정의 공급자 진단에서 CLI 줄의 설치 버전 옆에 상태(plain Status: 정상 ‘최신 버전’, 경고 ‘업데이트 있음’, 중립 ‘확인하지 못함’)와 테두리 sm [업데이트]를 둔다. 최신 공개 버전과 확인 시각은 상태의 hover·keyboard focus 안내, 실행할 명령은 단추 안내에 있다. 업데이트할 수 없거나 이미 최신 버전이면 단추는 비활성이고 이유(‘이미 최신 버전입니다.’ 등)를 hover·keyboard focus 안내에 둔다. 확인하지 못함과 업데이트 있음에서는 누를 수 있다. 화면만 막으며 Host 작업과 CLI는 최신일 때도 실행한다. 진행 중에는 단추가 ‘업데이트 중…’이 되고 줄 아래에 출력이 보인다. 성공은 ‘업데이트했습니다. 진행 중인 응답이 있으면 끝난 뒤 새 버전을 씁니다.’, 실패는 종료 코드를 담은 오류 Notice이며 출력은 접힌 ‘출력’에서 본다. Ollama 진단에도 같은 Copilot CLI 줄과 단추가 있으며, 어느 진단에서 눌러도 같은 한 번의 실행이다.
 
 진단 CLI 줄: [전](assets/assistant-cli-update-1904/before-1440-light-ko.png) · [업데이트 있음](assets/assistant-cli-update-1904/available-1440-light-ko.png) · [확인하지 못함](assets/assistant-cli-update-1904/unknown-1440-light-ko.png) · [업데이트할 수 없음](assets/assistant-cli-update-1904/unsupported-1440-light-ko.png) · 진행 중 [1440](assets/assistant-cli-update-1904/running-1440-light-ko.png) / [1920](assets/assistant-cli-update-1904/running-1920-light-ko.png) / [640](assets/assistant-cli-update-1904/running-640-light-ko.png) / [어두움](assets/assistant-cli-update-1904/running-1440-dark-ko.png) · [성공·최신 버전](assets/assistant-cli-update-1904/succeeded-1440-light-ko.png) · [실패](assets/assistant-cli-update-1904/failed-1440-light-ko.png)
 
@@ -186,7 +190,7 @@ HTTP는 `GET /api/assistant/provider-update?provider=<codex|copilot>`(상태)와
 
 [공급자 사용 불가 표시](assets/assistant-panel-a11y-1787/after-unavailable-1440-dark-ko.png) · [접수 상태](assets/assistant-panel-a11y-1787/after-submission-1440-light-en.png)
 
-기록 버튼은 모든 공급자의 대화를 최근 순으로 한 목록에 표시한다. 행에는 제목과 시각·공급자 이름·폴더 이름을 표시한다. 공급자가 없는 기존 기록은 Codex로 표시한다. 목록 상단의 Input은 이미 받은 목록에서 제목과 폴더 이름을 대소문자 없이 부분 일치로 찾는다. 빈 기록은 ‘아직 대화가 없습니다.’로, 기록은 있으나 검색 결과가 비면 ‘일치하는 대화가 없습니다’로 안내한다.
+기록 버튼은 모든 공급자의 대화를 최근 순으로 한 목록에 표시한다. 행에는 제목과 시각·공급자 이름(Codex·GitHub Copilot·Ollama)·폴더 이름을 표시한다. 공급자가 없는 기존 기록은 Codex로 표시한다. 목록 상단의 Input은 이미 받은 목록에서 제목과 폴더 이름을 대소문자 없이 부분 일치로 찾는다. 빈 기록은 ‘아직 대화가 없습니다.’로, 기록은 있으나 검색 결과가 비면 ‘일치하는 대화가 없습니다’로 안내한다.
 기록 행의 ⋯ 버튼과 우클릭 메뉴는 같은 항목으로 ‘이름 변경…’과 ‘보관’(보관 목록에서는 ‘되살리기’)을 제공한다. 이름 변경은 탐색기 파일 이름 변경과 같은 Dialog로 하며, Host가 앞뒤 공백을 지우고 빈 이름과 80자 초과를 거절한다. 보관은 아무것도 지우지 않으므로 확인 없이 기존 conversations.json 항목에 보관 시각(`archivedAt`)을 남기고, 되살리기는 그 값을 지운다. 이름 변경·보관·되살리기는 기록 순서와 마지막 활동 시각을 바꾸지 않는다. 대화 제목은 처음 만들 때 정해지고 그 뒤에는 이름 변경만 바꾸며, 여러 창이 같은 대화를 동시에 다룰 때 그 밖의 표시 순서는 보장하지 않는다. 응답 중인 대화는 보관할 수 없고 메뉴 항목은 이유와 함께 비활성이다. 이름 변경은 응답 중에도 된다.
 기본 목록은 보관한 대화를 숨긴다. 목록 머리의 ‘보관됨’ 전환을 켜면 보관한 대화만 보이며 검색도 그 안에서 한다. 보관한 대화가 없으면 ‘보관된 대화가 없습니다’로 안내한다. 보관한 대화도 열어 읽을 수 있고, 화면에서든 Host 전송 작업을 직접 호출해서든 메시지가 턴으로 접수되면 Host가 보관을 해제한다. 지금 열린 대화를 보관하면 보관 직후 그 대화의 선택과 마지막 대화 기억을 먼저 해제해 새 빈 대화로 넘어가며, 이어지는 기본 공급자 모델 목록 조회가 실패해도 보관한 대화로 보내지 않는다. 입력 중인 글과 첨부는 유지한다. 화면에서는 대화를 영구 삭제하지 않는다.
 CLI는 같은 Host 작업을 `assistant rename <id> --title <text> --host <origin>`, `assistant archive <id> --host <origin>`, `assistant unarchive <id> --host <origin>`으로 호출한다. 영구 삭제는 `assistant delete <id> --host <origin>`이며 대화의 첨부와 변경 되돌리기 기록도 함께 지운다.
@@ -215,19 +219,19 @@ CLI는 같은 Host 작업을 `assistant rename <id> --title <text> --host <origi
 
 질문 카드의 질문은 이름의 굵기로, 모든 선택지·직접 입력 선택지와 답변 기록은 보통 굵기로 표시한다. 선택지 설명은 보조 글씨 색을 쓴다.
 
-공용 `request_litzio_user_input`은 두 공급자에 제공한다. `accepted:true`는 저장 접수이며 화면 렌더나 답변 수신을 뜻하지 않는다.
+공용 `request_litzio_user_input`은 모든 공급자에 제공한다. `accepted:true`는 저장 접수이며 화면 렌더나 답변 수신을 뜻하지 않는다.
 공급자 차단 질문과 승인은 원래 RPC를 기다리게 하고, 일반 비동기 질문의 답은 후속 메시지로 보낸다.
-Codex와 Copilot에서 원래 질문과 일치하는 후속 답 메시지는 대화를 다시 열어도 질문 카드의 답변 기록으로 표시한다.
+Codex와 ACP 연결(GitHub Copilot·Ollama)에서 원래 질문과 일치하는 후속 답 메시지는 대화를 다시 열어도 질문 카드의 답변 기록으로 표시한다.
 Copilot의 native ACP 질문 확장은 현재 지원하지 않는다.
 Codex 계정·컨텍스트 사용량은 공급자가 준 값을 구분해 표시한다.
-Copilot은 보고된 컨텍스트·세션 사용량만 표시하며 계정 한도를 추정하지 않는다.
+Copilot은 보고된 컨텍스트·세션 사용량만 표시하며 계정 한도를 추정하지 않는다. Ollama에는 계정·요금·한도가 없으므로 엔진이 보고한 컨텍스트·세션 토큰 사용량만 보이고 계정 안내와 세션 비용은 보이지 않는다.
 
 질문·결과 카드와 패널의 전후 캡처는 [비서 패널 기준](ui-patterns-v1.md#비서-패널-시각-확인-1686)을 따른다.
 
 ### 문서 도구와 이미지
 
-Codex dynamic tools와 Copilot HTTP MCP는 같은 Host 도구 정의와 실행을 사용한다.
-Copilot MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻하지 않는다.
+Codex dynamic tools와 ACP 연결(GitHub Copilot·Ollama)의 HTTP MCP는 같은 Host 도구 정의와 실행을 사용한다.
+MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻하지 않는다.
 터미널에서 Codex 대화를 이어갈 때도 CLI와 제품 안내 스킬을 사용한다.
 새 문서 결과 카드는 열기·생성 파일 삭제 되돌리기를 제공한다. CLI 생성은 카드 대신 경로·검사 결과를 보고한다.
 이미지 가져오기는 자산을 즉시 복사하고 상대 경로를 반환하며 본문 삽입과는 별개다. 자산은 명시적으로 지울 때까지 남는다.
@@ -246,7 +250,7 @@ Copilot MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻�
 
 4. 첫 메시지로 대화가 만들어진 뒤 공급자는 고정된다. 다른 공급자는 새 대화로 시작한다.
 
-5. 실행 중 모델·추론 강도·일부 Copilot 설정은 잠긴다. Copilot은 추가 메시지를 현재 턴이 끝난 뒤 보내며 계정 출처의 CLI 추론 강도 변경은 새 대화가 필요하다(로컬 출처는 다음 전송의 실행 설정으로 적용한다).
+5. 실행 중 모델·추론 강도·일부 Copilot 설정은 잠긴다. GitHub Copilot과 Ollama는 추가 메시지를 현재 턴이 끝난 뒤 보내며 GitHub Copilot의 CLI 추론 강도 변경은 새 대화가 필요하다(Ollama는 다음 전송의 실행 설정으로 적용한다).
 
 6. Host 재시작 뒤 저장된 대화 권한은 현재 전역 기본값 이하로만 복원한다. 그보다 높은 권한은 사용자가 다시 선택한다.
 
@@ -270,7 +274,7 @@ Copilot MCP endpoint는 세션과 활성 턴에 묶이며 daemon 인증을 뜻�
 
 15. 이미지 붙여넣기는 기존 HTTP 요청 바이트 한도를 따르며 드래그 앤 드롭·파일 선택은 지원하지 않는다.
 
-16. Copilot 로컬 출처에서 Host는 Ollama가 실제로 쓸 컨텍스트 길이를 읽지 않는다. 모델 파일의 `num_ctx`만 API로 보이고 서버 기본값·환경 변수 값은 모델을 적재하기 전에는 보이지 않기 때문이다. Copilot은 자체 기본 한도로 사용량을 표시하며, Ollama의 컨텍스트가 요청보다 작으면 Ollama가 요청을 잘라 답이 틀어질 수 있다. 로컬 출처의 추론 강도는 실행 인자로 Ollama에 전달되지만, 모델이 그 값을 구분하는지는 모델마다 다르다.
+16. Host는 Ollama가 실제로 쓸 컨텍스트 길이를 읽지 않는다. 모델 파일의 `num_ctx`만 API로 보이고 서버 기본값·환경 변수 값은 모델을 적재하기 전에는 보이지 않기 때문이다. Copilot CLI는 자체 기본 한도로 사용량을 표시하며, Ollama의 컨텍스트가 요청보다 작으면 Ollama가 요청을 잘라 답이 틀어질 수 있다. Ollama의 추론 강도는 실행 인자로 Ollama에 전달되지만, 모델이 그 값을 구분하는지는 모델마다 다르다.
 
 ## 검증
 

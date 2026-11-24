@@ -19,4 +19,12 @@ test("Desktop validates local provider session identity and never accepts render
   await run({ ...input, action: "reveal" }); assert.deepEqual(revealed, [file]);
   await assert.rejects(openProviderSessionLog(input, async () => ({ id: "other", provider: "codex", path: file }), () => assert.fail("no reveal")));
   assert.deepEqual(await openProviderSessionLog(input, resolve, () => assert.fail("no false reveal"), async () => { throw new Error("launch failed"); }), { available: false, reason: "launch" });
+  // Ollama runs through the Copilot CLI: its log has the ACP first record.
+  const acp = path.join(directory, "events.jsonl");
+  writeFileSync(acp, JSON.stringify({ type: "session.start", data: { sessionId: id } }) + "\n");
+  const ollama = { ...input, provider: "ollama" };
+  await openProviderSessionLog(ollama, async () => ({ id, provider: "ollama", path: acp }), () => assert.fail("no reveal"), async value => { opened.push(value); });
+  assert.equal(opened.at(-1), acp);
+  assert.deepEqual(await openProviderSessionLog(ollama, async () => ({ id, provider: "ollama", path: file }), () => assert.fail("no reveal"), async () => assert.fail("no open")), { available: false, reason: "unverified" });
+  await assert.rejects(openProviderSessionLog({ ...input, provider: "unknown" }, resolve, () => assert.fail("no reveal")));
 });

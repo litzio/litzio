@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ProviderUpdates } from "../../server/provider-updates.ts";
 import type { ProviderConnections } from "../../server/provider-connections.ts";
+import type { ProviderCli } from "../../shared/assistant.ts";
 
 const dispatcher = fileURLToPath(new URL("../fixtures/provider-cli.mjs", import.meta.url));
 export type FakeCliState = { version: string; help?: boolean; update?: "ok" | "slow" | "fail" | "hang"; next?: string; updates?: number; pid?: number };
@@ -21,7 +22,7 @@ export function useReleaseSource(connection: ProviderConnections, options: Const
   Object.assign(connection, { updates: new ProviderUpdates(provider => provider === "copilot" ? connection.copilot.executable : connection.client.executable, options) });
 }
 
-export async function settled(connection: ProviderConnections, provider: "codex" | "copilot") {
+export async function settled(connection: ProviderConnections, provider: ProviderCli) {
   while (connection.updates.state(provider).status === "running") await new Promise(resolve => setTimeout(resolve, 50));
   return connection.updates.state(provider);
 }

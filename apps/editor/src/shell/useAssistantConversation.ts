@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { createAssistantRequest } from "../assistant-api.ts";
-import { ASSISTANT, type AiModels, type AiProvider, type AssistantConversation, type AssistantConversationInfo, type AssistantDiagnostics, type AssistantFileReference, type AssistantSettings, type AssistantSubmission, type AssistantSubmissionResult } from "../../shared/assistant.ts";
+import { ASSISTANT, providerEngine, type AiModels, type AiProvider, type AssistantConversation, type AssistantConversationInfo, type AssistantDiagnostics, type AssistantFileReference, type AssistantSettings, type AssistantSubmission, type AssistantSubmissionResult } from "../../shared/assistant.ts";
 import { brand } from "../../../../brand.ts";
 import { i18n } from "../i18n.ts";
 import { providerIssue } from "./useAssistantProviderOptions.ts";
@@ -12,6 +12,11 @@ const conversationKey = `${brand.storagePrefix}.assistantConversation.v2`;
 function lastConversation() { try { return localStorage.getItem(conversationKey) || undefined; } catch { return undefined; } }
 function rememberConversation(id?: string) { try { if (id) localStorage.setItem(conversationKey, id); else localStorage.removeItem(conversationKey); } catch { /* In-page state remains usable. */ } }
 export const errorText = (error: unknown) => i18n.t((error as Error).message, { defaultValue: (error as Error).message });
+/** An Ollama conversation whose model was removed names that model. */
+const resumeErrorText = (error: unknown) => {
+  const model = /^This conversation's model (.*) is not in Ollama\.$/.exec((error as Error).message)?.[1];
+  return model === undefined ? errorText(error) : i18n.t("This conversation's model {{model}} is not in Ollama.", { model });
+};
 const newSubmissionId = () => crypto.getRandomValues(new Uint32Array(4)).join("-");
 
 type Choices = { provider: AiProvider; permissionMode: AssistantSettings["permissionMode"]; model: string; effort: string; mode: string };
@@ -178,7 +183,7 @@ export function useAssistantConversation({ request, open, settingsRevision, subm
     return () => { alive = false; clearTimeout(timer); };
   }, [observe, conversation?.id, observationReady, enabled, setup, settingsRevision]);
   const sendBody = (submissionId: string, id: string | undefined, message: string, sendProvider: AiProvider, files: AssistantFileReference[]) => ({ action: "send", submissionId, id, message,
-    provider: sendProvider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path),
+    provider: sendProvider, permissionMode, model, reasoningEffort: effort, ...(providerEngine(provider) === "acp" && mode ? { mode } : {}), references: files.filter(file => file.kind !== "skill").map(file => file.path),
     skills: files.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, document: documentPath ? { path: documentPath } : undefined });
   const markUnknown = (submissionId: string, error: unknown) => setSubmissions(previous => previous.map(item => item.receipt.id === submissionId && item.receipt.status !== "accepted"
     ? { ...item, receipt: { ...item.receipt, status: "unknown", error: (error as Error).message } } : item));
@@ -228,7 +233,7 @@ export function useAssistantConversation({ request, open, settingsRevision, subm
       const issue = await request<AssistantDiagnostics>(`${ASSISTANT.diagnosticsRoute}?provider=${selected}`)
         .then(providerIssue, (failure: Error) => failure.message);
       if (!isCurrent()) return;
-      setResumeProblem({ message: issue || errorText(error), providerUnavailable: !!issue });
+      setResumeProblem({ message: issue || resumeErrorText(error), providerUnavailable: !!issue });
       return "failed";
     }
     if (!isCurrent()) return;

@@ -2,11 +2,11 @@ import { mkdirSync, writeFileSync, readdirSync, existsSync, readFileSync, lstatS
 import path from "node:path";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { assistantCliEnvironment, hostCli } from "./assistant-cli.ts";
-import type { AssistantDiagnostics, AssistantAccountUsage, AssistantEnvironment, AiModels, AiModel, AiProvider, AssistantSkills } from "../shared/assistant.ts";
+import { DEFAULT_OLLAMA_URL, type AssistantDiagnostics, type AssistantAccountUsage, type AssistantEnvironment, type AiModels, type AiModel, type AiProvider, type AssistantSkills, type ProviderCli } from "../shared/assistant.ts";
 import { CodexAppServer } from "./codex-app-server.ts";
 import { ProviderUpdates } from "./provider-updates.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions, type CopilotOllama } from "./copilot-acp.ts";
-import { providerEngine } from "./provider-engine.ts";
+import { AI_PROVIDERS, providerCli, providerEngine } from "./provider-engine.ts";
 
 // Distribution builds inline the Markdown; tsx/Vite read the same source files.
 declare const __LITZIO_ASSISTANT_INSTRUCTIONS__: string | undefined;
@@ -21,41 +21,49 @@ export function assistantDirectory() {
 /** Provider connections share the official Assistant Host's daemon lifetime. */
 export class ProviderConnections {
   readonly client: CodexAppServer;
+  /** ACP connections, one Copilot CLI process each: the GitHub account and Ollama. A process starts only when used. */
   readonly copilot: CopilotAcp;
+  readonly ollama: CopilotAcp;
   readonly templatesDirectory: string;
   private usageCache?: AssistantAccountUsage;
   private usageRead?: Promise<AssistantAccountUsage>;
   private accountRevision = 0;
-  /** Host settings owner: the Ollama address when Copilot uses a local model source. */
-  copilotOllamaUrl: () => string | undefined = () => undefined;
+  /** Host settings owner: the Ollama provider's address. */
+  ollamaUrl: () => string = () => DEFAULT_OLLAMA_URL;
   /** Conversation owner: whether a turn of this provider is in progress. */
   providerBusy: (provider: AiProvider) => boolean = () => false;
   readonly updates: ProviderUpdates;
-  /** Providers whose CLI was updated while a turn kept the earlier process running. */
+  /** Providers whose CLI was updated and whose connection has not launched it yet. */
   private updated = new Set<AiProvider>();
   private relaunching = new Map<AiProvider, Promise<void>>();
   constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}, hostOrigin?: () => string | undefined) {
     this.templatesDirectory = hostPaths(run).templates;
-    this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()) }); this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: () => assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.()) });
+    this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env, hostOrigin?.()) }); const acpEnv = () => assistantCliEnvironment(cwd, hostCli(run), copilotOptions?.env?.() ?? process.env, hostOrigin?.());
+    this.copilot = new CopilotAcp(cwd, { ...copilotOptions, env: acpEnv }); this.ollama = new CopilotAcp(cwd, { ...copilotOptions, env: acpEnv, local: true });
     this.client.on("notification", method => {
       // Rate-limit notifications carry only one bucket. Refetch the full snapshot.
       if (method === "account/updated" || method === "account/rateLimits/updated") this.invalidateUsage();
     });
     this.client.on("disconnected", () => this.invalidateUsage());
-    this.updates = new ProviderUpdates(provider => providerEngine(provider) === "acp" ? this.acp(provider).executable : this.client.executable);
+    this.updates = new ProviderUpdates(cli => cli === "copilot" ? this.copilot.executable : this.client.executable);
   }
   /** The ACP connection a provider's conversations use. */
   acp(provider: AiProvider): CopilotAcp {
     if (providerEngine(provider) !== "acp") throw new Error(`AI provider ${provider} has no ACP connection.`);
-    return this.copilot;
+    return provider === "ollama" ? this.ollama : this.copilot;
   }
-  /** Runs the CLI's own update on this Host. `reread` re-reads diagnostics once the relaunch decision is made. */
-  updateCli(provider: AiProvider, reread: () => void) {
-    return this.updates.start(provider, async succeeded => {
-      if (succeeded) this.updated.add(provider);
-      const deferred = succeeded && !await this.relaunchUpdated(provider);
+  /**
+   * Runs an executable's own update on this Host, once for every connection that uses it.
+   * `reread` re-reads diagnostics once each connection's relaunch decision is made.
+   */
+  updateCli(cli: ProviderCli, reread: () => void) {
+    return this.updates.start(cli, async succeeded => {
+      const providers = AI_PROVIDERS.filter(provider => providerCli(provider) === cli);
+      if (succeeded) for (const provider of providers) this.updated.add(provider);
+      // Each connection relaunches when it alone is idle; a busy one defers only itself.
+      const relaunched = succeeded ? await Promise.all(providers.map(provider => this.relaunchUpdated(provider))) : [];
       reread();
-      return deferred;
+      return relaunched.includes(false);
     });
   }
   /**
@@ -117,30 +125,32 @@ export class ProviderConnections {
     if (!entry) throw new Error("Codex returned no skills for the assistant directory.");
     return { skills: entry.skills.filter((skill: any) => skill.enabled).map(({ name, path, description }: any) => ({ name, path, description })), errors: entry.errors };
   }
-  /** A BYOK Copilot session lists only its launch model, so the Host reads the Ollama list itself. */
-  /** `url` is explicit: undefined is the account source, never "the current setting". */
-  async copilotOllama(url: string | undefined): Promise<{ launch: CopilotOllama; models: string[] } | undefined> {
-    if (!url) return undefined;
-    const models = await ollamaModels(url);
+  /**
+   * An Ollama session lists only its launch model, so the Host reads the Ollama list itself. A probe launches with the
+   * running process's model when it is still listed, otherwise the first one.
+   */
+  async ollamaCatalog(url: string, listed?: string[]): Promise<{ launch: CopilotOllama; models: string[] }> {
+    const models = listed ?? await ollamaModels(url);
     if (!models.length) throw new Error(`No models are installed in Ollama at ${url}.`);
-    const current = this.acp("copilot").ollama;
+    const current = this.ollama.ollama;
     return { models, launch: { url, model: current?.url === url && models.includes(current.model) ? current.model : models[0]! } };
   }
-  async models(provider: AiProvider = "codex", inspectCopilot?: "fresh" | "recent", copilotSource: { ollamaUrl?: string } = { ollamaUrl: this.copilotOllamaUrl() }): Promise<AiModels> {
-    if (provider === "copilot") {
+  /** `ollamaUrl` is the Ollama address to read; a send passes the one it started with. */
+  async models(provider: AiProvider = "codex", inspectAcp?: "fresh" | "recent", ollamaUrl = this.ollamaUrl()): Promise<AiModels> {
+    if (providerEngine(provider) === "acp") {
       this.environment();
       const acp = this.acp(provider);
-      const ollama = await this.copilotOllama(copilotSource.ollamaUrl);
-      // The running process keeps its model source until its next launch; read another source with a probe.
-      const session = inspectCopilot === "fresh" ? (await acp.inspect(ollama?.launch)).session
-        : (inspectCopilot === "recent" ? acp.recentlyInspectedSession(ollama?.launch) : undefined)
+      const ollama = provider === "ollama" ? await this.ollamaCatalog(ollamaUrl) : undefined;
+      // The running process keeps its address until its next launch; read another address with a probe.
+      const session = inspectAcp === "fresh" ? (await acp.inspect(ollama?.launch)).session
+        : (inspectAcp === "recent" ? acp.recentlyInspectedSession(ollama?.launch) : undefined)
           ?? (acp.ollama?.url === ollama?.launch.url ? await acp.catalog() : (await acp.inspect(ollama?.launch)).session);
       const reasoning = copilotReasoning(session);
       const supportedReasoningEfforts = reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" }))
         : COPILOT_EFFORTS.map(reasoningEffort => ({ reasoningEffort, description: "" }));
       const available: { modelId: string; name: string; description?: string | null }[] = session.models?.availableModels ?? [];
       // Copilot may return auto twice. Retain the first provider description, and synthesize only if absent.
-      // Auto is GitHub's account routing, so a local source lists only the Ollama models.
+      // Auto is GitHub's account routing, so Ollama lists only its own models.
       const models = ollama ? ollama.models.map(name => ({ modelId: name, name, description: "" }))
         : available.filter((model, index) => available.findIndex(value => value.modelId === model.modelId) === index);
       if (!ollama && !models.some(model => model.modelId === "auto")) models.unshift({ modelId: "auto", name: "Auto", description: "Let Copilot pick the best model" });
@@ -169,14 +179,14 @@ export class ProviderConnections {
     }
   }
   async diagnostics(provider: AiProvider = "codex"): Promise<AssistantDiagnostics> {
+    if (provider === "ollama") return this.ollamaDiagnostics();
     if (provider === "copilot") {
       this.environment();
       const acp = this.acp(provider);
       const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: acp.executable, version: null, connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
-      try { result.version = await acp.diagnose((await this.copilotOllama(this.copilotOllamaUrl()))?.launch); result.connected = true; } catch (error) { result.error = (error as Error).message; }
-      // The installed version does not depend on the model source being reachable.
+      try { result.version = await acp.diagnose(); result.connected = true; } catch (error) { result.error = (error as Error).message; }
       result.version ??= await acp.installedVersion();
-      return Object.assign(result, await this.updates.version(provider, result.version));
+      return Object.assign(result, await this.updates.version("copilot", result.version));
     }
     this.environment();
     const result: AssistantDiagnostics = { provider: "codex", checkedAt: Date.now(), path: this.client.executable, version: await this.client.version(), connected: false, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
@@ -190,6 +200,25 @@ export class ProviderConnections {
     if (mcp.status === "fulfilled") result.mcp = mcp.value; else result.mcpError = mcp.reason.message;
     return result;
   }
+  /** Ollama is usable when it is reachable, has a model and the Copilot CLI that runs it is installed; no GitHub sign-in. */
+  private async ollamaDiagnostics(): Promise<AssistantDiagnostics> {
+    this.environment();
+    const url = this.ollamaUrl(), acp = this.ollama, ollama: NonNullable<AssistantDiagnostics["ollama"]> = { url, models: null };
+    const result: AssistantDiagnostics = { provider: "ollama", checkedAt: Date.now(), path: acp.executable, version: null, connected: false, ollama, ...(storePowerShellOnly() ? { storePowerShellOnly: true } : {}) };
+    try {
+      const models = await ollamaModels(url);
+      ollama.models = models.length;
+      if (!models.length) { ollama.unavailable = "no-models"; throw new Error(`No models are installed in Ollama at ${url}.`); }
+      if (!acp.executable) { ollama.unavailable = "cli-missing"; throw new Error("Copilot CLI is unavailable on the Host."); }
+      result.version = await acp.diagnose((await this.ollamaCatalog(url, models)).launch); result.connected = true;
+    } catch (error) {
+      if (ollama.models === null) ollama.unavailable = "unreachable";
+      result.error = (error as Error).message;
+    }
+    // The installed version does not depend on Ollama being reachable.
+    result.version ??= await acp.installedVersion();
+    return Object.assign(result, await this.updates.version("copilot", result.version));
+  }
   private async mcp() {
     const servers: NonNullable<AssistantDiagnostics["mcp"]> = []; let cursor: string | null = null;
     do {
@@ -199,7 +228,7 @@ export class ProviderConnections {
     } while (cursor);
     return servers;
   }
-  async close() { const results = await Promise.allSettled([this.client.close(), this.copilot.close(), this.updates.close()]); for (const result of results) if (result.status === "rejected") throw result.reason; }
+  async close() { const results = await Promise.allSettled([this.client.close(), this.copilot.close(), this.ollama.close(), this.updates.close()]); for (const result of results) if (result.status === "rejected") throw result.reason; }
 }
 
 function usageBuckets(buckets: Record<string, any>): NonNullable<AssistantDiagnostics["rateLimits"]> {
@@ -221,7 +250,7 @@ function usageNumber(value: unknown): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
-/** Ollama's own model list; Copilot's OpenAI-compatible connection serves inference only. */
+/** Ollama's own model list; the Copilot CLI's OpenAI-compatible connection serves inference only. */
 export async function ollamaModels(url: string): Promise<string[]> {
   let response: Response;
   try { response = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(5_000) }); }

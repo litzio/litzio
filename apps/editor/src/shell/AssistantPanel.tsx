@@ -10,7 +10,7 @@ import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, History, ExternalLink, FolderOpen, Ellipsis, Paperclip, TextCursorInput, X, ArrowUp, ArrowDown, Square, Check, Brain, Terminal, FilePen, Wrench, ListChecks } from "lucide-react";
-import { ASSISTANT, type AiProvider, type AssistantUserInput, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference } from "../../shared/assistant.ts";
+import { AI_PROVIDERS, ASSISTANT, providerEngine, type AiProvider, type AssistantUserInput, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { PanelHeader } from "@/components/ui/panel-header.tsx";
 import { EmptyState } from "@/components/ui/screen-parts.tsx";
@@ -70,7 +70,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const { settings, ready, setup, resumeProblem, clearResumeProblem, conversation, setConversation, current, provider, permissionMode, model, effort, mode,
     setPermissionMode, setModel, setEffort, setMode, active, unresolved, visibleSubmissions, leaveSubmissionScope, leaveConversation, applyDefaults, switchProvider,
     catalogArrived, send: sendMessage, retry, discard, resume } = useAssistantConversation({ request, open, settingsRevision, submissions, setSubmissions, onProviderRecheck, setProblem,
-    folders, documentPath, catalog: () => models, onChooseProvider: (selected, changed) => { if (changed) clearProviderProblem(); if (selected === "copilot") draft.dropSkills(); } });
+    folders, documentPath, catalog: () => models, onChooseProvider: (selected, changed) => { if (changed) clearProviderProblem(); if (providerEngine(selected) !== "codex") draft.dropSkills(); } });
   const { models, setModels, providerProblem, clearProviderProblem } = useAssistantProviderOptions({ request, open, ready, provider, providerReadRevision, setProblem, onModels: catalogArrived });
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null);
@@ -82,7 +82,8 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
   const initialFocus = useRef(false);
   const openedSettings = useRef(settingsRevision), providerVersion = useRef(0);
   const enabled = !!settings;
-  const showStop = active && (provider === "copilot" || (!message.trim() && !references.length));
+  const acp = providerEngine(provider) === "acp";
+  const showStop = active && (acp || (!message.trim() && !references.length));
   const composerAction = i18n.t(showStop ? "Stop response" : active ? "Steer conversation" : "Send message");
   // Read acknowledgement is local presentation state; conversation/submission owners stay unchanged.
   const lastTurn = conversation?.turns.at(-1);
@@ -163,7 +164,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
     try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem(errorText(error)); } finally { if (isCurrent()) { busy.current = false; setPending(false); } }
   };
   const send = () => run(async isCurrent => {
-    if (pendingImageUploads.current || !ready || !catalogModel || active && provider === "copilot") return;
+    if (pendingImageUploads.current || !ready || !catalogModel || active && acp) return;
     const value = message.trim(); if (!value && !references.length) return;
     const files = references.filter(file => file.kind !== "skill" || provider === "codex" && hasSkillToken(value, file.name));
     draft.clear(); setHistory(null); input.current?.focus();
@@ -415,7 +416,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
         <AssistantChoice label={i18n.t("Provider")} value={providerLabel(provider)}
           help={i18n.t(conversation ? "Provider is fixed after a conversation starts. Start a new conversation to change it." : "These choices apply only to this conversation. Defaults are in Assistant settings.")}
           disabled={!!conversation || active || pending || !ready} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={provider}
-          options={(["codex", "copilot"] as const).map(value => ({ value, label: providerLabel(value) }))}
+          options={AI_PROVIDERS.map(value => ({ value, label: providerLabel(value) }))}
           onSelect={selection => {
             const selected = selection as AiProvider;
             void run(async isCurrent => {
@@ -436,7 +437,7 @@ export function AssistantPanel({ onUndoChange, submissions, setSubmissions, onSt
             { value: "opened-folders", label: i18n.t("Opened folders") }, { value: "read-only", label: i18n.t("Read-only") }, { value: "full-access", label: i18n.t("Full access"), disabled: models?.fullAccessAllowed === false },
           ]} onSelect={value => setPermissionMode(value as AssistantSettings["permissionMode"])} />
 
-        {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
+        {acp && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
       </div>
       <div className="assistant-footer">
         {(() => {

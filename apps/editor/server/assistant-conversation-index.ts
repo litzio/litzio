@@ -6,7 +6,9 @@ import type { AssistantAttachments } from "./assistant-attachments.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
 import { conversationProvider, providerEngine } from "./provider-engine.ts";
 
-export type ConversationIndexEntry = AssistantConversationInfo & { attachments?: import("./assistant-attachments.ts").AttachmentRecord[]; copilotCliReasoningEffort?: string; questions?: { itemId: string; text: string; question: AssistantQuestionRecord }[] };
+export type ConversationIndexEntry = AssistantConversationInfo & { attachments?: import("./assistant-attachments.ts").AttachmentRecord[]; copilotCliReasoningEffort?: string;
+  /** Ollama conversations: the model its process served, used to reopen it. */
+  ollamaModel?: string; questions?: { itemId: string; text: string; question: AssistantQuestionRecord }[] };
 
 /** Owns metadata file I/O; live conversations and attachment lifetimes stay with their existing owners. */
 export class AssistantConversationIndex {
@@ -29,7 +31,8 @@ export class AssistantConversationIndex {
       writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}), ...(permissionFallback ? { permissionFallback } : {}), ...(archivedAt ? { archivedAt } : {}),
         ...(attachments?.length ? { attachments } : {}),
         ...(questions.length ? { questions } : {}),
-        ...(providerEngine(conversationProvider(conversation)) === "acp" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
+        ...(providerEngine(conversationProvider(conversation)) === "acp" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}),
+        ...(conversationProvider(conversation) === "ollama" ? { ollamaModel: conversation.model } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }

@@ -40,7 +40,7 @@ export function ResetSettings({ desktop }: { desktop: DesktopBridge }) {
           {Array.from(new Set(plan.targets.map(target => target.path))).map(target => <li key={target}><code>{target}</code></li>)}
         </ul></details>
         <h4 className="type-item-name">{t("Data kept outside Litzio")}</h4>
-        <p>{t("External documents and plugin source files, other browser profiles (including Litzio origin data), and Codex/Copilot accounts and provider-side data are not deleted. The application and CLI stay installed.")}</p>
+        <p>{t("External documents and plugin source files, other browser profiles (including Litzio origin data), Codex/Copilot accounts, Ollama models and provider-side data are not deleted. The application and CLI stay installed.")}</p>
         <label className="flex items-start gap-2"><input type="checkbox" checked={removeFolders} disabled={busy} onChange={event => setRemoveFolders(event.target.checked)} />
           <span>{t("Also remove empty settings folders")}</span></label>
         <p>{t("All listed data is deleted either way. Unchecked leaves only empty target folders.")}</p>

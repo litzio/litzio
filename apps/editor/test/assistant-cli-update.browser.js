@@ -1,7 +1,7 @@
 async (page, { expect, screenshots, brand }) => {
   // #1904: provider CLI release status and the Host-run update in Assistant diagnostics. Synthetic Host values only.
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'ko'); localStorage.setItem(prefix + '.theme', 'light'); }, brand.storagePrefix);
-  const settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'full-access', responseLanguage: 'ko', copilotModelSource: 'account', ollamaUrl: 'http://localhost:11434' };
+  const settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'full-access', responseLanguage: 'ko', ollamaUrl: 'http://localhost:11434' };
   const model = { id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: '', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low', description: '' }] };
   let version = { version: 'codex-cli 0.171.0', versionStatus: 'available', latestVersion: '0.172.0', latestCheckedAt: 1793590000000 }, reads = 0;
   let update = { provider: 'codex', status: 'idle', output: '' }, started = 0;

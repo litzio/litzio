@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { i18n } from "../i18n.ts";
 
 export const pathName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) || path;
-export const providerLabel = (provider: AiProvider | undefined) => provider === "copilot" ? "GitHub Copilot" : "Codex";
+/** Product names, not translated; a stored record without a provider is Codex. */
+export const providerLabel = (provider: AiProvider | undefined) => provider === "copilot" ? "GitHub Copilot" : provider === "ollama" ? "Ollama" : "Codex";
 
 /** The history list the Assistant panel shows instead of the transcript; the panel owns the Host requests. */
 export function AssistantHistory({ entries, pending, notices, archiveUnavailable, onResume, onRename, onArchive }: {

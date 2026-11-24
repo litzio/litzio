@@ -24,7 +24,7 @@ export function inspectAppReset(locations: ResetStorageLocations) {
   const targets = resetStorageTargets(locations);
   const revision = createHash("sha256").update(JSON.stringify(targets)).digest("hex");
   return { operation: "app-reset", scope: "local-app-and-host", revision, targets,
-    retained: ["External documents and separately saved files", "External plugin source/artifacts", "Other browser profiles, including their Litzio origin data", "Codex/Copilot global accounts and provider-side data", "Application installation and CLI integration"] } as const;
+    retained: ["External documents and separately saved files", "External plugin source/artifacts", "Other browser profiles, including their Litzio origin data", "Codex/Copilot global accounts, Ollama models and provider-side data", "Application installation and CLI integration"] } as const;
 }
 
 /** Legacy discovery is checked in addition to the process gate. A lock with uncertain

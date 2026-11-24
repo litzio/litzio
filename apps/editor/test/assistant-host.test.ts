@@ -57,7 +57,7 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
   const settings = { ...await host.invoke("settings"), model: "gpt-6.1-sol", reasoningEffort: "high" };
   const put = (value: unknown) => fetch(`${url}/api/assistant/settings`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
   assert.equal(settings.permissionMode, "full-access", "unsaved permission defaults to full access");
-  assert.deepEqual([settings.copilotModelSource, settings.ollamaUrl], ["account", "http://localhost:11434"]);
+  assert.equal(settings.ollamaUrl, "http://localhost:11434");
   const saved = await put(settings);
   const usage = await fetch(`${url}/api/assistant/diagnostics?provider=codex&summary=account-usage`).then(response => response.json());
   assert.equal(usage.account.email, "fixture@example.invalid");
@@ -86,31 +86,41 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     assert.equal(missing.status, 400); assert.match(await missing.text(), /model.*allowed values.*gpt-6.1-sol/);
     const effort = await put({ ...settings, reasoningEffort: "unsupported" });
     assert.equal(effort.status, 400); assert.match(await effort.text(), /reasoningEffort.*allowed values/);
-    const source = await put({ ...settings, copilotModelSource: "vllm" });
-    assert.equal(source.status, 400); assert.match(await source.text(), /copilotModelSource.*account, ollama/);
-    const address = await put({ ...settings, copilotModelSource: "ollama", ollamaUrl: "http://user:secret@127.0.0.1:11434" });
+    const source = await put({ ...settings, copilotModelSource: "account" });
+    assert.equal(source.status, 400, "the removed Copilot model source is not new input"); assert.match(await source.text(), /unknown field.*copilotModelSource/);
+    const address = await put({ ...settings, ollamaUrl: "http://user:secret@127.0.0.1:11434" });
     assert.equal(address.status, 400); assert.match(await address.text(), /ollamaUrl/);
     assert.equal(readFileSync(file, "utf8"), before);
-    // The Copilot model source changes through the same CLI operation; it is read at the next Copilot launch.
+    // A saved file from an earlier version still opens: a field this version no longer has is dropped, not converted.
+    writeFileSync(file, JSON.stringify({ ...settings, copilotModelSource: "ollama" }));
+    assert.deepEqual(await host.invoke("settings"), settings);
+    assert.equal(await runCliAsync(["assistant", "settings"]), 0);
+    assert.deepEqual(JSON.parse(output.pop()!), settings);
+    // The Ollama address changes through the same CLI operation; without a model change it is not validated.
     const local = path.join(root, "local.json");
-    writeFileSync(local, JSON.stringify({ ...settings, copilotModelSource: "ollama", ollamaUrl: " http://127.0.0.1:9/ollama/ " }));
+    writeFileSync(local, JSON.stringify({ ...settings, ollamaUrl: " http://127.0.0.1:9/ollama/ " }));
     assert.equal(await runCliAsync(["assistant", "configure", "--file", local]), 0);
-    assert.deepEqual(JSON.parse(output.pop()!), { ...settings, copilotModelSource: "ollama", ollamaUrl: "http://127.0.0.1:9/ollama" });
+    assert.deepEqual(JSON.parse(output.pop()!), { ...settings, ollamaUrl: "http://127.0.0.1:9/ollama" });
+    assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), { ...settings, ollamaUrl: "http://127.0.0.1:9/ollama" }, "the next save writes no removed field");
+    writeFileSync(local, JSON.stringify({ ...settings, copilotModelSource: "account" }));
+    assert.notEqual(await runCliAsync(["assistant", "configure", "--file", local]), 0);
     writeFileSync(local, JSON.stringify(settings));
     assert.equal(await runCliAsync(["assistant", "configure", "--file", local]), 0);
     assert.deepEqual(JSON.parse(output.pop()!), settings);
-    // Changing the Copilot model source together with the model validates against the saved source's catalog.
+    // Ollama as the default provider: its model is validated against the Ollama list of the address being saved.
     const ollama = createServer((req, res) => { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ models: [{ name: "local-a:4b" }, { name: "local-b:4b" }] })); });
     await listenForFetch(ollama);
     t.after(() => new Promise<void>(resolve => ollama.close(() => resolve())));
     const ollamaUrl = `http://127.0.0.1:${(ollama.address() as import("node:net").AddressInfo).port}`;
-    const copilot = (copilotModelSource: string, model: string) => put({ ...settings, provider: "copilot", reasoningEffort: "medium", copilotModelSource, ollamaUrl, model });
-    const toLocal = await copilot("ollama", "local-a:4b");
-    assert.equal(toLocal.status, 200, await toLocal.clone().text());
-    const toAccount = await copilot("account", "auto");
+    const choose = (provider: string, model: string) => put({ ...settings, provider, reasoningEffort: "medium", ollamaUrl, model });
+    const toOllama = await choose("ollama", "local-a:4b");
+    assert.equal(toOllama.status, 200, await toOllama.clone().text());
+    assert.deepEqual(await toOllama.json(), { ...settings, provider: "ollama", reasoningEffort: "medium", ollamaUrl, model: "local-a:4b" });
+    const autoOnOllama = await choose("ollama", "auto");
+    assert.equal(autoOnOllama.status, 400); assert.match(await autoOnOllama.text(), /model.*allowed values for ollama: local-a:4b, local-b:4b\./);
+    const toAccount = await choose("copilot", "auto");
     assert.equal(toAccount.status, 200, await toAccount.clone().text());
-    assert.equal((await copilot("ollama", "local-a:4b")).status, 200);
-    const localNameOnAccount = await copilot("account", "local-b:4b");
+    const localNameOnAccount = await choose("copilot", "local-b:4b");
     assert.equal(localNameOnAccount.status, 400); assert.match(await localNameOnAccount.text(), /model.*allowed values for copilot: auto, copilot-model\./);
     assert.equal((await put(settings)).status, 200);
     assert.equal((await fetch(`${url}/api/worker-plugins`)).status, 404);
@@ -156,6 +166,10 @@ test("provider CLI update is one Host run shared by HTTP and the explicit-Host C
     assert.equal((await post("/api/assistant/provider-update", { provider: "codex" })).status, 200);
     const second = await post("/api/assistant/provider-update", { provider: "codex" });
     assert.equal(second.status, 400); assert.match((await second.json() as any).error, /already running/);
+    // Updates name the executable; Ollama's runs through the copilot one.
+    const ollama = await post("/api/assistant/provider-update", { provider: "ollama" });
+    assert.equal(ollama.status, 400); assert.match((await ollama.json() as any).error, /Invalid AI provider CLI/);
+    assert.notEqual(await runCliAsync(["assistant", "provider-update", "ollama", "--check", "--host", origin]), 0);
     assert.equal(await runCliAsync(["assistant", "provider-update", "codex", "--check", "--host", origin]), 0, "--check reports a run without waiting for it");
     assert.equal(JSON.parse(output.pop()!).update.status, "running");
     cli.write({ update: "fail" });
@@ -469,6 +483,12 @@ test("provider log lookup binds Litzio index, provider RPC ID and original metad
   unlinkSync(log); assert.equal((await lookup()).reason, "missing");
   writeFileSync(log, JSON.stringify({ type: "session.start", data: { sessionId: id } }) + "\n");
   assert.equal(validateProviderLog(log, "copilot", id), log);
+  assert.equal(validateProviderLog(log, "ollama", id), log, "Ollama's log is the Copilot CLI's");
+  // The CLI accepts ollama and reaches the same Host check, which binds the index's provider.
+  writeFileSync(path.join(directory, "conversations.json"), JSON.stringify([{ id, provider: "ollama" }]));
+  assert.equal((await lookup(id, "copilot")).reason, "unknown");
+  const ollama = await promisify(execFile)(process.execPath, [fileURLToPath(import.meta.resolve("tsx/cli")), fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "assistant", "provider-log", id, "ollama", "--host", url], { windowsHide: true }).catch(error => error);
+  assert.deepEqual(JSON.parse(ollama.stdout), { available: false, reason: "missing" }, "the Copilot CLI log location is checked for an Ollama conversation");
 });
 
 test("assistant shutdown rejects a send still waiting for plugin startup before provider admission", async t => {

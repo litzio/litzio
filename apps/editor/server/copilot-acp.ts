@@ -23,10 +23,11 @@ export class CopilotAcp extends EventEmitter {
   loadSession = false;
   reasoningEffort = "medium";
   fullAccess = false;
-  /** Launch setting: a Copilot BYOK process serves exactly one Ollama model. */
+  /** Launch setting of the Ollama connection: one process serves exactly one Ollama model. */
   ollama?: CopilotOllama;
   readonly sessions = new Map<string, NewSessionResponse>();
-  constructor(readonly cwd: string, private options: { bin?: string; args?: string[]; timeoutMs?: number; env?: () => NodeJS.ProcessEnv } = {}) { super(); }
+  /** `local`: the Ollama connection, which only ever launches with an Ollama model (never the GitHub account). */
+  constructor(readonly cwd: string, private options: { bin?: string; args?: string[]; timeoutMs?: number; env?: () => NodeJS.ProcessEnv; local?: boolean } = {}) { super(); }
   get executable() {
     if (this.options.bin) return this.options.bin;
     for (const directory of (process.env.PATH ?? "").split(path.delimiter)) for (const ext of process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""]) {
@@ -47,11 +48,12 @@ export class CopilotAcp extends EventEmitter {
   }
   private async initialize() {
     const bin = this.executable; if (!bin) throw new Error("Copilot CLI is unavailable on the Host.");
+    if (this.options.local && !this.ollama) throw new Error("No Ollama model is chosen for this connection.");
     const shell = process.platform === "win32" && /\.(cmd|bat)$/i.test(bin), command = shell ? `"${bin}"` : bin;
     this.version = await this.installedVersion();
     if (this.closed) throw new Error("Copilot ACP is closed.");
     const child = spawn(command, [...(this.options.args ?? []), "--acp", "--allow-tool=litzio_host", "--reasoning-effort", this.reasoningEffort],
-      { cwd: this.cwd, env: { ...this.options.env?.() ?? process.env, ...copilotOllamaEnvironment(this.ollama) }, shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
+      { cwd: this.cwd, env: copilotEnvironment(this.options.env?.() ?? process.env, this.ollama), shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
     child.stderr.on("data", () => {});
     // SDK 0.17's NDJSON reader does not catch input read errors. End its input
@@ -183,9 +185,14 @@ export const COPILOT_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhi
 /** Ollama base address (without /v1) and the one model a Copilot BYOK process serves. */
 export type CopilotOllama = { url: string; model: string };
 export function sameOllama(left?: CopilotOllama, right?: CopilotOllama) { return left?.url === right?.url && left?.model === right?.model; }
-/** Process environment only; the user's Copilot home and configuration are never written. */
-export function copilotOllamaEnvironment(ollama?: CopilotOllama): Record<string, string> {
-  return ollama ? { COPILOT_PROVIDER_BASE_URL: `${ollama.url}/v1`, COPILOT_PROVIDER_API_KEY: "", COPILOT_PROVIDER_WIRE_API: "responses", COPILOT_MODEL: ollama.model } : {};
+/**
+ * Process environment only; the user's Copilot home and configuration are never written. Model-source variables
+ * inherited from the daemon's parent never reach a process: the account connection launches without them and the
+ * Ollama connection with exactly its own.
+ */
+export function copilotEnvironment(inherited: NodeJS.ProcessEnv, ollama?: CopilotOllama): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(Object.entries(inherited).filter(([key]) => !/^COPILOT_(PROVIDER_.*|MODEL)$/i.test(key)));
+  return ollama ? { ...env, COPILOT_PROVIDER_BASE_URL: `${ollama.url}/v1`, COPILOT_PROVIDER_API_KEY: "", COPILOT_PROVIDER_WIRE_API: "responses", COPILOT_MODEL: ollama.model } : env;
 }
 type SelectOption = Extract<SessionConfigOption, { type: "select" }>;
 export function copilotReasoning(session: Pick<NewSessionResponse, "configOptions">) {
@@ -198,7 +205,7 @@ export function copilotChoices(option: SelectOption) {
 export function copilotModelOption(session: Pick<NewSessionResponse, "configOptions">) {
   return session.configOptions?.find((option): option is SelectOption => option.type === "select" && (option.category === "model" || option.id === "model"));
 }
-/** `local`: a BYOK (Ollama) session has no reasoning option; the launch argument takes every CLI value. */
+/** `local`: an Ollama session has no reasoning option; the launch argument takes every CLI value. */
 export function copilotOptions(session: NewSessionResponse, local = false): AiCopilotOptions {
   const mode = session.configOptions?.find((option): option is SelectOption => option.type === "select" && option.category === "mode");
   const modes = session.modes?.availableModes ?? (mode ? copilotChoices(mode).map(value => ({ id: value.value, name: value.name, description: value.description })) : []);

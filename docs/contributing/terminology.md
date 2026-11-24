@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- |
 | 사용자 기능 | 비서 | Assistant | `AssistantSettings`, `createAssistantHost`, `ASSISTANT`; `litzio assistant`; `/api/assistant/*` | 비서(Assistant) |
 | 대화 | 대화 / 새 대화 / 대화 기록 | Conversation / New conversation / Conversation history | `AssistantConversation`, `conversationId`; 기존 공통 `id`는 맥락이 분명하면 유지 | 비서 대화; 공급자 thread/session과 구분 |
-| 연결할 공급자 | AI 공급자 / 기본 AI 공급자 | AI provider / Default AI provider | `AiProvider`, `provider`, `codex`, `copilot` 유지 | AI 공급자(provider): 비서를 실행하는 연결 제품, 모델 제조사와 다름 |
+| 연결할 공급자 | AI 공급자 / 기본 AI 공급자 | AI provider / Default AI provider | `AiProvider`, `provider`, `codex`, `copilot`, `ollama` 유지 | AI 공급자(provider): 비서를 실행하는 연결 제품, 모델 제조사와 다름 |
 | 모델 | 모델 | Model | `model`, 공급자 model ID 유지 | 모델; 공급자별 카탈로그 |
 | 추론 강도 | 추론 강도 | Reasoning effort | `reasoningEffort` 유지 | 추론 강도; 지원 값·고정 여부는 공급자별 |
 | 실행 프로세스 | 진단에서 Codex app-server / Copilot CLI | Codex app-server / Copilot CLI | `CodexAppServer`, `CopilotAcp` 유지; 공용 연결 소유자 `ProviderConnections` | 공급자 런타임 / 공급자 연결; ACP는 프로토콜 |
@@ -26,7 +26,7 @@
 
 ## 새 문구와 이름
 
-기능은 비서(Assistant), 연결 제품은 AI 공급자(AI provider), 모델 제조사는 실제 회사 이름으로 구별한다. 연결 제품 안내는 “연결 제품: Codex, GitHub Copilot”이다. 대화는 제품 개념이며 공급자의 thread/session과 구별한다. 사용 불가는 꺼짐이 아니다. 기능·공급자 활성화 스위치는 없다. 한국어·영어, 접근성 이름·오류·도움말을 함께 점검한다. 기술 이름은 같은 변경에서 원자적으로 바꾸며 이 표를 근거로 별도 alias나 migration을 만들지 않는다.
+기능은 비서(Assistant), 연결 제품은 AI 공급자(AI provider), 모델 제조사는 실제 회사 이름으로 구별한다. 연결 제품 안내는 “연결 제품: Codex, GitHub Copilot, Ollama”이다. Ollama는 Copilot CLI로 실행하지만 GitHub Copilot과 다른 공급자다. 대화는 제품 개념이며 공급자의 thread/session과 구별한다. 사용 불가는 꺼짐이 아니다. 기능·공급자 활성화 스위치는 없다. 한국어·영어, 접근성 이름·오류·도움말을 함께 점검한다. 기술 이름은 같은 변경에서 원자적으로 바꾸며 이 표를 근거로 별도 alias나 migration을 만들지 않는다.
 
 ## 권한 모드
 

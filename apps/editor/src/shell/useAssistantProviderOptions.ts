@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { observeAssistantProvider, type createAssistantRequest } from "../assistant-api.ts";
 import { ASSISTANT, type AiModels, type AiProvider, type AssistantDiagnostics } from "../../shared/assistant.ts";
+import { i18n } from "../i18n.ts";
 
 type Request = ReturnType<typeof createAssistantRequest>;
 
+/** Why Ollama cannot be used; another failure keeps the Host's own message. */
+export function unavailableReason(diagnostics: AssistantDiagnostics) {
+  const reason = diagnostics.ollama?.unavailable;
+  return reason ? i18n.t(reason === "unreachable" ? "Ollama is unreachable. Check the address and that Ollama is running." : reason === "no-models" ? "No models are installed in Ollama." : "Copilot CLI is not installed. Ollama runs through the Copilot CLI.") : diagnostics.error ?? "";
+}
 export function providerIssue(status: AssistantDiagnostics) {
+  if (status.provider === "ollama" && !status.connected) return unavailableReason(status) || "Ollama is unreachable. Check the address and that Ollama is running.";
   if (!status.connected) return status.error ?? (status.provider === "copilot" ? "GitHub Copilot is unavailable on the Host." : "Codex CLI is unavailable on the Host.");
   if (status.provider === "codex" && !status.account) return "Sign in to Codex to start a conversation.";
   return "";
