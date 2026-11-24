@@ -8,7 +8,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { stopAgentProcess } from "../../editor/server/codex-app-server.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, session, shell, Tray, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, session, shell, Tray, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from "electron";
 import electronUpdater from "electron-updater";
 import { getAppCacheDir } from "electron-updater/out/AppAdapter.js";
 import { load as loadYaml } from "js-yaml";
@@ -202,6 +202,14 @@ function updatesUnsupported(updater: typeof electronUpdater.autoUpdater): string
 function trusted(event: IpcMainInvokeEvent | IpcMainEvent): boolean {
   return window !== null && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame &&
     trustedDesktopUrl(event.senderFrame?.url ?? "");
+}
+
+function canWriteClipboard(contents: WebContents | null, permission: string, details: {
+  isMainFrame: boolean;
+  requestingUrl?: string;
+}): boolean {
+  return permission === "clipboard-sanitized-write" && window !== null && contents === window.webContents &&
+    details.isMainFrame && trustedDesktopUrl(details.requestingUrl ?? "");
 }
 
 function info(): DesktopInfo {
@@ -613,8 +621,11 @@ if (!app.requestSingleInstanceLock()) {
       } catch { dialog.showErrorBox(brand.name.en, "The app reset result could not be read. Inspect the reset result before trying again."); }
     }
     log(`starting ${app.getVersion()}`);
-    session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-    session.defaultSession.setPermissionCheckHandler(() => false);
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+      callback(canWriteClipboard(contents, permission, details));
+    });
+    session.defaultSession.setPermissionCheckHandler((contents, permission, origin, details) =>
+      canWriteClipboard(contents, permission, details) && trustedDesktopUrl(origin));
     preferences = readPreferences(preferencesFile(), app.getVersion());
     const cliRoot = path.join(app.isPackaged ? process.resourcesPath : path.dirname(appRoot), "cli");
     first = firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log, app.getVersion());

@@ -102,6 +102,11 @@ async (page, { changeFolderContents, folderAliasRoot, openDocument, openFolderPi
   await row('a.md').click({button:'right'});
   await page.getByRole('menuitem', {name:'Copy relative path', exact:true}).click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('a.md');
+  await row('a.md').click();
+  await expect(page.getByTestId('current-file')).toHaveText('a.md');
+  await page.getByRole('button', {name:'File actions', exact:true}).click();
+  await page.getByRole('menuitem', {name:'Copy path', exact:true}).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(file('a.md'));
   if (screenshots) {
     await page.getByRole('button', {name:'Settings', exact:true}).click();
     await page.getByRole('button', {name:'Appearance & language', exact:true}).click();
