@@ -4,7 +4,7 @@ import { Button } from "./components/ui/button.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
 import { Notice } from "./ui/primitives.tsx";
 import { i18n } from "./i18n.ts";
-import { ASSISTANT, type AiProvider, type AssistantDiagnostics, type ProviderUpdate } from "../shared/assistant.ts";
+import { ASSISTANT, type ProviderCli, type AssistantDiagnostics, type ProviderUpdate } from "../shared/assistant.ts";
 
 type Request = <T>(route: string, method?: string, body?: unknown) => Promise<T>;
 const POLL_MS = 1000;
@@ -21,8 +21,8 @@ export function CliVersionStatus({ diagnostics }: { diagnostics?: AssistantDiagn
     : `${i18n.t("Latest release {{version}}", { version: diagnostics.latestVersion ?? "" })} · ${i18n.t("Last checked")}: ${checked}`}</TooltipContent></Tooltip>;
 }
 
-/** Runs the provider CLI's own update on the target Host; the run continues while this screen is closed. */
-export function useCliUpdate(provider: AiProvider, request: Request, finished: () => void) {
+/** Runs a provider CLI's own update on the target Host; the run continues while this screen is closed. */
+export function useCliUpdate(provider: ProviderCli, request: Request, finished: () => void) {
   const [update, setUpdate] = useState<ProviderUpdate>();
   const [problem, setProblem] = useState("");
   const start = useRef<() => Promise<void>>(async () => {}), onFinished = useRef(finished);
@@ -50,7 +50,7 @@ export function useCliUpdate(provider: AiProvider, request: Request, finished: (
   return { update, problem, start: () => void start.current() };
 }
 
-export function CliUpdateButton({ provider, diagnostics, running, start }: { provider: AiProvider; diagnostics?: AssistantDiagnostics; running: boolean; start(): void }) {
+export function CliUpdateButton({ provider, diagnostics, running, start }: { provider: ProviderCli; diagnostics?: AssistantDiagnostics; running: boolean; start(): void }) {
   const reason = diagnostics?.updateUnavailable === "missing" ? i18n.t("The CLI was not found on the Host.")
     : diagnostics?.updateUnavailable === "unsupported" ? i18n.t("This CLI version has no update command. Update it the way you installed it.")
     // The screen only: the Host operation and CLI still run the CLI's own update when it is current.

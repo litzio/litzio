@@ -6,7 +6,9 @@ import { CliUpdateButton, CliUpdateResult, CliVersionStatus, useCliUpdate } from
 import { useHostClient } from "./host-context.tsx";
 import { observeAssistantProvider } from "./assistant-api.ts";
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
-import { ASSISTANT, DEFAULT_OLLAMA_URL, checkedOllamaUrl, type AssistantSettings, type AiModels, type AssistantDiagnostics, type AssistantEnvironment, type AiProvider } from "../shared/assistant.ts";
+import { AI_PROVIDERS, ASSISTANT, DEFAULT_OLLAMA_URL, checkedOllamaUrl, providerCli, providerEngine, type AssistantSettings, type AiModels, type AssistantDiagnostics, type AssistantEnvironment, type AiProvider } from "../shared/assistant.ts";
+import { providerLabel } from "./shell/AssistantHistory.tsx";
+import { unavailableReason } from "./shell/useAssistantProviderOptions.ts";
 import "./assistant-settings.css";
 import { SettingsSelect } from "./components/ui/settings.tsx";
 import { FieldError, Notice } from "./ui/primitives.tsx";
@@ -25,6 +27,7 @@ function Dialog({ open, onClose, title, description, returnFocus, children, foot
     </DialogContent>
   </BaseDialog>;
 }
+const modelsTitle = (provider: AiProvider) => provider === "ollama" ? "Ollama models" : provider === "copilot" ? "Copilot models" : "Codex models";
 function createRequest(client: ReturnType<typeof useHostClient>) { return async function request<T>(route: string, method = "GET", body?: unknown): Promise<T> {
  const response = await client.request(route, { method, ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
  const value = await response.json(); if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`); return value;
@@ -98,19 +101,19 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
     const [ollamaDraft, setOllamaDraft] = useState<string>();
     const [ollamaError, setOllamaError] = useState(false);
     const ollamaId = useId();
-    /** The Host applies a new Copilot model source from the next Copilot launch; re-read its catalog now. */
-    const saveCopilotSource = async (next: AssistantSettings) => {
+    /** The Host applies a new Ollama address from the next Ollama launch; re-read its state and catalog now. */
+    const saveOllamaUrl = async (next: AssistantSettings) => {
       setSelectingProvider(true);
       try {
         await save(next);
         if (!alive.current) return;
-        void loadDiagnostics("copilot", false).catch(report);
-        const catalog = await get<AiModels>(ASSISTANT.modelsRoute, "copilot");
+        void loadDiagnostics("ollama", false).catch(report);
+        const catalog = await get<AiModels>(ASSISTANT.modelsRoute, "ollama");
         if (!alive.current) return;
         setModels(catalog);
         const current = latest.current!, first = catalog.models[0];
         // Like a provider change: keep a still-listed model, otherwise take the first one.
-        if (current.provider === "copilot" && first && !catalog.models.some(item => item.model === current.model)) save({ ...current, model: first.model, reasoningEffort: first.defaultReasoningEffort });
+        if (current.provider === "ollama" && first && !catalog.models.some(item => item.model === current.model)) save({ ...current, model: first.model, reasoningEffort: first.defaultReasoningEffort });
       } catch (error) { report(error as Error); }
       finally { if (alive.current) setSelectingProvider(false); }
     };
@@ -119,7 +122,7 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
       let value: string;
       try { value = checkedOllamaUrl(ollamaDraft); } catch { setOllamaError(true); return; }
       setOllamaError(false); setOllamaDraft(value);
-      if (value !== (current.ollamaUrl ?? DEFAULT_OLLAMA_URL)) void saveCopilotSource({ ...current, ollamaUrl: value });
+      if (value !== (current.ollamaUrl ?? DEFAULT_OLLAMA_URL)) void saveOllamaUrl({ ...current, ollamaUrl: value });
     };
     useEffect(() => {
       alive.current = true;
@@ -135,11 +138,11 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
     useEffect(() => {
       if (!savedProvider) return;
       void loadModels(savedProvider).catch(report);
-      for (const provider of ["codex", "copilot"] as const) void loadDiagnostics(provider).catch(report);
+      for (const provider of AI_PROVIDERS) void loadDiagnostics(provider).catch(report);
     }, [savedProvider, providerReadRevision]);
-    const cliUpdate = useCliUpdate(inspecting, request, () => void loadDiagnostics(inspecting, false).catch(report));
-    const copilot = inspecting === "copilot", providerName = copilot ? "GitHub Copilot" : "Codex";
-    const localCopilot = settings?.copilotModelSource === "ollama";
+    // One run per executable: the Copilot CLI's update shows in both the Copilot and the Ollama diagnostics.
+    const cliUpdate = useCliUpdate(providerCli(inspecting), request, () => void loadDiagnostics(inspecting, false).catch(report));
+    const copilot = inspecting === "copilot", ollama = inspecting === "ollama";
     const defaultModels = settings ? catalogs[settings.provider] : undefined;
     const model = defaultModels?.models.find(item => item.model === settings?.model);
     const valid = !!model && model.supportedReasoningEfforts.some(item => item.reasoningEffort === settings?.reasoningEffort);
@@ -151,58 +154,54 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
       const value = connections[provider];
       return !settings ? t("Checking…") : !value ? t("Checking…")
         : /Codex .+ or later is required\./.test(value.error ?? "") ? t("Update required") : value.error ? t("Unavailable")
-        : value.account === null ? t("Login required") : value.connected && (provider === "copilot" || value.account) ? t("Available") : t("Unavailable");
+        : value.account === null ? t("Login required") : value.connected && (providerEngine(provider) === "acp" || value.account) ? t("Available") : t("Unavailable");
     };
     const date = (value?: number) => value ? new Date(value).toLocaleString() : t("Not checked");
     const filteredModels = models?.models.filter(item => `${item.displayName} ${item.model}`.toLowerCase().includes(search.toLowerCase()));
-    const row = (label: string, content: ReactNode) => <Row kind="fact" label={label}>{content}</Row>;
+    const row = (label: ReactNode, content: ReactNode) => <Row kind="fact" label={label}>{content}</Row>;
+    const ollamaAddress = <Tooltip><TooltipTrigger render={<div tabIndex={0} />}>
+      {row(<label htmlFor={ollamaId}>{t("Address")}</label>, <div className="agent-ollama-url">
+        <Input id={ollamaId} data-testid="ollama-url" value={ollamaDraft ?? ""} disabled={selectingProvider} aria-invalid={ollamaError || undefined} aria-describedby={ollamaError ? `${ollamaId}-error` : undefined}
+          onChange={event => { setOllamaDraft(event.target.value); setOllamaError(false); }} onBlur={commitOllamaUrl}
+          onKeyDown={event => { if (event.key === "Enter") commitOllamaUrl(); }} />
+        <FieldError id={`${ollamaId}-error`}>{ollamaError ? t("Enter an http:// or https:// address.") : null}</FieldError>
+      </div>)}
+    </TooltipTrigger><TooltipContent>{t("Set Ollama's context length to 64k or more.")}</TooltipContent></Tooltip>;
     return <section className="agent-settings" aria-label={t("Assistant")}>
       {view === "diagnostics" ? <>
         <div><Button variant="ghost" onClick={() => setView("settings")}>← {t("Assistant")}</Button></div>
-        <div className="agent-heading"><h3 className="settings-heading">{copilot ? t("Copilot diagnostics") : t("Codex diagnostics")}</h3><Button variant="outline" title={t(copilot ? "Sign in with Copilot CLI on the Host. Connection does not verify model access or quota." : "To sign in, run codex login in a terminal, then run diagnostics again.")} disabled={loading} onClick={() => void refresh()}>{t("Run diagnostics")}</Button></div>
+        <div className="agent-heading"><h3 className="settings-heading">{t(ollama ? "Ollama diagnostics" : copilot ? "Copilot diagnostics" : "Codex diagnostics")}</h3><Button variant="outline" title={t(ollama ? "Start Ollama on the Host and pull a model, then run diagnostics again." : copilot ? "Sign in with Copilot CLI on the Host. Connection does not verify model access or quota." : "To sign in, run codex login in a terminal, then run diagnostics again.")} disabled={loading} onClick={() => void refresh()}>{t("Run diagnostics")}</Button></div>
         <p className="type-helper">{t("Last checked")}: {date(diagnostics?.checkedAt)}</p>
         <div className="agent-diagnostics">
-          {row(`${providerName} CLI`, <>{diagnostics?.version ?? t("Unavailable")}<CliVersionStatus diagnostics={diagnostics} /><CliUpdateButton provider={inspecting} diagnostics={diagnostics} running={cliUpdate.update?.status === "running"} start={cliUpdate.start} /><code>{diagnostics?.path ?? "—"}</code></>)}
+          {ollama ? <>{ollamaAddress}
+            {row(t("Connection"), diagnostics?.connected ? i18n.t("Connected · Models: {{count}}", { count: diagnostics.ollama?.models ?? 0 }) : <>{t(diagnostics ? "Unavailable" : "Checking…")}{diagnostics?.error ? <Notice tone="error">{unavailableReason(diagnostics)}</Notice> : null}</>)}
+            {row(t("Runtime"), t("Runs through the Copilot CLI"))}</> : null}
+          {row(`${copilot || ollama ? "Copilot" : "Codex"} CLI`, <>{diagnostics?.version ?? t("Unavailable")}<CliVersionStatus diagnostics={diagnostics} /><CliUpdateButton provider={providerCli(inspecting)} diagnostics={diagnostics} running={cliUpdate.update?.status === "running"} start={cliUpdate.start} /><code>{diagnostics?.path ?? "—"}</code></>)}
           <CliUpdateResult update={cliUpdate.update} problem={cliUpdate.problem} />
           {diagnostics?.storePowerShellOnly ? row("PowerShell 7", <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>{t("Possible shell issue · Install standard PowerShell 7")}</TooltipTrigger><TooltipContent>{t("Only Microsoft Store PowerShell 7 was found. Codex may fail in restricted modes (CreateProcessAsUserW failed: 5). Replace it with the standard PowerShell 7 installer and run diagnostics again.")}</TooltipContent></Tooltip>) : null}
-          {row(copilot ? "ACP" : "app-server", <>{t(diagnostics?.connected ? "Connected" : "Unavailable")}{diagnostics?.error ? <Notice tone="error">{diagnostics.error}</Notice> : null}</>)}
-          {!copilot ? <>{row(t("Account"), <>{diagnostics?.accountError ?? <AssistantAccount value={diagnostics} />}<code>account/read</code></>)}
+          {ollama ? null : row(copilot ? "ACP" : "app-server", <>{t(diagnostics?.connected ? "Connected" : "Unavailable")}{diagnostics?.error ? <Notice tone="error">{diagnostics.error}</Notice> : null}</>)}
+          {inspecting === "codex" ? <>{row(t("Account"), <>{diagnostics?.accountError ?? <AssistantAccount value={diagnostics} />}<code>account/read</code></>)}
           {row(t("Usage and limits"), <>{diagnostics?.rateLimitsError ?? <AssistantRateLimits value={diagnostics} />}<code>account/rateLimits/read</code></>)}
           {row(t("MCP servers"), <>{diagnostics?.mcpError ?? (diagnostics?.mcp?.length ? diagnostics.mcp.map(server => <div key={server.name}><p>{server.name} · {t(server.status === "connected" ? "Connected" : server.status === "starting" ? "Checking…" : "Unavailable")} · {t(server.authStatus === "oAuth" ? "oAuth" : server.authStatus === "bearerToken" ? "Token authentication" : server.authStatus === "notLoggedIn" ? "Login required" : server.authStatus === "unsupported" ? "No authentication" : "Not checked")}</p><details><summary>{t("Details")}</summary><code>{server.status} · {server.authStatus}</code></details></div>) : t("No MCP servers reported."))}<code>mcpServerStatus/list</code></>)}</> : null}
         </div>
 
       </> : <>
         <Section title={t("Providers")}>
-        {(["codex", "copilot"] as const).map(provider => <Row key={provider} label={<Button variant="ghost" className="agent-provider-open justify-start" onClick={event => { focus.current = event.currentTarget; setInspecting(provider); void loadModels(provider).catch(report); setSearch(""); setDialog(true); }} aria-label={t(provider === "copilot" ? "Copilot models" : "Codex models")}>
-            <span aria-hidden="true">›</span><span className="type-item-name">{provider === "copilot" ? "GitHub Copilot" : "Codex"}</span>
+        {AI_PROVIDERS.map(provider => <Row key={provider} label={<Button variant="ghost" className="agent-provider-open justify-start" onClick={event => { focus.current = event.currentTarget; setInspecting(provider); void loadModels(provider).catch(report); setSearch(""); setDialog(true); }} aria-label={t(modelsTitle(provider))}>
+            <span aria-hidden="true">›</span><span className="type-item-name">{providerLabel(provider)}</span>
           </Button>}>
           <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>
             <Status variant="plain" tone={status(provider) === t("Checking…") ? "progress" : status(provider) === t("Available") ? "ok" : status(provider) === t("Unavailable") ? "error" : "warning"} label={status(provider)} />
-          </TooltipTrigger><TooltipContent>{t("Last checked")}: {date(connections[provider]?.checkedAt)}</TooltipContent></Tooltip>
+          </TooltipTrigger><TooltipContent>{provider === "ollama" && connections.ollama?.error ? <p>{unavailableReason(connections.ollama)}</p> : null}{t("Last checked")}: {date(connections[provider]?.checkedAt)}</TooltipContent></Tooltip>
           <Button variant="ghost" onClick={() => { setInspecting(provider); void loadDiagnostics(provider).catch(report); setView("diagnostics"); }}>{t("Diagnostics")}</Button>
         </Row>)}
-        <Tooltip><TooltipTrigger render={<div tabIndex={0} />}>
-          <SettingsSelect label={t("Copilot model source")} testId="copilot-model-source" value={localCopilot ? "ollama" : "account"} disabled={!settings || selectingProvider}
-            onChange={value => void saveCopilotSource({ ...latest.current!, copilotModelSource: value as NonNullable<AssistantSettings["copilotModelSource"]> })}
-            options={[{ value: "account", label: t("GitHub account") }, { value: "ollama", label: t("Local (Ollama)") }]} />
-        </TooltipTrigger><TooltipContent>{t("Models GitHub Copilot uses: your GitHub account's models, or models installed in Ollama on the Host. Applies when the next Copilot connection starts; a running response is not interrupted.")}</TooltipContent></Tooltip>
-        {localCopilot ? <Tooltip><TooltipTrigger render={<div tabIndex={0} />}>
-          <Row label={<label htmlFor={ollamaId}>{t("Ollama address")}</label>}>
-            <div className="agent-ollama-url">
-              <Input id={ollamaId} data-testid="ollama-url" value={ollamaDraft ?? ""} disabled={selectingProvider} aria-invalid={ollamaError || undefined} aria-describedby={ollamaError ? `${ollamaId}-error` : undefined}
-                onChange={event => { setOllamaDraft(event.target.value); setOllamaError(false); }} onBlur={commitOllamaUrl}
-                onKeyDown={event => { if (event.key === "Enter") commitOllamaUrl(); }} />
-              <FieldError id={`${ollamaId}-error`}>{ollamaError ? t("Enter an http:// or https:// address.") : null}</FieldError>
-            </div>
-          </Row>
-        </TooltipTrigger><TooltipContent>{t("Set Ollama's context length to 64k or more.")}</TooltipContent></Tooltip> : null}
         </Section>
         <Section title={t("Defaults")} description={t("Changes apply to the next task.")}>
         <SettingsSelect label={t("Default provider")} value={settings?.provider ?? "codex"} disabled={!settings || selectingProvider}
-          options={(["codex", "copilot"] as const).map(value => ({ value, label: value === "codex" ? "Codex" : "GitHub Copilot" }))} onChange={value => void selectProvider(value as AiProvider)} />
+          options={AI_PROVIDERS.map(value => ({ value, label: providerLabel(value) }))} onChange={value => void selectProvider(value as AiProvider)} />
         <SettingsSelect label={t("Model")} value={settings?.model ?? ""} disabled={!defaultModels || !settings || selectingProvider} onChange={selectModel}
           options={[...(!model ? [{ value: settings?.model ?? "", label: settings?.model ?? t("Checking…") }] : []), ...(defaultModels?.models.map(item => ({ value: item.model, label: item.displayName })) ?? [])]} />
-        <div title={settings?.provider === "copilot" && defaultModels?.copilot?.reasoningEffortSource === "cli" ? t("Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.") : undefined}><SettingsSelect label={t("Reasoning effort")} value={settings?.reasoningEffort ?? ""} disabled={!model || !settings || selectingProvider}
+        <div title={settings && providerEngine(settings.provider) === "acp" && defaultModels?.copilot?.reasoningEffortSource === "cli" ? t("Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.") : undefined}><SettingsSelect label={t("Reasoning effort")} value={settings?.reasoningEffort ?? ""} disabled={!model || !settings || selectingProvider}
           onChange={value => { save({ ...latest.current!, reasoningEffort: value }); }}
           options={[...(!valid ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(item.reasoningEffort) })) ?? [])]} /></div>
         <Tooltip><TooltipTrigger render={<div tabIndex={0} />}>
@@ -220,12 +219,12 @@ export function AssistantSettings({ onSaved, providerReadRevision }: { onSaved()
         <Section title={t("Common working environment")}>
           {row(t("Working folder"), <code>{environment?.cwd ?? "—"}</code>)}
           {row(t("Litzio instructions"), <code title={environment?.instructions}>{environment ? "AGENTS.md" : "—"}</code>)}
-          {settings?.provider !== "copilot" ? row(t("Litzio skills"), environment?.skills.length ? environment.skills.join(", ") : t("No Litzio skills installed.")) : null}
+          {settings?.provider === "codex" ? row(t("Litzio skills"), environment?.skills.length ? environment.skills.join(", ") : t("No Litzio skills installed.")) : null}
         </Section>
       </>}
       {problem ? <Notice tone="error">{problem}</Notice> : null}
       {busy ? <p role="status">{t("Saving…")}</p> : null}
-      <Dialog open={dialog} onClose={() => setDialog(false)} title={t(copilot ? "Copilot models" : "Codex models")} description={t(copilot ? localCopilot ? "Models installed in Ollama on the Host." : "Models reported by Copilot CLI. Account access and quota may vary." : "Models and supported reasoning efforts reported by Codex.")} returnFocus={focus} testId="assistant-models-dialog"
+      <Dialog open={dialog} onClose={() => setDialog(false)} title={t(modelsTitle(inspecting))} description={t(ollama ? "Models installed in Ollama on the Host." : copilot ? "Models reported by Copilot CLI. Account access and quota may vary." : "Models and supported reasoning efforts reported by Codex.")} returnFocus={focus} testId="assistant-models-dialog"
         footer={<><span className="agent-updated type-helper">{t("Updated")}: {date(models?.updatedAt)}</span><Button variant="outline" onClick={() => { setDialog(false); setView("diagnostics"); }}>{t("Diagnostics")}</Button><Button variant="outline" disabled={loading} onClick={() => void refresh()}>{t("Refresh")}</Button></>}>
         <div className="agent-models"><Input aria-label={t("Search models")} placeholder={t("Search models")} value={search} onChange={event => setSearch(event.target.value)} />
           <p className="type-helper">{t("Models")}: {filteredModels?.length ?? "—"}</p>
