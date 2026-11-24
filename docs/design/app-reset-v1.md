@@ -11,7 +11,7 @@
 
 현재 [packageConfiguration](../../apps/desktop/scripts/package.ts)은 `deleteAppDataOnUninstall: false`이며 [NSIS helper](../../apps/desktop/installer/cli.nsh)는 앱 데이터·updater cache를 보존한다. 따라서 현재 제거·재설치만으로 이 목표를 충족한다고 주장하지 않는다. 초기화는 설치물과 CLI 통합을 유지하면서 앱 소유 데이터를 비우는 별도 작업이다. 설치·제거 정책은 바꾸지 않는다.
 
-소유자는 별도 Chrome 등 **외부 브라우저 profile의 Litzio origin 데이터**와 Codex/Copilot 전역 계정·공급자 서버의 데이터를 삭제 범위 밖으로 확정했다. Desktop profile 안의 Chromium 환경설정·탐색 기억·IndexedDB 복구는 전부 삭제한다. 외부 브라우저의 저장소까지 삭제했다고 표시하지 않는다.
+소유자는 별도 Chrome 등 **외부 브라우저 profile의 Litzio origin 데이터**와 Codex/Copilot 전역 계정·공급자 서버의 데이터를 삭제 범위 밖으로 확정했다. Ollama가 받아 둔 모델도 Ollama의 데이터이므로 지우지 않는다. Desktop profile 안의 Chromium 환경설정·탐색 기억·IndexedDB 복구는 전부 삭제한다. 외부 브라우저의 저장소까지 삭제했다고 표시하지 않는다.
 
 ## 진입점과 공용 작업
 
