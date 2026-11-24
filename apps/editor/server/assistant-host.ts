@@ -3,10 +3,10 @@ import { ASSISTANT_TRANSPORT_LIMITS } from "../shared/assistant-limits.ts";
 import type { PluginService } from "./plugin-service.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
-import { ASSISTANT, copilotOllamaUrl, type AiProvider } from "../shared/assistant.ts";
+import { ASSISTANT, DEFAULT_OLLAMA_URL, PROVIDER_CLIS, isAiProvider, type AiProvider, type ProviderCli } from "../shared/assistant.ts";
 import { createAssistantSettings, checkedAssistantSettings } from "./assistant-settings.ts";
 import { ProviderConnections } from "./provider-connections.ts";
-import { conversationProvider, providerEngine } from "./provider-engine.ts";
+import { AI_PROVIDERS, conversationProvider, providerCli, providerEngine } from "./provider-engine.ts";
 import { AssistantConversations, AssistantModelUnavailable, conversationForDisplay } from "./assistant-conversations.ts";
 
 const PROVIDER_RECHECK_INTERVAL_MS = 3_000;
@@ -65,8 +65,8 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   let agent = options?.agent;
   const providerConnection = () => {
     if (!agent) agent = new ProviderConnections(paths.assistant, undefined, undefined, options?.run, options?.origin);
-    // The Copilot model source is read when a Copilot process launches, never pushed into a running one.
-    agent.copilotOllamaUrl = () => copilotOllamaUrl(settings());
+    // The Ollama address is read when an Ollama process launches, never pushed into a running one.
+    agent.ollamaUrl = () => settings().ollamaUrl ?? DEFAULT_OLLAMA_URL;
     return agent;
   };
   const readModels = providerReads(async selected => {
@@ -86,8 +86,14 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   const history = () => conversations ??= new AssistantConversations(providerConnection(), access, plugins?.host);
   const provider = (args?: { provider?: AiProvider }): AiProvider => {
     const value = args?.provider ?? settings().provider;
-    if (value !== "codex" && value !== "copilot") throw new Error("Invalid AI provider.");
+    if (!isAiProvider(value)) throw new Error("Invalid AI provider.");
     return value;
+  };
+  /** CLI updates are per executable: `codex` or `copilot` (which also runs Ollama). */
+  const cli = (args?: { provider?: string }): ProviderCli => {
+    const value = args?.provider ?? providerCli(settings().provider);
+    if (!PROVIDER_CLIS.includes(value as ProviderCli)) throw new Error("Invalid AI provider CLI.");
+    return value as ProviderCli;
   };
   const assistantOperations = {
     assistantSkills: async (args?: { provider?: AiProvider }) => {
@@ -109,11 +115,11 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       return { ...value, accountError: value.accountError ? "Unavailable" : undefined, rateLimitsError: value.rateLimitsError ? "Unavailable" : undefined };
     },
     assistantEnvironment: () => providerConnection().environment(),
-    /** The provider CLI's own update on this Host; the run outlives the screen and is one per provider. */
-    assistantProviderUpdate: (args?: { provider?: AiProvider }) => providerConnection().updates.state(provider(args)),
-    startProviderUpdate: (args?: { provider?: AiProvider }) => {
-      const selected = provider(args);
-      return providerConnection().updateCli(selected, () => recheckProvider(selected));
+    /** A provider CLI's own update on this Host; the run outlives the screen and is one per executable. */
+    assistantProviderUpdate: (args?: { provider?: string }) => providerConnection().updates.state(cli(args)),
+    startProviderUpdate: (args?: { provider?: string }) => {
+      const selected = cli(args);
+      return providerConnection().updateCli(selected, () => { for (const value of AI_PROVIDERS) if (providerCli(value) === selected) recheckProvider(value); });
     },
     assistantConversations: (args: any) => {
       if (args.submissionId) return history().submission(args.submissionId);
@@ -175,10 +181,10 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     if (operation === "configure") {
       const current = settings(), next = checkedAssistantSettings(args);
       const selected = provider(next);
-      const sourceChanged = copilotOllamaUrl(next) !== copilotOllamaUrl(current);
+      const addressChanged = next.ollamaUrl !== current.ollamaUrl;
       if (selected !== current.provider || next?.model !== current.model || next?.reasoningEffort !== current.reasoningEffort) {
-        // The model is validated against the catalog of the source being saved (next), not the stored one.
-        const catalog = selected === "copilot" && sourceChanged ? await providerConnection().models("copilot", "fresh", { ollamaUrl: copilotOllamaUrl(next) })
+        // The model is validated against the catalog of the address being saved (next), not the stored one.
+        const catalog = selected === "ollama" && addressChanged ? await providerConnection().models("ollama", "fresh", next.ollamaUrl)
           : await assistantOperations.assistantModels({ provider: selected });
         const model = catalog.models.find(model => model.model === next.model);
         if (!model) throw new Error(`AI model: allowed values for ${selected}: ${catalog.models.map(model => model.model).join(", ") || "none available"}.`);
@@ -187,7 +193,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (closed) throw new Error("The Assistant Host is closing.");
       if (selected !== current.provider) conversations?.expireProviderQuestions(current.provider);
       const saved = configure(next);
-      if (sourceChanged) { readModels.forget("copilot"); readDiagnostics.forget("copilot"); }
+      if (addressChanged) { readModels.forget("ollama"); readDiagnostics.forget("ollama"); }
       return saved;
     }
     if (!Object.hasOwn(assistantOperations, operation)) throw new Error("Unknown assistant operation.");

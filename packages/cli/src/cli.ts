@@ -40,6 +40,7 @@ import { commitFile, decodeUtf8, preflightFileCommit, textRevision } from "@litz
 import { resolveMediaPath } from "../../../apps/editor/server/document-path.ts";
 import { figureMediaPath } from "../../../apps/editor/shared/figure-media-path.ts";
 import { createAssistantHost } from "../../../apps/editor/server/assistant-host.ts";
+import { PROVIDER_CLIS, isAiProvider, type ProviderCli } from "../../../apps/editor/shared/assistant.ts";
 
 const HELP_GROUPS = [
   "Create and inspect",
@@ -130,7 +131,7 @@ const COMMANDS: CommandSpec[] = [
 
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
   { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
-    usage: `${brand.cliCommand} assistant import-image <document> --source <absolute-image-path> | assistant delete <id> --host <origin> | assistant rename <id> --title <text> --host <origin> | assistant archive <id> --host <origin> | assistant unarchive <id> --host <origin> | assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot> --host <origin> | assistant provider-update <codex|copilot> [--check] --host <origin> | assistant conversation <id> --host <origin> | assistant answer <id> --file <json-file> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero.", "rename, archive and unarchive change only the history entry; archive keeps everything and hides the conversation from the default history, and sending a message unarchives it. conversation explicitly reopens the target Host snapshot without starting a turn. answer takes { turnId, requestId, answers } and uses the same question validation and provider delivery as the chat. No local fallback or automatic retry.", "provider-update runs that CLI's own update command on the target Host, waits for it and prints the run (status, exitCode, output) with the re-read version; it fails when the update fails or another update of that CLI is running. --check only prints the installed version, the latest public release status (current, available or unknown) and the last run."] },
+    usage: `${brand.cliCommand} assistant import-image <document> --source <absolute-image-path> | assistant delete <id> --host <origin> | assistant rename <id> --title <text> --host <origin> | assistant archive <id> --host <origin> | assistant unarchive <id> --host <origin> | assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot|ollama> --host <origin> | assistant provider-update <codex|copilot> [--check] --host <origin> | assistant conversation <id> --host <origin> | assistant answer <id> --file <json-file> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero.", "rename, archive and unarchive change only the history entry; archive keeps everything and hides the conversation from the default history, and sending a message unarchives it. conversation explicitly reopens the target Host snapshot without starting a turn. answer takes { turnId, requestId, answers } and uses the same question validation and provider delivery as the chat. No local fallback or automatic retry.", "provider-update takes the executable (copilot also runs the Ollama provider) and runs its own update command on the target Host, waits for it and prints the run (status, exitCode, output) with the re-read version; it fails when the update fails or another update of that CLI is running. --check only prints the installed version, the latest public release status (current, available or unknown) and the last run."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -1366,7 +1367,7 @@ export async function runCliAsync(args: string[]): Promise<number> {
       process.stdout.write(JSON.stringify(result) + "\n"); return 0;
     }
     if (operation === "provider-log") {
-      if (args.length !== 6 || args[4] !== "--host" || !["codex", "copilot"].includes(args[3])) throw new Error(commandHelp("assistant"));
+      if (args.length !== 6 || args[4] !== "--host" || !isAiProvider(args[3])) throw new Error(commandHelp("assistant"));
       const origin = new URL(args[5]);
       if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("Expected a Host origin.");
       const response = await fetch(`${origin.origin}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json", "X-Litzio-Protocol": "4" }, body: JSON.stringify({ action: "provider-log", id: args[2], provider: args[3] }), signal: AbortSignal.timeout(30000) });
@@ -1376,7 +1377,7 @@ export async function runCliAsync(args: string[]): Promise<number> {
     }
     if (operation === "provider-update") {
       const check = args[3] === "--check";
-      if (args.length !== (check ? 6 : 5) || args[args.length - 2] !== "--host" || !["codex", "copilot"].includes(args[2])) throw new Error(commandHelp("assistant"));
+      if (args.length !== (check ? 6 : 5) || args[args.length - 2] !== "--host" || !PROVIDER_CLIS.includes(args[2] as ProviderCli)) throw new Error(commandHelp("assistant"));
       const origin = new URL(args[args.length - 1]);
       if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("Expected a Host origin.");
       const call = async (route: string, method = "GET") => {
