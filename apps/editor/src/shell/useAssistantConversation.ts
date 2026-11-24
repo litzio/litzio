@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { createAssistantRequest } from "../assistant-api.ts";
-import { ASSISTANT, providerEngine, type AiModels, type AiProvider, type AssistantConversation, type AssistantConversationInfo, type AssistantDiagnostics, type AssistantFileReference, type AssistantSettings, type AssistantSubmission, type AssistantSubmissionResult } from "../../shared/assistant.ts";
+import { ASSISTANT, providerEngine, type AiModels, type AiProvider, type AssistantConversation, type AssistantConversationInfo, type AssistantConversationItem, type AssistantDiagnostics, type AssistantFileReference, type AssistantSettings, type AssistantSubmission, type AssistantSubmissionResult } from "../../shared/assistant.ts";
 import { brand } from "../../../../brand.ts";
 import { i18n } from "../i18n.ts";
 import { providerIssue } from "./useAssistantProviderOptions.ts";
@@ -18,6 +18,9 @@ const resumeErrorText = (error: unknown) => {
   return model === undefined ? errorText(error) : i18n.t("This conversation's model {{model}} is not in Ollama.", { model });
 };
 const newSubmissionId = () => crypto.getRandomValues(new Uint32Array(4)).join("-");
+const completedActivity = ({ kind, status }: AssistantConversationItem) =>
+  kind === "tool" && (status === "completed" || status === "failed" || status === "success" || status === "failure");
+const pluginActivityRefreshDelay = 250;
 
 type Choices = { provider: AiProvider; permissionMode: AssistantSettings["permissionMode"]; model: string; effort: string; mode: string };
 const agentMode = (catalog: AiModels | undefined) => catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "";
@@ -129,6 +132,39 @@ export function useAssistantConversation({ request, open, settingsRevision, subm
     }).catch(error => { if (alive) setSetup(error.message); });
     return () => { alive = false; };
   }, [open, settingsRevision]);
+  const previousSnapshot = useRef<AssistantConversation>(undefined);
+  const pluginRefreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(pluginRefreshTimer.current), []);
+  useEffect(() => {
+    const previous = previousSnapshot.current;
+    previousSnapshot.current = conversation;
+    if (!conversation) return;
+    const turn = conversation.turns.at(-1);
+    if (!turn) return;
+    const sameConversation = previous?.id === conversation.id;
+    const previousTurn = sameConversation ? previous.turns.at(-1) : undefined;
+    const sameTurn = previousTurn?.id === turn.id;
+    // A short first turn can already be finished in the send receipt. Use its local
+    // submission to distinguish it from opening an already finished history entry.
+    const firstLocalTurn = !sameConversation && turn.items.some(item =>
+      item.submissionId && submitted.current.some(value => value.receipt.id === item.submissionId));
+    const finished = turn.status !== "inProgress" &&
+      (sameTurn ? previousTurn.status === "inProgress" : sameConversation || firstLocalTurn);
+    const refresh = () => window.dispatchEvent(new Event("plugins-changed"));
+    if (finished) {
+      clearTimeout(pluginRefreshTimer.current);
+      pluginRefreshTimer.current = undefined;
+      refresh();
+    } else if (pluginRefreshTimer.current === undefined && (turn.status === "inProgress" || sameTurn)) {
+      const known = new Set(sameTurn ? previousTurn.items.filter(completedActivity).map(item => item.id) : []);
+      if (turn.items.some(item => completedActivity(item) && !known.has(item.id))) {
+        pluginRefreshTimer.current = setTimeout(() => {
+          pluginRefreshTimer.current = undefined;
+          refresh();
+        }, pluginActivityRefreshDelay);
+      }
+    }
+  }, [conversation]);
   useEffect(() => {
     if (!conversation) return;
     // Admission is enough; provider history remains provider-owned.

@@ -72,12 +72,25 @@ function assertPrivate(lines: string[], ...privateText: string[]) {
 }
 /** A fake Ollama whose installed models the test changes; `stop` frees the port for an unreachable address. */
 async function fakeOllama(models: string[]) {
-  const server = createServer((req, res) => {
+  const shown: string[] = [];
+  const server = createServer(async (req, res) => {
+    if (req.url === "/api/show") {
+      let body = "";
+      for await (const chunk of req) body += chunk;
+      const model = JSON.parse(body).model;
+      shown.push(model);
+      if (model === "unresponsive") return;
+      const thinking = model === "local-a:4b" ? { values: [false, true], default: true }
+        : model === "local-b:latest" ? { values: ["low", "high"], default: "low" }
+        : model === "disabled" ? { values: [false], default: false } : undefined;
+      res.statusCode = model === "failed" ? 503 : 200;
+      res.end(JSON.stringify({ thinking })); return;
+    }
     if (req.url !== "/api/tags") { res.statusCode = 404; res.end(); return; }
     res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ models: models.map(name => ({ name })) }));
   });
   await listenForFetch(server);
-  return { models, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, stop: () => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }) };
+  return { models, shown, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, stop: () => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }) };
 }
 const acpRows = (log: string) => readFileSync(log, "utf8").split("\n").slice(0, -1).map(line => JSON.parse(line));
 const acpLaunches = (log: string) => acpRows(log).filter(entry => entry.startedAt);
@@ -100,19 +113,26 @@ test("Ollama lists its own models, launches its process with the chosen model an
   const local = await connection.models("ollama", "fresh");
   assert.equal(local.provider, "ollama");
   assert.deepEqual(local.models.map(model => model.model), ["local-a:4b", "local-b:latest"]);
-  // An Ollama session has no reasoning option; the launch argument takes every CLI value, including none.
-  assert.deepEqual(local.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+  ollama.models.push("disabled", "unknown", "failed");
+  const catalog = await connection.models("ollama");
+  assert.deepEqual(catalog.models.map(model => [model.defaultReasoningEffort, model.supportedReasoningEfforts.map(value => value.reasoningEffort)]),
+    [["medium", ["none", "medium"]], ["low", ["low", "high"]], ["none", []], ["", []], ["", []]]);
+  ollama.models.splice(2);
   const ready = await connection.diagnostics("ollama");
   assert.deepEqual([ready.connected, ready.ollama], [true, { url: ollama.url, models: 2 }]);
   const settings = { provider: "ollama" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium", ollamaUrl: ollama.url };
   const input = { provider: "ollama" as const, message: "MARKER-USER-TEXT COMPLETE THIS TURN", folders: [root], model: "local-b:latest", reasoningEffort: "medium" };
+  ollama.models.push("unresponsive");
+  ollama.shown.length = 0;
   const conversation = await conversations.send(input, settings);
   await turnSettled(conversation);
+  assert.deepEqual(ollama.shown, [input.model], "a send never waits for another model's unresponsive show endpoint");
+  ollama.models.pop();
   assert.equal(conversation.turns.at(-1)!.status, "completed");
   // The daemon log names the Ollama model, but of its address only loopback or remote and the port.
   const port = new URL(ollama.url).port;
   assert.ok(lines.some(line => new RegExp(`^provider process started provider=ollama engine=acp role=main version=\\S+ model=local-b:latest address=loopback:${port} elapsedMs=\\d+$`).test(line)), lines.join("\n"));
-  assert.ok(lines.includes(`assistant turn started provider=ollama conversation=${conversation.id} session=new model=local-b:latest effort=medium permission=read-only mode=agent`), lines.join("\n"));
+  assert.ok(lines.includes(`assistant turn started provider=ollama conversation=${conversation.id} session=new model=local-b:latest effort=low permission=read-only mode=agent`), lines.join("\n"));
   assert.ok(lines.some(line => new RegExp(`^assistant turn completed provider=ollama conversation=${conversation.id} elapsedMs=\\d+$`).test(line)));
   assert.equal(ollamaAddress("http://gpu-box.corp.example:11434"), "remote:11434");
   assert.equal(conversation.provider, "ollama");
@@ -128,12 +148,22 @@ test("Ollama lists its own models, launches its process with the chosen model an
   await turnSettled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b", reasoningEffort: "none" }, settings));
   assert.equal(effort(acpLaunches(log).at(-1)), "none");
   assert.equal(conversation.reasoningEffort, "none");
+  ollama.models.push("disabled", "unknown");
+  for (const model of ["disabled", "unknown"]) {
+    await turnSettled(await conversations.send({ ...input, id: conversation.id, model }, settings));
+    const launches = acpLaunches(log), args = launches.at(-1).args;
+    assert.deepEqual(args.slice(args.indexOf("--acp") + 2), model === "disabled" ? ["--reasoning-effort", "none"] : []);
+    await turnSettled(await conversations.send({ ...input, id: conversation.id, model, reasoningEffort: "high" }, settings));
+    assert.equal(acpLaunches(log).length, launches.length);
+  }
+  // A model without reasoning options launches without an effort argument; its turn line says the CLI default.
+  assert.ok(lines.some(line => line.startsWith(`assistant turn started provider=ollama conversation=${conversation.id} `) && line.includes(" model=unknown effort=default permission=")), lines.join("\n"));
   // A model under a registry host and account namespace is logged by its name and tag only.
   ollama.models.push("registry.corp.example/review-account/local-c:4b");
   const namespaced = await conversations.send({ ...input, model: "registry.corp.example/review-account/local-c:4b" }, settings);
   await turnSettled(namespaced);
   assert.ok(lines.some(line => line.startsWith("provider process started provider=ollama engine=acp role=main") && line.includes(" model=local-c:4b address=")), lines.join("\n"));
-  assert.ok(lines.includes(`assistant turn started provider=ollama conversation=${namespaced.id} session=new model=local-c:4b effort=medium permission=read-only mode=agent`), lines.join("\n"));
+  assert.ok(lines.includes(`assistant turn started provider=ollama conversation=${namespaced.id} session=new model=local-c:4b effort=default permission=read-only mode=agent`), lines.join("\n"));
   ollama.models.pop();
   // The GitHub account keeps its own catalog and process, without any model-source variable.
   const account = await connection.models("copilot", "fresh");

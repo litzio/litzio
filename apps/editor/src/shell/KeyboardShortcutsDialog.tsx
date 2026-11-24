@@ -1,13 +1,14 @@
 import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
-import { COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS as keys, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, SAVE_SHORTCUT } from "../shortcuts.ts";
+import { CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS as keys, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, SAVE_SHORTCUT } from "../shortcuts.ts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 
 type Entry = { label: MessageKey; shortcuts: readonly { readonly label: string; binding: string }[] };
 const groups: { label: MessageKey; entries: Entry[] }[] = [
   { label: "General", entries: [
     { label: "Command center", shortcuts: [COMMAND_CENTER_SHORTCUT] },
+    { label: "Close tab (Desktop)", shortcuts: [CLOSE_TAB_SHORTCUT] },
     { label: "Save", shortcuts: [SAVE_SHORTCUT] },
   ] },
   { label: "Editing", entries: [
@@ -30,6 +31,7 @@ const groups: { label: MessageKey; entries: Entry[] }[] = [
     { label: "Italic", shortcuts: [keys.italic] },
     { label: "Strikethrough", shortcuts: [keys.strike] },
     { label: "Inline code", shortcuts: [keys.code] },
+    { label: "Inline math", shortcuts: [keys.inlineMath] },
     { label: "Link", shortcuts: [LINK_SHORTCUT] },
     { label: "Subscript", shortcuts: [keys.subscript] },
     { label: "Superscript", shortcuts: [keys.superscript] },

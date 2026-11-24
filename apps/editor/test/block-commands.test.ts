@@ -347,6 +347,7 @@ test("slash opens on supported inline surfaces with only valid command kinds", (
     assert.equal(doc.textBetween(slash.from, slash.to), "/", source);
     assert.equal(slash.blockCommands, blocks, source);
     assert.equal(slash.endnote, endnote, source);
+    assert.equal(slash.inlineMath, true, source);
   }
   const code = docOf(nativeSource("```\n/\n```"));
   assert.equal(slashQueryAt(EditorState.create({ schema, doc: code, selection: TextSelection.create(code, 2) })), null);

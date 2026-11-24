@@ -68,7 +68,7 @@ export class CopilotAcp extends EventEmitter {
     this.version = state.version = await this.installedVersion();
     state.stage = "spawn";
     if (this.closed) throw new Error("Copilot ACP is closed.");
-    const child = state.child = spawn(command, [...(this.options.args ?? []), "--acp", "--allow-tool=litzio_host", "--reasoning-effort", this.reasoningEffort],
+    const child = state.child = spawn(command, [...(this.options.args ?? []), "--acp", "--allow-tool=litzio_host", ...(this.reasoningEffort ? ["--reasoning-effort", this.reasoningEffort] : [])],
       { cwd: this.cwd, env: copilotEnvironment(this.options.env?.() ?? process.env, this.ollama), shell, windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
     child.stderr.on("data", () => {});
@@ -122,7 +122,7 @@ export class CopilotAcp extends EventEmitter {
   remember(session: NewSessionResponse) { this.sessions.set(session.sessionId, session); return session; }
   /** CLI fallback is fixed for a conversation. Caller must exclude active turns before restarting. */
   async useLaunchSettings(effort: string, fullAccess: boolean, ollama?: CopilotOllama) {
-    if (!COPILOT_EFFORTS.includes(effort)) throw new Error("Invalid Copilot reasoning effort.");
+    if (!(ollama && effort === "") && !COPILOT_EFFORTS.includes(effort)) throw new Error("Invalid Copilot reasoning effort.");
     if (effort === this.reasoningEffort && fullAccess === this.fullAccess && sameOllama(ollama, this.ollama)) return;
     await this.restart();
     this.reasoningEffort = effort; this.fullAccess = fullAccess; this.ollama = ollama;
@@ -228,7 +228,7 @@ export function copilotChoices(option: SelectOption) {
 export function copilotModelOption(session: Pick<NewSessionResponse, "configOptions">) {
   return session.configOptions?.find((option): option is SelectOption => option.type === "select" && (option.category === "model" || option.id === "model"));
 }
-/** `local`: an Ollama session has no reasoning option; the launch argument takes every CLI value. */
+/** `local`: an Ollama session has no reasoning option; the model catalog owns its choices. */
 export function copilotOptions(session: NewSessionResponse, local = false): AiCopilotOptions {
   const mode = session.configOptions?.find((option): option is SelectOption => option.type === "select" && option.category === "mode");
   const modes = session.modes?.availableModes ?? (mode ? copilotChoices(mode).map(value => ({ id: value.value, name: value.name, description: value.description })) : []);
@@ -237,7 +237,7 @@ export function copilotOptions(session: NewSessionResponse, local = false): AiCo
   const reasoning = copilotReasoning(session);
   const config = !!reasoning || !!copilotModelOption(session) || local;
   const efforts = reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" }))
-    : local ? COPILOT_EFFORTS.map(reasoningEffort => ({ reasoningEffort, description: "" })) : [];
+    : [];
   return { ...(config ? { reasoningEfforts: efforts } : {}), reasoningEffortSource: config ? "config" : "cli",
     modes: safe.map(mode => ({ id: mode.id, name: mode.name, description: mode.description ?? "" })),
     currentMode: session.modes?.currentModeId ?? mode?.currentValue ?? "" };

@@ -140,6 +140,8 @@ wrap or scroll within the group. It observes that viewport as well as the overla
 window resize, group resize/movement and document scrolling refit the same controls.
 Single-group mode retains the previous window/header bounds and CSS size limits.
 
+The tab context menu offers Close, Close Others, Close to the Left and Close to the Right. These actions use the clicked tab and its group. Empty ranges are disabled. Clean tabs close immediately. Each unsaved tab keeps its own Save, Don’t save and Cancel decision, with the remaining review count. Desktop Ctrl+W closes the focused group’s active tab, including while editing. A modal dialog or an empty group blocks it. In a browser Ctrl+W belongs to the browser. See the [light menu](assets/tab-close-1940/after-light.png), [dark menu](assets/tab-close-1940/after-dark.png) and [leftmost tab](assets/tab-close-1940/after-disabled.png).
+
 Open to the right is available in tab context menus, document File actions, Explorer
 document context menus and Command Center. It targets the right group, creating it
 when necessary. Move to other group is available from tab/File menus and Command
@@ -865,7 +867,7 @@ an active Visual document, while busy, or when that history has no corresponding
 They do not require an editor-origin opener: clicking the TopBar center can dispatch history.
 After the center releases its modal focus, the command runs and synchronously focuses the
 same editor. Other tabs' history and unapplied property forms are not separate history targets.
-The Save, Undo and Redo rows show their shared platform labels (Ctrl+S/Z/Y, or ⌘S/Z/Y).
+The Desktop close-tab row shows Ctrl+W on Windows. The Save, Undo and Redo rows show their shared platform labels (Ctrl+S/Z/Y, or ⌘S/Z/Y).
 The guide also shows the existing Ctrl/Cmd+Shift+Z redo alternative.
 
 `Keyboard shortcuts` / `키보드 단축키` opens a read-only shared Dialog after the center
@@ -882,7 +884,8 @@ English/Korean names and shared platform labels, rather than an inventory of eve
   Check or uncheck checklist item Ctrl/Cmd+Enter (#1893);
   Code block Ctrl/Cmd+Alt+C; Go to document end Ctrl/Cmd+End.
 - Formatting: bold Ctrl/Cmd+B, italic Ctrl/Cmd+I, strikethrough Ctrl/Cmd+Shift+S,
-  inline code Ctrl/Cmd+E, link Ctrl/Cmd+', subscript Ctrl/Cmd+, and superscript Ctrl/Cmd+.
+  inline code Ctrl/Cmd+E, inline math Ctrl/Cmd+Shift+6, link Ctrl/Cmd+',
+  subscript Ctrl/Cmd+, and superscript Ctrl/Cmd+.
 - Tables: Next / previous cell Tab/Shift+Tab.
 
 Keyboard-layout aliases, separate macOS-only variants, basic OS editing/navigation keys and
@@ -1241,6 +1244,12 @@ the document has no labeled targets and the form has no autofocus control. Outsi
 preserves the clicked destination's focus; Escape returns focus to the editor. This applies
 to both selection-toolbar insertion and an unresolved reference's editor, without changing
 document content, and leaves slash insertion available without Reload (#427).
+
+The slash menu also offers **Inline math** / **인라인 수식** in the Technical group.
+Its Sigma icon matches the selection toolbar, and its key chip shows Ctrl/Cmd+Shift+6.
+The item matches `math`, `equation`, `latex` and `수식`. It appears on the editable
+caret surfaces below wherever the schema permits inline math. The document title,
+code blocks and property fields keep their own text input.
 
 Implementation scope: expose existing inline insertion paths on Core-backed editable inline
 surfaces. Preserve top-level paragraph order/search/keys; omit block commands everywhere else.

@@ -55,6 +55,7 @@ const INSERT_ICONS: Record<string, LucideIcon> = {
   divider: Minus,
   "code-block": Code,
   equation: Sigma,
+  "inline-math": Sigma,
   figure: Image,
   diagram: Workflow,
   table: Table,

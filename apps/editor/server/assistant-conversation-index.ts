@@ -32,7 +32,7 @@ export class AssistantConversationIndex {
         ...(attachments?.length ? { attachments } : {}),
         ...(questions.length ? { questions } : {}),
         ...(providerEngine(conversationProvider(conversation)) === "acp" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}),
-        ...(conversationProvider(conversation) === "ollama" ? { ollamaModel: conversation.model } : {}) }, ...entries]) + "\n", { flag: "wx" });
+        ...(conversationProvider(conversation) === "ollama" ? { ollamaModel: conversation.model, copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }

@@ -19,7 +19,7 @@ import { ASSISTANT, DEFAULT_OLLAMA_URL, isAiProvider } from "../shared/assistant
 import type { AssistantConversationInfo, AssistantQuestionRecord, AssistantSubmission, AssistantSubmissionResult, AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn, AiProvider } from "../shared/assistant.ts";
 import type { ProviderConnections } from "./provider-connections.ts";
 import { AI_PROVIDERS, conversationProvider, providerEngine } from "./provider-engine.ts";
-import { ollamaModels } from "./provider-connections.ts";
+import { ollamaModels, ollamaModel } from "./provider-connections.ts";
 import { accessPath, type FileAccess } from "./file-access.ts";
 
 import { documentFolders, documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
@@ -319,7 +319,15 @@ export class AssistantConversations {
     settings = { ...settings, provider, permissionMode: turnPermissionMode ?? this.conversations.get(id)?.permissionMode ?? restored };
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     const acp = providerEngine(provider) === "acp" ? this.connection.acp(provider) : undefined;
-    if (acp) await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? acp.reasoningEffort, settings, provider === "ollama" ? await this.ollamaLaunch(info, settings, launchModel) : undefined);
+    if (acp && (provider !== "ollama" || !launchModel)) {
+      const launch = provider === "ollama" ? await this.ollamaLaunch(info, settings) : undefined;
+      let effort = info.copilotCliReasoningEffort ?? acp.reasoningEffort;
+      if (launch) {
+        const model = await ollamaModel(launch.url, launch.model);
+        if (!model.supportedReasoningEfforts.some(value => value.reasoningEffort === effort)) effort = model.defaultReasoningEffort;
+      }
+      await this.prepareCopilotLaunch(effort, settings, launch);
+    }
     if (acp && this.loaded.has(id)) return this.current(id);
     const conversation: AssistantConversation = { ...info, permissionMode: settings.permissionMode, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage, copilotUsage: this.conversations.get(id)?.copilotUsage };
@@ -336,7 +344,7 @@ export class AssistantConversations {
         conversation.copilot = copilotOptions({ ...session, sessionId: id }, !!acp.ollama);
         const reasoning = copilotReasoning(session);
         if (conversation.copilot.reasoningEffortSource === "cli" && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
-        conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort ?? settings.reasoningEffort;
+        conversation.reasoningEffort = provider === "ollama" ? acp.reasoningEffort : reasoning?.currentValue ?? info.copilotCliReasoningEffort ?? settings.reasoningEffort;
         // Only a completed loadSession replay proves the CLI owns these user messages.
         for (const turn of conversation.turns) for (const item of turn.items) if (item.kind === "user") item.userMessageSource = "provider-history";
         this.loaded.add(id);
@@ -362,8 +370,8 @@ export class AssistantConversations {
     return conversation;
   }
   /** An Ollama process serves one model: the conversation's model must still be in Ollama, never silently another one. */
-  private async ollamaLaunch(info: ConversationIndexEntry, settings: AssistantSettings, launchModel?: string): Promise<CopilotOllama> {
-    const url = ollamaUrl(settings), model = launchModel ?? info.ollamaModel ?? "";
+  private async ollamaLaunch(info: ConversationIndexEntry, settings: AssistantSettings): Promise<CopilotOllama> {
+    const url = ollamaUrl(settings), model = info.ollamaModel ?? "";
     if (!(await ollamaModels(url)).includes(model)) throw new Error(`This conversation's model ${model} is not in Ollama.`);
     return { url, model };
   }
@@ -580,13 +588,15 @@ export class AssistantConversations {
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     // Read the Ollama address once: validation and launch use the address this send started with.
     const ollama = settings.provider === "ollama" ? ollamaUrl(settings) : undefined;
-    const catalog = await this.connection.models(settings.provider, "recent", ollama);
-    if (!catalog.models.some(model => model.model === input.model)) throw new AssistantModelUnavailable("Invalid Copilot model.");
+    const catalog = await this.connection.models(settings.provider, "recent", ollama, ollama ? input.model : undefined);
+    const selected = catalog.models.find(model => model.model === input.model);
+    if (!selected) throw new AssistantModelUnavailable("Invalid Copilot model.");
     if (input.mode !== undefined && !catalog.copilot?.modes.some(mode => mode.id === input.mode)) throw new Error("Invalid Copilot session mode.");
     const source = conversation?.copilot?.reasoningEffortSource ?? catalog.copilot?.reasoningEffortSource;
     // An Ollama session has no reasoning option: the chosen effort is a launch setting like its model.
     const launchEffort = source === "cli" || !!ollama;
-    if (launchEffort && !COPILOT_EFFORTS.includes(input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort.");
+    if (ollama && !selected.supportedReasoningEfforts.some(value => value.reasoningEffort === input.reasoningEffort)) input = { ...input, reasoningEffort: selected.defaultReasoningEffort };
+    if (!ollama && launchEffort && !COPILOT_EFFORTS.includes(input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort.");
     if (source === "cli" && !ollama && conversation && conversation.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
     const effort = launchEffort ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.permissionMode === "full-access";
