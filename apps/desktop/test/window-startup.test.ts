@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 
 
 import { createRequire } from "node:module";
+import path from "node:path";
 import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
 import { test } from "node:test";
@@ -25,7 +26,9 @@ const source = transformSync(readFileSync(main, "utf8"), {
   loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(main.href), __LITZIO_REQUIRE_SIGNED_UPDATES__: "false" },
 }).code;
 
-async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?: boolean; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number; closeError?: string; installationError?: string; packaged?: boolean; resetCloseRefused?: boolean } = {}) {
+const pluginSourceFolder = path.resolve("/fixture-daemon-data/plugins");
+
+async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?: boolean; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number; closeError?: string; installationError?: string; packaged?: boolean; resetCloseRefused?: boolean; pluginFolderInstance?: string } = {}) {
   const preferences: unknown[] = [];
   const logs: string[] = [], errors: unknown[][] = [], alerts: string[] = [];
   const directories: string[] = [], opened: string[] = [];
@@ -134,7 +137,10 @@ async function start(options: { backgroundNoticeShown?: boolean; restartAllowed?
       async check() { daemonCalls.push("check"); if (this.checkError) throw new Error(this.checkError); } async stopExplicitly() { daemonCalls.push("stop"); }
     } },
     "../../editor/server/daemon-log.ts": daemonLog,
-    "../../editor/server/daemon-state.ts": { daemonPort, async daemonRpc() { return { same: true }; }, processStart: () => "fixture-parent" },
+    "../../editor/server/daemon-state.ts": { daemonPort, async daemonRpc(record: { instanceId: string }, route: string) {
+      if (route === "/daemon/plugin-source-folder") return { directory: pluginSourceFolder, instanceId: options.pluginFolderInstance ?? record.instanceId };
+      return { same: true };
+    }, processStart: () => "fixture-parent" },
     "./explorer.ts": { ExplorerFolders },
     "./first-document.ts": { firstDocument() {} },
     "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null, backgroundNoticeShown: options.backgroundNoticeShown ?? false }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
@@ -478,6 +484,24 @@ test("log folder IPC creates and opens only main's fixed directory and reports f
   const denied = await start({ logError: true });
   await assert.rejects(async () => denied.invoke("desktop:open-log-folder", []), /log directory denied/);
   assert.equal(denied.opened.length, 0);
+});
+
+test("plugin folder IPC creates and opens only the connected daemon's source folder", async () => {
+  const h = await start();
+  assert.throws(() => h.invoke("desktop:open-plugin-folder", [], false), /Untrusted sender/);
+  assert.deepEqual(h.opened, []);
+  h.directories.length = 0;
+  await h.invoke("desktop:open-plugin-folder", [path.resolve("/fixture-other-folder")]);
+  assert.deepEqual(h.directories, [pluginSourceFolder]);
+  assert.deepEqual(h.opened, [pluginSourceFolder]);
+
+  const failed = await start({ openError: "OS failed" });
+  await assert.rejects(async () => failed.invoke("desktop:open-plugin-folder", []), /Could not open the plugin folder/);
+  const stale = await start({ pluginFolderInstance: "other-daemon-instance" });
+  stale.directories.length = 0;
+  await assert.rejects(async () => stale.invoke("desktop:open-plugin-folder", []), /Could not open the plugin folder/);
+  assert.deepEqual(stale.directories, []);
+  assert.deepEqual(stale.opened, []);
 });
 
 test("process diagnostics omit error content and preserve existing exception/rejection handlers", async () => {

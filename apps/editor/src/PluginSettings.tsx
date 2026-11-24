@@ -4,6 +4,7 @@ import { Status } from "./components/ui/status.tsx";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 import { PluginArtifactChangedError } from "../shared/plugin-artifact-error.ts";
+import type { DesktopBridge } from "../shared/desktop-bridge.ts";
 import { PLUGIN_MANIFEST_MISSING, PLUGIN_SOURCE_READD_REQUIRED, PLUGIN_SOURCE_UNAVAILABLE } from "../shared/plugin-registration-error.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
@@ -29,10 +30,12 @@ const ACTIVATION_HINTS = {
 } as const satisfies Record<NonNullable<Plugin["activationFailure"]>, string>;
 type RowAction = "enable" | "disable" | "reload" | "update";
 
-export function PluginSettings() {
+export function PluginSettings({ desktop }: { desktop?: DesktopBridge }) {
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
   const [removing, setRemoving] = useState(false), [checking, setChecking] = useState<string | true>(), [fromGitHub, setFromGitHub] = useState(false);
   const [listProblem, setListProblem] = useState("");
+  const [openingFolder, setOpeningFolder] = useState(false);
+  const [folderProblem, setFolderProblem] = useState(false);
   const [rowProblems, setRowProblems] = useState(new Map<string, { action: RowAction; message: string }>());
   const [reinstalling, setReinstalling] = useState<string>();
   const githubButton = useRef<HTMLButtonElement>(null);
@@ -94,7 +97,18 @@ export function PluginSettings() {
       <Button size="sm" variant="outline" disabled={busy || !plugins.length} onClick={async () => { setChecking(true); await run("check-updates", {}); setChecking(undefined); }}>{i18n.t(checking === true ? "Checking…" : "Check for updates")}</Button>
       {/* Every status here and in the plugin dialog comes from the Host's last check (plugin.update). */}
       {!checking && plugins.length && plugins.every(plugin => plugin.update && !plugin.update.available && !plugin.update.error) ? <PluginState tone="ok" label={i18n.t("Up to date")} /> : null}
+      {desktop?.openPluginFolder ? <Tooltip>
+        <TooltipTrigger render={<Button size="sm" variant="outline" disabled={openingFolder} onClick={async () => {
+          setOpeningFolder(true);
+          setFolderProblem(false);
+          try { await desktop.openPluginFolder(); }
+          catch { setFolderProblem(true); }
+          finally { setOpeningFolder(false); }
+        }} />}>{i18n.t("Open plugin folder")}</TooltipTrigger>
+        <TooltipContent>{i18n.t("Opens the folder for plugin sources. Plugin folders stay here after removal from the list.")}</TooltipContent>
+      </Tooltip> : null}
     </div>
+    {folderProblem ? <Notice tone="error" className="plugin-list-error">{i18n.t("Could not open the plugin folder.")}</Notice> : null}
     <FolderDialog open={choosing} title={i18n.t("Add plugin…")} initialPath="" recent={[]}
       browse={browse} places={places} returnFocus={addButton} pendingLabel={i18n.t("Adding…")}
       onClose={() => setChoosing(false)} onOpen={async directory => {

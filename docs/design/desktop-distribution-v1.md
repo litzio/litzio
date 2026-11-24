@@ -403,6 +403,24 @@ and press at the bottom edge), double-click maximize, non-default Windows displa
 rendered light/dark symbols and taskbar/Alt+Tab presentation. CI screen pixels do not establish
 real-user Windows acceptance or all display-scale behavior.
 
+## Plugin source folder (#1928)
+
+Settings → Plugins offers **Open plugin folder** / **플러그인 폴더 열기** at the end of the
+existing action row when the Desktop bridge provides the action. The small outline button
+explains on hover and keyboard focus that removed plugins' sources stay in this folder.
+The button is disabled while opening and offers retry through the same button after a localized error.
+
+Main asks the connected local daemon for its source directory, resolved by the same
+Host path rules as plugin authoring (`LITZIO_PLUGINS` in the assistant environment).
+The no-argument IPC uses the trusted main-frame check, and Main checks that the response
+belongs to the connected instance, creates the source directory if absent, and opens
+it through the OS file explorer. The browser has no button for this action.
+
+Action row captures at 1440px in light theme ([before](assets/plugin-source-folder-1928/before-1440-light.png)
+and [after](assets/plugin-source-folder-1928/after-1440-light.png)), [1440px dark](assets/plugin-source-folder-1928/after-1440-dark.png),
+[640px dark with wrapping](assets/plugin-source-folder-1928/after-640-dark.png), and [1920×1080](assets/plugin-source-folder-1928/after-1920-light.png)
+use the browser fixture with a Desktop bridge stand-in.
+
 ## Log folder and process diagnostics (#712)
 
 Settings → About & updates offers **Open log folder** / **로그 폴더 열기** only with

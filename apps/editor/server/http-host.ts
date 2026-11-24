@@ -130,7 +130,7 @@ export async function startHttpHost(options: HttpHostOptions) {
     if (writing && (url.pathname !== "/api/asset" || req.method === "DELETE") && !/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"] ?? "")) {
       return json(res, 415, "Expected application/json.");
     }
-    if (options.daemon && (url.pathname === "/daemon/health" || url.pathname === "/daemon/stop")) routed.add(res);
+    if (options.daemon && (url.pathname === "/daemon/health" || url.pathname === "/daemon/stop" || url.pathname === "/daemon/plugin-source-folder")) routed.add(res);
     if (options.daemon && await daemonRequest(req, res, url, options.daemon)) return;
     const instanceId = req.headers[DAEMON_INSTANCE_HEADER];
     if (api && instanceId !== undefined && instanceId !== options.daemon?.health.instanceId) {

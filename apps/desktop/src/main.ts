@@ -402,6 +402,18 @@ function registerIpc(): void {
     const error = await shell.openPath(directory);
     if (error) throw new Error("Could not open the log folder.");
   });
+  handle("desktop:open-plugin-folder", async () => {
+    await initialConnection;
+    const record = daemon.record;
+    const { directory, instanceId } = await daemonRpc(record, "/daemon/plugin-source-folder");
+    if (instanceId !== record.instanceId || instanceId !== daemon.record.instanceId ||
+        typeof directory !== "string" || !path.isAbsolute(directory)) {
+      throw new Error("Could not open the plugin folder.");
+    }
+    mkdirSync(directory, { recursive: true });
+    const error = await shell.openPath(directory);
+    if (error) throw new Error("Could not open the plugin folder.");
+  });
   handle("desktop:info", () => info());
   handle("desktop:cli-state", () => cliIntegration?.state() ?? { status: "off", unsupported: true });
   handle("desktop:cli-set", (enabled) => {

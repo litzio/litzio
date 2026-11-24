@@ -192,7 +192,7 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
           <main className="settings-content" aria-labelledby={`settings-category-${category}`}>
             <div className="settings-content-inner">
               <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
-              {category === "plugins" ? <PluginSettings /> : null}
+              {category === "plugins" ? <PluginSettings desktop={desktop} /> : null}
               {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} providerReadRevision={assistantProviderRevision} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} testId="theme"

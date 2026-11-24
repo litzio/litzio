@@ -31,6 +31,7 @@ const bridge: DesktopBridge = {
   providerSessionLog: (id, provider, action) => ipcRenderer.invoke("desktop:provider-session-log", id, provider, action),
   openFolderInExplorer: folder => ipcRenderer.invoke("desktop:open-folder", folder),
   openLogFolder: () => ipcRenderer.invoke("desktop:open-log-folder"),
+  openPluginFolder: () => ipcRenderer.invoke("desktop:open-plugin-folder"),
   setTheme: (theme) => ipcRenderer.invoke("desktop:set-theme", theme),
   setWindowBackground: (color, overlay) => ipcRenderer.invoke("desktop:set-window-background", color, overlay),
   info: () => ipcRenderer.invoke("desktop:info"),

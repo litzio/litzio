@@ -88,6 +88,13 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
     assert.equal(first.instanceId, second.instanceId); assert.equal(first.pid, second.pid);
     assert.equal(first.url, `http://127.0.0.1:${daemonPort("development")}`);
     assert.equal((await fetch(first.url + "/api/document")).status, 200);
+    const sourceFolderRoute = first.url + "/daemon/plugin-source-folder";
+    const protocolHeaders = { "X-Litzio-Protocol": DAEMON_PROTOCOL };
+    const sourceFolder = await fetch(sourceFolderRoute, { headers: protocolHeaders });
+    assert.equal(sourceFolder.status, 200);
+    assert.deepEqual(await sourceFolder.json(), { directory: path.join(env.LITZIO_DATA_DIR, "plugins"), instanceId: first.instanceId });
+    assert.equal(fs.existsSync(path.join(env.LITZIO_DATA_DIR, "plugins")), false, "Daemon lookup does not create the source folder");
+    assert.equal((await fetch(sourceFolderRoute + "?directory=other", { headers: protocolHeaders })).status, 404);
     const status = await execute(["status", "--json"]); assert.equal(status.code, 0, status.stderr);
     assert.equal(status.stderr, "");
     assert.equal(JSON.parse(status.stdout).instanceId, first.instanceId);
