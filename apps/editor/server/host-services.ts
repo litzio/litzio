@@ -25,7 +25,7 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, optio
     plugins, views,
     get assistant() {
       if (closed) throw new Error("The Host is closing.");
-      return assistant ??= createAssistantHost(access, undefined, { plugins, paths, origin: options?.origin });
+      return assistant ??= createAssistantHost(access, undefined, { plugins, paths, origin: options?.origin, log: options?.log });
     },
     close() {
       closed = true;

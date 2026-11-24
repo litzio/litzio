@@ -338,7 +338,8 @@ test("unavailable provider rejects new work with a reason; settings do not close
   const log = path.join(root, "provider.jsonl");
   const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
     args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
-  const host = createAssistantHost(null, path.join(root, "ai.json"), { agent: connection });
+  const lines: string[] = [];
+  const host = createAssistantHost(null, path.join(root, "ai.json"), { agent: connection, log: line => lines.push(line) });
   t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
   const settings = { ...await host.invoke("settings"), model: "gpt-6.1-sol", reasoningEffort: "medium" };
   await host.invoke("configure", settings);
@@ -391,6 +392,11 @@ test("unavailable provider rejects new work with a reason; settings do not close
   completeCheck();
   assert.deepEqual(await first, await second);
   await assert.rejects(host.invoke("assistantConversation", { action: "send", provider: "codex", message: "New work", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }), /AI provider codex is unavailable: Fixture provider unavailable/);
+  // A refused send writes the stage and the Host's kind, never the provider's reason or the message.
+  const text = lines.join("\n");
+  assert.ok(lines.includes("assistant turn failed provider=codex session=new stage=check error=unavailable"), text);
+  assert.ok(lines.some(line => /^assistant turn failed provider=codex session=new stage=prepare error=model-unavailable elapsedMs=\d+$/.test(line)), text);
+  for (const value of ["Fixture provider unavailable", "New work", "Removed model", "Question", root]) assert.equal(text.includes(value), false, value);
   const refreshed = await host.invoke("assistantDiagnostics", { provider: "codex", cache: "prefer" });
   assert.equal(refreshed.connected, false);
   await host.invoke("configure", { ...settings, permissionMode: "read-only" });

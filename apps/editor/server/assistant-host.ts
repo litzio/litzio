@@ -8,6 +8,7 @@ import { createAssistantSettings, checkedAssistantSettings } from "./assistant-s
 import { ProviderConnections } from "./provider-connections.ts";
 import { AI_PROVIDERS, conversationProvider, providerCli, providerEngine } from "./provider-engine.ts";
 import { AssistantConversations, AssistantModelUnavailable, conversationForDisplay } from "./assistant-conversations.ts";
+import { conversationField, errorFields } from "./provider-daemon-log.ts";
 
 const PROVIDER_RECHECK_INTERVAL_MS = 3_000;
 function providerReads<T>(read: (provider: AiProvider) => Promise<T>) {
@@ -57,7 +58,7 @@ function providerReads<T>(read: (provider: AiProvider) => Promise<T>) {
 }
 
 /** Official daemon feature. Connections and turns live until daemon shutdown. */
-export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun; plugins?: PluginService; paths?: ReturnType<typeof hostPaths>; origin?(): string | undefined }) {
+export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun; plugins?: PluginService; paths?: ReturnType<typeof hostPaths>; origin?(): string | undefined; log?: (message: string) => void }) {
   const paths = options?.paths ?? hostPaths(options?.run, { ...process.env });
   const { settings, configure } = createAssistantSettings(settingsFile ?? paths.settingsFile("assistant"), paths.assistantDefaults);
   const plugins = options?.plugins;
@@ -68,6 +69,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     // The Ollama address is read when an Ollama process launches, never pushed into a running one.
     agent.ollamaUrl = () => settings().ollamaUrl ?? DEFAULT_OLLAMA_URL;
     agent.pluginAuthoring = !!plugins;
+    if (options?.log) agent.log = options.log;
     return agent;
   };
   const readModels = providerReads(async selected => {
@@ -160,9 +162,12 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
         const selected = provider({ provider: existing?.provider ?? args.provider ?? currentSettings.provider });
         // Steering and cancellation retain their admitted turn and connection.
         if (!existing?.turns.some(turn => turn.status === "inProgress")) {
-          const status = await readDiagnostics.read(selected).catch(error => { recheckProvider(selected); throw error; });
+          // A send the provider check refuses never reaches the conversation; its line has the check's kind only.
+          const refused = (kind: string) => providerConnection().log(`assistant turn failed provider=${selected} ${existing ? conversationField(existing.id) : "session=new"} stage=check ${kind}`);
+          const status = await readDiagnostics.read(selected).catch(error => { recheckProvider(selected); refused(errorFields(error)); throw error; });
           if (!status.connected || selected === "codex" && !status.account) {
             recheckProvider(selected);
+            refused(`error=${status.ollama?.unavailable ?? (status.connected ? "signed-out" : "unavailable")}`);
             throw new Error(`AI provider ${selected} is unavailable: ${status.error ?? status.accountError ?? "Sign in on the Host."}`);
           }
           if (closed) throw new Error("The Assistant Host is closing.");

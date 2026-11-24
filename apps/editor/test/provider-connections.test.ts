@@ -18,6 +18,8 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 import { fakeProviderCli, settled, useReleaseSource } from "./helpers/provider-cli.ts";
+import { repeatLog } from "../server/daemon-log.ts";
+import { ollamaAddress } from "../server/provider-daemon-log.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
@@ -61,6 +63,13 @@ async function until(condition: () => unknown, what: string, timeoutMs = 10_000)
   }
 }
 const turnSettled = (conversation: { turns: { status: string }[] }) => until(() => conversation.turns.at(-1)!.status !== "inProgress", "the turn to finish");
+/** The daemon log lines a connection writes. */
+function daemonLines(connection: ProviderConnections) { const lines: string[] = []; connection.log = line => lines.push(line); return lines; }
+/** Daemon log lines never carry user text, answers, opened folders, documents or the Ollama host. */
+function assertPrivate(lines: string[], ...privateText: string[]) {
+  const text = lines.join("\n");
+  for (const value of privateText) assert.equal(text.includes(value), false, `daemon log must not contain ${value}`);
+}
 /** A fake Ollama whose installed models the test changes; `stop` frees the port for an unreachable address. */
 async function fakeOllama(models: string[]) {
   const server = createServer((req, res) => {
@@ -85,6 +94,7 @@ test("Ollama lists its own models, launches its process with the chosen model an
   let address = ollama.url;
   connection.ollamaUrl = () => address;
   const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
+  const lines = daemonLines(connection);
   t.after(async () => { await connection.close(); await ollama.stop(); rmSync(root, { recursive: true, force: true }); });
   // Auto is GitHub's account routing and is not an Ollama model.
   const local = await connection.models("ollama", "fresh");
@@ -95,10 +105,16 @@ test("Ollama lists its own models, launches its process with the chosen model an
   const ready = await connection.diagnostics("ollama");
   assert.deepEqual([ready.connected, ready.ollama], [true, { url: ollama.url, models: 2 }]);
   const settings = { provider: "ollama" as const, permissionMode: "read-only" as const, model: "local-b:latest", reasoningEffort: "medium", ollamaUrl: ollama.url };
-  const input = { provider: "ollama" as const, message: "COMPLETE THIS TURN", folders: [root], model: "local-b:latest", reasoningEffort: "medium" };
+  const input = { provider: "ollama" as const, message: "MARKER-USER-TEXT COMPLETE THIS TURN", folders: [root], model: "local-b:latest", reasoningEffort: "medium" };
   const conversation = await conversations.send(input, settings);
   await turnSettled(conversation);
   assert.equal(conversation.turns.at(-1)!.status, "completed");
+  // The daemon log names the Ollama model, but of its address only loopback or remote and the port.
+  const port = new URL(ollama.url).port;
+  assert.ok(lines.some(line => new RegExp(`^provider process started provider=ollama engine=acp role=main version=\\S+ model=local-b:latest address=loopback:${port} elapsedMs=\\d+$`).test(line)), lines.join("\n"));
+  assert.ok(lines.includes(`assistant turn started provider=ollama conversation=${conversation.id} session=new model=local-b:latest effort=medium permission=read-only mode=agent`), lines.join("\n"));
+  assert.ok(lines.some(line => new RegExp(`^assistant turn completed provider=ollama conversation=${conversation.id} elapsedMs=\\d+$`).test(line)));
+  assert.equal(ollamaAddress("http://gpu-box.corp.example:11434"), "remote:11434");
   assert.equal(conversation.provider, "ollama");
   assert.deepEqual(acpLaunches(log).at(-1).byok, { baseUrl: `${ollama.url}/v1`, apiKey: "", wireApi: "responses", model: "local-b:latest", offline: null });
   // One Ollama process serves one model; another model relaunches it between turns.
@@ -140,6 +156,7 @@ test("Ollama lists its own models, launches its process with the chosen model an
   address = stopped.url;
   const bothUnavailable = await connection.diagnostics("ollama");
   assert.deepEqual([bothUnavailable.connected, bothUnavailable.ollama, bothUnavailable.path], [false, { url: stopped.url, models: null, unavailable: "unreachable" }, null]);
+  assertPrivate(lines, "MARKER-USER-TEXT", "127.0.0.1", root);
 });
 
 test("Copilot account and Ollama run as separate processes that never take over each other's turns, approvals, tools or resumes", async t => {
@@ -260,6 +277,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   t.after(() => { spawned.mock.restore(); syncBuiltinESMExports(); });
   const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
   const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
+  const lines = daemonLines(connection);
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const catalog = await connection.models("copilot");
   assert.deepEqual(catalog.models.map(model => model.model), ["auto", "copilot-model"]);
@@ -336,10 +354,16 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.deepEqual((await resolvePermission(connection, conversations, { ...request, toolCall: { toolCallId: "shell", kind: "execute" } })), { outcome: { outcome: "cancelled" } });
     await conversations.interrupt(conversation.id);
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
-    const failedInput = { ...input, id: conversation.id, submissionId: "copilot-prompt-failed", message: "FAIL THIS TURN" };
+    const failedInput = { ...input, id: conversation.id, submissionId: "copilot-prompt-failed", message: "MARKER-USER-TEXT FAIL THIS TURN" };
     await conversations.submit(failedInput, () => conversations.send(failedInput, settings));
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
     assert.equal(conversation.turns.at(-1)!.status, "failed");
+    // A turn's options when it starts and its result when it ends; a provider error keeps only its JSON-RPC code.
+    const turnLines = lines.filter(line => line.startsWith("assistant turn ") && line.includes(conversation.id)).map(line => line.replace(/ elapsedMs=\d+$/, ""));
+    assert.equal(turnLines[0], `assistant turn started provider=copilot conversation=${conversation.id} session=new model=auto effort=high permission=read-only mode=plan`);
+    assert.ok(turnLines.includes(`assistant turn interrupted provider=copilot conversation=${conversation.id}`));
+    assert.equal(turnLines.at(-1), `assistant turn failed provider=copilot conversation=${conversation.id} stage=response error=provider code=-32000`);
+    assert.equal(turnLines.filter(line => line.startsWith("assistant turn started")).length, turnLines.length / 2, "one end line for each started turn");
     assert.match(conversation.turns.at(-1)!.error!, /quota fixture/);
     assert.equal(conversation.turns.at(-1)!.items[0]!.userMessageSource, "host", "a Host row is not provider persistence proof");
     assert.equal(conversations.submission(failedInput.submissionId).submission.status, "accepted");
@@ -373,6 +397,8 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.equal(message.params.prompt[0].text.includes(ASSISTANT_INSTRUCTIONS.split("\n")[0]!), false);
   }
   assert.ok(rpc.some(message => message.args?.includes("high")), "CLI fallback receives the selected effort at startup");
+  assert.ok(lines.some(line => /^provider process started provider=copilot engine=acp role=probe version=\S+ elapsedMs=\d+$/.test(line)), "diagnostics run a probe process");
+  assertPrivate(lines, "MARKER-USER-TEXT", "Permission fixture path", "quota fixture", root);
   assert.ok(rpc.some(message => message.method === "session/set_mode" && message.params.modeId === "plan"));
   await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "low" }, settings), /new conversation/);
   await assert.rejects(conversations.send({ ...input, mode: "autopilot" }, settings), /mode/);
@@ -479,6 +505,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const plugins = new PluginHost(path.join(root, "plugins.json"), { authoringDirectory: path.join(root, "data", "plugins") });
   t.after(() => plugins.close());
   const conversations = new AssistantConversations(connection, new RootAccess([root]), plugins);
+  const lines = daemonLines(connection);
   const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
@@ -521,6 +548,13 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   await conversations.interrupt(conversation.id);
   assert.equal(conversation.turns[0]!.status, "interrupted");
   assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
+  // Steering and input rejected before reaching the provider start no turn and write no turn line.
+  assert.deepEqual(lines.map(line => line.replace(/ elapsedMs=\d+$/, "").replace(/ version=\S+/, "")), [
+    "provider process started provider=codex engine=codex role=main",
+    `assistant turn started provider=codex conversation=${conversation.id} session=new model=gpt-6.1-sol effort=medium permission=opened-folders`,
+    `assistant turn interrupted provider=codex conversation=${conversation.id}`,
+  ]);
+  assertPrivate(lines, "What changed?", "Only summarize", "Partial answer", root);
   assert.equal(readFileSync(input.document.path, "utf8"), "ON DISK");
   const stored = JSON.parse(readFileSync(path.join(cwd, "conversations.json"), "utf8"));
   assert.deepEqual(Object.keys(stored[0]).sort(), ["createdAt", "folders", "id", "permissionMode", "provider", "title", "updatedAt"]);
@@ -830,8 +864,9 @@ test("account usage shares the lazy connection, caches concurrent reads for 60s 
 test("malformed output, process loss and request timeout reject without replay", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-transport-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  const lines: string[] = [], log = repeatLog(line => lines.push(line));
   for (const method of ["malformed", "exit", "hang"]) {
-    const client = new CodexAppServer(root, { bin: process.execPath, args: [fakeServer], timeoutMs: 2000 });
+    const client = new CodexAppServer(root, { bin: process.execPath, args: [fakeServer], timeoutMs: 2000, log });
     try {
       await client.connect();
       const disconnected = method === "exit" ? new Promise(resolve => client.once("disconnected", resolve)) : undefined;
@@ -841,14 +876,24 @@ test("malformed output, process loss and request timeout reject without replay",
     }
     finally { await client.close(); }
   }
-  const client = new CodexAppServer(root, { bin: path.join(root, "absent-codex"), args: [fakeServer] });
+  // Only the exit the Host did not ask for is logged; a closed connection (malformed output) and a timeout are not exits.
+  assert.deepEqual(lines.filter(line => line.startsWith("provider process exited")), ["provider process exited provider=codex engine=codex role=main exitCode=3 activeTurn=false"]);
+  const startLines: string[] = [];
+  const client = new CodexAppServer(root, { bin: path.join(root, "absent-codex"), args: [fakeServer], log: repeatLog(line => startLines.push(line)) });
   try {
+    await assert.rejects(client.connect(), /could not be executed/);
     await assert.rejects(client.connect(), /could not be executed/);
     const restored = t.mock.getter(client, "executable", () => process.execPath);
     await client.connect();
     assert.ok((await client.request("model/list")).data.length);
     restored.mock.restore();
   } finally { await client.close(); }
+  // A repeated failure folds into one count, printed when a different start ends the run.
+  assert.deepEqual(startLines.map(line => line.replace(/ elapsedMs=\d+$/, "").replace(/ version=\S+/, "")), [
+    "provider process failed provider=codex engine=codex role=main stage=executable error=not-runnable",
+    "repeated 1 more time: provider process failed provider=codex engine=codex role=main stage=executable error=not-runnable",
+    "provider process started provider=codex engine=codex role=main",
+  ]);
 });
 
 test("Codex unconfirmed termination after a failed initialization does not block the next connection", async t => {
@@ -1564,6 +1609,7 @@ test("a Copilot disconnect cleans up only its own conversations while a Codex tu
   const root = mkdtempSync(path.join(tmpdir(), "provider-disconnect-")), log = path.join(root, "rpc.jsonl"), acpLog = path.join(root, "acp.jsonl");
   const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] }, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), acpLog] });
   const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const lines = daemonLines(connection);
   t.after(async () => { await conversations.close(); await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const codexSettings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const codex = await conversations.send({ message: "Draft", folders: [root], model: codexSettings.model, reasoningEffort: codexSettings.reasoningEffort }, codexSettings);
@@ -1578,6 +1624,10 @@ test("a Copilot disconnect cleans up only its own conversations while a Codex tu
   await disconnected;
   assert.equal(copilot.turns.at(-1)!.status, "failed");
   assert.equal(copilot.userInput, undefined);
+  await until(() => lines.some(line => line.startsWith("provider process exited")), "the exit line");
+  assert.ok(lines.includes("provider process exited provider=copilot engine=acp role=main exitCode=23 activeTurn=true"), lines.join("\n"));
+  assert.ok(lines.some(line => new RegExp(`^assistant turn failed provider=copilot conversation=${copilot.id} stage=process error=disconnected elapsedMs=\\d+$`).test(line)), lines.join("\n"));
+  assert.equal(lines.some(line => line.includes(codex.id) && !line.startsWith("assistant turn started")), false, "the Codex turn keeps running");
   assert.throws(() => conversations.answer(copilot.id, approval.turnId, approval.requestId, { decision: { answers: ["Reject"] } }), /expired/);
   assert.throws(() => conversations.mcp.lease(copilot.id), /Missing Copilot MCP/, "the lost connection's Host tool endpoint is revoked");
   assert.equal(codex.turns.at(-1)!.status, "inProgress");
@@ -1648,8 +1698,13 @@ test("Copilot exit before initialization and a rejected session recover on the n
   const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-exit-once", "--fixture-session-error-once"], timeoutMs: 2000 });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   connection.environment();
+  const lines = daemonLines(connection);
   await assert.rejects(connection.copilot.connect(), /Copilot ACP (exited|stream closed)/);
   const client = await connection.copilot.connect();
+  assert.deepEqual(lines.map(line => line.replace(/ elapsedMs=\d+$/, "").replace(/ version=\S+/, "")), [
+    "provider process failed provider=copilot engine=acp role=main stage=initialize error=exited exitCode=3",
+    "provider process started provider=copilot engine=acp role=main",
+  ]);
   // A provider error response such as missing sign-in keeps the process; the
   // catalog is not cached, so the same connection succeeds once it is resolved.
   await assert.rejects(connection.copilot.catalog(), /Copilot session fixture failure/);
