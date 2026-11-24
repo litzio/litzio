@@ -107,6 +107,11 @@ async (page, {openPath, activeDocument, expect, screenshots}) => {
     expect(await state()).toEqual(initial);
     await expect(targetPreview.locator('button, input, textarea, select, a, [tabindex], [contenteditable=true], [data-testid]')).toHaveCount(0);
     await bounds(targetPreview);
+    // Copied block rules must not make any part of the card a pointer target over the document.
+    expect(await targetPreview.evaluate(card => [...card.querySelectorAll('*')].every(node => {
+      const box = node.getBoundingClientRect();
+      return !box.width || !box.height || !card.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+    }))).toBe(true);
   };
   for (const anchor of [link('#tbl-small'), chip('tbl-small')]) {
     await showTarget(anchor);
