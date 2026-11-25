@@ -5,8 +5,10 @@ import type { PluginHostLogging } from "./plugins/plugin-host.ts";
 import { createViewService } from "./view-service.ts";
 import { LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { resetHostPaths } from "./app-reset.ts";
+import { DocumentSaveCache } from "./document-save-cache.ts";
 
 export type HostServices = {
+  documentSaveCache?: DocumentSaveCache;
   assistant?: ReturnType<typeof createAssistantHost>;
   plugins?: ReturnType<typeof createPluginService>;
   views?: ReturnType<typeof createViewService>;
@@ -22,6 +24,7 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, optio
   let closing: Promise<void> | undefined;
   return {
     resetPaths: resetHostPaths(paths),
+    documentSaveCache: new DocumentSaveCache(),
     plugins, views,
     get assistant() {
       if (closed) throw new Error("The Host is closing.");

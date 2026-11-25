@@ -49,6 +49,8 @@ import {
 import { loadEditorFile, saveTextFile, commitDocumentSave, createDocumentFile, createFolder, documentRevision, DocumentConflictError, browseFolder, folderPlaces, handleDocumentRequest, listFolder, loadDocumentFile, previewDocumentFile, previewRecoveryFile, resolveMediaPath, resolveDocumentPath, saveCurrentDocument, saveDocumentFile } from "../server/document-api.ts";
 import { loadEditableDocument } from "./helpers/document.ts";
 import { saveEdits } from "../server/document-replay.ts";
+import { DocumentSaveCache } from "../server/document-save-cache.ts";
+import type { SaveRequest, SupportedEdits } from "../shared/document-protocol.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 import { SaveDisplayError, saveErrorBadge, saveErrorMessage } from "../src/save-error.ts";
 import { RootAccess } from "../server/file-access.ts";
@@ -1264,7 +1266,11 @@ test("HTTP Save reports file and revision failures without leaking paths or writ
   const original = nativeSource("# Title\n\nBody.\n");
   writeFileSync(file, original);
   const access = new RootAccess([dir]);
-  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => res.end(), access); });
+  const documentSaveCache = new DocumentSaveCache();
+  const remember = t.mock.method(documentSaveCache, "remember");
+  const server = createServer((req, res) => {
+    void handleDocumentRequest(req, res, () => res.end(), access, undefined, undefined, undefined, { documentSaveCache });
+  });
   await listenForFetch(server);
   try {
     const { port } = server.address() as AddressInfo;
@@ -1283,11 +1289,17 @@ test("HTTP Save reports file and revision failures without leaking paths or writ
     assert.ok(!JSON.stringify(failure).includes(file));
     assert.equal(readFileSync(file, "utf8"), original);
     assert.deepEqual(readdirSync(dir), ["document.md"]);
+    assert.equal(remember.mock.callCount(), 0);
     rename.mock.restore();
     const conflict = await post({ ...request, revision: "0".repeat(64) });
     assert.equal(conflict.status, 409);
     assert.equal((await conflict.json()).failure.phase, "revision");
     assert.equal(readFileSync(file, "utf8"), original);
+    assert.equal(remember.mock.callCount(), 0);
+    const saved = await post(request);
+    assert.equal(saved.status, 200);
+    assert.deepEqual(await saved.json(), { revision: documentRevision(readFileSync(file, "utf8")) });
+    assert.equal(remember.mock.callCount(), 1);
   } finally {
     t.mock.restoreAll();
     server.closeAllConnections();
@@ -1329,6 +1341,8 @@ test("Source preview is the canonical Markdown Save would write, without writing
     const sdkSnapshot = readSdkDocument(file);
     const sdkReceipt = writeSdkDocument(file, sdkSnapshot.document, sdkSnapshot.revision);
     assert.equal(sdkReceipt.revision, loadDocumentFile(file).revision, "DocumentView target uses the same saved revision as the Node SDK");
+    assert.deepEqual(getEditableDocument(sdkReceipt.document), getEditableDocument(readSdkDocument(file).document));
+    assert.deepEqual(JSON.parse(JSON.stringify(sdkReceipt)), { revision: sdkReceipt.revision });
     // Restore this test's source snapshot before checking its existing preview/save paths.
     writeFileSync(file, source);
 
@@ -1448,6 +1462,124 @@ test("a saved revision can save again and the loaded revision cannot", () => {
       }),
     DocumentConflictError,
   );
+});
+
+test("session save memo and shared paragraph copies agree with independent replay across a save history", t => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-save-memo-"));
+  const file = path.join(dir, "mixed.md");
+  const other = path.join(dir, "other.md");
+  t.after(() => { rmSync(file, { force: true }); rmSync(other, { force: true }); fs.rmdirSync(dir); });
+  const opening = nativeSource("# Original heading\n\nAlpha[^n].\n\nBeta.\n\nGamma.\n\nDelta.\n\nEpsilon.\n\n" +
+    "- One\n- Two\n\n| A | B |\n| --- | --- |\n| C | D |\n\n$$\nx = 1\n$$\n\n[^n]: Opening note.\n");
+  writeFileSync(file, opening);
+  writeFileSync(other, nativeSource("Another document.\n"));
+  const cache = new DocumentSaveCache(1);
+  const approved = t.mock.method(cache, "approved");
+  const snapshot = loadEditorFile(file, undefined, cache);
+  assert.equal(snapshot.kind, "native");
+  assert.ok(cache.opening(snapshot.path, opening));
+  let tab: SaveRequest["base"] = { source: opening };
+  let revision = snapshot.revision;
+  const inline = (text: string): InlineContent[] => [{ kind: "text", text }];
+  const paragraph = (index: number, text: string) => ({ path: [index], content: inline(text) });
+  const at = (index: number, part = 0) => ({ path: [index], part });
+
+  function reference(disk: string, { base, revision, ...edits }: SaveRequest) {
+    if (documentRevision(disk) !== revision ||
+        (base.source !== disk && (!base.savedEdits || saveEdits(base.source, base.savedEdits, false).markdown !== disk))) {
+      throw new DocumentConflictError();
+    }
+    const { markdown } = saveEdits(base.source, edits, false);
+    return { markdown, revision: documentRevision(markdown) };
+  }
+
+  function outcome<T>(run: () => T) {
+    try { return { result: run() }; }
+    catch (error) {
+      if (!(error instanceof Error)) throw error;
+      return { failure: { reason: error.message, name: error.name, ...(error instanceof SaveContentError
+        ? { target: error.target, phase: error.phase, action: error.action, line: error.line } : {}) } };
+    }
+  }
+
+  function compare(edits: SupportedEdits, base = tab, expectedRevision = revision) {
+    const request = { ...edits, base, revision: expectedRevision, path: file };
+    const before = readFileSync(file, "utf8");
+    const expected = outcome(() => reference(before, request));
+    const actual = outcome(() => {
+      const { markdown, revision } = saveDocumentFile(file, request, undefined, cache);
+      return { markdown, revision };
+    });
+    assert.deepEqual(actual, expected);
+    assert.deepEqual(readFileSync(file), Buffer.from(expected.result?.markdown ?? before));
+    return actual;
+  }
+
+  function save(edits: SupportedEdits, checkpoint = tab) {
+    const result = compare(edits, checkpoint).result;
+    assert.ok(result, JSON.stringify(edits));
+    revision = result.revision;
+    tab = { source: checkpoint.source, savedEdits: edits };
+    return result.markdown;
+  }
+
+  save({ paragraphs: [paragraph(3, "Beta revised")] });
+  const second = save({ paragraphs: [paragraph(3, "Beta again"), paragraph(4, "Gamma revised")] });
+  assert.ok(approved.mock.calls.at(-1)?.result, "the unchanged remembered checkpoint is reused");
+  writeFileSync(file, second); // An external rewrite with identical bytes keeps the revision.
+  save({ paragraphs: [paragraph(3, "Beta once more"), paragraph(4, "Gamma again")] });
+  assert.ok(approved.mock.calls.at(-1)?.result, "fresh disk bytes still match the checkpoint");
+  loadEditorFile(other, undefined, cache); // Evict this document's admission and previous approval.
+  assert.equal(cache.opening(snapshot.path, opening), undefined);
+
+  const mixed: SupportedEdits = {
+    title: "Converter report",
+    headings: [paragraph(1, "Changed heading")],
+    paragraphs: [paragraph(3, "Beta changed"), paragraph(4, "Gamma changed")],
+    lists: [{ path: [7], list: { ordered: false, items: [{ content: inline("Updated list item") }] } }],
+    cells: [{ path: [8, 1, 0], content: inline("New cell") }],
+    tableCaptions: [paragraph(8, "Measurements")],
+    equations: [{ path: [9], from: "x = 1", to: "x = 2" }],
+    footnotes: [paragraph(10, "Updated endnote")],
+  };
+  save(mixed);
+  assert.equal(approved.mock.calls.at(-1)?.result, undefined, "a fresh replay establishes an evicted checkpoint");
+  const split: SupportedEdits = { ...mixed, splits: [{ path: [5], parts: [inline("Delta left"), inline("Delta right")] }] };
+  save(split);
+  const merged: SupportedEdits = { ...split, paragraphs: [], merges: [{ paths: [[3], [4]], parts: [inline("Beta merged with Gamma")] }] };
+  save(merged);
+  const structural: SupportedEdits = {
+    ...merged, inserts: [{ block: "paragraph", content: inline("New paragraph") }], deletes: [[6]],
+    order: [at(1), at(2), at(3), at(5), at(5, 1), { insert: 0 }, at(7), at(8), at(9), at(10)],
+  };
+  save(structural);
+  const reordered = { ...structural, order: [at(1), at(2), at(5), at(5, 1), at(3), { insert: 0 }, at(7), at(8), at(9), at(10)] };
+  const eighth = save(reordered);
+  const refusal = compare({ paragraphs: [paragraph(3, "Applies before failure"), { path: [4], content: [] }] });
+  assert.ok(refusal.failure);
+  assert.deepEqual(refusal.failure.target, at(4));
+  assert.match(refusal.failure.reason, /empty paragraph/);
+  // An equivalent, differently shaped checkpoint still has to be replayed.
+  save(mixed, { ...tab, savedEdits: { ...reordered, headingLevels: [] } });
+  assert.equal(approved.mock.calls.at(-1)?.result, undefined);
+  assert.equal(compare({}, { ...tab, savedEdits: {} }).failure?.name, "DocumentConflictError");
+
+  const ninth = readFileSync(file, "utf8");
+  writeFileSync(file, eighth);
+  assert.equal(compare({}).failure?.name, "DocumentConflictError");
+  assert.equal(compare({}, tab, documentRevision(eighth)).failure?.name, "DocumentConflictError");
+  writeFileSync(file, ninth);
+  const tenth = save({}); // Undo removes all submitted edits at the original opening paths.
+  assert.equal(tenth, saveEdits(opening, {}, false).markdown);
+
+  const otherTab = { source: tenth };
+  const otherRevision = revision;
+  save({ paragraphs: [paragraph(3, "First tab")] });
+  assert.equal(compare({ paragraphs: [paragraph(4, "Second tab")] }, otherTab, otherRevision).failure?.name, "DocumentConflictError");
+  const reopened = loadEditorFile(file, undefined, cache);
+  const next = save({ paragraphs: [paragraph(4, "Second tab")] }, { source: reopened.source });
+  assert.match(next, /First tab[\s\S]*Second tab/);
+  assert.equal(compare({}, { source: opening, savedEdits: {} }, reopened.revision).failure?.name, "DocumentConflictError");
 });
 
 test("save does not rebuild the document from Tiptap", () => {

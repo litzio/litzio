@@ -5,6 +5,7 @@ import { decodeUtf8, textRevision } from "@litzio/file-commit";
 import { accessPath, inside, LOCAL_FILE_ACCESS, rootIdentity, type FileAccess } from "./file-access.ts";
 import { resolveDocumentPath, resolveEditorPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
+import type { DocumentSaveCache } from "./document-save-cache.ts";
 import type { DocumentFileResponse, EditorFileResponse, FolderBrowseResponse, FolderCrumb, FolderEntry, FolderResponse } from "../shared/document-protocol.ts";
 
 /** Media a document can show from beside it, by extension; also what choosing an image lists. */
@@ -20,18 +21,18 @@ export function loadDocumentFile(requestedPath?: string, access: FileAccess = LO
   return { kind: "native", path: filePath, source, ...readModel(source), revision: documentRevision(source) };
 }
 
-export function editorFile(filePath: string, source: string): EditorFileResponse {
+export function editorFile(filePath: string, source: string, cache?: DocumentSaveCache): EditorFileResponse {
   const file = { path: filePath, source, revision: documentRevision(source) };
   if (path.extname(filePath).toLowerCase() === ".md") {
-    try { return { ...file, kind: "native", ...readModel(source) }; }
+    try { return { ...file, kind: "native", ...readModel(cache?.open(filePath, source) ?? source) }; }
     catch { /* Core's existing admission is the only Markdown support decision. */ }
   }
   return { ...file, kind: "text" };
 }
 
-export function loadEditorFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): EditorFileResponse {
+export function loadEditorFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS, cache?: DocumentSaveCache): EditorFileResponse {
   const filePath = resolveEditorPath(requestedPath, access);
-  return { ...editorFile(filePath, decodeUtf8(readFileSync(filePath))) };
+  return editorFile(filePath, decodeUtf8(readFileSync(filePath)), cache);
 }
 
 const entryOrder = new Intl.Collator(undefined, { numeric: true });

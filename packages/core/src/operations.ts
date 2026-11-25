@@ -1418,7 +1418,32 @@ export function updateParagraphInlineContent(
 ): MystDocument {
   assertInlineContent(content);
   const next = cloneDocument(document);
-  const node = getNode(next, path);
+  replaceParagraphInlineContent(next, path, content);
+  return next;
+}
+
+/** Apply content edits in order on a private copy, discarded on any failure. */
+export function updateParagraphsInlineContent(
+  document: MystDocument,
+  edits: Iterable<{ path: NodePath; content: InlineContent[] }>,
+  onError?: (error: unknown, path: NodePath) => never,
+): MystDocument {
+  let next: MystDocument | undefined;
+  for (const edit of edits) {
+    try {
+      assertInlineContent(edit.content);
+      next ??= cloneDocument(document);
+      replaceParagraphInlineContent(next, edit.path, edit.content);
+    } catch (error) {
+      if (onError) onError(error, edit.path);
+      throw error;
+    }
+  }
+  return next ?? document;
+}
+
+function replaceParagraphInlineContent(document: MystDocument, path: NodePath, content: InlineContent[]): void {
+  const node = getNode(document, path);
   if (node.type !== "paragraph") {
     throw new DocumentDiagnosticError("invalid-operation", `updateParagraphInlineContent requires a paragraph at [${path.join(",")}]`);
   }
@@ -1427,7 +1452,6 @@ export function updateParagraphInlineContent(
   }
   node.children = inlineContentToNodes(paragraphInlineContent(content));
   assertInlineBlockRoundTrip(node);
-  return next;
 }
 
 /** Update the single supported paragraph body of a simple admonition. */

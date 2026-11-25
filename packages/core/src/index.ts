@@ -11,6 +11,7 @@ import type { Document } from "./document.ts";
 import { inspectDocument as inspectTree } from "./document.ts";
 import { getEditableDocument as editableTree } from "./editable.ts";
 import { createDocument as createNativeDocument, parseNativeDocument as parseTree, serializeNativeDocument as serializeTree,
+  serializeNativeDocumentWithReadback as serializeTreeWithReadback,
   canonicalWriteError as canonicalWriteErrorTree, canonicalWriteIssue as canonicalWriteIssueTree } from "./myst/native.ts";
 import type { MystDocument } from "./myst/tree.ts";
 import * as operations from "./operations.ts";
@@ -65,7 +66,9 @@ export const updateHeadingNumbering = fence(updateHeadingNumberingTree);
 export const updateReferenceTemplates = fence(updateReferenceTemplatesTree);
 export { referenceNumberText, captionNumberText, referenceTemplatesError, DEFAULT_REFERENCE_TEMPLATES, type ReferenceTemplates, type ReferenceTemplateUpdate } from "./numbering.ts";
 
-type Opaque<T> = T extends MystDocument ? Document : T;
+type Opaque<T> = T extends MystDocument ? Document
+  : T extends { markdown: string; document: MystDocument } ? { markdown: string; document: Document }
+  : T;
 type Fenced<F> = F extends (...args: infer A) => infer R
   ? (...args: { [K in keyof A]: Opaque<A[K]> }) => Opaque<R>
   : never;
@@ -78,6 +81,8 @@ function fence<F>(implementation: F): Fenced<F> {
 export const parse = fence(parseTree);
 export const createDocument = fence(createNativeDocument);
 export const serialize = fence(serializeTree);
+/** Canonical bytes and the parsed document that passed their readback check. */
+export const serializeWithReadback = fence(serializeTreeWithReadback);
 /** Why canonical write (serialize) would refuse the document, or undefined when it is writable. */
 export const canonicalWriteError = fence(canonicalWriteErrorTree);
 /** Same canonical verdict with actionable, snapshot-relative location information. */
@@ -146,6 +151,7 @@ export const updateTableNote = fence(operations.updateTableNote);
 export const removeTableNote = fence(operations.removeTableNote);
 export const moveTableNote = fence(operations.moveTableNote);
 export const updateParagraphInlineContent = fence(operations.updateParagraphInlineContent);
+export const updateParagraphsInlineContent = fence(operations.updateParagraphsInlineContent);
 export const updateAdmonitionInlineContent = fence(operations.updateAdmonitionInlineContent);
 export const updateAdmonitionVariant = fence(operations.updateAdmonitionVariant);
 export const insertQuote = fence(operations.insertQuote);
@@ -168,4 +174,4 @@ export const createDocumentFromTemplate = fence(templates.createDocumentFromTemp
 export type { DocumentComparison, BlockChange } from "./compare.ts";
 export const compareDocuments = fence(compareTrees);
 
-export { serializeChange, machineNodes, snapshotSection } from "./document-output.ts";
+export { serializeChange, serializeChangeWithReadback, machineNodes, snapshotSection } from "./document-output.ts";
