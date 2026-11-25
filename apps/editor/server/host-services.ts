@@ -5,10 +5,10 @@ import type { PluginHostLogging } from "./plugins/plugin-host.ts";
 import { createViewService } from "./view-service.ts";
 import { LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { resetHostPaths } from "./app-reset.ts";
-import { DocumentSaveCache } from "./document-save-cache.ts";
+import { DocumentThread } from "./document-thread.ts";
 
 export type HostServices = {
-  documentSaveCache?: DocumentSaveCache;
+  documents?: DocumentThread;
   assistant?: ReturnType<typeof createAssistantHost>;
   plugins?: ReturnType<typeof createPluginService>;
   views?: ReturnType<typeof createViewService>;
@@ -19,12 +19,13 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, optio
   const paths = hostPaths(undefined, { ...process.env });
   const plugins = createPluginService(access, paths.settingsFile("plugins"), paths.assistant, options);
   const views = createViewService(access, plugins);
+  const documents = new DocumentThread(options);
   let assistant: ReturnType<typeof createAssistantHost> | undefined;
   let closed = false;
   let closing: Promise<void> | undefined;
   return {
     resetPaths: resetHostPaths(paths),
-    documentSaveCache: new DocumentSaveCache(),
+    documents,
     plugins, views,
     get assistant() {
       if (closed) throw new Error("The Host is closing.");
@@ -33,7 +34,7 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, optio
     close() {
       closed = true;
       return closing ??= (async () => {
-        const results = await Promise.allSettled([Promise.resolve().then(() => assistant?.close()), Promise.resolve().then(() => plugins.close())]);
+        const results = await Promise.allSettled([documents.close(), Promise.resolve().then(() => assistant?.close()), Promise.resolve().then(() => plugins.close())]);
         const errors = results.flatMap(result => result.status === "rejected" ? [result.reason] : []);
         if (errors.length) throw new AggregateError(errors, "Host services could not close.");
       })();

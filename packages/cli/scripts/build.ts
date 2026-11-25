@@ -24,8 +24,12 @@ execSync("pnpm --filter @litzio/editor build", { cwd: repo, stdio: "inherit" });
 cpSync(path.join(repo, "apps/editor/dist"), path.join(destination, "editor"), { recursive: true });
 const result = await build({
   absWorkingDir: repo,
-  // The Host authoring thread loads its own entry beside the chunks (apps/editor/server/authoring-thread.ts).
-  entryPoints: { cli: path.join(cli, "src/cli.ts"), "authoring-worker": path.join(repo, "apps/editor/server/authoring-worker.ts") }, outdir: destination, outExtension: { ".js": ".mjs" },
+  // Host threads load their own entry beside the chunks.
+  entryPoints: {
+    cli: path.join(cli, "src/cli.ts"),
+    "authoring-worker": path.join(repo, "apps/editor/server/authoring-worker.ts"),
+    "document-worker": path.join(repo, "apps/editor/server/document-worker.ts"),
+  }, outdir: destination, outExtension: { ".js": ".mjs" },
   bundle: true, splitting: true, platform: "node", format: "esm", target: "node24", metafile: true,
   define: {
     __LITZIO_CLI_BUILD__: JSON.stringify({ version: desktopVersion ?? manifest.version, desktop: desktopVersion !== undefined, commit }),

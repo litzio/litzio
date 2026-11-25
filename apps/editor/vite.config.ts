@@ -97,8 +97,8 @@ export default defineConfig({
           try { await services?.then(host => host.close()); }
           catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
           finally {
-            // A closed socket does not cancel accepted filesystem work, including
-            // handlers still loading their SSR module. Keep their writer lease.
+            // Keep the writer lease until accepted filesystem work settles,
+            // including handlers still loading their SSR module at shutdown.
             await Promise.allSettled([...inFlight]);
             releaseResetGuard();
           }

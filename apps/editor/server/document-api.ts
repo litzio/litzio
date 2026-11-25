@@ -25,7 +25,7 @@ import os from "node:os";
 import path from "node:path";
 import { createDocument, serialize, NativeDocumentError, writeIssueOf } from "@litzio/core";
 import { assertUnicode, commitFile, decodeUtf8, FileChangedError } from "@litzio/file-commit";
-import { accessPath, FileAccessError, fileErrorMessage, fileErrorStatus, inside, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { accessPath, canonicalFilePath, FileAccessError, fileErrorMessage, fileErrorStatus, inside, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { readRequestBody, RequestBodyError } from "./request-body.ts";
 import { requestQuery } from "./request-query.ts";
 import { executeFolderTrash, deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "./file-operations.ts";
@@ -43,12 +43,14 @@ import {
 import type { DocumentSaveCache } from "./document-save-cache.ts";
 import { DocumentConflictError, prepareDocumentSave, replayCurrent, verifySaveRevision, type FileSaveRequest } from "./document-save-compute.ts";
 export { DocumentConflictError } from "./document-save-compute.ts";
+import { DocumentThreadError, type DocumentThread } from "./document-thread.ts";
 
 import type {
   SampleAvailability,
   SaveRequest,
   SupportedEdits,
   DocumentFileResponse,
+  EditorFileResponse,
   TextSaveRequest,
   SaveResponse,
   SourceResponse,
@@ -121,6 +123,58 @@ export function saveDocumentFile(
     cache.remember(filePath, source, snapshot, edits, saved);
   }
   return { markdown: saved.markdown, revision: saved.revision, path: filePath };
+}
+
+async function openEditorFile(
+  requestedPath: string | undefined, access: FileAccess, thread: DocumentThread, signal: AbortSignal,
+): Promise<EditorFileResponse> {
+  const filePath = resolveEditorPath(requestedPath, access);
+  const source = decodeUtf8(readFileSync(filePath));
+  const file = { path: filePath, source, revision: documentRevision(source) };
+  const model = path.extname(filePath).toLowerCase() === ".md"
+    ? await thread.read({ kind: "open", path: filePath, source }, signal)
+    : undefined;
+  return model ? { ...file, kind: "native", ...model } : { ...file, kind: "text" };
+}
+
+async function saveFileInOrder(request: SaveRequest | TextSaveRequest, access: FileAccess, thread: DocumentThread, signal: AbortSignal): Promise<SaveResponse> {
+  const text = "kind" in request;
+  const filePath = fileStep(() => text ? resolveEditorPath(request.path, access) : resolveDocumentPath(request.path, access));
+  const target = fileStep(() => canonicalFilePath(filePath));
+  const currentPath = () => {
+    const checked = accessPath(filePath, access);
+    if (canonicalFilePath(checked) !== target) throw new DocumentConflictError();
+    return checked;
+  };
+  const commit = (markdown: string) => fileStep(() => replaceDocumentFile(currentPath(), markdown, request.revision));
+  return thread.inSaveOrder(target, async () => {
+    signal.throwIfAborted();
+    const disk = fileStep(() => decodeUtf8(readFileSync(currentPath())));
+    verifySaveRevision(disk, request.revision);
+    if (!text) {
+      const { revision } = await thread.save({ kind: "save", path: filePath, disk, request }, signal, saved => commit(saved.markdown));
+      return { revision };
+    }
+    if ([filePath, target].some(file => path.extname(file).toLowerCase() === ".md") &&
+        await thread.read({ kind: "check-text", source: disk }, signal)) {
+      throw new Error("This file is now a native document. Reload before saving.");
+    }
+    signal.throwIfAborted();
+    assertUnicode(request.source);
+    commit(request.source);
+    return { revision: documentRevision(request.source) };
+  });
+}
+
+/** A reply closing before completion cancels the uncommitted calculation. The
+ * synchronous commit, once entered, retains the normal uncertain-reply behavior. */
+async function withDocumentResponse<T>(res: ServerResponse, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (res.destroyed) abort();
+  res.once("close", abort);
+  try { return await run(controller.signal); }
+  finally { res.off("close", abort); }
 }
 
 /** The shared file commit; a failed write keeps the original. */
@@ -206,8 +260,10 @@ export async function handleDocumentRequest(
   templatesDirectory = hostPaths().templates,
 ): Promise<void> {
   const readBody = async (request: IncomingMessage) => decodeUtf8(await readRequestBody(request, bodyLimit));
+  const documents = services?.documents;
   const failure = (error: unknown) => sendJson(res,
-    error instanceof DocumentConflictError ? 409 : error instanceof RequestBodyError || error instanceof ImageValidationError ? error.status
+    error instanceof DocumentConflictError ? 409 : error instanceof DocumentThreadError ? 503
+      : error instanceof RequestBodyError || error instanceof ImageValidationError ? error.status
       : fileErrorStatus(error instanceof SaveContentError && error.phase === "file" ? error.cause : error),
     errorPayload(error, access));
   let query: URLSearchParams;
@@ -285,12 +341,17 @@ export async function handleDocumentRequest(
     if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
     try {
       // Read only declarations from an admitted document, never arbitrary caller-supplied targets.
-      const opened = loadDocumentFile(query.get("path") ?? undefined, access);
-      const declarations = opened.bibliography?.declarations ?? [];
-      const sources = query.get("revision") !== opened.revision
+      const requestedPath = query.get("path") ?? undefined;
+      const filePath = resolveDocumentPath(requestedPath, access);
+      const source = decodeUtf8(readFileSync(filePath));
+      const revision = documentRevision(source);
+      const declarations = documents
+        ? await withDocumentResponse(res, signal => documents.read({ kind: "bibliography", path: filePath, source }, signal))
+        : readModel(source).bibliography.declarations;
+      const sources = query.get("revision") !== revision
         ? declarations.map(source => ({ source, status: "error", code: "bibliography-changed" }))
-        : readBibliographySources(opened.path, declarations, access, query.get("root") ?? undefined);
-      sendJson(res, 200, { revision: opened.revision, sources });
+        : readBibliographySources(filePath, declarations, access, query.get("root") ?? undefined);
+      sendJson(res, 200, { revision, sources });
     } catch (error) { failure(error); }
     return;
   }
@@ -424,7 +485,11 @@ export async function handleDocumentRequest(
       const requestedPath = query.get("path") ?? undefined;
       if (access && !requestedPath?.trim()) {
         sendJson(res, 200, { start: true, allowedRoots: access.roots, ...sampleAvailability });
-      } else sendJson(res, 200, { ...loadEditorFile(requestedPath, access, services?.documentSaveCache), ...sampleAvailability });
+      } else {
+        const opened = documents ? await withDocumentResponse(res, signal => openEditorFile(requestedPath, access, documents, signal))
+          : loadEditorFile(requestedPath, access);
+        sendJson(res, 200, { ...opened, ...sampleAvailability });
+      }
       return;
     }
     if (req.method === "PUT") {
@@ -448,12 +513,16 @@ export async function handleDocumentRequest(
         if (Object.keys(body).some(key => !["kind", "path", "revision", "source"].includes(key)) ||
             typeof body.path !== "string" || !body.path.trim() || typeof body.source !== "string" ||
             typeof body.revision !== "string" || !/^[a-f0-9]{64}$/.test(body.revision)) throw new Error("invalid text save request");
-        sendJson(res, 200, saveTextFile(body as TextSaveRequest, access));
+        const request = body as TextSaveRequest;
+        const saved = documents ? await withDocumentResponse(res, signal => saveFileInOrder(request, access, documents, signal))
+          : saveTextFile(request, access);
+        sendJson(res, 200, saved);
         return;
       }
       const request = saveRequestOf(body);
       try {
-        const saved = saveDocumentFile(request.path, request, access, services?.documentSaveCache);
+        const saved = documents ? await withDocumentResponse(res, signal => saveFileInOrder(request, access, documents, signal))
+          : saveDocumentFile(request.path, request, access);
         sendJson(res, 200, { revision: saved.revision } satisfies SaveResponse);
       } catch (error) {
         if (error instanceof DocumentConflictError) {
@@ -578,6 +647,7 @@ function serveMedia(assetPath: string, res: ServerResponse, documentPath?: strin
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
+  if (res.destroyed) return;
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(body));
