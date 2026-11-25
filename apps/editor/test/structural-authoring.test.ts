@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { history, redo, undo } from "@tiptap/pm/history";
 import { getSchema } from "@tiptap/core";
 import { AllSelection, EditorState, NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
 import { parse, serialize, type InlineContent } from "@litzio/core";
@@ -412,42 +413,60 @@ test("content editing keeps text, inline math in a cell, list items and captions
   assert.deepEqual(loadEditableDocument(saved).blocks.map(block => block.block), editable.blocks.map(block => block.block));
 });
 
-test("content editing refuses reference changes that Save would complete by removing or moving endnotes", () => {
-  const markdown = nativeSource("First[^a] paragraph.\n\nSecond[^b] paragraph.\n\nThird paragraph.\n\n[^a]: Note A.\n\n[^b]: Note B.\n");
+test("content editing keeps every endnote reference in its place: paragraph, table cell, caption and list item", () => {
+  const markdown = nativeSource("Para[^a] and[^b] text.\n\nPlain paragraph.\n\n:::{table} Caption[^e][^f] text\n\n| A | B |\n| --- | --- |\n| x[^c][^d] | y |\n:::\n\n- item[^g][^h] text\n- other\n\n" +
+    ["a", "b", "c", "d", "e", "f", "g", "h"].map(label => `[^${label}]: Note ${label}.\n`).join("\n"));
   const editable = loadEditableDocument(markdown);
   const baseline = toTiptapDocument(editable);
   const schema = getSchema(editorExtensions());
   const reference = (label: string) => schema.nodes.footnoteReference.create({ label });
-  const referencePos = (state: EditorState, label: string) => {
+  const at = (state: EditorState, label: string) => {
     let found = -1;
     state.doc.descendants((node, pos) => { if (node.type.name === "footnoteReference" && node.attrs.label === label && found < 0) found = pos; });
+    assert.ok(found >= 0, label);
     return found;
   };
-  const textEnd = (state: EditorState, index: number) => topPos(state, index) + state.doc.child(index).nodeSize - 1;
-  const changes: [string, (state: EditorState) => Transaction][] = [
-    ["remove the only reference", state => state.tr.delete(referencePos(state, "a"), referencePos(state, "a") + 1)],
-    ["move a reference so the endnote order changes", state => state.tr.delete(referencePos(state, "a"), referencePos(state, "a") + 1)
-      .insert(textEnd(state, 1) - 1, reference("a"))],
-    ["reference a label without a definition", state => state.tr.insert(textEnd(state, 2), reference("c"))],
-  ];
-  for (const [name, change] of changes) {
+  const plainEnd = (state: EditorState) => topPos(state, 1) + state.doc.child(1).nodeSize - 1;
+  const locked = () => {
     const rejections: unknown[] = [];
-    const state = EditorState.create({ schema, doc: schema.nodeFromJSON(baseline), plugins: [structureGuardPlugin(baseline, reason => rejections.push(reason), [], true)] });
+    const state = EditorState.create({ schema, doc: schema.nodeFromJSON(baseline), plugins: [history(), structureGuardPlugin(baseline, reason => rejections.push(reason), [], true)] });
+    return { state, rejections };
+  };
+  // Each place holds two references: [first, second] for the paragraph, cell, caption and list item.
+  const places: [string, string, string][] = [["paragraph", "a", "b"], ["table cell", "c", "d"], ["caption", "e", "f"], ["list item", "g", "h"]];
+  const changes = places.flatMap(([place, first, second]): [string, (state: EditorState) => Transaction][] => [
+    [`${place}: remove`, state => state.tr.delete(at(state, first), at(state, first) + 1)],
+    [`${place}: add a reference to a defined endnote`, state => state.tr.insert(at(state, second) + 1, reference(first))],
+    [`${place}: move to another block`, state => state.tr.insert(plainEnd(state), reference(first)).delete(at(state, first), at(state, first) + 1)],
+    [`${place}: swap in place`, state => state.tr.delete(at(state, first), at(state, first) + 1).insert(at(state, second), reference(first))],
+    [`${place}: overwrite a range holding a reference`, state => state.tr.insertText("typed", at(state, first) - 1, at(state, first) + 2)],
+  ]);
+  for (const [name, change] of changes) {
+    const { state, rejections } = locked();
     assert.ok(state.apply(change(state)).doc.eq(state.doc), name);
     assert.deepEqual(rejections, [{ key: LOCKED_ENDNOTES_REJECTION }], name);
-    // The same edit as a document tab collects it is a paragraph edit only; Save still refuses it.
+    // A document tab collects the same change as content edits only; the pre-send check refuses it on its own.
     const open = EditorState.create({ schema, doc: schema.nodeFromJSON(baseline) });
     const submitted = editorDocumentJSON(open.apply(change(open)));
     const edits = collectSupportedEdits(editable, submitted);
-    assert.deepEqual(structuralEditKinds(edits), [], name);
-    assert.throws(() => admitContentEdits(edits, editable, submitted), /endnotes/, name);
+    assert.throws(() => admitContentEdits(edits, editable, submitted), /endnote references/, name);
   }
-  // A further reference to a defined endnote that keeps the endnote order is content.
-  const rejections: unknown[] = [];
-  const state = EditorState.create({ schema, doc: schema.nodeFromJSON(baseline), plugins: [structureGuardPlugin(baseline, reason => rejections.push(reason), [], true)] });
-  const next = state.apply(state.tr.insert(textEnd(state, 2), reference("b")));
+  // Text around references, and Undo and Redo of it, keep every reference in place.
+  let { state, rejections } = locked();
+  for (const [, first] of places) state = state.apply(state.tr.insertText("Z", at(state, first)));
+  const edited = state.doc;
+  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, at(state, "a") - 1, at(state, "a"))).deleteSelection());
+  undo(state, tr => { state = state.apply(tr); });
+  redo(state, tr => { state = state.apply(tr); });
+  undo(state, tr => { state = state.apply(tr); });
+  assert.ok(state.doc.eq(edited));
   assert.deepEqual(rejections, []);
-  const edits = collectSupportedEdits(editable, editorDocumentJSON(next));
-  admitContentEdits(edits, editable, editorDocumentJSON(next));
-  assert.match(saveEdits(markdown, edits).markdown, /Third paragraph\.\[\^b\]/);
+  const submitted = editorDocumentJSON(state);
+  const edits = collectSupportedEdits(editable, submitted);
+  admitContentEdits(edits, editable, submitted);
+  const saved = saveEdits(markdown, edits).markdown;
+  assert.match(saved, /ParaZ\[\^a\] and\[\^b\] text\./);
+  assert.match(saved, /xZ\[\^c\]\[\^d\]/);
+  assert.deepEqual(loadEditableDocument(saved).blocks.map(block => JSON.stringify([block.block, block.path, "label" in block ? block.label : ""])),
+    editable.blocks.map(block => JSON.stringify([block.block, block.path, "label" in block ? block.label : ""])));
 });

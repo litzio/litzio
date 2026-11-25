@@ -10,6 +10,7 @@ async (page, {expect, screenshots, pluginFixture}) => {
   const documentPath = [root, 'content-edit', 'content.md'].join(separator);
   const largePath = [root, 'content-edit', 'large.md'].join(separator);
   const endnotePath = [root, 'content-edit', 'endnote.md'].join(separator);
+  const endnoteTablePath = [root, 'content-edit', 'endnote-table.md'].join(separator);
   const emptyPath = [root, 'content-edit', 'empty.md'].join(separator);
   const read = async file => (await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(file), {headers: {Connection: 'close'}})).json());
   const opening = await read(documentPath);
@@ -42,7 +43,11 @@ async (page, {expect, screenshots, pluginFixture}) => {
     // The screen's scope is the Explorer's opened folders.
     await page.evaluate(folder => localStorage.setItem('litzio.openFolders.v2', JSON.stringify([folder])), folder);
     await page.reload();
+    // The app restores its opened folder before an activity entry opens a screen tab.
+    await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state: 'attached'});
+    await page.getByTestId('sidebar').getByRole('treeitem', {name: 'content.md', exact: true}).waitFor();
     await page.getByTestId('activity-bar').getByRole('button', {name: 'Compare', exact: true}).click();
+    await page.getByTestId('view-workspace').filter({visible: true}).locator('.screen-document-view').waitFor();
   };
   await page.setViewportSize({width: 1440, height: 1000});
   await open();
@@ -248,23 +253,36 @@ async (page, {expect, screenshots, pluginFixture}) => {
     await page.unroute('**/api/document');
   }
 
-  // Removing the only reference to an endnote would remove its definition block on Save
-  // (Core's endnote lifecycle). Content editing refuses it before it applies.
-  const endnoteOpening = await read(endnotePath);
+  // Save completes endnotes from their references: removing the only reference would remove its
+  // definition, and removing a caption reference would reorder definitions. Content editing
+  // refuses both before they apply; no Save request is sent and the file stays byte for byte.
+  let documentPosts = 0;
+  page.on('request', request => { if (request.method() === 'POST' && request.url().split('?')[0].endsWith('/api/document')) documentPosts++; });
+  const refusesReferenceRemoval = async (file, place, other) => {
+    const before = await read(file);
+    config = {path: file, edit: true, linked: false, revision: '', paths: []};
+    await open();
+    await expect(place()).toBeVisible();
+    const posts = documentPosts;
+    await place().click();
+    await page.keyboard.press('End');
+    await page.keyboard.press('Backspace');
+    await expect(notice).toContainText('This view cannot add, remove or move endnote references.');
+    await other().click();
+    await page.keyboard.press('Control+s');
+    await expect.poll(lastEdit).toMatchObject({state: 'clean'});
+    const after = await read(file);
+    expect(after.source).toBe(before.source);
+    expect(after.revision).toBe(before.revision);
+    expect(await saves()).toEqual([]);
+    expect(documentPosts).toBe(posts);
+    return before;
+  };
+  const endnoteOpening = await refusesReferenceRemoval(endnotePath, () => paragraph('First paragraph with a note'), () => paragraph('Second paragraph'));
+  await refusesReferenceRemoval(endnoteTablePath, () => content.getByTestId('table-caption'), () => paragraph('After the table'));
   config = {path: endnotePath, edit: true, linked: false, revision: '', paths: []};
   await open();
-  await expect(paragraph('First paragraph with a note')).toBeVisible();
-  await paragraph('First paragraph with a note').click();
-  await page.keyboard.press('End');
-  await page.keyboard.press('Backspace');
-  await expect(notice).toContainText('endnote');
-  await paragraph('Second paragraph').click();
-  await page.keyboard.press('Control+s');
-  await expect.poll(lastEdit).toMatchObject({state: 'clean'});
-  const endnoteSaved = await read(endnotePath);
-  expect(endnoteSaved.document.blocks.map(block => block.block)).toEqual(endnoteOpening.document.blocks.map(block => block.block));
-  expect(endnoteSaved.source).toContain('The note text.');
-  expect(await saves()).toEqual([]);
+  await expect(paragraph('Second paragraph')).toBeVisible();
 
   // Turning content editing off keeps targets of the revisions this view saved.
   await page.evaluate(([revision, path]) => globalThis.__viewTarget({revision, path, highlight: true}), [endnoteOpening.revision, endnoteOpening.document.blocks[1].path]);
