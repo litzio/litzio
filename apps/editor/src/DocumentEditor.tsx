@@ -10,6 +10,8 @@ import type { OverlayAnchor } from "./ui/use-overlay-bounds.ts";
 import { fragmentTarget, handleLinkActivation, handleLinkClick, handleLinkMouseDown, unresolvedLink } from "./link-opening.ts";
 import type { EditorView } from "@tiptap/pm/view";
 import { ReadingPreview } from "./ReadingPreview.tsx";
+import { DocumentFind } from "./document-find.ts";
+import { DocumentFindBar, type DocumentFindHandle } from "./DocumentFindBar.tsx";
 import { ImageRenameContext, imageRenameKey, renameSnapshot, type ImageRenamer } from "./image-rename.ts";
 import type { MediaReplacement } from "../shared/file-operations.ts";
 import { EDITOR_SHORTCUTS, LINK_SHORTCUT } from "./shortcuts.ts";
@@ -112,6 +114,8 @@ export type DocumentEditorHandle = {
   revealItem(item: OutlineItem): void;
   /** A click below the document places the caret at its end; returns whether it did. */
   focusEnd(clientY: number): boolean;
+  /** Open Find in document, as Ctrl/Cmd+F does inside the document area. */
+  openFind(): void;
 };
 
 
@@ -236,6 +240,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   const commandInsertion = useRef(false);
   const citationEntries = useBibliographyEntries(bibliography);
   const documentSettings = useRef<DocumentSettingsHandle>(null);
+  const findBar = useRef<DocumentFindHandle>(null);
   const bibliographyControls = useRef<BibliographyHandle>(null);
   const linkKey = useRef<(event: KeyboardEvent) => boolean>(() => false);
   const slashKeys = useRef<(event: KeyboardEvent) => boolean>(() => false);
@@ -275,7 +280,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       shouldRerenderOnTransaction: true,
       extensions: [
         ...extensions,
-        ...(comparison ? [comparisonLayout(comparison)] : []),
+        ...(comparison ? [comparisonLayout(comparison)] : [DocumentFind]),
         // editable:false stops native input. Explicit keymaps, commands and async form
         // completions also dispatch transactions, so reject every content change here.
         ReadOnlyBoundary,
@@ -706,6 +711,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         revealBlock(item.index, item.kind ?? "heading");
       },
       focusEnd,
+      openFind() { findBar.current?.open(); },
       getSnapshot() {
         if (!editor || !saved.current) throw new Error("Editor is not ready");
         return structuredClone({ editorDocument: editorDocumentJSON(editor.state), savedDocument: saved.current });
@@ -1083,6 +1089,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         <BibliographyContent ref={bibliographyControls} editor={editor} bibliography={bibliography} documentPath={documentPath ?? ""}>
           <EditorContent className={comparison ? "visual-engine-content" : undefined} editor={editor} />
           {!comparison ? <ReadingPreview editor={editor} host={host} documentPath={documentPath} /> : null}
+          {!comparison ? <DocumentFindBar ref={findBar} editor={editor} visible={visible} /> : null}
         </BibliographyContent>
       </ImageRenameContext.Provider></DocumentPathContext.Provider>
       {visible && !comparison ? <BlockHandles

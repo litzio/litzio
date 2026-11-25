@@ -84,6 +84,8 @@
   --layout-command-center-width: 28rem;
   --layout-command-center-popup-width: 36rem;
   --layout-command-center-list-height: 24rem;
+  /* Find in document: the search field's preferred width; it shrinks in a narrow document area. */
+  --layout-find-input-width: 14rem;
   /* Activity bar, always shown left of Explorer: 72px (--space-16 + --space-2) fits a 64px item
    * whose name below the icon takes about five 12px Korean characters per line. */
   --layout-activity-bar-width: 4.5rem;

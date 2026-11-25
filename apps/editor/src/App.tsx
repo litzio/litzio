@@ -17,7 +17,7 @@ import { creationUndoNeedsConfirmation, type FolderTrashConfirmation, type FileI
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { productName } from "../../../brand.ts";
-import { ASSISTANT_SHORTCUT, CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
+import { ASSISTANT_SHORTCUT, CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, FIND_SHORTCUT, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { useShellLayout } from "./shell/useShellLayout.ts";
 import { AssistantPanel, rememberAssistantWidth, type AssistantLocalSubmission, type AssistantButtonStatus } from "./shell/AssistantPanel.tsx";
 import { NotificationProvider, NotificationSource, ShellNotificationCenter } from "./components/ui/notification-center.tsx";
@@ -64,7 +64,7 @@ import darkIcon from "@brand-dark-icon";
 import { CommandCenter } from "./shell/CommandCenter.tsx";
 import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
-import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
+import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Search, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
 import type {
   EditorFileResponse,
   DocumentStartResponse,
@@ -1122,6 +1122,9 @@ function EditorApp() {
       keywords: ["reload", "다시 불러오기", "새로고침"], run: () => { void reload(); } },
     { id: "copy-path", kind: "command", label: i18n.t("Copy path"), icon: Copy, disabled: !session || busy,
       keywords: ["copy path", "경로 복사"], run: () => { void copyPath(); } },
+    { id: "find-in-document", kind: "command", label: i18n.t("Find in document"), icon: Search, takesFocus: true,
+      disabled: !document || busy || view === "source", keywords: ["find", "search", "찾기", "검색"], shortcut: FIND_SHORTCUT.label,
+      run: () => editorRef.current?.openFind() },
     ...(session?.kind === "text" ? [] : [{ id: "read", kind: "command" as const, label: i18n.t("View: Read"), icon: FileText, disabled: !document || busy, takesFocus: true,
       keywords: ["read view", "읽기 보기"], run: () => { globalThis.document.querySelector<HTMLElement>(`[data-editor-group="${navigation.focused}"] [data-testid="view-read"]`)?.focus(); setView("read"); } },
     { id: "visual", kind: "command" as const, label: i18n.t("View: Edit"), icon: FileText, disabled: !document || busy, takesFocus: true,
