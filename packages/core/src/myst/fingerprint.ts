@@ -41,7 +41,7 @@ function normalizeChildren(node: MystNode, children: Fingerprint[]): Fingerprint
     ? { type: "container", fields: { kind: "table" }, children: [child] } : child);
   // Marks are flattened by the nearest non-mark parent below.
   if (MARKS.has(node.type)) return children;
-  // Table directives (`table`, `csv-table`) are written as `list-table`, whose cells
+  // Native tables are written with GFM grids. Some MyST table forms
   // reparse with their inline content wrapped in a single paragraph.
   if (node.type === "tableCell" && children.length === 1 && children[0].type === "paragraph" &&
       Object.keys(children[0].fields).length === 0) {
