@@ -104,7 +104,7 @@ export function isNativeTableSource(node: MystNode): boolean {
  * drop names inherited from Object.prototype; VFile diagnostics still record them.
  * Unsupported options and diagnostics also participate in the write fingerprint.
  */
-export function retainTableSource(node: MystNode, file: VFile, complexGrids?: Map<MystNode, MystNode>, path: number[] = []): void {
+export function retainTableSource(node: MystNode, file: VFile, complexTables?: Set<MystNode>, path: number[] = []): void {
   if (node.type === "mystDirective" && node.name !== "table") {
     node.children?.filter(child => child.type === "container" && child.kind === "table")
       .forEach(child => nonNativeTableSources.add(child));
@@ -115,7 +115,7 @@ export function retainTableSource(node: MystNode, file: VFile, complexGrids?: Ma
     const container = node.children?.[0];
     const children = container?.children ?? [];
     const first = children[0]?.type === "caption" ? 1 : 0;
-    const rawGrid = complexGrids && path.length === 1 && container?.kind === "table" && children[first]?.type === "html"
+    const rawGrid = complexTables && path.length === 1 && container?.kind === "table" && children[first]?.type === "html"
       ? children[first] : undefined;
     const grid = rawGrid ? first : children.findIndex(child => child.type === "table");
     if (container?.kind === "table" && grid >= 0 && grid < children.length - 1) {
@@ -141,15 +141,10 @@ export function retainTableSource(node: MystNode, file: VFile, complexGrids?: Ma
       const grid = readTableHtml(String(rawGrid.value), path, rawGrid.position?.start.line);
       grid.position = rawGrid.position;
       children[first] = grid;
-      assertComplexTableDirective(container!, path);
-      // MyST hoists paragraph children throughout the container, including
-      // empty paragraphs. Hide the grid's contents during that transform.
-      const placeholder = { type: "table", position: grid.position };
-      complexGrids!.set(placeholder, grid);
-      children[first] = placeholder;
+      complexTables!.add(container!);
     }
   }
-  node.children?.forEach((child, index) => retainTableSource(child, file, complexGrids, [...path, index]));
+  node.children?.forEach((child, index) => retainTableSource(child, file, complexTables, [...path, index]));
 }
 
 export function validNumberOptions(node: MystNode): boolean {

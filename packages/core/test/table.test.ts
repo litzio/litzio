@@ -31,14 +31,14 @@ const TABLE = 12;
 
 test("internally read a complex table and write stable canonical bytes with caption, options and notes", () => {
   const source = [
-    "---", "litzio: 1", "---", "", ":::{table} Operating limits",
+    "---", "litzio: 1", "---", "", ":::{table} **Operating limits** {ref}`conditions`",
     ":name: limits", ":enumerator: A.3", "", "<table>", "<thead>", "<tr>",
     '<th colspan="2"><p>Limits</p></th>', "</tr>", "<tr>", "<th><p>Item</p></th>",
     "<th><p>Conditions</p></th>", "</tr>", "</thead>", "<tbody>", "<tr>",
     '<td rowspan="2" style="text-align: right"><p>Voltage<br>rating</p><p>A &amp; B</p></td>',
     '<td><ol start="2"><li>Nominal<ul><li>Maximum</li></ul></li></ol></td>', "</tr>", "<tr>",
     '<td><p><span data-myst="math">x &lt; y</span> <span data-myst="numref">limits</span> <span data-myst="footnote">test</span> <span data-myst="cite:t">alpha,beta</span></p></td>',
-    "</tr>", "</tbody>", "</table>", "", "a. Measured at full load.", "", "b. At sea level.",
+    "</tr>", "</tbody>", "</table>", "", "a. Measured at full load.", "", "b. At sea level, see {cite}`alpha`.",
     ":::", "", "[^test]: In the test report.", "",
   ].join("\n");
   assert.throws(() => core.parse(source), /Unsupported native content/);

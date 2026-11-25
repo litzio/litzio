@@ -8,7 +8,7 @@ import { DocumentWriteError } from "../write-error.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { locateFootnotes } from "./footnote.ts";
 import { retainMermaidOptions } from "./figure.ts";
-import { isNativeTableSource, readTableBreaks, retainTableSource } from "./table.ts";
+import { assertComplexTableDirective, isNativeTableSource, readTableBreaks, retainTableSource } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
 import { assertUnicode } from "./unicode.ts";
 
@@ -45,8 +45,8 @@ export function parse(source: string, { complexTables = false } = {}): MystDocum
   const file = new VFile();
   const document = parseMyst(text, file) as MystDocument;
   markFrontMatter(document, text);
-  const complexGrids = complexTables ? new Map<MystNode, MystNode>() : undefined;
-  retainTableSource(document, file, complexGrids);
+  const convertedTables = complexTables ? new Set<MystNode>() : undefined;
+  retainTableSource(document, file, convertedTables);
   retainMermaidOptions(document, file);
   for (const node of document.children) {
     if (node.type === "mystDirective" && node.children?.length === 1 && node.position) {
@@ -54,10 +54,17 @@ export function parse(source: string, { complexTables = false } = {}): MystDocum
     }
   }
   liftMystDirectivesAndRolesTransform(document);
-  containerChildrenTransform(document, new VFile());
-  complexGrids?.forEach((grid, placeholder) => Object.assign(placeholder, grid));
+  if (convertedTables?.size) {
+    document.children.forEach((node, index) => {
+      if (convertedTables.has(node)) assertComplexTableDirective(node, [index]);
+    });
+    // The HTML reader has already organized these containers. MyST's general
+    // hoisting pass would discard their empty cell paragraphs.
+    const children = document.children.filter(node => !convertedTables.has(node));
+    containerChildrenTransform({ ...document, children }, new VFile());
+  } else containerChildrenTransform(document, new VFile());
   readTableBreaks(document);
-  locateFootnotes(document, text, OPTIONS, complexGrids?.size ? (definition, label) => {
+  locateFootnotes(document, text, OPTIONS, convertedTables?.size ? (definition, label) => {
     // MyST's footnote tail needs an inline reference to keep a definition. HTML
     // spans are opaque to it; ask the existing parser to read the definition.
     return parse("Note [^" + label + "]\n\n" + definition).children.find(node =>
