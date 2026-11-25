@@ -254,54 +254,69 @@ uses nowrap, with the existing local scroller, edge fades and measured handles.
 It introduces no new document gutters or control sizes. Settings uses the existing
 select row; the table block menu separates its View checkbox from mutation groups.
 
-## Title-strip notifications (#1644)
+## Activity bar notifications (#1994)
 
-The owner approved the compact Bell beside Assistant in the existing title strip.
-The closed button is entirely above every document viewport; no document bottom
-strip, scroll-height reservation or minimum-height change is introduced. The same
-window-scoped button remains available for documents, plugin screens and Settings.
-It reserves an icon slot beside Assistant and the native caption-control reservation.
-The command action keeps its existing detail-reduction order and remains available.
+The owner approved the window notification button in the Activity bar's bottom app
+group, directly above Settings (order: Notifications, Settings, Color mode, Desktop
+menu, connection status), so the button and its cards are read in one place. It is a
+fixed place in the always-visible bar, never above document content; no document strip,
+scroll-height reservation, minimum-height change or title-strip slot is introduced. The
+same window-scoped button remains available for documents, plugin screens and Settings.
+When a low window folds screen entries into More, the button stays in the bottom group.
 
-The button uses the shared compact icon Button and Tooltip, neutral/severity colors
-and a count badge. Its name/tooltip is Notifications; the accessible description
-retains the localized severity/count or empty state. Registry, polite announcement,
-grouping, dismissals, progress/actions and error auto-expansion keep their owners.
-The nonediting notification DOM/history boundary remains outside `.app-shell`;
-its fixed title-strip coordinates match the reserved chrome slot. Native no-drag
-and the narrow modal assistant's hidden/inert boundary remain in effect.
+The button uses the shared compact ghost icon Button and right-side Tooltip, at the size
+of the bottom group's Settings and Color mode items, with neutral/severity colors and a
+count badge. Its name/tooltip is Notifications; the accessible description retains the
+localized severity/count or empty state. Registry, polite announcement, grouping,
+dismissals, progress/actions and error auto-expansion keep their owners. The
+nonediting notification DOM/history boundary remains outside `.app-shell`: the bar
+reserves an `aria-hidden` slot, and the shell places the fixed button over the slot's
+measured rectangle, following window-height changes and a short window's bar scroll.
+Up/Down/Home/End in the bar include the button at that slot, but the button keeps its
+own Tab stop after the shell because it is not inside the toolbar's DOM. The narrow
+modal assistant's hidden/inert boundary remains in effect.
 
 NotificationCenter owns one presentation state: closed, automatic or manual. One
 registry, contents tree, announcement, grouping/dismissal state and focus owner are
 shared; the two presentations never render duplicate notification rows.
 
-New errors, warnings and named progress/actions expand an automatic card at the
-bell's top-right ([1440 capture](assets/notification-auto-top-1806/after-1440-light.png)).
-It starts 32px (`--space-8`) below the measured title strip and tab row
-(`--app-header-height`), so on document, plugin and Settings tabs it never covers
-title-strip or tab-row actions. Its right edge keeps the panel-aware 32px inset left
-of an open Assistant or Document panel, including the overlaid Document panel below
-1424px. Several causes stack downward in one list that scrolls inside the card above
-a 16px bottom inset; the card enters from above. The persistent bell exists only in
-the title strip. Automatic cards are named regions, not dialogs, and keep a
-temporary, dismissible body overlap. They do not move focus
-or dismiss on document focus changes. If the user is already reading a manual list,
-new causes update it without moving its location or focus. Bell activation collapses
-an expanded presentation; activation while closed opens the manual list.
+New errors, warnings and named progress/actions expand an automatic card just right of
+the Activity bar at the window's lower edge
+([1440 capture](assets/notification-activity-bar-1994/after-1440-light-auto-one.png)).
+Its left edge is 32px (`--space-8`) right of the bar and its bottom 16px (`--space-4`)
+above the window edge. Several causes stack upward in one list
+([several causes](assets/notification-activity-bar-1994/after-1440-light-auto-many.png))
+that scrolls inside the card, whose top never rises above the measured title strip and
+tab row (`--app-header-height`) plus 32px, so title-strip and tab-row actions stay
+usable. Its width keeps the 32px + 16px insets and stops left of an open Assistant or
+Document panel. The card enters from below. Automatic cards are named regions, not
+dialogs, and keep a temporary, dismissible overlap of the Explorer panel and document
+([640 Korean dark with Explorer overlay](assets/notification-activity-bar-1994/after-640-dark-ko-explorer-auto.png)).
+They do not move focus or dismiss on document focus changes. If the user is already
+reading a manual list, new causes update it without moving its location or focus.
+Button activation collapses an expanded presentation; activation while closed opens the
+manual list.
 
-The existing Base UI Popover anchors only the manual list below the bell and fits
-it within the viewport; it never flips to another side, and a short window scrolls
-inside the list ([1440×600 capture](assets/notification-popover-side-1803/after-expanded-1440x600-light-en.png)). It is a named nonmodal Notifications dialog, distinct from
-Save/New/Reload modal dialogs. Focus-only document navigation keeps it open; outside
-pointer dismissal and Escape close it. Escape from a focused notification action
-returns to the bell. Closed contents remain a hidden native list for the existing
-producer lifecycle, with no mounted popup to block Settings Escape. The narrow
-modal assistant hides/inerts both presentations through the shared external outlet.
+The existing Base UI Popover anchors only the manual list to the button's right with its
+lower edge at the button's (side right, align end, 8px offset like the bar's More list);
+it never flips to another side, shifts within the viewport, and a short window scrolls
+inside the list ([1440 capture](assets/notification-activity-bar-1994/after-1440-light-manual.png)).
+It is a named nonmodal Notifications dialog, distinct from Save/New/Reload modal
+dialogs. Focus-only document navigation keeps it open; outside pointer dismissal and
+Escape close it. Escape from a focused notification action returns to the button.
+Closed contents remain a hidden native list for the existing producer lifecycle, with no
+mounted popup to block Settings Escape. The narrow modal assistant hides/inerts both
+presentations through the shared external outlet.
 
-The bell is centered in the 40px title strip beside Assistant with an 8px action gap.
+Captures: [before (title strip)](assets/notification-activity-bar-1994/before-1440-light.png),
+[closed](assets/notification-activity-bar-1994/after-1440-light-closed.png),
+[1440 dark](assets/notification-activity-bar-1994/after-1440-dark-manual.png),
+[640 Korean dark list](assets/notification-activity-bar-1994/after-640-dark-ko-manual.png),
+[1920×1080](assets/notification-activity-bar-1994/after-1920x1080-light-auto.png),
+[low window with More](assets/notification-activity-bar-1994/after-1440x300-light-more.png).
 
-At 640px + 138px native-caption reservation, Assistant becomes an icon, the command
-button is at least 160px and all three rectangles are disjoint and left of caption
-controls. At 1440px Assistant keeps its label. The adjustable transition is
+In the title strip, at 640px + 138px native-caption reservation, Assistant becomes an
+icon, the command button is at least 160px and both rectangles are disjoint and left of
+caption controls. At 1440px Assistant keeps its label. The adjustable transition is
 `--layout-assistant-label-breakpoint` (30rem), resolved by the existing TopBar
 ResizeObserver rather than a repeated container-query literal.

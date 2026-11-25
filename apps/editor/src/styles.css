@@ -214,6 +214,7 @@ button {
 /* Names hidden in Settings: icon-only items, named by their tooltip and accessible name. */
 :root[data-activity-labels="hidden"] .activity-bar-label { display: none; }
 :root[data-activity-labels="hidden"] .activity-bar-screens { min-height: calc(var(--activity-icon) + 2 * var(--space-1) + 2 * var(--border-width)); }
+.notification-slot { flex-shrink: 0; width: var(--size-control-compact); height: var(--size-control-compact); }
 .activity-bar-status { display: flex; align-items: center; justify-content: center; height: var(--size-control-compact); }
 .activity-more { width: var(--layout-sidebar-width); gap: var(--space-2); padding: var(--space-2); }
 .activity-more-list { display: flex; flex-direction: column; gap: var(--space-1); min-height: 0; margin: 0; padding: 0; list-style: none; overflow-y: auto; }
@@ -3314,14 +3315,15 @@ h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-
 .shell-tab { position: fixed; top: var(--app-header-height, var(--layout-header-row)); bottom: 0; left: var(--shell-sidebar); right: var(--shell-panel); min-height: 0; min-width: 0; overflow: hidden; }
 .app-shell--split .shell-tab { --editor-group-width: calc((100vw - var(--shell-sidebar) - var(--shell-panel) - var(--border-width)) / 2); left: calc(var(--shell-sidebar) + var(--editor-group-index) * (var(--editor-group-width) + var(--border-width))); right: auto; width: var(--editor-group-width); }
 .shell-tab[hidden] { display: none; }
-.notification-center { position: fixed; z-index: 40; top: calc((var(--layout-header-row) - var(--size-control-compact)) / 2); right: calc(var(--window-controls-width) + var(--layout-ui-inset)); display: flex; width: var(--size-control-compact); height: var(--size-control-compact); color: var(--id-color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-label); app-region: no-drag; }
+/* The button sits over its reserved Activity bar slot, above Settings; the shell sets the slot coordinates. */
+.notification-center { position: fixed; z-index: 40; top: var(--notification-top, calc(100dvh - var(--size-control-compact) - var(--space-4))); left: var(--notification-left, calc((var(--layout-activity-bar-width) - var(--size-control-compact)) / 2)); display: flex; width: var(--size-control-compact); height: var(--size-control-compact); color: var(--id-color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-label); app-region: no-drag; }
 .notification-center > button { position: relative; color: inherit; }
 .notification-count { position: absolute; top: calc(-1 * var(--space-1)); right: calc(-1 * var(--space-1)); padding-inline: var(--space-1); border-radius: var(--id-radius-xl); background: var(--id-color-surface-subtle);  line-height: var(--line-height-meta); }
 .notification-popover[data-slot="popover-content"] { width: min(28rem, calc(100vw - var(--space-8))); padding: 0; gap: 0; border: 0; color: inherit; overflow: hidden; }
 .notification-popover > ul { max-height: var(--available-height); }
 @media print { .notification-center { display: none; } }
-.notification-auto { position: fixed; z-index: 40; pointer-events: none; right: calc(var(--notification-panel-width, 0px) + var(--space-8)); top: calc(var(--app-header-height, 80px) + var(--space-8)); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); --notification-sidebar-width: calc(var(--layout-activity-bar-width) + var(--sidebar-effective-width)); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8) - var(--space-4)); --notification-enter-offset: calc(-1 * var(--space-1)); color: inherit; font-size: var(--font-size-sm); line-height: var(--line-height-label); }
-body:has(.app-shell--collapsed) .notification-auto { --notification-sidebar-width: var(--layout-activity-bar-width); }
+/* Automatic cards rise from the window's lower edge just right of the Activity bar, beside the button. */
+.notification-auto { position: fixed; z-index: 40; pointer-events: none; left: calc(var(--layout-activity-bar-width) + var(--space-8)); bottom: var(--space-4); display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: var(--space-2); width: min(28rem, calc(100vw - var(--layout-activity-bar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8) - var(--space-4)); --notification-enter-offset: var(--space-1); color: inherit; font-size: var(--font-size-sm); line-height: var(--line-height-label); }
 .notification-center[data-severity="error"] { color: var(--id-color-danger); }
 .notification-center[data-severity="warning"] { color: var(--id-color-warning); }
 
@@ -3466,7 +3468,7 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .notification-center li, .notification-auto {
   transition: opacity var(--duration-normal) var(--ease-motion), transform var(--duration-normal) var(--ease-motion), display var(--duration-normal) allow-discrete;
 }
-/* Rows rise into the manual list below the bell; automatic cards below the tab strip descend. */
+/* Rows rise into the notification lists; automatic cards rise from the window bottom. */
 .notification-center li[data-ending-style], .notification-auto[hidden] { opacity: 0; transform: translateY(var(--notification-enter-offset, 4px)); }
 @starting-style { .notification-center li, .notification-auto:not([hidden]) { opacity: 0; transform: translateY(var(--notification-enter-offset, 4px)); } }
 @supports (interpolate-size: allow-keywords) {

@@ -47,24 +47,38 @@ async (page, { openPath, expect }) => {
         await expect(center).toBeVisible();
         await expect(toggle()).toHaveAttribute('aria-expanded', String(expanded));
         await expect(center.locator('ul')).toBeVisible({ visible: expanded });
-        const documentRect = await page.locator('.document-scroll[data-active=true]').boundingBox();
+        const documentRect = await page.locator('.app-main').boundingBox();
         const bellRect = await toggle().boundingBox();
         const chrome = await page.locator('.top-bar').evaluate(header => {
-          const boxes = ['.command-center-trigger','.assistant-trigger','.notification-center > button'].map(selector=>{
+          const boxes = ['.command-center-trigger','.assistant-trigger'].map(selector=>{
             const r=document.querySelector(selector).getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width};
           });
-          return {boxes,overlap:boxes.some((a,i)=>boxes.slice(i+1).some(b=>Math.min(a.right,b.right)>Math.max(a.x,b.x)&&Math.min(a.bottom,b.bottom)>Math.max(a.y,b.y)))};
+          return {boxes,overlap:boxes.some((a,i)=>boxes.slice(i+1).some(b=>Math.min(a.right,b.right)>Math.max(a.x,b.x)&&Math.min(a.bottom,b.bottom)>Math.max(a.y,b.y))),
+            reserved:!!header.querySelector('.notification-slot')};
         });
         expect(chrome.overlap,JSON.stringify(chrome)).toBe(false);
+        expect(chrome.reserved,'The title strip keeps no notification slot').toBe(false);
         for (const box of chrome.boxes) expect(box.right).toBeLessThanOrEqual(width-reserved);
         if (reserved) expect(chrome.boxes[0].width).toBeGreaterThanOrEqual(160);
         if (width === 1440) await expect(page.locator('.assistant-trigger-label')).toBeVisible();
-        expect(bellRect.y + bellRect.height, 'Closed bell must remain entirely above document content').toBeLessThanOrEqual(documentRect.y);
+        // #1994: the bell occupies the Activity bar's bottom group directly above Settings, at its size.
+        const place = await toggle().evaluate(bell => {
+          const r=bell.getBoundingClientRect(), bar=document.querySelector('.activity-bar').getBoundingClientRect();
+          const settings=document.querySelector('.activity-bar [data-activity-id="settings"]').getBoundingClientRect();
+          return {inBar:r.left>=bar.left&&r.right<=bar.right&&r.top>=bar.top&&r.bottom<=bar.bottom,
+            aboveSettings:r.bottom<=settings.top&&settings.top-r.bottom<=8&&Math.abs(r.left+r.width/2-(settings.left+settings.width/2))<=0.5,
+            sameSize:Math.abs(r.width-settings.width)<=0.5&&Math.abs(r.height-settings.height)<=0.5,
+            hit:bell.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))};
+        });
+        expect(place,JSON.stringify(place)).toEqual({inBar:true,aboveSettings:true,sameSize:true,hit:true});
+        expect(bellRect.x + bellRect.width, 'Closed bell must remain outside document content').toBeLessThanOrEqual(documentRect.x);
         if (expanded) {
+          // The manual list opens to the bell's right with its lower edge at the bell's.
           const popup = await center.locator('.notification-popover').boundingBox();
-          expect(popup.x).toBeGreaterThanOrEqual(0);
+          expect(popup.x).toBeGreaterThanOrEqual(bellRect.x + bellRect.width);
+          expect(Math.abs(popup.y + popup.height - (bellRect.y + bellRect.height))).toBeLessThanOrEqual(1);
           expect(popup.x + popup.width).toBeLessThanOrEqual(width);
-          expect(popup.y + popup.height).toBeLessThanOrEqual(900);
+          expect(popup.y).toBeGreaterThanOrEqual(0);
         }
         const bounds = await center.boundingBox();
         expect(bounds.x).toBeGreaterThanOrEqual(0);
@@ -119,23 +133,22 @@ async (page, { openPath, expect }) => {
     const r=button.getBoundingClientRect();return button.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
   });
   expect(saveHit,'Automatic cards must leave the original Save action clickable').toBe(true);
-  // Automatic cards appear at the bell's top-right, starting below the tab strip:
+  // Automatic cards rise from the window's lower edge just right of the Activity bar, beside the bell:
   // every title-strip and tab-row action keeps its rectangle and pointer hit.
   await center.locator('.notification-auto').evaluate(el => Promise.allSettled(el.getAnimations({subtree:true}).map(a => a.finished)));
   const autoPlacement = await center.locator('.notification-auto > ul').evaluate(card => {
     const c=card.getBoundingClientRect(), header=document.querySelector('.app-header').getBoundingClientRect();
-    const bell=document.querySelector('.notification-center > button').getBoundingClientRect();
+    const bar=document.querySelector('.activity-bar').getBoundingClientRect();
     const actions=[...document.querySelectorAll('.app-titlebar button, .app-header button')].filter(button => button.getClientRects().length).map(button => {
       const r=button.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2;
       const visible=x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&button.contains(document.elementFromPoint(x,y));
       return {name:button.getAttribute('aria-label')||button.textContent.trim(),covered:Math.min(r.right,c.right)>Math.max(r.x,c.x)&&Math.min(r.bottom,c.bottom)>Math.max(r.y,c.y),visible};
     });
-    return {card:{top:c.top,bottom:c.bottom,right:c.right},headerBottom:header.bottom,bellRight:bell.right,actions};
+    return {card:{top:c.top,bottom:c.bottom,left:c.left},headerBottom:header.bottom,barRight:bar.right,actions};
   });
   expect(autoPlacement.card.top,JSON.stringify(autoPlacement)).toBeGreaterThanOrEqual(autoPlacement.headerBottom);
-  expect(autoPlacement.card.top - autoPlacement.headerBottom,'Automatic cards start just below the tab strip, not at the bottom').toBeLessThanOrEqual(48);
-  expect(autoPlacement.card.bottom).toBeLessThanOrEqual(900);
-  expect(autoPlacement.card.right).toBeLessThanOrEqual(autoPlacement.bellRight);
+  expect(900 - autoPlacement.card.bottom,'Automatic cards sit at the window bottom, not below the tab strip').toBe(16);
+  expect(autoPlacement.card.left - autoPlacement.barRight,'Automatic cards start just right of the Activity bar').toBe(32);
   expect(autoPlacement.actions.length).toBeGreaterThan(0);
   expect(autoPlacement.actions.filter(action => action.covered || !action.visible),JSON.stringify(autoPlacement.actions)).toEqual([]);
   await toggle().click();
@@ -295,24 +308,43 @@ async (page, { openPath, expect }) => {
   await expect(toggle()).toHaveAccessibleDescription('Notifications: Warning, 2');
   if (await toggle().getAttribute('aria-expanded') === 'false') await toggle().click();
   await expect(group).toHaveAttribute('aria-expanded','false');
-  // #1803: a short window keeps the expanded manual list below the bell and scrolls it inside.
-  // The two-warning fixture overflows at 320px as the audited three-warning list did below 600px.
+  // #1803/#1994: a short window keeps the expanded manual list right of the bell and scrolls it inside.
+  // The list may use the whole window height beside the bell, so the two-warning fixture overflows at 280px;
+  // that window also folds the screen entries into More.
   if (await center.getAttribute('data-presentation') === 'automatic') await toggle().click();
   if (await center.getAttribute('data-presentation') === 'closed') await toggle().click();
   await expect(center).toHaveAttribute('data-presentation','manual');
-  await page.setViewportSize({ width: 1440, height: 320 });
+  await page.setViewportSize({ width: 1440, height: 280 });
   await group.click();
   await expect(group).toHaveAttribute('aria-expanded','true');
   await expect.poll(async () => {
     const bell = await toggle().boundingBox();
-    return center.locator('.notification-popover').evaluate((popup, bellBottom) => {
+    return center.locator('.notification-popover').evaluate((popup, bellRight) => {
       const r = popup.getBoundingClientRect(), list = popup.querySelector('ul');
-      return { below: r.top >= bellBottom, inside: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
+      return { right: r.left >= bellRight, inside: r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
         scrolls: list.scrollHeight > list.clientHeight };
-    }, bell.y + bell.height);
-  }).toEqual({ below: true, inside: true, scrolls: true });
+    }, bell.x + bell.width);
+  }).toEqual({ right: true, inside: true, scrolls: true });
   await group.click();
+  // Screen entries fold into More in this window; the bell stays in the bottom group and joins
+  // the bar's Up/Down order between More and Settings while keeping its own Tab stop.
+  await toggle().click();
+  await expect(center).toHaveAttribute('data-presentation','closed');
+  const bar = page.getByTestId('activity-bar');
+  const more = bar.getByRole('button', {name:'More', exact:true}), settings = bar.getByRole('button', {name:'Settings', exact:true});
+  await expect(more).toBeVisible();
+  expect(await toggle().evaluate(bell => { const r=bell.getBoundingClientRect(); return bell.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)); })).toBe(true);
+  await settings.focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(toggle()).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(more).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(toggle()).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(settings).toBeFocused();
   await page.setViewportSize({ width: 1440, height: 900 });
+  if (await toggle().getAttribute('aria-expanded') === 'false') await toggle().click();
   await center.getByRole('button', {name:'Dismiss group: Numbering warnings · 2',exact:true}).click();
   await expect(toggle()).toHaveAttribute('aria-expanded','false');
   await expect(toggle()).toBeFocused();

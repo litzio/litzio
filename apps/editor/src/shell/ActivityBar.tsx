@@ -28,15 +28,40 @@ type ActivityBarProps = {
   onSettings(returnFocus: HTMLElement): void;
   settingsDisabled?: boolean;
   updateVersion?: string;
+  /** Reserved place of the window notification button, which stays outside the shell history boundary. */
+  notificationSlot?: RefObject<HTMLSpanElement | null>;
 };
 
 const MORE = "more";
 
+const NOTIFICATIONS = ".notification-center > button";
+
 /**
- * Always-visible left bar: Explorer, screen entries, then Settings, Color mode, Desktop menu and
+ * Up/Down/Home/End between the bar's items. The window notification button is outside the shell
+ * (and this toolbar's DOM), so it joins at its reserved slot and keeps its own Tab stop.
+ */
+export function moveActivityFocus(event: React.KeyboardEvent) {
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
+  const bar = document.querySelector<HTMLElement>(".activity-bar");
+  const bell = document.querySelector<HTMLElement>(NOTIFICATIONS);
+  const from = event.target === bell ? bell : (event.target as Element).closest<HTMLElement>("[data-activity-id]");
+  if (!bar || !from || (from !== bell && !bar.contains(from))) return;
+  const nodes = [...bar.querySelectorAll<HTMLElement>("[data-activity-id], [data-notification-slot]")]
+    .map(node => node.hasAttribute("data-notification-slot") ? bell : node)
+    .filter((node): node is HTMLElement => !!node && !!node.getClientRects().length && !node.closest("[inert]") && !(node as HTMLButtonElement).disabled);
+  const index = nodes.indexOf(from);
+  if (index < 0) return;
+  const next = event.key === "Home" ? 0 : event.key === "End" ? nodes.length - 1
+    : (index + (event.key === "ArrowDown" ? 1 : -1) + nodes.length) % nodes.length;
+  event.preventDefault();
+  nodes[next]?.focus();
+}
+
+/**
+ * Always-visible left bar: Explorer, screen entries, then Notifications, Settings, Color mode, Desktop menu and
  * connection status. One Tab stop; Up/Down/Home/End move between items (roving tabindex).
  */
-export function ActivityBar({ explorerOpen, onExplorer, explorerRef, items, itemsDisabled, theme, onThemeChange, onSettings, settingsDisabled, updateVersion }: ActivityBarProps) {
+export function ActivityBar({ explorerOpen, onExplorer, explorerRef, items, itemsDisabled, theme, onThemeChange, onSettings, settingsDisabled, updateVersion, notificationSlot }: ActivityBarProps) {
   const { i18n: language } = useTranslation();
   useSyncExternalStore(hostConnection.subscribe, hostConnection.snapshot, hostConnection.snapshot);
   const group = useRef<HTMLDivElement>(null);
@@ -80,17 +105,7 @@ export function ActivityBar({ explorerOpen, onExplorer, explorerRef, items, item
     hidden={hidden} disabled={itemsDisabled} active={item.active} onClick={event => item.run(event.currentTarget)}>{item.icon}</BarItem>;
   return <div className="activity-bar" role="toolbar" aria-orientation="vertical" aria-label={i18n.t("Activity bar")} data-testid="activity-bar"
     onFocus={event => { const id = (event.target as Element).closest<HTMLElement>("[data-activity-id]")?.dataset.activityId; if (id) setCurrent(id); }}
-    onKeyDown={event => {
-      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
-      const from = (event.target as Element).closest("[data-activity-id]");
-      if (!from || !event.currentTarget.contains(from)) return;
-      const nodes = [...event.currentTarget.querySelectorAll<HTMLElement>("[data-activity-id]")].filter(node => !node.closest("[inert]") && !(node as HTMLButtonElement).disabled);
-      const index = nodes.indexOf(from as HTMLElement);
-      const next = event.key === "Home" ? 0 : event.key === "End" ? nodes.length - 1
-        : (index + (event.key === "ArrowDown" ? 1 : -1) + nodes.length) % nodes.length;
-      event.preventDefault();
-      nodes[next]?.focus();
-    }}>
+    onKeyDown={moveActivityFocus}>
     <div className="activity-bar-group">
       <BarItem id="explorer" buttonRef={explorerRef} label={i18n.t("Explorer")} tooltip={explorerLabel} ariaLabel={explorerLabel} tabIndex={tabIndex("explorer")}
         selected={explorerOpen} aria-expanded={explorerOpen} aria-controls="sidebar-files" onClick={onExplorer}><FilesIcon aria-hidden="true" /></BarItem>
@@ -102,6 +117,7 @@ export function ActivityBar({ explorerOpen, onExplorer, explorerRef, items, item
       {items.slice(fit).map(item => itemButton(item, true))}
     </div>
     <div className="activity-bar-group activity-bar-preferences">
+      <span ref={notificationSlot} className="notification-slot" data-notification-slot="" aria-hidden="true" />
       <IconItem id="settings" label={settingsLabel} tooltip={updateVersion ? i18n.t("New version {{version}} available", { version: updateVersion }) : i18n.t("Settings")}
         tabIndex={tabIndex("settings")} disabled={settingsDisabled} data-open-settings="" onClick={event => onSettings(event.currentTarget)}>
         <span className="settings-entry-icon"><Settings aria-hidden="true" />

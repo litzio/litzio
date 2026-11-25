@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties, type Ref } from "react";
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties, type KeyboardEventHandler, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { Bell, ChevronDown, ChevronRight, X } from "lucide-react";
 import { Button } from "./button.tsx";
@@ -36,9 +36,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   return <Registry value={register}><Items value={Object.values(sources).flat()}>{children}</Items></Registry>;
 }
 
-/** Keep the history boundary outside the shell; only automatic cards use panel geometry. */
-export function ShellNotificationCenter({ ref, panelWidth, sidebarWidth, documentPanelWidth }: { ref?: Ref<HTMLDivElement>; panelWidth: string; sidebarWidth?: number; documentPanelWidth?: number }) {
-  return <div ref={ref} className="shell-notifications" style={{ "--notification-panel-width": panelWidth, "--sidebar-width": sidebarWidth ? `${sidebarWidth}px` : undefined, "--document-panel-width": documentPanelWidth ? `${documentPanelWidth}px` : undefined } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
+/**
+ * Keep the history boundary outside the shell. The button is placed over its reserved Activity bar
+ * slot (coordinates set by the shell); only automatic cards use panel geometry.
+ */
+export function ShellNotificationCenter({ ref, panelWidth, documentPanelWidth, onKeyDown }: { ref?: Ref<HTMLDivElement>; panelWidth: string; documentPanelWidth?: number; onKeyDown?: KeyboardEventHandler<HTMLDivElement> }) {
+  return <div ref={ref} className="shell-notifications" onKeyDown={onKeyDown} style={{ "--notification-panel-width": panelWidth, "--document-panel-width": documentPanelWidth ? `${documentPanelWidth}px` : undefined } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
 }
 
 /** Callbacks read the latest source render, while registry updates follow observable content. */
@@ -186,9 +189,9 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
       render={<Button ref={toggle} size="icon-sm" variant="ghost"
         aria-label={i18n.t("Notifications")} aria-description={accessibleLabel} />} />}>
       <Bell />{visible.length ? <span className="notification-count" aria-hidden="true">{visible.length}</span> : null}
-    </TooltipTrigger><TooltipContent>{i18n.t("Notifications")}</TooltipContent></Tooltip>
-    {presentation === "manual" || manualMounted ? <PopoverContent anchor={toggle} portalContainer={outlet} side="bottom" align="end" sideOffset={8}
-      collisionAvoidance={{ side: "none" }}
+    </TooltipTrigger><TooltipContent side="right">{i18n.t("Notifications")}</TooltipContent></Tooltip>
+    {presentation === "manual" || manualMounted ? <PopoverContent anchor={toggle} portalContainer={outlet} side="right" align="end" sideOffset={8}
+      collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
       initialFocus={false} finalFocus={() => {
         const target = returnFocus.current ? toggle.current : false;
         returnFocus.current = false;
