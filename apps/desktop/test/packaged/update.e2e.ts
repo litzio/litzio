@@ -41,9 +41,9 @@ const BETA = LIVE || PUBLISHED_BASE || process.env.LITZIO_TEST_UPDATE_CHANNEL ==
 const sharedData = path.join(os.homedir(), brand.folders.shared);
 process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
 process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
-// The first Beta after Stable uses that Stable as the starting point in both cases.
+// Beta candidates start from the latest public Stable in both cases.
 // LIVE requires both public releases. PUBLISHED_BASE builds the Beta candidate locally.
-const [OLD, NEW] = LIVE || PUBLISHED_BASE ? ["0.0.3", "0.0.4-beta.1"]
+const [OLD, NEW] = LIVE || PUBLISHED_BASE ? ["0.0.3", "0.0.4-beta.2"]
   : BETA ? ["0.1.0-beta.1", "0.1.0-beta.2"] : ["0.0.1", "0.0.2"];
 // The public beta.3 predates native documents (#232) and edits leading frontmatter as a body block.
 const NATIVE_PREFIX = LIVE && OLD === "0.0.1-beta.3" ? "" : "---\nlitzio: 1\n---\n\n";
