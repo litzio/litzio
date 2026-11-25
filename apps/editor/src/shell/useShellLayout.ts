@@ -83,6 +83,7 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
   const main = useRef<HTMLDivElement>(null);
   const titlebar = useRef<HTMLDivElement>(null);
   const notifications = useRef<HTMLDivElement>(null);
+  const notificationSlot = useRef<HTMLSpanElement>(null);
   // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
   useLayoutEffect(() => {
     if (!(assistantOpen && assistantOverlay) && !fileOperationPending) return;
@@ -113,6 +114,28 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
     return () => observer.disconnect();
   }, []);
 
+  // The notification button stays outside the shell history boundary, placed over its Activity bar slot.
+  // The slot moves when the window height changes or the bar scrolls in a very short window.
+  useLayoutEffect(() => {
+    const slot = notificationSlot.current, bar = slot?.closest<HTMLElement>(".activity-bar");
+    if (!slot || !bar) return;
+    const place = () => {
+      const rect = slot.getBoundingClientRect();
+      notifications.current?.style.setProperty("--notification-top", `${rect.top}px`);
+      notifications.current?.style.setProperty("--notification-left", `${rect.left}px`);
+      // The manual list starts where automatic cards do: the bar's right edge plus --space-2.
+      const gap = parseFloat(getComputedStyle(slot).scrollMarginRight) || 0;
+      notifications.current?.style.setProperty("--notification-list-offset", `${bar.getBoundingClientRect().right - rect.right + gap}px`);
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(bar);
+    observer.observe(slot.parentElement ?? slot);
+    bar.addEventListener("scroll", place, { passive: true });
+    window.addEventListener("resize", place);
+    return () => { observer.disconnect(); bar.removeEventListener("scroll", place); window.removeEventListener("resize", place); };
+  }, []);
+
   // Entering overlay closes it; returning to docked restores the explicit choice or default.
   useEffect(() => {
     const query = matchMedia(PANEL_OVERLAY_LAYOUT);
@@ -128,6 +151,6 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
     assistantOpen, setAssistantOpen, assistantOverlay, assistantSize, setAssistantSize, assistantReturn, closeAssistant, toggleAssistant,
     sidebarSize, setSidebarSize, sidebarOverlay, sidebarOpen, chooseSidebarOpen, closeSidebar, sidebarToggle, sidebarFocus,
     documentPanelSize, setDocumentPanelSize, panelOverlay, panelOpen, choosePanelOpen, toggleOutline, outlineToggle,
-    shell, header, main, titlebar, notifications, shellReturnFocus,
+    shell, header, main, titlebar, notifications, notificationSlot, shellReturnFocus,
   };
 }
