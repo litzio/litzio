@@ -326,7 +326,11 @@ async (page, { openPath, expect, screenshots }) => {
   await page.setViewportSize({width:1440, height:900});
   await prose.click();
   await page.keyboard.press('Home');
-  await expect.poll(() => engine.evaluate(el => el.editor.state.selection.$from.parentOffset)).toBe(0);
+  // Home updates the native caret before ProseMirror adopts it. The title can also have offset 0.
+  await expect.poll(() => prose.evaluate(paragraph => {
+    const { state, view } = paragraph.closest('.ProseMirror').editor;
+    return view.hasFocus() && state.selection.empty && state.selection.from === view.posAtDOM(paragraph, 0);
+  }), { message: 'The editor caret is at the start of the target paragraph' }).toBe(true);
   const beforeInsert = await snapshot();
   await page.keyboard.type('/math');
   await expect(mathItem).toBeVisible();
