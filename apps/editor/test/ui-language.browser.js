@@ -151,7 +151,7 @@ async (page, { openPath, screenshots }) => {
         const editor = document.querySelector(`[data-document-tab="${documentTabId}"] .document-editor`);
         const picker = document.querySelector('[data-testid="accent-color"] input:checked + .settings-accent-face');
         const selection = getComputedStyle(editor.querySelector('.paragraph'), '::selection');
-        return { theme: root.dataset.theme, preset: root.dataset.accent, interaction: resolve('interaction'), selected: resolve('text-selected'),
+        return { theme: root.dataset.theme, preset: root.dataset.accent, interaction: resolve('interaction'), contentLink: resolve('content-link'), selected: resolve('text-selected'),
           selectedSurface: resolve('surface-selected'), ring: getComputedStyle(picker.querySelector('.settings-accent-swatch')).outlineColor, swatch: getComputedStyle(picker.querySelector('.settings-accent-swatch')).backgroundColor,
 
           selectionText: selection.color, selectionBackground: selection.backgroundColor,
@@ -159,9 +159,10 @@ async (page, { openPath, screenshots }) => {
           reference: getComputedStyle(editor.querySelector('.cross-reference-chip')).color };
       }, documentTabId);
       check(colors.preset === preset && colors.swatch === colors.interaction && colors.ring === colors.interaction &&
-        colors.link === colors.interaction && colors.reference === colors.interaction &&
         colors.selectionText === colors.selected && colors.selectionBackground === colors.selectedSurface,
         `Accent consumers did not update: ${JSON.stringify(colors)}`);
+      check(colors.link === colors.contentLink && colors.reference === colors.contentLink,
+        `Document links and references must use the content-link token: ${JSON.stringify(colors)}`);
       check(colors.interaction === swatches[presets.indexOf(preset)], 'Every swatch must match its actual theme accent before selection');
       const radio = picker.locator(`input[value="${preset}"]`);
       const name = await radio.getAttribute('aria-label');
@@ -181,6 +182,7 @@ async (page, { openPath, screenshots }) => {
       accentResults.push({...colors, save: saveColor});
     }
     check(new Set(accentResults.filter(r => r.theme === theme).map(result => result.interaction)).size === presets.length, 'Presets must produce distinct colors');
+    check(new Set(accentResults.filter(r => r.theme === theme).map(result => result.contentLink)).size === 1, 'Document link color must stay fixed across accent presets');
     }
     await picker.locator('input[value="teal"]').check();
     if (screenshots) await page.screenshot({ path: 'tmp/256/settings-en.png' });

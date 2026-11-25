@@ -277,7 +277,9 @@ export async function ollamaModel(url: string, name: string): Promise<AiModel> {
     const response = await fetch(`${url}/api/show`, { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model: name }), signal: AbortSignal.timeout(5_000) });
     if (!response.ok) return model;
-    const thinking = (await response.json())?.thinking;
+    const details = await response.json();
+    if (Array.isArray(details?.capabilities) && details.capabilities.includes("vision")) model.supportsVision = true;
+    const thinking = details?.thinking;
     const values: unknown = thinking?.values;
     if (!Array.isArray(values) || !values.length || !values.includes(thinking.default) || new Set(values).size !== values.length) return model;
     if (values.length === 1 && values[0] === false) model.defaultReasoningEffort = "none";

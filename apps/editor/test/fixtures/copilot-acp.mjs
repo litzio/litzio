@@ -4,7 +4,7 @@ import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs
 const log = process.argv[2];
 // Copilot CLI 1.0.114 BYOK: COPILOT_PROVIDER_BASE_URL needs COPILOT_MODEL, and a session lists only auto and that model.
 const byok = process.env.COPILOT_PROVIDER_BASE_URL === undefined ? null : { baseUrl: process.env.COPILOT_PROVIDER_BASE_URL, apiKey: process.env.COPILOT_PROVIDER_API_KEY ?? null,
-  wireApi: process.env.COPILOT_PROVIDER_WIRE_API ?? null, model: process.env.COPILOT_MODEL ?? null, offline: process.env.COPILOT_OFFLINE ?? null };
+  vision: process.env.COPILOT_PROVIDER_VISION ?? null, wireApi: process.env.COPILOT_PROVIDER_WIRE_API ?? null, model: process.env.COPILOT_MODEL ?? null, offline: process.env.COPILOT_OFFLINE ?? null };
 if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, startedAt: Date.now(), args: process.argv.slice(3), hostOrigin: process.env.LITZIO_HOST_ORIGIN ?? null, byok }) + "\n");
 process.once("exit", () => {
   if (log && existsSync(log)) appendFileSync(log, JSON.stringify({ exitedPid: process.pid, exitedAt: Date.now() }) + "\n");

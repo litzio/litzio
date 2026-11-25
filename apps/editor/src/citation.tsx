@@ -66,7 +66,7 @@ export function citationStatus(keys: readonly string[], text: string, bibliograp
   return i18n.t("Citation {{numbers}}: {{keys}}. Bibliography has not been checked.", { numbers: text, keys: keys.join(", ") });
 }
 
-function citationReadiness(keys: readonly string[], bibliography?: BibliographyEvaluation): string {
+export function citationReadiness(keys: readonly string[], bibliography?: BibliographyEvaluation): string {
   if (!bibliography) return "not-evaluated";
   const states = keys.map(key => bibliography.references.find(reference => reference.key === key)?.status ?? "unverified");
   return states.find(state => state !== "complete") ?? "complete";

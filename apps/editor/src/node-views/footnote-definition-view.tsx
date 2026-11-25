@@ -74,7 +74,7 @@ function EndnoteNumber({ editor, label }: { editor: Editor; label: string }) {
   useTranslation();
   const number = useEndnoteNumber(editor, label);
   return (
-    <sup className="footnote-number" data-testid="footnote-number" contentEditable={false}
+    <sup className="footnote-number" data-testid="footnote-number" data-resolved={number !== undefined} contentEditable={false}
       title={i18n.t("Return to the reference")} aria-label={i18n.t("Endnote {{number}}. Return to the reference.", { number: number ?? label })}
       onMouseDown={(event) => event.preventDefault()} onClick={() => revealReference(editor, label)}>
       {number ?? `[^${label}]`}
