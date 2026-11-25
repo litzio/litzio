@@ -27,3 +27,17 @@ test('public input validation preserves schema and reports constraints without c
 test('screen saveDocument keeps authored payload image identity and size validation',()=>{
  const input={authoring:{title:'Example',inputs:[{key:'rows',blocks:[{kind:'paragraph',text:'Value'}]}]},images:[]};assert.doesNotThrow(()=>authoredDocumentRequestSchema.parse(input));assert.equal(authoredDocumentRequestSchema.safeParse({...input,images:[{key:'a',mime:'image/png',base64:'x'},{key:'a',mime:'image/png',base64:'x'}]}).success,false);
 });
+
+test('SDK exposes document title and admonition operations', () => {
+  let doc = sdk.parse('---\nlitzio: 1\n---\n\nBody.\n');
+  doc = sdk.updateDocumentTitle(doc, 'Report');
+  doc = sdk.insertAdmonition(doc, 1, 'note', [{kind:'text', text:'Read this'}]);
+  doc = sdk.updateAdmonitionVariant(doc, [1], 'tip');
+  doc = sdk.updateAdmonitionInlineContent(doc, [1], [{kind:'strong', children:[{kind:'text',text:'Notice'}]}]);
+  const source = sdk.serialize(doc);
+  assert.match(source, /title: Report/);
+  assert.match(source, /:::.*tip/);
+  assert.match(source, /\*\*Notice\*\*/);
+});
+
+import * as sdk from '../src/index.ts';

@@ -765,6 +765,10 @@ test("structured authoring retains explicit long-document and table/string bound
     else block.rows!.push(Array(limits.tableColumns).fill(""));
     await assert.rejects(authorDocument({ inputs: [{ key: "boundary", blocks: [block] }] }), (error: any) => error.code === "invalid-input");
   }
+  const oversized = { inputs: [{ key: "cells", blocks: [{ kind: "table", rows: Array.from({ length: limits.tableRows + 1 }, () => Array(limits.tableColumns).fill("")) }] }] };
+  await assert.rejects(authorDocument(oversized), (error: any) => error.code === "invalid-input" && error.message.includes(String(limits.tableRows)));
+  const tooWide = { inputs: [{ key: "columns", blocks: [{ kind: "table", rows: [Array(limits.tableColumns + 1).fill("")] }] }] };
+  await assert.rejects(authorDocument(tooWide), (error: any) => error.code === "invalid-input" && error.message.includes(String(limits.tableColumns)));
   // Byte accounting happens before schema validation; pad a JSON value exactly to the cap.
   const boundary: any = { inputs: [], padding: "x".repeat(limits.bytes - Buffer.byteLength(JSON.stringify({ inputs: [], padding: "" }))) };
   await assert.rejects(authorDocument(boundary), (error: any) => error.code === "invalid-input");
