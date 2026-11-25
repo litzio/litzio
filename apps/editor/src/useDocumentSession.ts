@@ -10,7 +10,6 @@ import type { EditorSnapshot } from "./editor-snapshot.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { EditableDocument } from "@litzio/core";
 import type { DocumentFileResponse, EditorFileResponse, SaveRequest, SupportedEdits } from "../shared/document-protocol.ts";
-import { SaveContentError } from "../shared/save-error.ts";
 import type { DocumentEditorHandle } from "./DocumentEditor.tsx";
 import type { ImageChoice, ImageChooser } from "./editor-schema.tsx";
 import type { ImageRenamer } from "./image-rename.ts";
@@ -19,8 +18,9 @@ import { chooseHostImage, rollbackAsset } from "./image-assets.ts";
 import { createOutlineStore, type OutlineItem } from "./outline.ts";
 import { SaveDisplayError, type SaveErrorLocation } from "./save-error.ts";
 import type { DocumentView } from "./shell/TopBar.tsx";
-import { collectSupportedEdits, type TiptapJSON } from "./tiptap-document.ts";
-import { createDocumentSessionLifetime, messageOf, createDocumentRequests, SaveConflictError } from "./document-session.ts";
+import { collectSupportedEdits } from "./tiptap-document.ts";
+import { createDocumentSessionLifetime, messageOf, createDocumentRequests } from "./document-session.ts";
+import { saveLiveEditor } from "./editor-save.ts";
 
 /** Shown until the first Save of a source whose endnote definitions canonical write moves. */
 const ENDNOTES_MOVE_NOTICE = "Save moves this file's endnote definitions after the body, in the order of their first reference, keeping each label and text. Source shows the Markdown Save writes.";
@@ -222,21 +222,21 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     setNotice("");
     busyRef.current = true;
     setStatus("saving");
-    let submitted: TiptapJSON | undefined;
-    let payload: SupportedEdits | undefined;
     try {
-      submitted = editor.beginSave();
-      payload = collectSupportedEdits(document, submitted);
-      const next = await requestSave({ path: openedPath, revision: sourceRevision.current, base, ...payload });
-      if (!isCurrent()) return false;
-      sourceRevision.current = next.revision;
+      const result = await saveLiveEditor(editor, document, { path: openedPath, revision: sourceRevision.current, base }, requestSave, isCurrent);
+      if (result.kind === "superseded") return false;
+      if (result.kind === "failed") {
+        setError(result.error);
+        setStatus(result.conflict ? "save-conflict" : "save-failed");
+        return false;
+      }
+      const { payload } = result;
+      sourceRevision.current = result.revision;
       setExternalRevision(undefined);
       setEndnotesMove(false);
-      base.savedEdits = payload;
-      editor.finishSave(true);
       if (payload.bibliography !== undefined && JSON.stringify(payload.bibliography) !== JSON.stringify(bibliography?.declarations ?? [])) {
         const declarations = payload.bibliography;
-        const sources = await requestBibliography(openedPath, next.revision, declarations, bibliographyRoot);
+        const sources = await requestBibliography(openedPath, result.revision, declarations, bibliographyRoot);
         if (!isCurrent()) return false;
         setBibliography({ declarations, sources });
       }
@@ -245,16 +245,6 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       const hasPendingUserState = editor.hasUnsavedChanges();
       setStatus(hasPendingUserState ? "saved-pending" : "saved");
       return true;
-    } catch (cause) {
-      if (!isCurrent()) return false;
-      const failure = cause instanceof SaveContentError ? cause
-        : new SaveContentError(messageOf(cause), undefined, { phase: "collect", cause });
-      const display = new SaveDisplayError([failure], submitted, payload);
-      editor.showSaveErrors(display.locations);
-      editor.finishSave();
-      setError(display);
-      setStatus(cause instanceof SaveConflictError ? "save-conflict" : "save-failed");
-      return false;
     } finally { if (isCurrent()) busyRef.current = false; }
   }
 
