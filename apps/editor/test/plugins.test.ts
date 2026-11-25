@@ -19,7 +19,7 @@ import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { PLUGIN_MANIFEST_MISSING } from "../shared/plugin-registration-error.ts";
 import { GitHubSource } from "../server/plugins/github-source.ts";
 import { FakeGitHub } from "./fake-github.ts";
-import { executePluginTool } from "../server/assistant-plugin-tools.ts";
+import { executePluginOperationTool, executePluginTool } from "../server/assistant-plugin-tools.ts";
 
 
 import { PluginAssistantSkills } from "../server/plugins/assistant-skills.ts";
@@ -1968,8 +1968,12 @@ test("slow activation keeps operations waiting and disable releases them", { tim
   const enablingAgain = assert.rejects(host.invoke("enable", { id }), unavailable);
   while (!host.viewScreens()[0]?.activation) await delay(10);
   const abandoned = assert.rejects(host.invokeOperation(`${id}.read`, {}), unavailable);
+  const assistantAbandoned = executePluginOperationTool(host, { operation: `${id}.read`, input: {} }, { folders: null, access: null, permissionMode: "read-only" });
   await host.invoke("disable", { id });
   await Promise.all([enablingAgain, abandoned]);
+  const toolFailure = await assistantAbandoned;
+  assert.equal("error" in toolFailure && toolFailure.error, unavailable.message);
+  assert.equal("errorKind" in toolFailure && toolFailure.errorKind, "unavailable");
   assert.equal((await host.list())[0]?.enabled, false);
   assert.deepEqual(host.viewScreens(), []);
 });

@@ -3,6 +3,7 @@ import {FileAccessError,accessPath} from "./file-access.ts";
 import {PLUGIN_REGISTRATION_CHANGED,pluginManagementSchema} from "@litzio/plugin-sdk";
 import type {PluginHost} from "./plugins/plugin-host.ts";
 import {z} from "zod";
+import {PLUGIN_OPERATION_UNAVAILABLE} from "../shared/plugin-activation.ts";
 import {publicOperationError} from "./plugins/operation-result.ts";
 const pluginOperationInput = z.strictObject({ operation: z.string().min(1), input: z.unknown().refine(value => value !== undefined) });
 export const pluginOperationTools = [{ type: "function", name: "invoke_plugin_operation", description: "Invoke a declared assistant:true read operation or health check on this conversation's Host. Run document CLI commands in the shell. Inspect manage_plugins list for full operation names and input schemas. Supply comparison targets as operation input, never settings. Read-only turns may invoke these reads. No per-call approval. Activity contains metadata only; never supply secrets.", inputSchema: { type: "object", properties: { operation: { type: "string" }, input: {} }, required: ["operation", "input"], additionalProperties: false } }];
@@ -18,6 +19,8 @@ export async function executePluginOperationTool(host: PluginHost, input: unknow
     activity.receipt = result.receipt;
     return { ...result, activity };
   } catch (error) {
+    if (error instanceof Error && "kind" in error && error.kind === "unavailable" && error.message === PLUGIN_OPERATION_UNAVAILABLE)
+      return { errorKind: "unavailable", error: PLUGIN_OPERATION_UNAVAILABLE, activity };
     const failure = error instanceof z.ZodError ? {errorKind:"invalid_input",error:"Invalid plugin operation input; inspect the operation schema."} : publicOperationError(error, "read");
     return { ...failure, ...(failure.errorKind === "forbidden" ? { error: "Plugin operation refused: the assistant requires a declared read operation with assistant:true, or a health check. Broader turn permissions do not enable writes or private operations through this tool; use the dedicated authorized workflow." } : {}), activity };
   }

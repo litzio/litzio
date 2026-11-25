@@ -4,7 +4,7 @@ import { installScreenDependencies, ScreenDependencyError } from "./screen-depen
 import { compileScreen, bundleScreens } from "./screen-code.ts";
 import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { PluginArtifactChangedError } from "../../shared/plugin-artifact-error.ts";
-import type { PluginActivation, PluginActivationFailure } from "../../shared/plugin-activation.ts";
+import { PLUGIN_OPERATION_UNAVAILABLE, type PluginActivation, type PluginActivationFailure } from "../../shared/plugin-activation.ts";
 import { AssistantSkillValidationError, PluginAssistantSkills, validateAssistantSkills } from "./assistant-skills.ts";
 import { PLUGIN_REGISTRATION_CHANGED } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
@@ -109,7 +109,6 @@ function localOrigin(sourceDirectory: string, manifest: PluginManifest, kept: In
 }
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
 type Activation = { controller: AbortController; state: PluginActivation; manifest?: PluginManifest; done: Promise<void> };
-const OPERATION_UNAVAILABLE = "Operation unavailable or plugin disabled";
 
 type ManagementAttempt = {
   id?: string;
@@ -373,10 +372,10 @@ export class PluginHost {
     return activation?.controller.signal.aborted ? undefined : activation;
   }
   private cancelActivation(id: string) {
-    this.activation(id)?.controller.abort(new Error(OPERATION_UNAVAILABLE));
+    this.activation(id)?.controller.abort(new Error(PLUGIN_OPERATION_UNAVAILABLE));
   }
   private trackActivation(id: string, activate: (activation: Activation) => Promise<void>) {
-    if (this.closed) return Promise.reject(new Error(OPERATION_UNAVAILABLE));
+    if (this.closed) return Promise.reject(new Error(PLUGIN_OPERATION_UNAVAILABLE));
     const controller = new AbortController(), started = performance.now();
     const elapsed = () => Math.round(performance.now() - started);
     const timer = setTimeout(() => {
@@ -733,8 +732,8 @@ export class PluginHost {
     const activation = this.activation(id);
     if (!activation || this.loaded.has(id)) return;
     try { await activation.done; }
-    catch { throw new Error(OPERATION_UNAVAILABLE); }
-    if (this.closed || this.disabling.has(id) || activation.controller.signal.aborted) throw new Error(OPERATION_UNAVAILABLE);
+    catch { throw new Error(PLUGIN_OPERATION_UNAVAILABLE); }
+    if (this.closed || this.disabling.has(id) || activation.controller.signal.aborted) throw new Error(PLUGIN_OPERATION_UNAVAILABLE);
   }
   viewScreens(includeCode = true) {
     const ready = [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({ plugin: live.manifest.id, ...(live.screens[screen.id] ? { ...(includeCode ? { code: live.screens[screen.id] } : {}), codeRevision: this.record(live.manifest.id).digest } : {}), iconDigest: live.manifest.icon ? this.record(live.manifest.id).digest : undefined, ...screen })));
@@ -752,7 +751,7 @@ export class PluginHost {
     const id = this.viewOperationOwner(name);
     if (id && !this.loaded.has(id)) {
       try { await this.waitForActivation(id); }
-      catch { throw Object.assign(new Error(OPERATION_UNAVAILABLE), { kind: "unavailable" }); }
+      catch { throw Object.assign(new Error(PLUGIN_OPERATION_UNAVAILABLE), { kind: "unavailable" }); }
     }
     const live = id ? this.loaded.get(id) : undefined;
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);
@@ -779,7 +778,7 @@ export class PluginHost {
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name) ??
       (local && live?.manifest.contributes.screens.some(screen => screen.entry) && Object.hasOwn(live.instance.operations, local) ?
         { id: local, version: 1, effect: "write" as const, scope: "host", assistant: false, inputSchema: {}, outputSchema: {} } : undefined);
-    if (this.closed || !live || !op) throw new Error(OPERATION_UNAVAILABLE);
+    if (this.closed || !live || !op) throw new Error(PLUGIN_OPERATION_UNAVAILABLE);
     const record = this.record(live.manifest.id);
     if (!record.trusted || (await this.installedArtifact(live.manifest.id, record)).digest !== record.digest) throw new Error("Artifact changed; reload the plugin");
     if (this.disabling.has(live.manifest.id) || this.loaded.get(live.manifest.id) !== live) throw new Error("Plugin is stopping");
