@@ -39,7 +39,7 @@ export function assistantToolValue(value: any, call: HostToolCall): any {
   if (errorKind === "conflict" && call.tool === "manage_plugins") recovery = {action:"reread",tool:"manage_plugins",arguments:{action:"list"},instruction:"Read current registrationId/digest, reanalyse and issue a new request."};
   if (errorKind === "conflict" && ["save_template","create_document"].includes(call.tool)) recovery = {action:"reread",tool:call.tool === "save_template" ? "list_templates" : "read_document",arguments:call.tool === "save_template" ? {} : {path:args.path},instruction:call.tool === "save_template"
     ? "Inspect the existing target and choose a new unused name/path for the requested creation. Never overwrite."
-    : "Use a new unused path for a creation request. For an edit to this document, run litzio inspect and the document edit commands in the shell when CLI writes are permitted. Otherwise use a permitted provider patch."};
+    : "Choose an unused path for a new document. To edit this file, use a permitted provider patch or run the document CLI in the shell when CLI writes are allowed."};
   if (errorKind === "forbidden") recovery = {action:"request_permission", instruction:call.tool === "invoke_plugin_operation"
     ? "Inspect manage_plugins list: use a declared assistant:true read or health operation. Private/write operations require their dedicated authorized workflow; broader turn permission cannot enable them. For service auth/permission errors ask the user to configure credentials or service access."
     : "Ask the user for Opened folders or Full access and an allowed target folder if required. never change permissions yourself."};

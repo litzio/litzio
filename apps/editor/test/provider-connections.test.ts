@@ -532,7 +532,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     } finally { await configConnection.close(); }
   });
   // The guidance reaches Copilot as the session folder's AGENTS.md, which the CLI reads itself, not inside the message (#1926).
-  assert.match(readFileSync(path.join(rpc.find(message => message.method === "session/new").params.cwd, "AGENTS.md"), "utf8"), /기존 문서의 블록.*셸에서.*litzio inspect/);
+  assert.ok(readFileSync(path.join(rpc.find(message => message.method === "session/new").params.cwd, "AGENTS.md"), "utf8").includes("기존 문서는 표·목록·그림·캡션·수식도 공급자 패치로 본문을 고치고"));
   await connection.close();
   const launches = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid);
   assert.ok(children.length > 0);
@@ -735,7 +735,7 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   const instructions = readFileSync(env.instructions, "utf8"), generatedGuide = readFileSync(guide, "utf8");
   assert.doesNotMatch(generatedGuide, /docling|convert-pdf/i, "usage guide must not advertise removed conversion features");
   assert.doesNotMatch(instructions, /convert-pdf/i, "review guidance must not advertise removed conversion commands");
-  assert.match(instructions, /블록 편집 안내.*litzio-guide.*SKILL\.md.*UTF-8/);
+  assert.match(instructions, /앱·그림 안내.*litzio-guide.*SKILL\.md.*UTF-8/);
   assert.match(instructions, /플러그인을 만들거나 고치기 전에.*litzio-authoring\/SKILL\.md.*UTF-8/);
   // A Host with plugins places the authoring skill beside the guide; one without plugins removes it.
   const authoring = path.join(cwd, ".agents", "skills", "litzio-authoring", "SKILL.md");
@@ -759,14 +759,14 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.match(instructions, /uncertain.*쓰기를 재실행하지 않는다.*기존 requestId.*먼저 조회/);
   assert.match(instructions, /상태 미발견은 쓰기가 없었다는 증거가 아니다/);
   assert.match(instructions, /accepted:true.*저장.*렌더 확인·답변 수신을 뜻하지 않는다/);
-  assert.match(instructions, /다시 읽어 바뀐 블록.*litzio check/);
+  assert.match(instructions, /표·목록·그림·캡션·수식.*공급자 패치로 본문을 고치고.*litzio check/);
   assert.match(instructions, /AGENTS.md.*먼저 읽는다/);
   for (const text of [instructions, generatedGuide]) {
     assert.match(text, /permissionMode.*opened-folders.*read-only.*check·inspect·compare·도움말만 실행된다/);
     assert.match(text, /쓰기\(insert-\*·apply-batch 등\).*시도.*승인.*요청하지/);
     assert.match(text, /읽기 전용의 편집 제한은 유지/);
     assert.match(text, /공급자 패치.*없으면 UTF-8 파일 편집 셸/);
-    assert.match(text, /full-access[^]*셸에서.*litzio inspect[^]*litzio apply-batch/);
+    assert.match(text, /full-access.*쓰기 CLI도 쓸 수 있다/);
     assert.doesNotMatch(text, /실행 승인이 필요할 수 있다/);
   }
   const parentPath = process.env.PATH;
