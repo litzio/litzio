@@ -1,1 +1,2 @@
-export type PluginActivationFailure = "timeout" | "processExit" | "other";
+export type PluginActivationFailure = "processExit" | "other";
+export type PluginActivation = "loading" | "slow";

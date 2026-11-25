@@ -4,7 +4,7 @@ import { installScreenDependencies, ScreenDependencyError } from "./screen-depen
 import { compileScreen, bundleScreens } from "./screen-code.ts";
 import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { PluginArtifactChangedError } from "../../shared/plugin-artifact-error.ts";
-import type { PluginActivationFailure } from "../../shared/plugin-activation.ts";
+import type { PluginActivation, PluginActivationFailure } from "../../shared/plugin-activation.ts";
 import { AssistantSkillValidationError, PluginAssistantSkills, validateAssistantSkills } from "./assistant-skills.ts";
 import { PLUGIN_REGISTRATION_CHANGED } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
@@ -108,11 +108,13 @@ function localOrigin(sourceDirectory: string, manifest: PluginManifest, kept: In
     ...(manifest.repository ? sourceKey(manifest.repository) !== sourceKey(pinned.url) ? { moved: manifest.repository } : {} : pinned.moved ? { moved: pinned.moved } : {}) } };
 }
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>>; screens: Record<string, string> };
+type Activation = { controller: AbortController; state: PluginActivation; manifest?: PluginManifest; done: Promise<void> };
+const OPERATION_UNAVAILABLE = "Operation unavailable or plugin disabled";
+
 type ManagementAttempt = {
   id?: string;
   stage: "artifact" | "dependencies" | "settings" | "screen" | "secrets" | "process" | "skills";
   processFailure?: PluginProcessActivationFailure;
-  timeoutMs?: number;
 };
 export type PluginHostLogging = { log?: (message: string) => void; warn?: (message: string) => void };
 
@@ -155,6 +157,7 @@ export class PluginHost {
   private artifacts = new Map<string, Artifact>();
   private reportedDigests = new Map<string, string>();
   private copies: InstalledArtifacts;
+  private activating = new Map<string, Activation>();
   private loaded = new Map<string, Loaded>();
   private processes = new Map<string, PluginInstance>();
   private errors = new Map<string, { error: string; activationFailure?: PluginActivationFailure; activationFailedAtStartup?: true }>();
@@ -176,13 +179,13 @@ export class PluginHost {
   readonly authoringDirectory: string;
   private authoringRoot?: RootAccess;
   private github: GitHubSource;
-  private activationTimeoutMs?: number;
+  private slowActivationMs?: number;
   private readonly log?: PluginHostLogging["log"];
   private readonly warn: NonNullable<PluginHostLogging["warn"]>;
-  constructor(private file = hostPaths().settingsFile("plugins"), options: PluginHostLogging & { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; github?: GitHubSource; activationTimeoutMs?: number } = {}) {
+  constructor(private file = hostPaths().settingsFile("plugins"), options: PluginHostLogging & { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; github?: GitHubSource; slowActivationMs?: number } = {}) {
     this.log = options.log;
     this.warn = options.warn ?? console.warn;
-    this.activationTimeoutMs = options.activationTimeoutMs;
+    this.slowActivationMs = options.slowActivationMs;
     this.github = options.github ?? new GitHubSource();
     this.copies = new InstalledArtifacts(file, this.warn);
     this.cli = options.cli === null ? undefined : options.cli ?? availableHostCli();
@@ -301,7 +304,7 @@ export class PluginHost {
       if (otherId !== id && other.operationNames.some(name => requested.has(name))) throw new Error("Plugin operation ID collision");
     }
   }
-  async start() {
+  start() {
     const registrations = readPluginRegistrations(this.file);
     this.installed = registrations ?? {};
     let skillCleanupFailed = false;
@@ -312,12 +315,12 @@ export class PluginHost {
       try { this.copies.cleanOrphans(retained, sources); }
       catch { this.warn("Unable to inspect Host plugin artifact storage for cleanup"); }
     }
-    for (const [id, record] of Object.entries(this.installed)) if ("installationId" in record && record.enabled && !this.errors.has(id)) {
-      try { await this.enable(id, true); } catch { /* enable records this failure; keep starting other plugins. */ }
-    }
-    if (skillCleanupFailed) for (const id of Object.keys(this.installed)) {
-      if (!this.errors.has(id)) this.errors.set(id, { error: "Assistant skill cleanup failed; reload to recover" });
-    }
+    const startup = Object.entries(this.installed).filter(([id, record]) => "installationId" in record && record.enabled && !this.errors.has(id));
+    return Promise.allSettled(startup.map(([id]) => this.enable(id, true))).then(() => {
+      if (skillCleanupFailed && !this.closed) for (const id of Object.keys(this.installed)) {
+        if (!this.errors.has(id)) this.errors.set(id, { error: "Assistant skill cleanup failed; reload to recover" });
+      }
+    });
   }
   private async status(live: Loaded) {
     const run = this.readStatus(live);
@@ -349,11 +352,13 @@ export class PluginHost {
             error: "Artifact changed; reload the plugin", artifactChanged: true, activationFailure: this.errors.get(id)?.activationFailure, source: sourceSummary(r) };
         }
         const observed = live ? await this.status(live) : null;
+        const secrets = await this.secretStatus(id, m);
         const current = live && this.loaded.get(id) === live;
-        const secrets = await this.secretStatus(id, m), failure = this.errors.get(id);
+        const activation = current ? undefined : this.activation(id)?.state;
+        const failure = activation ? undefined : this.errors.get(id);
         return { id, registrationId: r.registrationId, name: m.name, description: m.description, version: m.version ?? null, installed: true, trusted: !!r.trusted, enabled: r.enabled, running: !!current,
           iconDigest: m.icon && !!r.trusted ? digest : undefined, healthCheck: m.contributes.healthCheck, secrets, settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null,
-          error: failure?.error, activationFailure: failure?.activationFailure, activationFailedAtStartup: failure?.activationFailedAtStartup, digest, update, source: sourceSummary(r) };
+          activation, error: failure?.error, activationFailure: failure?.activationFailure, activationFailedAtStartup: failure?.activationFailedAtStartup, digest, update, source: sourceSummary(r) };
       } catch (e) {
         const failure = this.errors.get(id);
         const missing = (e as NodeJS.ErrnoException).code === "ENOENT";
@@ -363,9 +368,37 @@ export class PluginHost {
       }
     }));
   }
-  private async enable(id: string, startup = false, attempt: ManagementAttempt = { stage: "artifact" }) {
+  private activation(id: string) {
+    const activation = this.activating.get(id);
+    return activation?.controller.signal.aborted ? undefined : activation;
+  }
+  private cancelActivation(id: string) {
+    this.activation(id)?.controller.abort(new Error(OPERATION_UNAVAILABLE));
+  }
+  private trackActivation(id: string, activate: (activation: Activation) => Promise<void>) {
+    if (this.closed) return Promise.reject(new Error(OPERATION_UNAVAILABLE));
+    const controller = new AbortController(), started = performance.now();
+    const elapsed = () => Math.round(performance.now() - started);
+    const timer = setTimeout(() => {
+      activation.state = "slow";
+      this.log?.(`plugin activation slow plugin=${id} elapsedMs=${elapsed()}`);
+    }, this.slowActivationMs ?? 30_000);
+    const done = Promise.resolve().then(() => activate(activation)).finally(() => {
+      clearTimeout(timer);
+      if (this.activating.get(id) === activation) this.activating.delete(id);
+      if (activation.state === "slow") this.log?.(`plugin activation ended plugin=${id} elapsedMs=${elapsed()}`);
+    });
+    const activation: Activation = { controller, state: "loading", done };
+    this.activating.set(id, activation);
+    return done;
+  }
+  private enable(id: string, startup = false, attempt: ManagementAttempt = { stage: "artifact" }) {
+    if (this.loaded.has(id)) return Promise.resolve();
+    return this.activation(id)?.done ?? this.trackActivation(id, activation => this.enableInstalled(id, startup, attempt, activation));
+  }
+  private async enableInstalled(id: string, startup: boolean, attempt: ManagementAttempt, activation: Activation) {
     const started = performance.now();
-    attempt.timeoutMs = this.activationTimeoutMs;
+    const signal = activation.controller.signal;
     try {
       const previous = this.record(id);
       if (!("installationId" in previous)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);
@@ -373,9 +406,17 @@ export class PluginHost {
       if (artifact.manifest.id !== id) throw new Error("Artifact ID changed");
       if (!previous.trusted) throw new Error("Explicit plugin trust is required");
       if (artifact.digest !== previous.digest) throw new PluginArtifactChangedError();
-      if (!this.loaded.has(id)) await this.activate({ ...previous, enabled: true }, directory, artifact, previous, false, attempt);
+      try {
+        await this.activate({ ...previous, enabled: true }, directory, artifact, previous, false, attempt, activation);
+      } catch (error) {
+        if (!startup || signal.aborted || attempt.processFailure?.kind !== "processExit") throw error;
+        this.log?.(`plugin startup activation retry plugin=${id}${exitDetails(attempt.processFailure)}`);
+        attempt.processFailure = undefined;
+        await this.activate({ ...previous, enabled: true }, directory, artifact, previous, false, attempt, activation);
+      }
       if (startup) this.log?.(`plugin enable ok plugin=${id} source=${previous.sourceDirectory ? "local" : "github"} elapsedMs=${Math.round(performance.now() - started)}`);
     } catch (error) {
+      signal.throwIfAborted();
       const processFailure = attempt.processFailure, kind = processFailure?.kind ?? "other";
       this.errors.set(id, { error: startup ? "Plugin activation failed" : String(error), activationFailure: kind,
         ...(startup && kind === "other" ? { activationFailedAtStartup: true } : {}) });
@@ -387,8 +428,12 @@ export class PluginHost {
       throw error;
     }
   }
-  private async activate(record: InstalledPlugin, directory: string, artifact: Artifact, previous?: PluginRegistration, checkCandidate = false, attempt?: ManagementAttempt) {
+  private async activate(record: InstalledPlugin, directory: string, artifact: Artifact, previous?: PluginRegistration, checkCandidate = false, attempt?: ManagementAttempt, activation?: Activation): Promise<void> {
+    if (!activation) return this.trackActivation(artifact.manifest.id, current => this.activate(record, directory, artifact, previous, checkCandidate, attempt, current));
+    const signal = activation.controller.signal;
+    signal.throwIfAborted();
     const { manifest } = artifact, { id } = manifest;
+    activation.manifest = manifest;
     if (attempt) attempt.stage = "settings";
     assertStoredSettings(manifest, record.settings);
     if (attempt) attempt.stage = "screen";
@@ -403,11 +448,12 @@ export class PluginHost {
         this.loaded.delete(id); this.errors.set(id, { error: "Plugin process failed; reload to recover" });
         if (this.log) void exited.then(exit => this.log?.(`plugin process ${exit ? "exited" : "failed"} plugin=${id}${exitDetails(exit)}`));
         try { this.assistantSkills.clear(id); } catch { this.errors.set(id, { error: "Plugin process failed; skill cleanup failed" }); }
-      }, directory, this.cli, attempt && {
-        timeoutMs: attempt.timeoutMs,
-        onFailure: failure => { attempt.processFailure = failure; },
+      }, directory, this.cli, {
+        signal,
+        onFailure: failure => { if (attempt) attempt.processFailure = failure; },
       });
       if (checkCandidate) statusSchema.parse(safePluginValue(await candidate.status(), Object.values(secrets)));
+      signal.throwIfAborted();
       const oldLive = this.loaded.get(id), oldProcess = this.processes.get(id);
       if (attempt) attempt.stage = "skills";
       this.assistantSkills.install(directory, manifest, () => {
@@ -559,6 +605,9 @@ export class PluginHost {
   }
   private async disable(id: string, attempt?: ManagementAttempt) {
     this.disabling.add(id);
+    const activation = this.activating.get(id);
+    this.cancelActivation(id);
+    await activation?.done.catch(() => {});
     let skillCleanupError: unknown;
     try { this.assistantSkills.clear(id); } catch (error) { skillCleanupError = error; }
     const live = this.loaded.get(id), instance = this.processes.get(id); this.loaded.delete(id);
@@ -578,11 +627,17 @@ export class PluginHost {
   /** Configuration changes restart the installed copy and never read the source. */
   private async changeConfiguration(id: string, change: () => Promise<void> | void) {
     const record = this.record(id);
-    if (record.enabled) this.disabling.add(id);
+    const activation = this.activation(id);
+    const restart = record.enabled || Boolean(activation);
+    if (restart) this.disabling.add(id);
     try {
+      if (activation) {
+        this.cancelActivation(id);
+        await activation.done.catch(() => {});
+      }
       await change();
       this.save();
-      if (record.enabled) {
+      if (restart) {
         record.enabled = false;
         this.save();
         await this.disable(id);
@@ -618,8 +673,13 @@ export class PluginHost {
       const manifest = validateManifest(readArtifactJson(path.join(copy.directory, "litzio-plugin.json")));
       const { id } = manifest;
       if (expectedId && id !== expectedId) throw new Error("Artifact ID changed");
+      if (action !== "register") {
+        const activation = this.activating.get(id);
+        this.cancelActivation(id);
+        await activation?.done.catch(() => {});
+      }
       const previous = Object.hasOwn(this.installed, id) ? this.installed[id] : undefined;
-      if (action === "register" && previous && "installationId" in previous && previous.enabled) throw new Error("Disable the plugin before replacing its registration");
+      if (action === "register" && previous && "installationId" in previous && (previous.enabled || this.activation(id))) throw new Error("Disable the plugin before replacing its registration");
       if (action === "reload" && !previous?.trusted) throw new Error("Explicit plugin trust is required");
 
       const screens = manifest.contributes.screens.filter(screen => screen.entry);
@@ -665,14 +725,36 @@ export class PluginHost {
   }
   /** The loaded manifest owns identity; never infer plugin IDs by splitting operation names. */
   viewOperationOwner(operation: string): string | undefined {
-    return [...this.loaded.values()].find(live => live.manifest.contributes.operations.some(op => `${live.manifest.id}.${op.id}` === operation))?.manifest.id;
+    return [...this.loaded.values()].find(live => live.manifest.contributes.operations.some(op => `${live.manifest.id}.${op.id}` === operation))?.manifest.id ??
+      [...this.activating.keys()].find(id => this.activation(id) && (this.installed[id]?.operationNames.includes(operation) ||
+        this.activation(id)?.manifest?.contributes.operations.some(op => `${id}.${op.id}` === operation)));
+  }
+  private async waitForActivation(id: string) {
+    const activation = this.activation(id);
+    if (!activation || this.loaded.has(id)) return;
+    try { await activation.done; }
+    catch { throw new Error(OPERATION_UNAVAILABLE); }
+    if (this.closed || this.disabling.has(id) || activation.controller.signal.aborted) throw new Error(OPERATION_UNAVAILABLE);
   }
   viewScreens(includeCode = true) {
-    return [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({ plugin: live.manifest.id, ...(live.screens[screen.id] ? { ...(includeCode ? { code: live.screens[screen.id] } : {}), codeRevision: this.record(live.manifest.id).digest } : {}), iconDigest: live.manifest.icon ? this.record(live.manifest.id).digest : undefined, ...screen })));
+    const ready = [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({ plugin: live.manifest.id, ...(live.screens[screen.id] ? { ...(includeCode ? { code: live.screens[screen.id] } : {}), codeRevision: this.record(live.manifest.id).digest } : {}), iconDigest: live.manifest.icon ? this.record(live.manifest.id).digest : undefined, ...screen })));
+    const loading = [...this.activating.keys()].flatMap(id => {
+      const activation = this.activation(id), record = this.installed[id];
+      if (this.loaded.has(id) || !activation?.manifest || !record?.trusted || !("installationId" in record)) return [];
+      return activation.manifest.contributes.screens.map(screen => ({
+        ...screen, plugin: id, activation: activation.state, code: undefined, codeRevision: undefined, iconDigest: activation.manifest?.icon ? record.digest : undefined,
+      }));
+    });
+    return [...ready.map(screen => ({ ...screen, activation: undefined })), ...loading];
   }
   /** Assistant admission is narrower than CLI invocation; execution/publication stay shared. */
   async invokeAssistantOperation(name: string, input: unknown) {
-    const live = [...this.loaded.values()].find(live => live.manifest.contributes.operations.some(op => `${live.manifest.id}.${op.id}` === name));
+    const id = this.viewOperationOwner(name);
+    if (id && !this.loaded.has(id)) {
+      try { await this.waitForActivation(id); }
+      catch { throw Object.assign(new Error(OPERATION_UNAVAILABLE), { kind: "unavailable" }); }
+    }
+    const live = id ? this.loaded.get(id) : undefined;
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);
     if (this.closed || !live || !op) throw Object.assign(new Error("Plugin operation unavailable"), { kind: "unavailable" });
     if (op.effect !== "read" || !op.assistant && live.manifest.contributes.healthCheck !== op.id)
@@ -690,12 +772,14 @@ export class PluginHost {
     }
   }
   async invokeOperation(name: string, input: unknown, folder?: string, screenOwner?: string) {
-    const live = screenOwner ? this.loaded.get(screenOwner) : [...this.loaded.values()].find(v => v.manifest.contributes.operations.some(op => `${v.manifest.id}.${op.id}` === name));
+    const id = screenOwner ?? this.viewOperationOwner(name);
+    if (id && !this.loaded.has(id)) await this.waitForActivation(id);
+    const live = id ? this.loaded.get(id) : undefined;
     const local = screenOwner && name.startsWith(`${screenOwner}.`) ? name.slice(screenOwner.length + 1) : undefined;
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name) ??
       (local && live?.manifest.contributes.screens.some(screen => screen.entry) && Object.hasOwn(live.instance.operations, local) ?
         { id: local, version: 1, effect: "write" as const, scope: "host", assistant: false, inputSchema: {}, outputSchema: {} } : undefined);
-    if (!live || !op) throw new Error("Operation unavailable or plugin disabled");
+    if (this.closed || !live || !op) throw new Error(OPERATION_UNAVAILABLE);
     const record = this.record(live.manifest.id);
     if (!record.trusted || (await this.installedArtifact(live.manifest.id, record)).digest !== record.digest) throw new Error("Artifact changed; reload the plugin");
     if (this.disabling.has(live.manifest.id) || this.loaded.get(live.manifest.id) !== live) throw new Error("Plugin is stopping");
@@ -738,7 +822,17 @@ export class PluginHost {
         : "";
       this.log?.(`plugin ${operation} ${outcome === "success" ? "ok" : "failed"} plugin=${attempt.id ?? "(unknown)"}${source ? ` source=${source}` : ""} elapsedMs=${elapsedMs}${detail}`);
     };
+    const interruptId = ["disable", "unregister", "reload", "update"].includes(action) ? args.id : undefined;
+    // A reload candidate may be occupying the management queue while it activates.
+    if (interruptId) this.cancelActivation(interruptId);
+    let finishEnable: (() => Promise<unknown>) | undefined;
     const run = this.serial.then(async () => {
+      if (this.closed) throw new Error("Plugin Host is closing");
+      if (interruptId) {
+        const activation = this.activating.get(interruptId);
+        this.cancelActivation(interruptId);
+        await activation?.done.catch(() => {});
+      }
       started = performance.now();
       if (action === "register" || action === "install") source = args.source ? "github" : "local";
       let id = args.id!;
@@ -852,7 +946,14 @@ export class PluginHost {
             r.trusted = true;
           }
           this.save();
-          await this.enable(id, false, attempt);
+          // Publish the enable receipt when activation settles without holding the management queue.
+          const enabled = this.enable(id, false, attempt);
+          void enabled.catch(() => {});
+          finishEnable = async () => {
+            await enabled;
+            return { id, plugins: await this.list(), receipt: receipt("success") };
+          };
+          return;
         }
         else if (action === "reload" || action === "update") {
           if (!("installationId" in r)) throw new Error(PLUGIN_SOURCE_READD_REQUIRED);
@@ -891,14 +992,21 @@ export class PluginHost {
       }
       this.save();
       return { id, plugins: await this.list(), receipt: receipt("success") };
-    }).catch(error => {
+    });
+    this.serial = run.catch(() => {});
+    return run.then(value => finishEnable ? finishEnable() : value).catch(error => {
       logResult("failure", error);
       throw error;
     });
-    this.serial = run.catch(() => {}); return run;
+  }
+  stopActivations() {
+    this.closed = true;
+    for (const id of this.activating.keys()) this.cancelActivation(id);
   }
   async close() {
-    this.closed = true; await this.serial;
+    this.stopActivations();
+    await this.serial;
+    await Promise.allSettled([...this.activating.values()].map(activation => activation.done));
     const results = await Promise.allSettled([...this.processes.keys()].map(id => this.disable(id)));
     const errors = results.filter(result => result.status === "rejected").map(result => result.reason);
     this.redactionSecrets.clear();

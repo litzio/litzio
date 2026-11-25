@@ -12,6 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync, rmdirSync } from "node:fs";
 import os from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 
 import { PluginHost } from "../server/plugins/plugin-host.ts";
@@ -92,7 +93,7 @@ test("startup preserves installed copies until it can read a valid registration 
       return read(file, options);
     }) as typeof fs.readFileSync);
     syncBuiltinESMExports();
-    try { await assert.rejects(host.start(), /Unable to read plugin registrations/); }
+    try { await assert.rejects(async () => host!.start(), /Unable to read plugin registrations/); }
     finally { unreadable.mock.restore(); syncBuiltinESMExports(); }
     assert.equal(existsSync(copy), true);
     assert.equal(readFileSync(state, "utf8"), valid);
@@ -1802,11 +1803,19 @@ test("short secrets preserve keys and leave the plugin scope on replacement, del
 
 // Host policy combinations belong here; browser coverage owns the folder picker and toggle wiring.
 
-test("plugin service shutdown waits for startup and confirms the started child exits once", async t => {
+test("plugin service shutdown confirms both ready and loading children exit", { timeout: 30_000 }, async t => {
   const { createPluginService } = await import("../server/plugin-service.ts");
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-start-close-"));
   const file = path.join(root, "state.json");
-  const directory = lifecycleFixture(root, "fixture.start", `export function activate(){return {operations:{},status:()=>({available:true,message:String(process.pid)}),dispose(){}}}`);
+  const holding = path.join(root, "hold"), childPid = path.join(root, "pid");
+  const directory = lifecycleFixture(root, "fixture.start", `import {existsSync, writeFileSync} from "node:fs";
+    export async function activate() {
+      if (existsSync(${JSON.stringify(holding)})) {
+        writeFileSync(${JSON.stringify(childPid)}, String(process.pid));
+        await new Promise(() => {});
+      }
+      return {operations:{},status:()=>({available:true,message:String(process.pid)}),dispose(){}};
+    }`);
   const seed = new PluginHost(file, {  });
   try {
     await seed.invoke("register", { directory });
@@ -1836,12 +1845,26 @@ test("plugin service shutdown waits for startup and confirms the started child e
   await service.close();
   assert.equal(cleanup.mock.callCount(), 1);
   assert.throws(() => process.kill(pid, 0), "shutdown confirms the exact child has exited");
+
+  writeFileSync(holding, "");
+  const pendingService = createPluginService(null, file);
+  try {
+    const { plugins } = await pendingService.invoke("pluginsList");
+    assert.equal(plugins[0]?.activation, "loading", "catalog responds during automatic activation");
+    while (!existsSync(childPid)) await delay(10);
+    const loadingPid = Number(readFileSync(childPid, "utf8"));
+    assert.ok(loadingPid > 0);
+    const awaiting = assert.rejects(pendingService.invoke("pluginsManage", { action: "screen-invoke", plugin: "fixture.start", operation: "fixture.start.pending", input: {} }),
+      { message: "Operation unavailable or plugin disabled" });
+    await pendingService.close();
+    await awaiting;
+    assert.throws(() => process.kill(loadingPid, 0), "shutdown also confirms the loading child has exited");
+  } finally { await pendingService.close(); }
 });
 
-test("auto-enable reports a startup deadline separately from an early child exit", async t => {
+test("auto-enable retries only an early child exit and reports the final failure", async t => {
   for (const fixture of [
-    { kind: "timeout", code: "await new Promise(() => {});", timeoutMs: 100, outcome: "" },
-    { kind: "processExit", code: "process.exit(7);", outcome: " exitCode=7" },
+    { kind: "processExit", code: "appendFileSync(marker, 'x'); process.exit(7);", outcome: " exitCode=7" },
     { kind: "other", code: "throw Object.assign(new Error('Private fixture error'), {kind:'timeout'});", outcome: "" },
   ] as const) await t.test(fixture.kind, async t => {
     const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-startup-failure-"));
@@ -1849,7 +1872,8 @@ test("auto-enable reports a startup deadline separately from an early child exit
     const options = { assistantDirectory: path.join(root, "assistant"), cli: null };
     let host = new PluginHost(file, options);
     t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
-    const directory = lifecycleFixture(root, id, `import {existsSync} from 'node:fs';
+    const directory = lifecycleFixture(root, id, `import {existsSync, appendFileSync} from 'node:fs';
+      const marker = ${JSON.stringify(marker)};
       export async function activate() {
         if (existsSync(${JSON.stringify(marker)})) {
           console.warn("Private fixture output");
@@ -1863,7 +1887,7 @@ test("auto-enable reports a startup deadline separately from an early child exit
     await host.invoke("enable", { id });
     await host.close();
     writeFileSync(marker, "");
-    host = new PluginHost(file, { ...options, activationTimeoutMs: "timeoutMs" in fixture ? fixture.timeoutMs : undefined,
+    host = new PluginHost(file, { ...options,
       log: line => logs.push(line), warn: line => warnings.push(line) });
     await host.start();
     const [failed] = await host.list();
@@ -1874,12 +1898,14 @@ test("auto-enable reports a startup deadline separately from an early child exit
     assert.equal(failed!.activationFailedAtStartup, fixture.kind === "other" ? true : undefined);
     assert.equal(warnings.length, 1);
     assert.match(warnings[0]!, new RegExp(`^Plugin startup activation failed: plugin=fixture\\.startup kind=${fixture.kind} elapsedMs=\\d+ stage=process${fixture.outcome}$`));
-    assert.deepEqual(logs, []);
+    assert.equal(readFileSync(marker, "utf8"), fixture.kind === "processExit" ? "xx" : "");
+    assert.deepEqual(logs, fixture.kind === "processExit" ? ["plugin startup activation retry plugin=fixture.startup exitCode=7"] : []);
 
-    if (fixture.kind !== "timeout") {
+    {
       await host.invoke("disable", { id });
       await assert.rejects(host.invoke("enable", { id }), /Plugin request failed/);
       assert.match(logs.at(-1)!, new RegExp(`^plugin enable failed plugin=fixture\\.startup source=local elapsedMs=\\d+ kind=${fixture.kind} stage=process${fixture.outcome}: Error: Plugin request failed$`));
+      assert.equal(readFileSync(marker, "utf8"), fixture.kind === "processExit" ? "xxx" : "", "manual enable does not retry");
       const [manualFailure] = await host.list();
       assert.equal(manualFailure!.activationFailure, fixture.kind);
       assert.equal(manualFailure!.activationFailedAtStartup, undefined);
@@ -1892,6 +1918,60 @@ test("auto-enable reports a startup deadline separately from an early child exit
       assert.equal(recovered!.activationFailure, undefined);
     }
   });
+});
+
+test("slow activation keeps operations waiting and disable releases them", { timeout: 40_000 }, async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-activation-wait-"));
+  const file = path.join(root, "state.json"), id = "fixture.wait", gate = path.join(root, "ready"), entered = path.join(root, "entered");
+  const logs: string[] = [];
+  const host = new PluginHost(file, { cli: null, slowActivationMs: 50, log: line => logs.push(line) });
+  t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
+  const directory = lifecycleFixture(root, id, `import {existsSync, writeFileSync} from 'node:fs';
+    import {setTimeout as delay} from 'node:timers/promises';
+    export async function activate() {
+      writeFileSync(${JSON.stringify(entered)}, "");
+      while (!existsSync(${JSON.stringify(gate)})) await delay(20);
+      return {operations:{read:()=>({ready:true})},status:()=>({available:true,message:"ready"}),dispose(){}};
+    }`);
+  const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+  manifest.operations = [{ id: "read", version: 1, effect: "read", scope: "host", assistant: true, inputSchema: { type: "object" }, outputSchema: { type: "object" } }];
+  writeFileSync(manifestFile, JSON.stringify(manifest));
+  await host.invoke("register", { directory });
+  await host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
+
+  const enabling = host.invoke("enable", { id });
+  void enabling.catch(() => {});
+  while (!(await host.list())[0]?.activation) await delay(10);
+  const waiting = host.invokeOperation(`${id}.read`, {});
+  while ((await host.list())[0]?.activation !== "slow" || !host.viewScreens().length) await delay(10);
+  assert.equal(host.viewScreens()[0]?.code, undefined);
+  const screen = host.invokeOperation(`${id}.read`, {}, undefined, id);
+  const assistant = host.invokeAssistantOperation(`${id}.read`, {});
+  while (!existsSync(entered)) await delay(10);
+  await delay(10_050); // Cross the former activation RPC deadline after the child entered activate().
+  const [slow] = await host.list();
+  assert.equal(slow?.activation, "slow");
+  assert.equal(slow?.running, false);
+  assert.equal(slow?.error, undefined);
+  assert.equal(slow?.activationFailure, undefined);
+  writeFileSync(gate, "");
+  await enabling;
+  for (const result of await Promise.all([waiting, screen, assistant])) assert.deepEqual(result.result, { ready: true });
+  assert.match(logs.find(line => line.includes("activation slow"))!, /^plugin activation slow plugin=fixture\.wait elapsedMs=\d+$/);
+  assert.match(logs.find(line => line.includes("activation ended"))!, /^plugin activation ended plugin=fixture\.wait elapsedMs=\d+$/);
+  assert.equal((await host.list())[0]?.activation, undefined);
+  assert.ok(host.viewScreens()[0]?.codeRevision);
+
+  await host.invoke("disable", { id });
+  rmSync(gate);
+  const unavailable = { message: "Operation unavailable or plugin disabled" };
+  const enablingAgain = assert.rejects(host.invoke("enable", { id }), unavailable);
+  while (!host.viewScreens()[0]?.activation) await delay(10);
+  const abandoned = assert.rejects(host.invokeOperation(`${id}.read`, {}), unavailable);
+  await host.invoke("disable", { id });
+  await Promise.all([enablingAgain, abandoned]);
+  assert.equal((await host.list())[0]?.enabled, false);
+  assert.deepEqual(host.viewScreens(), []);
 });
 
 test("health check publication enforces the SDK result even with a permissive plugin schema", async () => {

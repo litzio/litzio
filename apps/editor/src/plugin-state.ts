@@ -1,16 +1,17 @@
 import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 import { PluginArtifactChangedError } from "../shared/plugin-artifact-error.ts";
-import type { PluginActivationFailure } from "../shared/plugin-activation.ts";
+import type { PluginActivation, PluginActivationFailure } from "../shared/plugin-activation.ts";
 import { useEffect, useRef, useState } from "react";
 import { useHostClient } from "./host-context.tsx";
 import type { PluginStatus } from "@litzio/plugin-sdk";
 type SecretStatus = { supported: boolean; declarations: { id: string; title: string; description?: string; configured: boolean; error?: string }[] };
-export type Plugin = { registrationId?: string; iconDigest?: string; healthCheck?: string; secrets?: SecretStatus; id: string; name?: string; version?: string | null; description?: string; digest?: string; trusted?: boolean; enabled: boolean; running: boolean; error?: string; artifactChanged?: true; activationFailure?: PluginActivationFailure; activationFailedAtStartup?: true; update?: { currentVersion: string | null; sourceVersion: string | null; available: boolean; track?: "release" | "branch"; error?: string }; source?: { kind: "local" } | { kind: "github"; url: string; path?: string; track?: "release" | "branch"; local: boolean }; status?: PluginStatus | null; settings?: Record<string, unknown>; settingsSchema?: { properties?: Record<string, { type?: string; title?: string; description?: string }> } };
+export type Plugin = { registrationId?: string; iconDigest?: string; healthCheck?: string; secrets?: SecretStatus; id: string; name?: string; version?: string | null; description?: string; digest?: string; trusted?: boolean; enabled: boolean; running: boolean; error?: string; artifactChanged?: true; activation?: PluginActivation; activationFailure?: PluginActivationFailure; activationFailedAtStartup?: true; update?: { currentVersion: string | null; sourceVersion: string | null; available: boolean; track?: "release" | "branch"; error?: string }; source?: { kind: "local" } | { kind: "github"; url: string; path?: string; track?: "release" | "branch"; local: boolean }; status?: PluginStatus | null; settings?: Record<string, unknown>; settingsSchema?: { properties?: Record<string, { type?: string; title?: string; description?: string }> } };
 export function usePlugins(active = true) {
   const client = useHostClient(), [plugins, setPlugins] = useState<Plugin[]>([]), [error, setError] = useState("");
-  const latestRequest = useRef(0);
+  const latestRequest = useRef(0), refreshing = useRef(0);
   const refresh = async () => {
     const request = ++latestRequest.current;
+    refreshing.current = request;
     try {
       const response = await client.request("/api/plugins");
       const value = await response.json();
@@ -18,12 +19,15 @@ export function usePlugins(active = true) {
       if (!response.ok) throw new Error(value.error);
       setPlugins(value.plugins); setError("");
     } catch (e) { if (request === latestRequest.current) setError(e instanceof Error ? e.message : String(e)); }
+    finally { if (refreshing.current === request) refreshing.current = 0; }
   };
   useEffect(() => { if (!active) return; void refresh(); const listener = (event: Event) => {
     const result = (event as CustomEvent<{ client: typeof client; plugins: Plugin[] }>).detail;
     if (result?.client === client) { ++latestRequest.current; setPlugins(result.plugins); setError(""); }
     else void refresh();
-  }; window.addEventListener("plugins-changed", listener); return () => { ++latestRequest.current; window.removeEventListener("plugins-changed", listener); }; }, [client, active]);
+  }; window.addEventListener("plugins-changed", listener);
+    const observer = setInterval(() => { if (!refreshing.current && document.visibilityState === "visible") void refresh(); }, 2000);
+    return () => { clearInterval(observer); ++latestRequest.current; window.removeEventListener("plugins-changed", listener); }; }, [client, active]);
   return { plugins, error, async change(action: string, args: Record<string, unknown>) {
     ++latestRequest.current;
     const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...args }) });

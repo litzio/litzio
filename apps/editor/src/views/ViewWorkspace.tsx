@@ -23,7 +23,7 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
     if (!current) { setCatalog(undefined); setProblem(""); }
     if (!canReadCatalog) return;
     const controller = new AbortController();
-    let revision: string | undefined;
+    let observed: ViewScreen | undefined;
     let request = 0;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = () => {
@@ -31,7 +31,7 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
       void viewRequest(client, { action: "screens" }, controller.signal).then(catalog => {
         if (controller.signal.aborted || currentRequest !== request) return;
         setCatalogClient(client); setCatalog(catalog); setProblem("");
-        revision = catalog.screens?.find(s => s.plugin === owner && s.id === screen.id)?.codeRevision;
+        observed = catalog.screens?.find(s => s.plugin === owner && s.id === screen.id);
       }).catch(() => { if (!controller.signal.aborted && currentRequest === request) setProblem(i18n.t("Unavailable")); });
     };
     // Observe explicit Host reload/disable, including changes made by CLI/assistant.
@@ -40,7 +40,10 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
       try {
         const next = await viewRequest(client, { action: "screens", screenCode: false }, controller.signal);
         const nextScreen = next.screens?.find(s => s.plugin === owner && s.id === screen.id);
-        if (!controller.signal.aborted && nextScreen?.codeRevision !== revision) { if (!nextScreen) setCatalog(undefined); refresh(); }
+        if (!controller.signal.aborted && (nextScreen?.codeRevision !== observed?.codeRevision || nextScreen?.activation !== observed?.activation)) {
+          if (!nextScreen) setCatalog(undefined);
+          refresh();
+        }
       } catch { /* Connection registry owns availability; keep retrying only this connection. */ }
       if (!controller.signal.aborted) timer = setTimeout(observe, 2000);
     };
@@ -51,9 +54,10 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
   const contribution = catalogClient === client ? catalog?.screens?.find(s => s.plugin === owner && s.id === screen.id) : undefined;
   const keepOnProbeFailure = desktopConnection.get().version?.screenInstanceGuard === true;
   const active = current && !!contribution && (canReadCatalog || keepOnProbeFailure);
+  const loading = current && canReadCatalog && Boolean(contribution?.activation ?? (!catalogClient && !problem && screen.activation));
   return <div className="view-workspace task-surface" data-testid="view-workspace">
     <ScreenFrame title={screen.title}>
-    {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
+    {loading ? <Notice role="status">{i18n.t("Loading")}</Notice> : !active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`local:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} onOpen={onOpenDocument} /> : null}</ScreenBoundary>
   </ScreenFrame></div>;

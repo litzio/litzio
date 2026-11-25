@@ -13,7 +13,7 @@ import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
 import { DesktopMenu } from "./DesktopDaemon.tsx";
 
 /** One screen entry of the middle group: the Template gallery or a plugin's primary screen. */
-export type ActivityItem = { id: string; label: string; icon: ReactNode; active?: boolean; run(returnFocus: HTMLElement): void };
+export type ActivityItem = { id: string; label: string; icon: ReactNode; active?: boolean; loading?: boolean; run(returnFocus: HTMLElement): void };
 
 type ActivityBarProps = {
   explorerOpen: boolean;
@@ -77,7 +77,8 @@ export function ActivityBar({ explorerOpen, onExplorer, explorerRef, items, item
   const themeLabel = `${i18n.t("Color mode")}: ${i18n.t(THEME_LABELS[theme])}`;
   const explorerLabel = i18n.t(explorerOpen ? "Collapse Explorer" : "Expand Explorer");
   const itemButton = (item: ActivityItem, hidden: boolean) => <BarItem key={item.id} id={item.id} label={item.label} tabIndex={hidden ? -1 : tabIndex(item.id)}
-    hidden={hidden} disabled={itemsDisabled} active={item.active} onClick={event => item.run(event.currentTarget)}>{item.icon}</BarItem>;
+    hidden={hidden} disabled={itemsDisabled} active={item.active} loading={item.loading}
+    tooltip={item.loading ? `${item.label} · ${i18n.t("Loading")}` : item.label} onClick={event => item.run(event.currentTarget)}>{item.icon}</BarItem>;
   return <div className="activity-bar" role="toolbar" aria-orientation="vertical" aria-label={i18n.t("Activity bar")} data-testid="activity-bar"
     onFocus={event => { const id = (event.target as Element).closest<HTMLElement>("[data-activity-id]")?.dataset.activityId; if (id) setCurrent(id); }}
     onKeyDown={event => {
@@ -121,17 +122,17 @@ export function ActivityBar({ explorerOpen, onExplorer, explorerRef, items, item
 
 type BarItemProps = {
   id: string; label: string; tooltip?: string; ariaLabel?: string; tabIndex: number; hidden?: boolean; disabled?: boolean;
-  selected?: boolean; active?: boolean; buttonRef?: RefObject<HTMLButtonElement | null>; children: ReactNode;
+  selected?: boolean; active?: boolean; loading?: boolean; buttonRef?: RefObject<HTMLButtonElement | null>; children: ReactNode;
   onClick(event: React.MouseEvent<HTMLButtonElement>): void;
   "aria-expanded"?: boolean; "aria-controls"?: string;
 };
 
 /** An icon with its name below, up to two lines; the full name is the tooltip and accessible name. */
-function BarItem({ id, label, tooltip = label, ariaLabel = label, tabIndex, hidden, disabled, selected, active, buttonRef, children, onClick, ...aria }: BarItemProps) {
+function BarItem({ id, label, tooltip = label, ariaLabel = label, tabIndex, hidden, disabled, selected, active, loading, buttonRef, children, onClick, ...aria }: BarItemProps) {
   return <Tooltip>
     <TooltipTrigger render={<Button ref={buttonRef} variant="ghost" className="activity-bar-item" data-activity-id={id} data-activity-item=""
       data-selected={selected ? "" : undefined} data-active={active ? "" : undefined} aria-current={active ? "page" : undefined}
-      aria-label={ariaLabel} tabIndex={tabIndex} disabled={disabled} inert={hidden} data-overflow={hidden ? "" : undefined} onClick={onClick} {...aria} />}>
+      aria-label={ariaLabel} aria-description={loading ? i18n.t("Loading") : undefined} data-loading={loading ? "" : undefined} tabIndex={tabIndex} disabled={disabled} inert={hidden} data-overflow={hidden ? "" : undefined} onClick={onClick} {...aria} />}>
       <span className="activity-bar-icon">{children}</span>
       <span className="activity-bar-label" aria-hidden="true">{label}</span>
     </TooltipTrigger>
@@ -174,7 +175,7 @@ function MoreItems({ items, tabIndex, disabled }: { items: ActivityItem[]; tabIn
       <ul className="activity-more-list">
         {shown.map(item => <li key={item.id}>
           <Button variant="ghost" size="sm" className="activity-more-item" data-active={item.active ? "" : undefined} aria-current={item.active ? "page" : undefined}
-            onClick={event => run(item, event.currentTarget)}>
+            data-loading={item.loading ? "" : undefined} aria-description={item.loading ? i18n.t("Loading") : undefined} onClick={event => run(item, event.currentTarget)}>
             <span className="activity-bar-icon">{item.icon}</span><span className="activity-more-name">{item.label}</span>
           </Button>
         </li>)}
