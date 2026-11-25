@@ -27,7 +27,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
 import { type Operation } from "./operation.ts";
 import { recoveryStorage, type FolderRecoverySnapshot, type RecoveryRecord } from "./recovery-storage.ts";
-import { prepareRecovery } from "./recovery-restore.ts";
+import { discardConfirmedRecovery, prepareRecovery } from "./recovery-restore.ts";
 import type { SaveComparison } from "./shell/SaveCompare.tsx";
 import { SaveDisplayError } from "./save-error.ts";
 import { SaveContentError } from "../shared/save-error.ts";
@@ -204,9 +204,14 @@ function EditorApp() {
   const [recoveryRecords, setRecoveryRecords] = useState<RecoveryRecord[]>([]);
   const [recoveryProblem, setRecoveryProblem] = useMessageState("");
   const [recoveryReview, setRecoveryReview] = useState<{ record: RecoveryRecord; reason: string } | null>(null);
-  const refreshRecovery = useCallback(async () => {
+  const refreshRecovery = useCallback(async (client?: HostClient, reopening?: ReadonlySet<string>) => {
     try {
-      const records = await recoveryStorage.list();
+      let records = await recoveryStorage.list();
+      if (client && reopening) {
+        const discarded = await Promise.all(records.filter(record => reopening.has(record.path))
+          .map(record => discardConfirmedRecovery(record, client)));
+        if (discarded.some(Boolean)) records = await recoveryStorage.list();
+      }
       setRecoveryRecords(records);
       setRecoveryProblem("");
       return records;
@@ -220,9 +225,9 @@ function EditorApp() {
     try { prepareRecovery(record); } catch (cause) { reason = messageOf(cause); }
     setRecoveryReview(previous => preserveCurrent && previous ? previous : { record, reason });
   }
-  async function offerRecovery(file: EditorFileResponse): Promise<void> {
-    const records = await refreshRecovery();
-    const matching = records?.find(record => record.path === file.path && !tabs.some(tab => tab.recoveryId === record.id));
+  async function offerRecovery(file: EditorFileResponse, client: HostClient): Promise<void> {
+    const records = await refreshRecovery(client, new Set([file.path]));
+    const matching = records?.find(record => record.path === file.path && !latestTabs.current.some(tab => tab.recoveryId === record.id));
     if (matching) reviewRecovery(matching);
   }
   async function deleteRecovery(id?: string): Promise<void> {
@@ -741,7 +746,7 @@ function EditorApp() {
       guard?.check();
       if ("start" in next) throw new UiError({ key: "The Host did not return a document." });
       acceptFile(next, client, group);
-      void offerRecovery(next);
+      void offerRecovery(next, client);
       setNotice(openedNotice);
       return "";
     } catch (cause) {

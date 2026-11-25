@@ -2,8 +2,29 @@ import { getSchema } from "@tiptap/core";
 import { createEditorExtensions } from "./editor-schema.tsx";
 import { prepareEditorSnapshot } from "./editor-snapshot.ts";
 import { toTiptapDocument } from "./tiptap-document.ts";
-import { RECOVERY_VERSION, type RecoveryRecord } from "./recovery-storage.ts";
+import { RECOVERY_VERSION, recoveryStorage, type RecoveryRecord } from "./recovery-storage.ts";
 import type { SessionSnapshot } from "./DocumentTab.tsx";
+import type { HostClient } from "./host-client.ts";
+import { readLocalWriteStatus } from "./useLocalWriteVerification.ts";
+
+/** Reopening may find a receipt the closed tab could not observe. */
+export async function discardConfirmedRecovery(record: RecoveryRecord, client: HostClient): Promise<boolean> {
+  const snapshot = record.snapshot;
+  if (record.version !== RECOVERY_VERSION || !snapshot || snapshot.kind === "text" ||
+      typeof record.path !== "string" || snapshot.file?.path !== record.path) return false;
+  const candidate = snapshot.candidateRevision;
+  if (typeof candidate !== "string" || !/^[a-f0-9]{64}$/.test(candidate)) return false;
+  try {
+    const read = () => readLocalWriteStatus(client, record.path, candidate);
+    let result = await read();
+    if (result?.state === "pending") {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      result = await read();
+    }
+    return (result?.state === "corrected" || (result?.state === "done" && result.verified === true))
+      ? await recoveryStorage.discardConfirmed(record) : false;
+  } catch { return false; }
+}
 
 export function prepareRecovery(record: RecoveryRecord): SessionSnapshot {
   if (record.version !== RECOVERY_VERSION || "hostId" in record) throw new Error("This recovery format is not supported by this editor version.");

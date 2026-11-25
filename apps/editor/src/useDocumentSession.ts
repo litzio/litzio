@@ -33,6 +33,8 @@ export type DocumentSessionSnapshot = {
   file: DocumentFileResponse;
   editor: EditorSnapshot;
   savedEdits?: SupportedEdits;
+  /** A clean candidate may have settled since its tab closed. */
+  candidateRevision?: string;
 };
 
 /** One document's state and operations. The shell owns the shared work-loss confirmation. */
@@ -405,6 +407,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       snapshot.file.revision = pending.previousRevision;
       snapshot.savedEdits = pending.checkpoint.previousEdits;
       snapshot.editor.savedDocument = pending.checkpoint.savedDocument;
+      if (!editorRef.current?.hasDocumentChanges()) snapshot.candidateRevision = pending.revision;
     }
     return snapshot;
   };

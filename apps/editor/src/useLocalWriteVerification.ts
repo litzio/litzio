@@ -4,6 +4,12 @@ import { useNotifications } from "./components/ui/notification-center.tsx";
 import type { HostClient } from "./host-client.ts";
 import { i18n } from "./i18n.ts";
 
+export async function readLocalWriteStatus(client: HostClient, path: string, revision: string, signal?: AbortSignal): Promise<LocalWriteStatus | undefined> {
+  const query = new URLSearchParams({ path, revision });
+  const response = await client.request(`/api/local-write-status?${query}`, { signal });
+  if (response.ok) return response.json();
+}
+
 /** Temporary #1986 receipt observer shared by the tab and the plugin document view. */
 export function useLocalWriteVerification(client: HostClient | undefined, path: string, revision: string | undefined,
   paused: boolean, onSettled: (revision: string, status: Exclude<LocalWriteStatus, { state: "pending" }>) => void) {
@@ -14,13 +20,10 @@ export function useLocalWriteVerification(client: HostClient | undefined, path: 
     if (!client || !revision || paused) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
-    const query = new URLSearchParams({ path, revision });
     const check = async () => {
       try {
-        const response = await client.request(`/api/local-write-status?${query}`, { signal: controller.signal });
-        if (!response.ok) return;
-        const status: LocalWriteStatus = await response.json();
-        if (controller.signal.aborted) return;
+        const status = await readLocalWriteStatus(client, path, revision, controller.signal);
+        if (!status || controller.signal.aborted) return;
         if (status.state === "pending") { timer = setTimeout(() => void check(), 500); return; }
         if (status.state === "corrected" || status.state === "uncorrected") {
           setNotice({ revision, corrected: status.state === "corrected" });

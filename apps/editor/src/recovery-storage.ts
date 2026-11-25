@@ -185,6 +185,19 @@ export const recoveryStorage = {
       };
     });
   },
+  discardConfirmed(record: RecoveryRecord): Promise<boolean> {
+    return transaction((records, _barriers, done, fail) => {
+      const stored = records.get(record.id);
+      stored.onsuccess = () => {
+        try {
+          if (JSON.stringify(stored.result) !== JSON.stringify(record)) { done(false); return; }
+          // A live recorder may still publish newer work with its current ticket.
+          records.delete(record.id);
+          done(true);
+        } catch (error) { fail(error); }
+      };
+    });
+  },
   async ticket(id: string, path: string): Promise<Ticket> {
     const db = await database();
     return new Promise<Ticket>((resolve, reject) => {
