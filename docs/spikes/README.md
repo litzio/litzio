@@ -101,5 +101,7 @@
 | 2026-11-25 | [Ollama 비서의 소형 모델 과제 범위](2026-11-25-ollama-small-model-range.md) | 대화·읽기·그림부터 문서 편집·셸·후속 작업까지 25과제를 다섯 번씩 측정한다 | 미정 | `spike/2026-11-25-ollama-small-model-range` | `spike/2026-11-25-ollama-small-model-range` | [#1967](https://github.com/litzio/litzio/pull/1967) |
 | 2026-11-25 | [플러그인 제작에서 화면 시안 먼저 보여 주기](2026-11-25-plugin-authoring-prototype-first.md) | 질문과 시안의 순서에 따른 왕복, 기능 충족, 위치 설명을 비교한다 | 미정 | `spike/2026-11-25-plugin-authoring-prototype-first` | `spike/2026-11-25-plugin-authoring-prototype-first` | [플러그인 실행·제작 계약](../design/plugin-stage1-v1.md) |
 | 2026-11-25 | [비서의 변환 문서 검수와 반영](2026-11-25-assistant-review-converted-document.md) | 원본 대조, 오류 반영, 정상 요소 손상을 모델 세 개로 측정한다 | 미정 | `spike/2026-11-25-assistant-review-converted-document` | `spike/2026-11-25-assistant-review-converted-document` | [범용 비서 ADR](../adr/0021-general-agent-assistant.md) |
+| 2026-11-25 | [비서의 변환 문서 검수와 낮은 추론 강도](2026-11-25-assistant-review-low-effort.md) | 세 모델의 low에서 지적, 수정 범위, 손상, 시간·토큰을 비교한다 | 미정 | `spike/2026-11-25-assistant-review-low-effort` | `spike/2026-11-25-assistant-review-low-effort` | [앞 스파이크](2026-11-25-assistant-review-converted-document.md) |
+| 2026-11-25 | [정답을 제공한 비서의 변환 문서 수정](2026-11-25-assistant-review-with-answer.md) | 고칠 곳 목록과 원본 정답 JSON으로 수정하고 기존 정답의 보존을 비교한다 | 미정 | `spike/2026-11-25-assistant-review-with-answer` | `spike/2026-11-25-assistant-review-with-answer` | [앞 스파이크](2026-11-25-assistant-review-low-effort.md) |
 
 결론 표기는 각 기록의 근거를 따른다. 채택 뒤에 붙은 괄호는 채택된 범위다(예: 방향만 채택, 일부 채택). 스파이크 코드를 병합했다는 뜻이 아니다.
