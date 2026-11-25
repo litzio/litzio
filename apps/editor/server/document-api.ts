@@ -41,6 +41,8 @@ import {
   validateFigureRequest,
 } from "./document-replay.ts";
 import type { DocumentSaveCache } from "./document-save-cache.ts";
+import { DocumentConflictError, prepareDocumentSave, replayCurrent, verifySaveRevision, type FileSaveRequest } from "./document-save-compute.ts";
+export { DocumentConflictError } from "./document-save-compute.ts";
 
 import type {
   SampleAvailability,
@@ -56,9 +58,6 @@ import type {
   FolderPlacesResponse,
 } from "../shared/document-protocol.ts";
 import type { SaveFailure } from "../shared/save-error.ts";
-
-/** Internal file helpers may replay directly against a supplied disk snapshot. HTTP always requires a session. */
-type FileSaveRequest = SupportedEdits & { path?: string; revision?: string; base?: SaveRequest["base"] };
 
 function errorPayload(error: unknown, access: FileAccess = LOCAL_FILE_ACCESS): DocumentErrorResponse {
   return { error: error instanceof NativeDocumentError ? error.message : fileErrorMessage(error instanceof SaveContentError && error.phase === "file" ? error.cause ?? error : error, access),
@@ -85,16 +84,7 @@ function fileStep<T>(apply: () => T): T {
   }
 }
 
-const DOCUMENT_CONFLICT_MESSAGE = "Document changed outside the editor. Your edits are kept. Use Source to copy applied content, or Reload to discard local changes and open the disk version.";
-
 const EMPTY_DOCUMENT_MARKDOWN = serialize(createDocument());
-
-export class DocumentConflictError extends Error {
-  constructor() {
-    super(DOCUMENT_CONFLICT_MESSAGE);
-    this.name = "DocumentConflictError";
-  }
-}
 
 /** The request tag cannot grant raw writes to a native document. Recheck disk on every Save. */
 export function saveTextFile(request: TextSaveRequest, access: FileAccess = LOCAL_FILE_ACCESS): SaveResponse {
@@ -123,7 +113,8 @@ export function saveDocumentFile(
 ): SaveResponse & { path: string; markdown: string } {
   const filePath = fileStep(() => resolveDocumentPath(requestedPath, access));
   const disk = fileStep(() => decodeUtf8(readFileSync(accessPath(filePath, access))));
-  const { saved, snapshot, source } = prepareDocumentSave(disk, request, cache && { path: filePath, cache });
+  const revision = verifySaveRevision(disk, request.revision);
+  const { saved, snapshot, source } = prepareDocumentSave(disk, revision, request, cache && { path: filePath, cache });
   fileStep(() => replaceDocumentFile(accessPath(filePath, access), saved.markdown, request.revision));
   if (cache) {
     const { path: _path, base: _base, revision: _revision, ...edits } = request;
@@ -188,44 +179,8 @@ export function saveCurrentDocument(
   source: string,
   request: FileSaveRequest,
 ): { markdown: string; revision: string } {
-  const { saved } = prepareDocumentSave(source, request);
+  const { saved } = prepareDocumentSave(source, verifySaveRevision(source, request.revision), request);
   return { markdown: saved.markdown, revision: saved.revision };
-}
-
-function verifySaveRevision(source: string, expectedRevision: string | undefined): string {
-  const revision = documentRevision(source);
-  if (expectedRevision !== revision) throw new DocumentConflictError();
-  return revision;
-}
-
-/** Calculate from the disk snapshot without replacing the file or remembering an approval. */
-function prepareDocumentSave(disk: string, request: FileSaveRequest, memo?: { path: string; cache: DocumentSaveCache }) {
-  const revision = verifySaveRevision(disk, request.revision);
-  const { base } = request;
-  if (base !== undefined && (!base || typeof base.source !== "string")) throw new Error("invalid session source");
-  const source = base?.source ?? disk;
-  let snapshot: ReturnType<typeof prepareReplay> | undefined;
-  const opening = () => snapshot ??= memo?.cache.opening(memo.path, source) ?? prepareReplay(source);
-  // A different opening is admissible only if the previously approved edits reproduce
-  // actual disk bytes, from a checked memo or a fresh replay.
-  if (source !== disk) {
-    const edits = base?.savedEdits;
-    if (!edits) throw new DocumentConflictError();
-    const previous = memo?.cache.approved(memo.path, source, edits, { source: disk, revision }) ?? replayEdits(opening(), edits);
-    if (previous.markdown !== disk) throw new DocumentConflictError();
-  }
-  return { source, ...replayCurrent(opening, request) };
-}
-
-function replayCurrent(opening: () => ReturnType<typeof prepareReplay>, edits: SupportedEdits) {
-  try {
-    const snapshot = opening();
-    const result = replayEdits(snapshot, edits);
-    return { snapshot, saved: { ...result, revision: documentRevision(result.markdown) } };
-  } catch (error) {
-    if (error instanceof SaveContentError) throw error;
-    throw new SaveContentError(error instanceof Error ? error.message : String(error), undefined, { cause: error });
-  }
 }
 
 export function commitDocumentSave(
