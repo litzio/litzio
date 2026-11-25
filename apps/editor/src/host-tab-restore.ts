@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import type { DesktopBridge } from "../shared/desktop-bridge.ts";
 import type { DocumentStartResponse, EditorFileResponse } from "../shared/document-protocol.ts";
-import { getHostClient } from "./host-client.ts";
+import { getHostClient, type HostClient } from "./host-client.ts";
 import { openedTab, type EditorGroups, type GroupAction } from "./document-tabs.ts";
 import { createDocumentRequests } from "./document-session.ts";
 import { readOpenTabs, writeOpenTabs } from "./preferences.ts";
@@ -45,7 +45,7 @@ export function useHostTabRestore({ memory, folders, desktop, addInitial,
   folders: Pick<ReturnType<typeof useFolderTrees>, "restored" | "rootOf">;
   desktop: DesktopBridge | undefined;
   addInitial: ReturnType<typeof createTabAdmission>["addInitial"];
-  refreshRecovery: () => Promise<RecoveryRecord[] | null>;
+  refreshRecovery: (client: HostClient, reopening: ReadonlySet<string>) => Promise<RecoveryRecord[] | null>;
   reviewRecovery: (record: RecoveryRecord, preserveCurrent?: boolean) => void;
   setStart: Dispatch<SetStateAction<DocumentStartResponse | null>>;
   setAllowedRoots: Dispatch<SetStateAction<string[] | undefined>>;
@@ -82,7 +82,9 @@ export function useHostTabRestore({ memory, folders, desktop, addInitial,
       if (!current) return;
       const next = path ? await requestDocument("GET", path, folders.rootOf(path)) : first;
       if (!current) return;
-      const records = await refreshRecovery();
+      const reopening = new Set(saved?.paths);
+      if (!("start" in next)) reopening.add(next.path);
+      const records = await refreshRecovery(client, reopening);
       if (!current) return;
       const initialTabs: Tab[] = [];
       const add = (file: EditorFileResponse) => addInitial(initialTabs, file, client);

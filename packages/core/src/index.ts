@@ -24,6 +24,7 @@ import { bodyEndIndex as bodyEndIndexTree, endnotesInPlace as endnotesInPlaceTre
 import { citationReport as citationReportTree, updateBibliography as updateBibliographyTree } from "./myst/citation.ts";
 
 export type { Document, NodePath, BlockSummary } from "./document.ts";
+export { LocalWriteBaseline, type LocalWriteEdit, type LocalWriteKind } from "./myst/local-write.ts";
 export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DOCUMENT_AUTHORING_CONTRACT, DocumentAuthoringError } from "./document-authoring.ts";
 export type { DocumentAuthoringInput, AuthoredDocument } from "./document-authoring.ts";
 export { hasNativeMarker, NativeDocumentError } from "./myst/native.ts";

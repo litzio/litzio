@@ -718,7 +718,7 @@ test("litzio help exits successfully", () => {
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "insert-table-note", "update-table-note", "remove-table-note", "move-table-note", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-status", "update-title"],
       "Format": ["format"],
-      "Serve": ["app-reset", "assistant", "daemon", "operation", "plugins"],
+      "Serve": ["app-reset", "assistant", "daemon", "local-write-statistics", "operation", "plugins"],
     };
     const expectedCommands = Object.values(expectedGroups).flat();
     const listed: string[] = [];

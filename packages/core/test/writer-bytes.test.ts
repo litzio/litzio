@@ -4,6 +4,14 @@ import test from "node:test";
 import { parse, serialize, type MystDocument } from "./core-internal.ts";
 import { semanticDifference, semanticFingerprint } from "../src/myst/fingerprint.ts";
 import { EXPECTED_URL, attempt, generatedCases, type Expected } from "./writer-bytes-cases.ts";
+import { localWriteCorpus } from "./local-write-corpus.ts";
+
+test("local canonical Save agrees with full write, reread and repeat on seeded edits", () => {
+  const results = Object.values(localWriteCorpus(false));
+  assert.ok(results.some(item => item.paragraph > 0));
+  assert.ok(results.some(item => item.cell > 0));
+  assert.ok(results.some(item => Object.keys(item.fallback).length > 0));
+});
 
 // A document master saved keeps its bytes; only documents master refused may now save (#1846).
 const expected = JSON.parse(readFileSync(EXPECTED_URL, "utf8")) as Expected;

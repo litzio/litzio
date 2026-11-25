@@ -127,6 +127,9 @@ const COMMANDS: CommandSpec[] = [
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
+  { name: "local-write-statistics", readOnly: true, group: "Serve", summary: "Read a Host's fast Save verification counters",
+    usage: `${brand.cliCommand} local-write-statistics --host <origin> --json`,
+    details: ["Temporary verify-local-write counters for #1986. Returns sums and unique document counts without paths or document contents."] },
   { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins start <pluginId> --input <json-file>|status|stop|result <requestId>|list|install <id-or-directory>|install <github-url> [--track release|branch]|source-plugins <github-url>|scaffold [directory] --id <id>|validate <directory>|register <directory-or-github-url>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|check-updates [id]|update <id>|secret-status <id>|secret-delete <id> <name>|settings <id> --file <json> --host <origin> --json`, details: ["plugins install <id-or-directory> validates, bundles if needed, registers, trusts, enables and reloads. ID resolves under the Host authoring directory; repeat after edits. Validation failures return file/location diagnostics. Manual registration never executes code. Community plugins require explicit registration trust before enable; enable --trust --registration <registrationId> records trust and enables only that inspected registration. Read registrationId from plugins list; a replaced registration requires fresh confirmation. Updates retain trust until registration is removed or replaced. All plugins start disabled."] },
 
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
@@ -1316,6 +1319,19 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (args[0] === "local-write-statistics" && !isCommandHelpRequest(args.slice(1))) {
+    try {
+      if (args.length !== 4 || args[1] !== "--host" || args[3] !== "--json") throw new Error(commandHelp(args[0]));
+      const origin = new URL(args[2]);
+      if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("Expected a Host origin.");
+      const response = await fetch(new URL("/api/local-write-statistics", origin), {
+        headers: { "X-Litzio-Protocol": "4" }, signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new Error(`Could not read fast Save statistics (HTTP ${response.status}).`);
+      process.stdout.write(JSON.stringify(await response.json()) + "\n");
+      return 0;
+    } catch (error) { return reportError(args, error); }
+  }
   if (args[0] === "folder-trash" && !isCommandHelpRequest(args.slice(1))) {
     try {
       const processArgs = args.slice(1);

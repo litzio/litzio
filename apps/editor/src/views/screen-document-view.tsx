@@ -10,6 +10,8 @@ import type { ReadingPosition } from "../document-reading.ts";
 import { Notice } from "../ui/primitives.tsx";
 import { MessageArea } from "../shell/MessageArea.tsx";
 import { useNotifications } from "../components/ui/notification-center.tsx";
+import { useLocalWriteVerification } from "../useLocalWriteVerification.ts";
+import { flushSync } from "react-dom";
 import { messageText, type UiMessage } from "../ui-message.ts";
 import { i18n } from "../i18n.ts";
 import "./screen-document-view.css";
@@ -104,6 +106,10 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
     onSave: save => saved.current?.(save),
   }) : undefined, [file, edit, inherited]);
   sessionRef.current = session;
+  useLocalWriteVerification(scope?.client, file?.path ?? path, session?.pendingLocalWrite, session?.state === "saving", (previous, result) => {
+    // Replace this clean view before a new input can reach the old editor.
+    if (sessionRef.current?.settle(previous, result) === "reload") flushSync(discardEdits);
+  });
   if (session) lastSession.current = session;
   useEffect(() => {
     session?.activate();

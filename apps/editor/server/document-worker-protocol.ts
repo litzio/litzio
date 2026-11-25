@@ -1,21 +1,25 @@
-import { NativeDocumentError, writeIssueOf } from "@litzio/core";
+import { NativeDocumentError, writeIssueOf, type LocalWriteKind } from "@litzio/core";
 import type { SaveRequest, SaveResponse } from "../shared/document-protocol.ts";
 import { SaveContentError, type SaveFailure } from "../shared/save-error.ts";
 import type { readModel } from "./document-replay.ts";
 import { DocumentConflictError } from "./document-save-compute.ts";
 
 export type DocumentReadModel = ReturnType<typeof readModel>;
+export type SaveWork = { kind: "save"; path: string; disk: string; request: SaveRequest; local?: boolean };
 export type DocumentWork =
   | { kind: "open"; path: string; source: string }
   | { kind: "bibliography"; path: string; source: string }
   | { kind: "check-text"; source: string }
-  | { kind: "save"; path: string; disk: string; request: SaveRequest };
+  | SaveWork
+  | { kind: "verify-local-write"; save: SaveWork; expected: string };
 
 export type DocumentResults = {
   open: DocumentReadModel | undefined;
   bibliography: string[];
   "check-text": boolean;
-  save: SaveResponse & { markdown: string };
+  save: SaveResponse & { markdown: string; localWrite?: { kind: LocalWriteKind; blockCount: number; path: readonly number[] }; fallback?: string };
+  "verify-local-write": { outcome: "equal" } | { outcome: "different"; markdown: string; revision: string }
+    | ({ outcome: "rejected" } & Pick<Extract<Diagnostic, { kind: "save" }>, "reason" | "failure">);
 };
 
 type Diagnostic =
@@ -24,16 +28,19 @@ type Diagnostic =
   | { kind: "save"; reason: string; failure: SaveFailure }
   | { kind: "error"; message: string };
 
-export type DocumentWorkReply = { result: DocumentResults[keyof DocumentResults] } | { error: Diagnostic };
+export type DocumentWorkReply = { result: DocumentResults[keyof DocumentResults] } | { error: Diagnostic; fallback?: string };
 
 export function documentDiagnostic(error: unknown): Diagnostic {
   if (error instanceof DocumentConflictError) return { kind: "conflict" };
   if (error instanceof NativeDocumentError) return { kind: "native", code: error.code, issue: writeIssueOf(error) };
   if (error instanceof SaveContentError) {
-    const { reason, code, phase, action, target, block, cell, line } = error;
-    return { kind: "save", reason, failure: { code, phase, action, target, block, cell, line } };
+    return { kind: "save", ...saveDiagnostic(error) };
   }
   return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+}
+
+export function saveDiagnostic({ reason, code, phase, action, target, block, cell, line }: SaveContentError) {
+  return { reason, failure: { code, phase, action, target, block, cell, line } };
 }
 
 export function documentWorkError(diagnostic: Diagnostic): Error {

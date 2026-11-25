@@ -19,7 +19,7 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS, optio
   const paths = hostPaths(undefined, { ...process.env });
   const plugins = createPluginService(access, paths.settingsFile("plugins"), paths.assistant, options);
   const views = createViewService(access, plugins);
-  const documents = new DocumentThread(options);
+  const documents = new DocumentThread(options, paths.settingsFile("local-write-statistics"));
   let assistant: ReturnType<typeof createAssistantHost> | undefined;
   let closed = false;
   let closing: Promise<void> | undefined;

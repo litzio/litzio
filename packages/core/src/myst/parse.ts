@@ -8,7 +8,7 @@ import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { locateFootnotes } from "./footnote.ts";
 import { retainMermaidOptions } from "./figure.ts";
 import { readTableBreaks, retainTableSource } from "./table.ts";
-import { type MystDocument } from "./tree.ts";
+import type { MystDocument, MystNode } from "./tree.ts";
 import { assertUnicode } from "./unicode.ts";
 
 /**
@@ -30,6 +30,14 @@ import { assertUnicode } from "./unicode.ts";
 export const OPTIONS = { extensions: { smartquotes: false, citations: false, attrs_block: true } };
 const parseMyst = createMystParser(OPTIONS);
 
+const directiveRanges = new WeakMap<MystNode, NonNullable<MystNode["position"]>>();
+
+/** Single lifted blocks occupy the directive fences. Keep this parser evidence apart
+ * from diagnostic positions and the serializable model. */
+export function sourcePosition(node: MystNode): MystNode["position"] {
+  return directiveRanges.get(node) ?? node.position;
+}
+
 export function parse(source: string): MystDocument {
   assertUnicode(source);
   const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
@@ -38,6 +46,11 @@ export function parse(source: string): MystDocument {
   markFrontMatter(document, text);
   retainTableSource(document, file);
   retainMermaidOptions(document, file);
+  for (const node of document.children) {
+    if (node.type === "mystDirective" && node.children?.length === 1 && node.position) {
+      directiveRanges.set(node.children[0], node.position);
+    }
+  }
   liftMystDirectivesAndRolesTransform(document);
   containerChildrenTransform(document, new VFile());
   readTableBreaks(document);

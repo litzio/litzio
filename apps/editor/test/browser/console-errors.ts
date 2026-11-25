@@ -21,7 +21,10 @@ const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
   "assistant": [{ status: 503, pathname: "/api/assistant/diagnostics", minimum: 1, description: "usage tooltip failure remains local and does not block chat" }, { status: 503, pathname: "/api/assistant/conversations", minimum: 1, description: "lost submission response leaves acceptance uncertain" }, { status: 503, pathname: "/api/assistant/settings", minimum: 1, description: "automatic save failure is localized and a later change can save" }, { status: 503, pathname: "/api/assistant/skills", minimum: 1, description: "skill catalog failure is shown in the candidate list" }, { status: 503, pathname: "/api/assistant/models", minimum: 1, description: "an unavailable provider rejects the model list with the diagnostic reason, shown once" }, { status: 404, pathname: "/api/assistant/conversations", minimum: 1, description: "a deliberately unavailable last conversation falls back to a fresh composer" }],
   "clipboard-label-paste": [{ status: 400, pathname: "/api/document", minimum: 1, maximum: 1, description: "the one places.md Save of a pasted Table label equal to a heading ID, which Save refuses as on master" }],
   "external-change": [{ status: 409, pathname: "/api/document", minimum: 1, description: "a real external write refuses Save and offers comparison and confirmed Reload" }],
-  "document-view-editing": [{ status: 409, pathname: "/api/document", minimum: 1, maximum: 1, description: "a content-editing view keeps its edits when another program changed the file" }],
+  "document-view-editing": [
+    { status: 409, pathname: "/api/document", minimum: 1, maximum: 1, description: "a content-editing view keeps its edits when another program changed the file" },
+    { status: 400, pathname: "/api/document", minimum: 1, maximum: 1, description: "full verification rejected a candidate and the next Save receives the same diagnostic" },
+  ],
   "text-mode": [
     {status:400, pathname:"/api/document", minimum:1, description:"a text session cannot raw-save a file that has become native"},
     {status:409, pathname:"/api/document", minimum:1, description:"recovered text refuses an external revision without losing local input"},
