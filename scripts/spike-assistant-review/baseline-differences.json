@@ -1,0 +1,829 @@
+{
+  "revision": "cec42786f767dde29fcce6c1e63b7692c775dfa459b30d7f23ba9ff59e973a82",
+  "entries": [
+    {
+      "id": "std-participants-label",
+      "role": "section_header",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind"
+      ],
+      "expected": "Review participants",
+      "path": [
+        17
+      ],
+      "actualType": "paragraph",
+      "actual": "Review participants"
+    },
+    {
+      "id": "std-name-0-0",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Alex Rowan",
+      "path": [
+        18
+      ],
+      "actualType": "paragraph",
+      "actual": "Alex Rowan Indigo Reed Oakley Frost"
+    },
+    {
+      "id": "std-name-0-1",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Casey Marlow",
+      "path": [
+        19
+      ],
+      "actualType": "paragraph",
+      "actual": "Casey Marlow Jordan Wren Parker Dawn"
+    },
+    {
+      "id": "std-name-0-2",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Devin Solace",
+      "path": [
+        20
+      ],
+      "actualType": "paragraph",
+      "actual": "Devin Solace Kendall Fox Quinn Brook"
+    },
+    {
+      "id": "std-name-0-3",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Ellis Parker",
+      "path": [
+        21
+      ],
+      "actualType": "paragraph",
+      "actual": "Ellis Parker Logan Birch Reese Field"
+    },
+    {
+      "id": "std-name-0-4",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Finley Hart",
+      "path": [
+        22
+      ],
+      "actualType": "paragraph",
+      "actual": "Finley Hart Morgan Lake Sage North"
+    },
+    {
+      "id": "std-name-0-5",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Harper Vale",
+      "path": [
+        23
+      ],
+      "actualType": "paragraph",
+      "actual": "Harper Vale Noel Ash Taylor Moss"
+    },
+    {
+      "id": "std-name-1-0",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Indigo Reed",
+      "path": [
+        18
+      ],
+      "actualType": "paragraph",
+      "actual": "Alex Rowan Indigo Reed Oakley Frost"
+    },
+    {
+      "id": "std-name-1-1",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Jordan Wren",
+      "path": [
+        19
+      ],
+      "actualType": "paragraph",
+      "actual": "Casey Marlow Jordan Wren Parker Dawn"
+    },
+    {
+      "id": "std-name-1-2",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Kendall Fox",
+      "path": [
+        20
+      ],
+      "actualType": "paragraph",
+      "actual": "Devin Solace Kendall Fox Quinn Brook"
+    },
+    {
+      "id": "std-name-1-3",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Logan Birch",
+      "path": [
+        21
+      ],
+      "actualType": "paragraph",
+      "actual": "Ellis Parker Logan Birch Reese Field"
+    },
+    {
+      "id": "std-name-1-4",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Morgan Lake",
+      "path": [
+        22
+      ],
+      "actualType": "paragraph",
+      "actual": "Finley Hart Morgan Lake Sage North"
+    },
+    {
+      "id": "std-name-1-5",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Noel Ash",
+      "path": [
+        23
+      ],
+      "actualType": "paragraph",
+      "actual": "Harper Vale Noel Ash Taylor Moss"
+    },
+    {
+      "id": "std-name-2-0",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Oakley Frost",
+      "path": [
+        18
+      ],
+      "actualType": "paragraph",
+      "actual": "Alex Rowan Indigo Reed Oakley Frost"
+    },
+    {
+      "id": "std-name-2-1",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Parker Dawn",
+      "path": [
+        19
+      ],
+      "actualType": "paragraph",
+      "actual": "Casey Marlow Jordan Wren Parker Dawn"
+    },
+    {
+      "id": "std-name-2-2",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Quinn Brook",
+      "path": [
+        20
+      ],
+      "actualType": "paragraph",
+      "actual": "Devin Solace Kendall Fox Quinn Brook"
+    },
+    {
+      "id": "std-name-2-3",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Reese Field",
+      "path": [
+        21
+      ],
+      "actualType": "paragraph",
+      "actual": "Ellis Parker Logan Birch Reese Field"
+    },
+    {
+      "id": "std-name-2-4",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Sage North",
+      "path": [
+        22
+      ],
+      "actualType": "paragraph",
+      "actual": "Finley Hart Morgan Lake Sage North"
+    },
+    {
+      "id": "std-name-2-5",
+      "role": "list_item",
+      "page": 3,
+      "status": "wrong",
+      "issues": [
+        "kind",
+        "text"
+      ],
+      "expected": "Taylor Moss",
+      "path": [
+        23
+      ],
+      "actualType": "paragraph",
+      "actual": "Harper Vale Noel Ash Taylor Moss"
+    },
+    {
+      "id": "std-settings",
+      "role": "table",
+      "page": 5,
+      "status": "wrong",
+      "issues": [
+        "cell-math-kind"
+      ],
+      "expected": "",
+      "grid": {
+        "expected": [
+          6,
+          5
+        ],
+        "actual": [
+          6,
+          5
+        ]
+      },
+      "cells": [
+        {
+          "row": 0,
+          "col": 0,
+          "expected": "Parameter",
+          "actual": "Parameter",
+          "same": true
+        },
+        {
+          "row": 0,
+          "col": 1,
+          "expected": "Default settings / Profile A",
+          "actual": "Default settings / Profile A",
+          "same": true
+        },
+        {
+          "row": 0,
+          "col": 2,
+          "expected": "Default settings / Profile B",
+          "actual": "Default settings / Profile B",
+          "same": true
+        },
+        {
+          "row": 0,
+          "col": 3,
+          "expected": "Allowed settings / Minimum",
+          "actual": "Allowed settings / Minimum",
+          "same": true
+        },
+        {
+          "row": 0,
+          "col": 4,
+          "expected": "Allowed settings / Maximum",
+          "actual": "Allowed settings / Maximum",
+          "same": true
+        },
+        {
+          "row": 1,
+          "col": 0,
+          "expected": "Capture floor",
+          "actual": "Capture floor",
+          "same": true
+        },
+        {
+          "row": 1,
+          "col": 1,
+          "expected": "≥ 0.932 u a",
+          "actual": "≥ 0.932 u a",
+          "same": true
+        },
+        {
+          "row": 1,
+          "col": 2,
+          "expected": "≥ 0.941 u",
+          "actual": "≥ 0.941 u",
+          "same": true
+        },
+        {
+          "row": 1,
+          "col": 3,
+          "expected": "0.90 u",
+          "actual": "0.90 u",
+          "same": true
+        },
+        {
+          "row": 1,
+          "col": 4,
+          "expected": "0.98 u",
+          "actual": "0.98 u",
+          "same": true
+        },
+        {
+          "row": 2,
+          "col": 0,
+          "expected": "Delay factor",
+          "actual": "Delay factor",
+          "same": true
+        },
+        {
+          "row": 3,
+          "col": 0,
+          "expected": "Review path",
+          "actual": "Review path",
+          "same": true
+        },
+        {
+          "row": 3,
+          "col": 1,
+          "expected": "Archive stream",
+          "actual": "Archive stream",
+          "same": true
+        },
+        {
+          "row": 3,
+          "col": 2,
+          "expected": "Archive stream",
+          "actual": "Archive stream",
+          "same": true
+        },
+        {
+          "row": 3,
+          "col": 3,
+          "expected": "TCP",
+          "actual": "TCP",
+          "same": true
+        },
+        {
+          "row": 3,
+          "col": 4,
+          "expected": "Ethernet",
+          "actual": "Ethernet",
+          "same": true
+        },
+        {
+          "row": 4,
+          "col": 0,
+          "expected": "Review path",
+          "actual": "Review path",
+          "same": true
+        },
+        {
+          "row": 4,
+          "col": 1,
+          "expected": "Archive stream",
+          "actual": "Archive stream",
+          "same": true
+        },
+        {
+          "row": 4,
+          "col": 2,
+          "expected": "Archive stream",
+          "actual": "Archive stream",
+          "same": true
+        },
+        {
+          "row": 4,
+          "col": 3,
+          "expected": "N/A",
+          "actual": "N/A",
+          "same": true
+        },
+        {
+          "row": 4,
+          "col": 4,
+          "expected": "RS-422",
+          "actual": "RS-422",
+          "same": true
+        },
+        {
+          "row": 5,
+          "col": 0,
+          "expected": "Record status",
+          "actual": "Record status",
+          "same": true
+        },
+        {
+          "row": 5,
+          "col": 1,
+          "expected": "protcol pending",
+          "actual": "protcol pending",
+          "same": true
+        },
+        {
+          "row": 5,
+          "col": 2,
+          "expected": "protcol pending",
+          "actual": "protcol pending",
+          "same": true
+        },
+        {
+          "row": 5,
+          "col": 3,
+          "expected": "",
+          "actual": "",
+          "same": true
+        },
+        {
+          "row": 5,
+          "col": 4,
+          "expected": "0",
+          "actual": "0",
+          "same": true
+        }
+      ],
+      "math": [
+        {
+          "id": "std-settings-c13",
+          "row": 2,
+          "col": 1,
+          "expected": "\\frac{2.4}{u-0.68}",
+          "actual": "",
+          "expressions": []
+        },
+        {
+          "id": "std-settings-c13",
+          "row": 2,
+          "col": 2,
+          "expected": "\\frac{2.4}{u-0.68}",
+          "actual": "",
+          "expressions": []
+        },
+        {
+          "id": "std-settings-c14",
+          "row": 2,
+          "col": 3,
+          "expected": "\\min(0.6,\\frac{1}{r})",
+          "actual": "",
+          "expressions": []
+        },
+        {
+          "id": "std-settings-c14",
+          "row": 2,
+          "col": 4,
+          "expected": "\\min(0.6,\\frac{1}{r})",
+          "actual": "",
+          "expressions": []
+        }
+      ],
+      "actualMath": [],
+      "path": [
+        33
+      ],
+      "actualType": "table"
+    },
+    {
+      "id": "std-equation-1",
+      "role": "formula",
+      "page": 8,
+      "status": "wrong",
+      "issues": [
+        "kind:image"
+      ],
+      "expected": "J=\\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}",
+      "path": [
+        51
+      ],
+      "actualType": "figure"
+    },
+    {
+      "id": "std-equation-2",
+      "role": "formula",
+      "page": 8,
+      "status": "wrong",
+      "issues": [
+        "kind:image"
+      ],
+      "expected": "R=\\frac{\\sqrt{A_{rms}^{2}-A_{0}^{2}}}{A_{base}}\\times100\\%",
+      "path": [
+        52
+      ],
+      "actualType": "figure"
+    },
+    {
+      "id": "std-chart",
+      "role": "picture",
+      "page": 10,
+      "status": "wrong",
+      "issues": [
+        "image:axis-title-and-ticks-outside-crop"
+      ],
+      "expected": "",
+      "imageSha256": "fd9ff970dbc0eae1963c1653979d8f34821a54e35023007938186601ab67e508",
+      "path": [
+        65
+      ],
+      "actualType": "figure"
+    },
+    {
+      "id": "std-conditional-table",
+      "role": "table",
+      "page": 11,
+      "status": "wrong",
+      "issues": [
+        "cell-math-kind"
+      ],
+      "expected": "",
+      "grid": {
+        "expected": [
+          3,
+          3
+        ],
+        "actual": [
+          3,
+          3
+        ]
+      },
+      "cells": [
+        {
+          "row": 0,
+          "col": 0,
+          "expected": "Record expression",
+          "actual": "Record expression",
+          "same": true
+        },
+        {
+          "row": 0,
+          "col": 1,
+          "expected": "Mathematical value",
+          "actual": "Mathematical value",
+          "same": true
+        },
+        {
+          "row": 0,
+          "col": 2,
+          "expected": "Unit",
+          "actual": "Unit",
+          "same": true
+        },
+        {
+          "row": 1,
+          "col": 0,
+          "expected": "Upper response bound",
+          "actual": "Upper response bound",
+          "same": true
+        },
+        {
+          "row": 1,
+          "col": 2,
+          "expected": "s",
+          "actual": "s",
+          "same": true
+        },
+        {
+          "row": 2,
+          "col": 0,
+          "expected": "Lower response bound",
+          "actual": "Lower response bound",
+          "same": true
+        },
+        {
+          "row": 2,
+          "col": 2,
+          "expected": "s",
+          "actual": "s",
+          "same": true
+        }
+      ],
+      "math": [
+        {
+          "id": "std-conditional-table-c04",
+          "row": 1,
+          "col": 1,
+          "expected": "\\min_{u>0.62}\\left\\{\\frac{4.1}{u-0.62},9.0\\right\\}",
+          "actual": "",
+          "expressions": []
+        },
+        {
+          "id": "std-conditional-table-c07",
+          "row": 2,
+          "col": 1,
+          "expected": "\\max_{r<1.8}\\left\\{\\frac{1-r}{c_0},0.15\\right\\}",
+          "actual": "",
+          "expressions": []
+        }
+      ],
+      "actualMath": [],
+      "path": [
+        73
+      ],
+      "actualType": "table"
+    },
+    {
+      "id": "std-equation-3",
+      "role": "formula",
+      "page": 11,
+      "status": "wrong",
+      "issues": [
+        "kind:image"
+      ],
+      "expected": "\\Theta=\\sqrt[3]{\\sum_{j=2}^{9}b_j^{3}}",
+      "path": [
+        74
+      ],
+      "actualType": "figure"
+    },
+    {
+      "id": "std-local-cap-b",
+      "role": "caption",
+      "page": 11,
+      "status": "wrong",
+      "issues": [
+        "kind-or-attachment"
+      ],
+      "expected": "Table L.3. Route B",
+      "path": [
+        76
+      ],
+      "actualType": "paragraph",
+      "actual": "Table L.3. Route B"
+    },
+    {
+      "id": "std-local-table-a",
+      "role": "table",
+      "page": 11,
+      "status": "wrong",
+      "issues": [
+        "kind:image"
+      ],
+      "expected": "",
+      "path": [
+        77
+      ],
+      "actualType": "figure"
+    },
+    {
+      "id": "std-local-table-b",
+      "role": "table",
+      "page": 11,
+      "status": "wrong",
+      "issues": [
+        "kind:image"
+      ],
+      "expected": "",
+      "path": [
+        77
+      ],
+      "actualType": "figure"
+    },
+    {
+      "id": "std-local-note-a",
+      "role": "footnote",
+      "page": 11,
+      "status": "wrong",
+      "issues": [
+        "text",
+        "note-placement"
+      ],
+      "expected": "a This marker belongs only to Route A.",
+      "path": [
+        78
+      ],
+      "actualType": "paragraph",
+      "actual": "a This marker belongs only to Route A. a This marker belongs only to Route B."
+    },
+    {
+      "id": "std-local-note-b",
+      "role": "footnote",
+      "page": 11,
+      "status": "wrong",
+      "issues": [
+        "text",
+        "note-placement"
+      ],
+      "expected": "a This marker belongs only to Route B.",
+      "path": [
+        78
+      ],
+      "actualType": "paragraph",
+      "actual": "a This marker belongs only to Route A. a This marker belongs only to Route B."
+    },
+    {
+      "id": "std-record-title",
+      "role": "document_title",
+      "page": 12,
+      "status": "wrong",
+      "issues": [
+        "kind"
+      ],
+      "expected": "Archive Verification Record",
+      "path": [
+        81
+      ],
+      "actualType": "paragraph",
+      "actual": "Archive Verification Record"
+    }
+  ],
+  "extras": [
+    {
+      "path": [
+        63
+      ],
+      "type": "paragraph",
+      "text": "Fill ratio (p.u.)"
+    },
+    {
+      "path": [
+        64
+      ],
+      "type": "paragraph",
+      "text": "1.20"
+    },
+    {
+      "path": [
+        66
+      ],
+      "type": "paragraph",
+      "text": "0.80"
+    },
+    {
+      "path": [
+        67
+      ],
+      "type": "paragraph",
+      "text": "0.40"
+    },
+    {
+      "path": [
+        68
+      ],
+      "type": "paragraph",
+      "text": "0.00"
+    }
+  ]
+}

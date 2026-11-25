@@ -1,0 +1,1472 @@
+{
+  "baseline": {
+    "correct": 80,
+    "total": 111,
+    "wrongGroups": 14,
+    "pdfSha256": "63cda884de96dfd0357843a534895f1beb7a10b24f3244398d930817a32b82ea",
+    "documentRevision": "cec42786f767dde29fcce6c1e63b7692c775dfa459b30d7f23ba9ff59e973a82"
+  },
+  "control": {
+    "correct": 111,
+    "total": 111,
+    "damaged": 0,
+    "extraCount": 0,
+    "check": true
+  },
+  "hostCommit": "b7ab4b2b5869233065af2ec8e534f1b6d65fb988",
+  "paidConversations": 4,
+  "preflightChecks": 1,
+  "failedStartsBeforeSubmission": 1,
+  "runs": {
+    "a-terra": {
+      "seconds": 84.146,
+      "status": "completed",
+      "engine": {
+        "model": "gpt-6.1-terra",
+        "effort": "high",
+        "providerSeconds": 81.694,
+        "observedResponsesWithUsage": 10,
+        "lastResponseTokens": 39819,
+        "totalTokens": 355355,
+        "inputTokens": 353141,
+        "cachedInputTokens": 314240,
+        "outputTokens": 2214,
+        "reasoningOutputTokens": 93
+      },
+      "answerSha256": "f0f309733f88826b586a9e68fe1367dcd6927837a6582a27dd5db071da2eaaa9",
+      "correct": 111,
+      "actualElements": {
+        "section_header": {
+          "correct": 16,
+          "wrong": 0,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 8,
+          "wrong": 0,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 1,
+          "wrong": 0,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-participants-label",
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-settings",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-local-note-a",
+        "std-local-note-b",
+        "std-record-title"
+      ],
+      "damaged": [],
+      "stillWrong": [],
+      "blocks": {
+        "baselineErrors": 23,
+        "other": 0
+      },
+      "extraCount": 0,
+      "approvalCards": 0,
+      "browser": {
+        "headings": 17,
+        "listItems": 18,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [
+          {
+            "rendered": "(1)",
+            "formula": "J=\\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}"
+          },
+          {
+            "rendered": "(2)",
+            "formula": "R=\\frac{\\sqrt{A_{rms}^{2}-A_{0}^{2}}}{A_{base}}\\times100\\%"
+          },
+          {
+            "rendered": "(3)",
+            "formula": "\\Theta=\\sqrt[3]{\\sum_{j=2}^{9}b_j^{3}}"
+          }
+        ],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0
+      },
+      "integrity": {
+        "check": {
+          "valid": true,
+          "writable": true,
+          "unresolved": [],
+          "numberWarnings": [],
+          "missingImages": []
+        },
+        "pdfUnchanged": true,
+        "sidecarStale": true,
+        "originalAssetsUnchanged": true,
+        "hostExited": true
+      },
+      "math": {
+        "displayBlocksExact": 3,
+        "distinctCellFormulasExact": 4,
+        "cellOccurrencesExact": 6
+      },
+      "tools": [
+        {
+          "name": "폴더 목록·메모리 검색",
+          "status": "completed"
+        },
+        {
+          "name": "정답지·PDF 위치 검색",
+          "status": "completed"
+        },
+        {
+          "name": "read_document(정답지)",
+          "status": "completed"
+        },
+        {
+          "name": "read_document(변환본)",
+          "status": "completed"
+        },
+        {
+          "name": "CLI 도움말",
+          "status": "completed"
+        },
+        {
+          "name": "PyMuPDF 원본 10쪽 구조 확인",
+          "status": "completed"
+        },
+        {
+          "name": "insert-equation 도움말",
+          "status": "completed"
+        },
+        {
+          "name": "PyMuPDF K.2 다시 자르기",
+          "status": "completed"
+        },
+        {
+          "name": "Python으로 Markdown 직접 저장",
+          "status": "completed"
+        },
+        {
+          "name": "CLI check",
+          "status": "completed"
+        }
+      ],
+      "edit": "Python으로 Markdown과 PDF crop을 직접 저장했다.",
+      "outsideFolder": "로컬 메모리 검색 결과와 격리 Host의 작업 디렉터리·상위 목록을 확인했다.",
+      "groups": [
+        {
+          "title": "Review participants",
+          "ids": [
+            "std-participants-label"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "참가자 명단",
+          "ids": [
+            "std-name-0-0",
+            "std-name-0-1",
+            "std-name-0-2",
+            "std-name-0-3",
+            "std-name-0-4",
+            "std-name-0-5",
+            "std-name-1-0",
+            "std-name-1-1",
+            "std-name-1-2",
+            "std-name-1-3",
+            "std-name-1-4",
+            "std-name-1-5",
+            "std-name-2-0",
+            "std-name-2-1",
+            "std-name-2-2",
+            "std-name-2-3",
+            "std-name-2-4",
+            "std-name-2-5"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table 2. Fictional archive settings",
+          "ids": [
+            "std-settings"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (1)",
+          "ids": [
+            "std-equation-1"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (2)",
+          "ids": [
+            "std-equation-2"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Figure K.2. Fictional archive fill sequence",
+          "ids": [
+            "std-chart"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.1. Fictional conditional record values",
+          "ids": [
+            "std-conditional-table"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (3)",
+          "ids": [
+            "std-equation-3"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.3. Route B",
+          "ids": [
+            "std-local-cap-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.2. Route A의 격자",
+          "ids": [
+            "std-local-table-a"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.3. Route B의 격자",
+          "ids": [
+            "std-local-table-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.2. Route A의 주석",
+          "ids": [
+            "std-local-note-a"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.3. Route B의 주석",
+          "ids": [
+            "std-local-note-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Archive Verification Record",
+          "ids": [
+            "std-record-title"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        }
+      ]
+    },
+    "a-sol-retry": {
+      "seconds": 102.287,
+      "status": "completed",
+      "engine": {
+        "model": "gpt-6.2-sol",
+        "effort": "medium",
+        "providerSeconds": 99.54,
+        "observedResponsesWithUsage": 11,
+        "lastResponseTokens": 74398,
+        "totalTokens": 584577,
+        "inputTokens": 581961,
+        "cachedInputTokens": 505344,
+        "outputTokens": 2616,
+        "reasoningOutputTokens": 32
+      },
+      "answerSha256": "f0f309733f88826b586a9e68fe1367dcd6927837a6582a27dd5db071da2eaaa9",
+      "correct": 109,
+      "actualElements": {
+        "section_header": {
+          "correct": 16,
+          "wrong": 0,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 2
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 8,
+          "wrong": 0,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 1,
+          "wrong": 0,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-participants-label",
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-settings",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-record-title"
+      ],
+      "damaged": [],
+      "stillWrong": [
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "blocks": {
+        "baselineErrors": 22,
+        "other": 0
+      },
+      "extraCount": 0,
+      "approvalCards": 0,
+      "browser": {
+        "headings": 17,
+        "listItems": 18,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [
+          {
+            "rendered": "(1)",
+            "formula": "J=\\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}"
+          },
+          {
+            "rendered": "(2)",
+            "formula": "R=\\frac{\\sqrt{A_{rms}^{2}-A_{0}^{2}}}{A_{base}}\\times100\\%"
+          },
+          {
+            "rendered": "(3)",
+            "formula": "\\Theta=\\sqrt[3]{\\sum_{j=2}^{9}b_j^{3}}"
+          }
+        ],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0
+      },
+      "integrity": {
+        "check": {
+          "valid": true,
+          "writable": true,
+          "unresolved": [],
+          "numberWarnings": [],
+          "missingImages": []
+        },
+        "pdfUnchanged": true,
+        "sidecarStale": true,
+        "originalAssetsUnchanged": true,
+        "hostExited": true
+      },
+      "math": {
+        "displayBlocksExact": 3,
+        "distinctCellFormulasExact": 4,
+        "cellOccurrencesExact": 6
+      },
+      "tools": [
+        {
+          "name": "공용 PDF 스킬 읽기",
+          "status": "completed"
+        },
+        {
+          "name": "입력 파일 목록",
+          "status": "completed"
+        },
+        {
+          "name": "메모리 검색",
+          "status": "failed"
+        },
+        {
+          "name": "정답지와 문서 읽기",
+          "status": "completed"
+        },
+        {
+          "name": "문서 단서 검색과 CLI check",
+          "status": "completed"
+        },
+        {
+          "name": "CLI 도움말·PDF 10쪽 렌더·제품 문서 검색",
+          "status": "completed"
+        },
+        {
+          "name": "제품 fixture·계약 읽기와 K.2 다시 자르기",
+          "status": "completed"
+        },
+        {
+          "name": "제품 표 주석·번호 계약 읽기",
+          "status": "completed"
+        },
+        {
+          "name": "수정 전 파일 사본",
+          "status": "completed"
+        },
+        {
+          "name": "Markdown 패치",
+          "status": "completed"
+        },
+        {
+          "name": "차이와 CLI check",
+          "status": "completed"
+        },
+        {
+          "name": "그림 자산 복사",
+          "status": "completed"
+        },
+        {
+          "name": "그림 경로 패치",
+          "status": "completed"
+        },
+        {
+          "name": "CLI check·inspect와 비교",
+          "status": "failed"
+        }
+      ],
+      "edit": "Poppler crop과 파일 복사, Markdown 패치 두 번.",
+      "outsideFolder": "공용 PDF 스킬과 별도 제품 checkout의 fixture·계약을 읽었고 로컬 메모리는 검색했으나 일치 결과가 없었다.",
+      "groups": [
+        {
+          "title": "Review participants",
+          "ids": [
+            "std-participants-label"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "참가자 명단",
+          "ids": [
+            "std-name-0-0",
+            "std-name-0-1",
+            "std-name-0-2",
+            "std-name-0-3",
+            "std-name-0-4",
+            "std-name-0-5",
+            "std-name-1-0",
+            "std-name-1-1",
+            "std-name-1-2",
+            "std-name-1-3",
+            "std-name-1-4",
+            "std-name-1-5",
+            "std-name-2-0",
+            "std-name-2-1",
+            "std-name-2-2",
+            "std-name-2-3",
+            "std-name-2-4",
+            "std-name-2-5"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table 2. Fictional archive settings",
+          "ids": [
+            "std-settings"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (1)",
+          "ids": [
+            "std-equation-1"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (2)",
+          "ids": [
+            "std-equation-2"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Figure K.2. Fictional archive fill sequence",
+          "ids": [
+            "std-chart"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.1. Fictional conditional record values",
+          "ids": [
+            "std-conditional-table"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (3)",
+          "ids": [
+            "std-equation-3"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.3. Route B",
+          "ids": [
+            "std-local-cap-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.2. Route A의 격자",
+          "ids": [
+            "std-local-table-a"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.3. Route B의 격자",
+          "ids": [
+            "std-local-table-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.2. Route A의 주석",
+          "ids": [
+            "std-local-note-a"
+          ],
+          "result": "다르게 고침. Route A 주석을 표 자체 notes에 저장했다.",
+          "issues": [
+            {
+              "id": "std-local-note-a",
+              "status": "missing",
+              "issues": []
+            }
+          ]
+        },
+        {
+          "title": "Table L.3. Route B의 주석",
+          "ids": [
+            "std-local-note-b"
+          ],
+          "result": "다르게 고침. Route B 주석을 표 자체 notes에 저장했다.",
+          "issues": [
+            {
+              "id": "std-local-note-b",
+              "status": "missing",
+              "issues": []
+            }
+          ]
+        },
+        {
+          "title": "Archive Verification Record",
+          "ids": [
+            "std-record-title"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        }
+      ]
+    },
+    "b-terra": {
+      "seconds": 79.381,
+      "status": "completed",
+      "engine": {
+        "model": "gpt-6.1-terra",
+        "effort": "high",
+        "providerSeconds": 77.191,
+        "observedResponsesWithUsage": 9,
+        "lastResponseTokens": 59683,
+        "totalTokens": 411364,
+        "inputTokens": 409234,
+        "cachedInputTokens": 350464,
+        "outputTokens": 2130,
+        "reasoningOutputTokens": 100
+      },
+      "answerSha256": "34f06fb1a0aabc8b2b016b18815badfbefebab370f26da957e1750501fa66759",
+      "correct": 106,
+      "actualElements": {
+        "section_header": {
+          "correct": 16,
+          "wrong": 0,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 8,
+          "wrong": 0,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 0,
+          "wrong": 0,
+          "missing": 3
+        },
+        "picture": {
+          "correct": 1,
+          "wrong": 1,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-participants-label",
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-settings",
+        "std-conditional-table",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [],
+      "stillWrong": [
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-equation-3",
+        "std-record-title"
+      ],
+      "blocks": {
+        "baselineErrors": 21,
+        "other": 5
+      },
+      "extraCount": 8,
+      "approvalCards": 0,
+      "browser": {
+        "headings": 18,
+        "listItems": 37,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0
+      },
+      "integrity": {
+        "check": {
+          "valid": true,
+          "writable": true,
+          "unresolved": [],
+          "numberWarnings": [],
+          "missingImages": []
+        },
+        "pdfUnchanged": true,
+        "sidecarStale": true,
+        "originalAssetsUnchanged": true,
+        "hostExited": true
+      },
+      "math": {
+        "displayBlocksExact": 0,
+        "distinctCellFormulasExact": 4,
+        "cellOccurrencesExact": 6
+      },
+      "tools": [
+        {
+          "name": "read_document(변환본)",
+          "status": "completed"
+        },
+        {
+          "name": "폴더 목록·메모리 검색",
+          "status": "failed"
+        },
+        {
+          "name": "문서 하위 경로에서 JSON 탐색 실패",
+          "status": "failed"
+        },
+        {
+          "name": "원래 JSON·PDF 위치 확인",
+          "status": "completed"
+        },
+        {
+          "name": "원래 JSON 읽기",
+          "status": "completed"
+        },
+        {
+          "name": "Node로 본문 요소 추출",
+          "status": "completed"
+        },
+        {
+          "name": "Node로 셀·식·문단 후보 추출",
+          "status": "completed"
+        },
+        {
+          "name": "Node로 Markdown 직접 저장 후 CLI check",
+          "status": "completed"
+        },
+        {
+          "name": "PDF 해시·본문 글자 대조",
+          "status": "completed"
+        }
+      ],
+      "edit": "Node 스크립트로 Markdown 직접 저장.",
+      "outsideFolder": "격리 Host의 작업 디렉터리·상위 목록을 읽었고 로컬 메모리는 검색했으나 일치 결과가 없었다.",
+      "groups": [
+        {
+          "title": "Review participants",
+          "ids": [
+            "std-participants-label"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "참가자 명단",
+          "ids": [
+            "std-name-0-0",
+            "std-name-0-1",
+            "std-name-0-2",
+            "std-name-0-3",
+            "std-name-0-4",
+            "std-name-0-5",
+            "std-name-1-0",
+            "std-name-1-1",
+            "std-name-1-2",
+            "std-name-1-3",
+            "std-name-1-4",
+            "std-name-1-5",
+            "std-name-2-0",
+            "std-name-2-1",
+            "std-name-2-2",
+            "std-name-2-3",
+            "std-name-2-4",
+            "std-name-2-5"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table 2. Fictional archive settings",
+          "ids": [
+            "std-settings"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (1)",
+          "ids": [
+            "std-equation-1"
+          ],
+          "result": "다르게 고침. 단일 달러 구분자로 문단 안 인라인 수식이 됐다.",
+          "issues": [
+            {
+              "id": "std-equation-1",
+              "status": "missing",
+              "issues": []
+            }
+          ]
+        },
+        {
+          "title": "독립 수식 (2)",
+          "ids": [
+            "std-equation-2"
+          ],
+          "result": "다르게 고침. 단일 달러 구분자로 문단 안 인라인 수식이 됐다.",
+          "issues": [
+            {
+              "id": "std-equation-2",
+              "status": "missing",
+              "issues": []
+            }
+          ]
+        },
+        {
+          "title": "Figure K.2. Fictional archive fill sequence",
+          "ids": [
+            "std-chart"
+          ],
+          "result": "일부만 됨. 본문에 흩어진 값은 지웠으나 잘린 그림을 유지했다.",
+          "issues": [
+            {
+              "id": "std-chart",
+              "status": "wrong",
+              "issues": [
+                "image:axis-title-and-ticks-outside-crop"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Table L.1. Fictional conditional record values",
+          "ids": [
+            "std-conditional-table"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (3)",
+          "ids": [
+            "std-equation-3"
+          ],
+          "result": "다르게 고침. 단일 달러 구분자로 문단 안 인라인 수식이 됐다.",
+          "issues": [
+            {
+              "id": "std-equation-3",
+              "status": "missing",
+              "issues": []
+            }
+          ]
+        },
+        {
+          "title": "Table L.3. Route B",
+          "ids": [
+            "std-local-cap-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.2. Route A의 격자",
+          "ids": [
+            "std-local-table-a"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.3. Route B의 격자",
+          "ids": [
+            "std-local-table-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.2. Route A의 주석",
+          "ids": [
+            "std-local-note-a"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.3. Route B의 주석",
+          "ids": [
+            "std-local-note-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Archive Verification Record",
+          "ids": [
+            "std-record-title"
+          ],
+          "result": "안 됨. 수정 스크립트에 해당 항목이 없고 이유는 기록에 없다.",
+          "issues": [
+            {
+              "id": "std-record-title",
+              "status": "wrong",
+              "issues": [
+                "kind"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "b-sol": {
+      "seconds": 207.825,
+      "status": "completed",
+      "engine": {
+        "model": "gpt-6.2-sol",
+        "effort": "medium",
+        "providerSeconds": 204.945,
+        "observedResponsesWithUsage": 20,
+        "lastResponseTokens": 90862,
+        "totalTokens": 1418305,
+        "inputTokens": 1412795,
+        "cachedInputTokens": 1317504,
+        "outputTokens": 5510,
+        "reasoningOutputTokens": 639
+      },
+      "answerSha256": "34f06fb1a0aabc8b2b016b18815badfbefebab370f26da957e1750501fa66759",
+      "correct": 102,
+      "actualElements": {
+        "section_header": {
+          "correct": 16,
+          "wrong": 0,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 5,
+          "wrong": 0,
+          "missing": 7
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 7,
+          "wrong": 1,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-participants-label",
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b"
+      ],
+      "damaged": [
+        "std-matrix-note-a",
+        "std-matrix-note-b",
+        "std-settings-note-a",
+        "std-bands-note-a",
+        "std-bands-note-b"
+      ],
+      "stillWrong": [
+        "std-settings",
+        "std-local-note-a",
+        "std-local-note-b",
+        "std-record-title"
+      ],
+      "blocks": {
+        "baselineErrors": 22,
+        "other": 43
+      },
+      "extraCount": 17,
+      "approvalCards": 0,
+      "browser": {
+        "headings": 17,
+        "listItems": 18,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [
+          {
+            "rendered": "(1)",
+            "formula": "J=\\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}"
+          },
+          {
+            "rendered": "(2)",
+            "formula": "R=\\frac{\\sqrt{A_{rms}^{2}-A_{0}^{2}}}{A_{base}}\\times100\\%"
+          },
+          {
+            "rendered": "(3)",
+            "formula": "\\Theta=\\sqrt[3]{\\sum_{j=2}^{9}b_j^{3}}"
+          }
+        ],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0
+      },
+      "integrity": {
+        "check": {
+          "valid": true,
+          "writable": true,
+          "unresolved": [],
+          "numberWarnings": [],
+          "missingImages": []
+        },
+        "pdfUnchanged": true,
+        "sidecarStale": true,
+        "originalAssetsUnchanged": true,
+        "hostExited": true
+      },
+      "math": {
+        "displayBlocksExact": 3,
+        "distinctCellFormulasExact": 4,
+        "cellOccurrencesExact": 4
+      },
+      "tools": [
+        {
+          "name": "메모리 검색",
+          "status": "failed"
+        },
+        {
+          "name": "입력 파일 목록",
+          "status": "completed"
+        },
+        {
+          "name": "read_document(변환본)",
+          "status": "completed"
+        },
+        {
+          "name": "README·JSON 앞부분 조회",
+          "status": "failed"
+        },
+        {
+          "name": "JSON 구조·PDF 해시·도구 목록",
+          "status": "completed"
+        },
+        {
+          "name": "본문 역할·순서·관계 추출",
+          "status": "completed"
+        },
+        {
+          "name": "리치오 가이드·JSON 표·그림·식 조회",
+          "status": "completed"
+        },
+        {
+          "name": "가이드·CLI 도움말·JSON 메타 요소 조회",
+          "status": "completed"
+        },
+        {
+          "name": "표 주석 dry-run·inspect·제목 단계 조사",
+          "status": "completed"
+        },
+        {
+          "name": "수식 dry-run·CLI 검색",
+          "status": "failed"
+        },
+        {
+          "name": "공용 PDF 스킬·쪽 좌표 조회",
+          "status": "completed"
+        },
+        {
+          "name": "Poppler K.2 다시 자르기",
+          "status": "completed"
+        },
+        {
+          "name": "시험 문서 작성과 CLI 확인",
+          "status": "failed"
+        },
+        {
+          "name": "표·수식·제목과 관계 추출",
+          "status": "completed"
+        },
+        {
+          "name": "시험 문서에서 미호출 주석 제거 시도",
+          "status": "failed"
+        },
+        {
+          "name": "시험 문서 inspect·check",
+          "status": "completed"
+        },
+        {
+          "name": "후보 작성 후 CLI check·inspect",
+          "status": "completed"
+        },
+        {
+          "name": "후보 형식 검토",
+          "status": "completed"
+        },
+        {
+          "name": "후보 수정과 검사",
+          "status": "failed"
+        },
+        {
+          "name": "그림 자산 복사",
+          "status": "completed"
+        },
+        {
+          "name": "Markdown 패치",
+          "status": "completed"
+        },
+        {
+          "name": "read_document(수정본)",
+          "status": "completed"
+        },
+        {
+          "name": "CLI check·inspect와 이미지 해시 대조",
+          "status": "completed"
+        }
+      ],
+      "edit": "CLI 미리보기와 scratch 검사 후 Poppler crop 복사, Markdown 패치.",
+      "outsideFolder": "공용 PDF 스킬과 Host가 제공한 리치오 가이드·CLI를 읽었고 로컬 메모리는 검색했으나 일치 결과가 없었다.",
+      "groups": [
+        {
+          "title": "Review participants",
+          "ids": [
+            "std-participants-label"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "참가자 명단",
+          "ids": [
+            "std-name-0-0",
+            "std-name-0-1",
+            "std-name-0-2",
+            "std-name-0-3",
+            "std-name-0-4",
+            "std-name-0-5",
+            "std-name-1-0",
+            "std-name-1-1",
+            "std-name-1-2",
+            "std-name-1-3",
+            "std-name-1-4",
+            "std-name-1-5",
+            "std-name-2-0",
+            "std-name-2-1",
+            "std-name-2-2",
+            "std-name-2-3",
+            "std-name-2-4",
+            "std-name-2-5"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table 2. Fictional archive settings",
+          "ids": [
+            "std-settings"
+          ],
+          "result": "일부만 됨. 두 수식은 맞고 펼친 복제 칸 두 곳이 비었다.",
+          "issues": [
+            {
+              "id": "std-settings",
+              "status": "wrong",
+              "issues": [
+                "cell-math-kind"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "독립 수식 (1)",
+          "ids": [
+            "std-equation-1"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (2)",
+          "ids": [
+            "std-equation-2"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Figure K.2. Fictional archive fill sequence",
+          "ids": [
+            "std-chart"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.1. Fictional conditional record values",
+          "ids": [
+            "std-conditional-table"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "독립 수식 (3)",
+          "ids": [
+            "std-equation-3"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.3. Route B",
+          "ids": [
+            "std-local-cap-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.2. Route A의 격자",
+          "ids": [
+            "std-local-table-a"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.3. Route B의 격자",
+          "ids": [
+            "std-local-table-b"
+          ],
+          "result": "그대로 됨",
+          "issues": []
+        },
+        {
+          "title": "Table L.2. Route A의 주석",
+          "ids": [
+            "std-local-note-a"
+          ],
+          "result": "다르게 고침. Route A 주석을 표 자체 notes에 저장했다.",
+          "issues": [
+            {
+              "id": "std-local-note-a",
+              "status": "missing",
+              "issues": []
+            }
+          ]
+        },
+        {
+          "title": "Table L.3. Route B의 주석",
+          "ids": [
+            "std-local-note-b"
+          ],
+          "result": "다르게 고침. Route B 주석을 표 자체 notes에 저장했다.",
+          "issues": [
+            {
+              "id": "std-local-note-b",
+              "status": "missing",
+              "issues": []
+            }
+          ]
+        },
+        {
+          "title": "Archive Verification Record",
+          "ids": [
+            "std-record-title"
+          ],
+          "result": "다르게 고침. 굵은 문단으로 바꿨다.",
+          "issues": [
+            {
+              "id": "std-record-title",
+              "status": "wrong",
+              "issues": [
+                "kind"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
