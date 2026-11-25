@@ -30,7 +30,7 @@ import { assertUnicode } from "./unicode.ts";
 export const OPTIONS = { extensions: { smartquotes: false, citations: false, attrs_block: true } };
 const parseMyst = createMystParser(OPTIONS);
 
-export function parse(source: string): MystDocument {
+export function parse(source: string, spikeDirectivePositions = false): MystDocument {
   assertUnicode(source);
   const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
   const file = new VFile();
@@ -38,7 +38,21 @@ export function parse(source: string): MystDocument {
   markFrontMatter(document, text);
   retainTableSource(document, file);
   retainMermaidOptions(document, file);
+  // Spike only: lifting a single block directive drops the wrapper's source position.
+  // Carry its exact parser position to the same child object, without guessing from content.
+  const ranges = spikeDirectivePositions ? new Map<MystDocument["children"][number], MystDocument["position"]>() : undefined;
+  if (ranges) {
+    for (const node of document.children) {
+      if (node.type === "mystDirective" && node.children?.length === 1) {
+        ranges.set(node.children[0], node.position);
+      }
+    }
+  }
   liftMystDirectivesAndRolesTransform(document);
+  if (ranges) for (const child of document.children) {
+    const position = ranges.get(child);
+    if (position) child.position = position;
+  }
   containerChildrenTransform(document, new VFile());
   readTableBreaks(document);
   locateFootnotes(document, text, OPTIONS);

@@ -97,7 +97,7 @@ export function roundTrip(document: MystDocument, previous?: RoundTrip): RoundTr
   }
 }
 
-function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined, attempt: Attempt): RoundTrip {
+export function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined, attempt: Attempt): RoundTrip {
   assertUnicode(document);
   // The fingerprint would also catch these, but not name the footnote.
   const footnotes = footnoteWriteIssue(document);
