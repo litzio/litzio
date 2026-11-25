@@ -66,21 +66,12 @@ function sourceDefinitions(text: string, options: object): SourceDefinition[] {
  * the read model, the Editor and section operations see one order.
  */
 export function locateFootnotes(document: MystDocument, text: string, options: object,
-  parseDefinition?: (source: string, label: string) => MystNode | undefined): void {
+  parseDocument?: (source: string) => MystDocument): void {
   const written = sourceDefinitions(text, options);
   rememberLiteralSource(document, text, options, new Set(written.map(item => item.label)));
   // The last definition of a label is the one kept.
   const last = new Map(written.map(definition => [definition.label, definition]));
-  if (parseDefinition && written.length) {
-    const existing = new Set(document.children.filter(node => node.type === "footnoteDefinition").map(node => node.label));
-    const needed = new Set(document.children.flatMap(footnoteReferences));
-    const lines = text.split(/\r?\n/);
-    for (const [label, range] of last) {
-      if (!needed.has(label) || existing.has(label)) continue;
-      const definition = parseDefinition(lines.slice(range.start - 1, range.end).join("\n"), label);
-      if (definition) document.children.push(definition);
-    }
-  }
+  if (parseDocument && written.length) recoverFootnotes(document, text, last, parseDocument);
   const kept = new Set<string>();
   for (const node of document.children) {
     if (node.type !== "footnoteDefinition") continue;
@@ -96,6 +87,36 @@ export function locateFootnotes(document: MystDocument, text: string, options: o
   const unreferenced = written.find(definition => !kept.has(definition.label));
   if (repeated) document[DROPPED_FOOTNOTE_FIELD] = REPEATED(repeated.label);
   else if (unreferenced) document[DROPPED_FOOTNOTE_FIELD] = UNREFERENCED(unreferenced.label);
+}
+
+/** A synthetic reference lets MyST keep the same definition it would for a
+ * normal body reference. Parse the full source so reference links and other
+ * footnotes inside the definition see their original context. */
+function recoverFootnotes(document: MystDocument, text: string, written: Map<string, SourceDefinition>,
+  parseDocument: (source: string) => MystDocument): void {
+  const existing = new Set(document.children.filter(node => node.type === "footnoteDefinition").map(node => node.label));
+  const needed = new Set(document.children.flatMap(footnoteReferences).filter(label => written.has(label) && !existing.has(label)));
+  if (!needed.size) return;
+
+  const labels = [...needed];
+  const probe = labels.map(label => "[^" + label + "]").join(" ");
+  const parsed = parseDocument(text + "\n\n" + probe + "\n");
+  const probeLine = text.split(/\r\n?|\n/).length + 2;
+  const paragraph = parsed.children.find(node => node.type === "paragraph" && node.position?.start.line === probeLine);
+  // An unclosed block can consume the probe. Leave the definition missing in
+  // that case so the existing write guard refuses the document.
+  const recognized = paragraph ? footnoteReferences(paragraph) : [];
+  if (recognized.length !== labels.length || recognized.some((label, index) => label !== labels[index])) return;
+
+  const recovered = new Map(parsed.children.filter(node => node.type === "footnoteDefinition").map(node => [node.label, node]));
+  for (const label of needed) {
+    const definition = recovered.get(label);
+    if (!definition) continue;
+    document.children.push(definition);
+    for (const reference of footnoteReferences(definition)) {
+      if (written.has(reference) && !existing.has(reference)) needed.add(reference);
+    }
+  }
 }
 
 /** Each top-level block as endnote ordering sees it: the label it defines, and the references it holds. */

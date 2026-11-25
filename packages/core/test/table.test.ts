@@ -66,6 +66,26 @@ const tableSource = (grid: string, options = "", notes = "") =>
   ":::{table}\n" + options + "\n" + grid + (notes ? "\n\n" + notes : "") + "\n:::\n";
 const parseComplex = (source: string) => parseTree(source, { complexTables: true });
 
+test("a footnote referenced only by a complex table keeps the document's shared link definitions", () => {
+  const source = [
+    "---", "litzio: 1", "---", "", ":::{table}", "",
+    '<table><thead><tr><th><p>X<span data-myst="footnote">n</span></p><p>Y</p></th></tr></thead></table>',
+    ":::", "", "[^n]: See [manual][spec].", "", "[spec]: https://example.com/manual", "",
+  ].join("\n");
+  const first = roundTrip(parseComplex(source));
+  assert.match(first.markdown, /\[\^n\]: See \[manual\]\(https:\/\/example\.com\/manual\)\./);
+  assert.equal(repeatRoundTrip(first).markdown, first.markdown);
+});
+
+test("a footnote referenced only by a complex table keeps another footnote it references", () => {
+  const grid = '<table><thead><tr><th><p>X<span data-myst="footnote">n</span></p><p>Y</p></th></tr></thead></table>';
+  const source = tableSource(grid) + "\n[^n]: Outer [^m].\n\n[^m]: Inner.\n";
+  const first = roundTrip(parseComplex(source));
+  assert.match(first.markdown, /\[\^n\]: Outer \[\^m\]\.\n\n\[\^m\]: Inner\./);
+  assert.equal(repeatRoundTrip(first).markdown, first.markdown);
+  assert.throws(() => roundTrip(parseComplex(source + "\n```text\nUnclosed fence\n")), /footnote \[\^n\]/);
+});
+
 test("HTML cells preserve block boundaries and data whitespace, and a captionless first note stays a note", () => {
   const grid = [
     "<table>", "<thead>", "<tr>",

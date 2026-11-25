@@ -64,12 +64,7 @@ export function parse(source: string, { complexTables = false } = {}): MystDocum
     containerChildrenTransform({ ...document, children }, new VFile());
   } else containerChildrenTransform(document, new VFile());
   readTableBreaks(document);
-  locateFootnotes(document, text, OPTIONS, convertedTables?.size ? (definition, label) => {
-    // MyST's footnote tail needs an inline reference to keep a definition. HTML
-    // spans are opaque to it; ask the existing parser to read the definition.
-    return parse("Note [^" + label + "]\n\n" + definition).children.find(node =>
-      node.type === "footnoteDefinition" && node.label === label);
-  } : undefined);
+  locateFootnotes(document, text, OPTIONS, convertedTables?.size ? parse : undefined);
   if (complexTables) rejectOutOfScopeHtml(document);
   return document;
 }
