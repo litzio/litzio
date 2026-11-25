@@ -65,6 +65,17 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
         "(placement-section)=\n\n## Section\n\n" + context + "\n");
     } }], scenarios: ["metadata-popover"],
   },
+  "document-find": { files: [
+    { name: "find.md", create: () => {
+      const filler = (from: number) => Array.from({ length: 30 }, (_, i) => `Filler paragraph ${from + i} keeps the document long.`).join("\n\n");
+      return nativeSource(`# Find document\n\nThe opening paragraph mentions alpha once.\n\n${filler(1)}\n\n## Section alpha\n\n` +
+        "Alpha starts this sentence, with an [alpha link](https://example.com) and {numref}`tbl-find`.\n\n" +
+        ":::{table} Measured values\n:name: tbl-find\n\n| Name | Value |\n| --- | --- |\n| cellword alpha | 1 |\n:::\n\n" +
+        `전력 변환 장치의 제어 방식을 설명한다.\n\n${filler(31)}\n\nThe last alpha mention[^n].\n\n[^n]: The endnote holds endnoteword.\n`);
+    } },
+    { name: "large.md", create: () => nativeSource("# Large document\n\n" + Array.from({ length: 2000 }, (_, i) => i % 50 === 0
+      ? `## Part ${i / 50 + 1}` : `Paragraph ${i} describes converter control and voltage regulation in block ${i}.`).join("\n\n") + "\n") },
+  ], scenarios: ["document-find"] },
   "app-reset": { files: [{ name: "document.md", create: () => nativeSource("# Reset fixture\n\nLocal pending work.\n") }], scenarios: ["app-reset"] },
   "read-view": { files: [
     { name: "heading-levels.md", create: () => "---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---\n\n" + Array.from({ length: 6 }, (_, i) =>

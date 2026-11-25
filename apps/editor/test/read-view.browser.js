@@ -268,11 +268,14 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   expect(await recoveryRecords(page)).toEqual(records);
   expect(await editor.evaluate(el => el.editor === window.readViewEditor)).toBe(true);
 
-  // Browser Find/Print/zoom remain available when the reading surface has focus.
+  // Ctrl/Cmd+F opens Find in document (#1982); browser Print/zoom remain available when the reading surface has focus.
   expect(await editor.evaluate(el => ['f','p','+','-'].map(key => {
     const event = new KeyboardEvent('keydown', {key,ctrlKey:true,bubbles:true,cancelable:true});
     el.dispatchEvent(event); return event.defaultPrevented;
-  }))).toEqual([false,false,false,false]);
+  }))).toEqual([true,false,false,false]);
+  await expect(page.getByTestId('document-find-input')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('document-find')).toHaveCount(0);
 
   // Native input, explicit commands/keymaps/history, clipboard and file drop must
   // neither change the document nor reach a Host write (including image assets).

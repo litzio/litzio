@@ -40,6 +40,11 @@ export const ASSISTANT_SHORTCUT = shortcut("KeyY", "Y", 89, true);
 export const LINK_SHORTCUT = shortcut("Quote", "'", 222);
 export const CLOSE_TAB_SHORTCUT = shortcut("KeyW", "W", 87);
 export const SAVE_SHORTCUT = shortcut("KeyS", "S", 83);
+/** Find in document while a document view has focus; elsewhere the browser keeps its own Find. */
+export const FIND_SHORTCUT = shortcut("KeyF", "F", 70);
+/** Next/previous match while Find in document is open. */
+export const FIND_NEXT_SHORTCUT = editorShortcut("F3");
+export const FIND_PREVIOUS_SHORTCUT = editorShortcut("Shift-F3");
 export const UNDO_SHORTCUT = shortcut("KeyZ", "Z", 90);
 export const REDO_SHORTCUT = shortcut("KeyY", "Y", 89);
 

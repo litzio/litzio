@@ -2,6 +2,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 열린 문서 안에서 글자를 찾는다 (#1982) | 문서 스크롤 영역(문서 탭·플러그인 문서 보기) 오른쪽 위에 뜨는 막대 | prosemirror-search decoration·Input(compact)·ghost icon-sm Button(aria-pressed 대소문자)·Lucide CaseSensitive/ChevronUp/ChevronDown/X·title 툴팁·`--shadow-overlay` | Ctrl/Cmd+F·명령 센터로 열기, 입력하는 대로 일치 표시와 `현재 / 전체`, Enter·F3 이동과 순환, Esc는 마지막 일치 자리로 caret·focus 복귀 | [문서에서 찾기](editor-ux-shell-v1.md#find-in-document-1982) | 입력 이름은 명령 센터처럼 placeholder와 접근성 이름(좁은 막대에 상시 이름표 없음). 일치 색은 경고 토큰 |
 | 링크로 이 문서의 블록을 연결한다 (#1956) | 기존 선택 영역의 링크 창 | Button·Input·FieldError·참조 삽입의 CommandMenu 행 | 문서 안 대상 고르기 → 검색·선택 → URL 갱신 → 적용 | [일반 링크](editor-ux-shell-v1.md#open-ordinary-links-725) | 후보는 링크 창 안에서 스크롤하며, 주소 입력과 검색을 각각 유지 |
 | 비서 대화나 플러그인 작업 내용이 비어 있다 (#1898) | 기존 비서 패널·플러그인 작업 탭 본문 | EmptyState / ui.EmptyState | 주변 바탕 위에 제목·설명·필요한 다음 행동 하나를 가운데 정렬 | UI gallery → Screen parts, [P06](ui-patterns-v1.md#p06-빈-상태와-작성-시작) | 문서 내 빈 작성 자리는 해당 편집 부품이 소유 |
 | 공개 GitHub 주소에서 플러그인을 추가한다 (#1750) | Plugins 목록 머리의 [GitHub에서 추가…]와 Dialog | outline sm Button·Dialog·Input·native radio·ChoiceGroup(릴리스/브랜치)·FieldError·Tooltip | 주소 입력 → [찾기] → 플러그인 고르기 → 따라갈 대상 → [추가]; 정식 Release에 없는 플러그인은 릴리스 비활성; 추가 뒤 행 설명에 `GitHub <저장소/폴더> · 릴리스|브랜치`, 로컬은 `로컬 폴더` | [플러그인 설정 패턴](ui-patterns-v1.md#플러그인-설정) | 새 부품·토큰 없음. 폴더 선택 창은 단일 선택 listbox 계약(#1676)이라 주소 입력을 섞지 않고 같은 줄의 별도 Dialog로 연다. 따라갈 대상 설명은 Tooltip |

@@ -21,8 +21,9 @@ export const ReadOnlyBoundary = Extension.create({
             const mutation = ["Enter", "Backspace", "Delete"].includes(event.key) ||
               (!modified && !event.altKey && event.key.length === 1) ||
               (modified && ["b", "i", "u", "x", "v", "z", "y"].includes(event.key.toLowerCase()));
-            // Do not forward authoring shortcuts to keymaps. Browser Find,
-            // Print, zoom and other native commands retain their defaults.
+            // Do not forward authoring shortcuts to keymaps. Find in document
+            // (DocumentFindBar) owns Ctrl/Cmd+F; Print, zoom and other native
+            // commands retain their defaults.
             if (mutation) event.preventDefault();
             return mutation;
           }

@@ -32,8 +32,8 @@ three switches or commands.
 Read uses the same mounted `DocumentEditor`, projection, NodeViews and single
 Tiptap/ProseMirror state as Edit, with `setEditable(false)`. Block hover/selection,
 keyboard movement, native text selection/copy, reading previews and Outline remain
-available. Browser Find/Print/zoom shortcuts retain their native defaults while the
-reading surface has focus. Navigation within Read, including notification/problem navigation, stays
+available. Ctrl/Cmd+F opens [Find in document](#find-in-document-1982) as in Edit;
+browser Print/zoom shortcuts retain their native defaults while the reading surface has focus. Navigation within Read, including notification/problem navigation, stays
 in Read. Since ProseMirror skips editable key handling, a Read-only DOM bridge
 forwards navigation to the existing keymaps and uses ProseMirror selection APIs at
 selected block boundaries. Text caret movement/extension delegates to the browser's
@@ -612,7 +612,7 @@ so no semantic operation, Core read-model extension or CLI command is added.
 
 ## Boundaries
 
-No workspace, recursive filesystem scan, folder watch, filesystem-wide or document-content search, accounts, autosave, new block semantics, overlay framework or persistence architecture is introduced. The right-side Document panel hosts Outline, Tables and Figures navigation: no properties inspector, AI panel, References panel or generic panel/extension framework is introduced. Buttons enter through the Base UI `components/ui/button`; Notice remains a separate presentation primitive.
+No workspace, recursive filesystem scan, folder watch, filesystem-wide or multi-document content search, accounts, autosave, new block semantics, overlay framework or persistence architecture is introduced. The right-side Document panel hosts Outline, Tables and Figures navigation: no properties inspector, AI panel, References panel or generic panel/extension framework is introduced. Buttons enter through the Base UI `components/ui/button`; Notice remains a separate presentation primitive.
 
 Browser procedures and repeatable scratch preparation: [TEST_GUIDE](../test/TEST_GUIDE.md). Actual shell evidence: [#176 review](../reviews/editor-shell-176-2026-10-13.md); earlier visual evidence: [review record](editor-visual-refinement-v1-review.md).
 
@@ -874,7 +874,8 @@ The guide also shows the existing Ctrl/Cmd+Shift+Z redo alternative.
 closes. The guide is a curated list of useful Litzio editing shortcuts (#496), with short
 English/Korean names and shared platform labels, rather than an inventory of every binding:
 
-- General: Command center Ctrl/Cmd+/, Save Ctrl/Cmd+S.
+- General: Command center Ctrl/Cmd+/, Save Ctrl/Cmd+S, Find in document Ctrl/Cmd+F,
+  Next / previous match F3/Shift+F3.
 - Editing: Undo Ctrl/Cmd+Z; Redo Ctrl/Cmd+Y and Ctrl/Cmd+Shift+Z; New block Enter;
   Edit selected Figure, Table, block Equation or inline math Enter (#557);
   Apply properties Ctrl+Enter on Windows/Linux or Cmd+Enter on macOS within a properties form (#576);
@@ -1180,6 +1181,44 @@ Official layouts: [US](https://learn.microsoft.com/en-us/globalization/keyboards
 | Opaque key masking VK_MINUS / VK_4 | Does not open | Does not open | Browser zoom / tab switch preserved |
 
 Historical layout-specific failures and browser probes: [Shortcut layout verification](../reviews/editor-ux-shell-history-2026-11.md#shortcut-layout-verification-381).
+
+## Find in document (#1982)
+
+Ctrl/Cmd+F, or **Find in document** in the Command center, opens a small find bar while focus is
+inside a Read or Edit document tab or a plugin screen's document view (`ui.DocumentView`,
+`ui.LinkedDocumentView`). The bar floats over the top-right corner of that scroll area, past its
+scrollbar, and does not move the document. Ctrl/Cmd+F in the bar selects its text; a non-empty
+single-line selection in the document becomes the search text. In Source, text-mode tabs and
+everywhere outside those areas Ctrl/Cmd+F keeps the browser's own Find (Desktop has none).
+
+[prosemirror-search](https://github.com/ProseMirror/prosemirror-search) finds plain text, without
+regular expressions or whole words, in every document text block: paragraphs, headings, list items,
+table cells, captions, table notes, callouts, endnote definitions and code blocks. Case is ignored
+until **Match case** is on. Rendered atoms (equation and inline-math LaTeX, references, citations)
+and generated numbers (heading, caption and reference numbers) are not document text and are not found.
+
+Matches are view decorations and the current match is the editor selection: finding changes no
+document content, dirty state, Undo history, save edit or recovery snapshot. The count shows
+`current / total`, or `0` in `--id-color-danger` with an invalid field when nothing matches. Enter and F3 go to the next
+match, Shift+Enter and Shift+F3 to the previous one, wrapping at the document ends, as do the
+previous/next buttons. A changed search text starts at the selection, so typing continues from the
+current match. A match outside the view, or under the bar, scrolls near the middle of the view.
+Esc or Close removes the highlights, leaves the caret at the start of the last current match and
+returns focus to the document. Each editor keeps its own find state, including across view switches.
+
+IME composition updates the results without taking focus from the field. When one search takes over
+50 ms (a document of thousands of blocks), typing waits for a 250 ms pause before searching again;
+the field still shows each key at once, and Enter/F3 search first. Other matches use
+`--id-color-surface-warning` with a `--id-color-warning` outline and the current match a
+`--id-color-warning` face with `--id-color-paper` text, apart from the accent selection, the blue
+links and references and the text colors in both themes. Find is an Editor interaction without a
+CLI counterpart; Replace and multi-document search are not part of it.
+
+Captures (synthetic document, persistent Chrome): [before · 1440 light](assets/document-find-1982/before-1440-light.png) ·
+[1440 light](assets/document-find-1982/after-1440-light.png) · [1920×1080 light](assets/document-find-1982/after-1920-light.png) ·
+[1440 dark, Korean](assets/document-find-1982/after-1440-dark-ko.png) · [640 light](assets/document-find-1982/after-640-light.png) ·
+[640 dark, Korean](assets/document-find-1982/after-640-dark-ko.png) · [no match](assets/document-find-1982/no-results-1440-light.png) ·
+[table cell](assets/document-find-1982/table-cell-1440-light.png) · [plugin document view](assets/document-find-1982/document-view-1440-light.png).
 
 ## Writing interactions
 

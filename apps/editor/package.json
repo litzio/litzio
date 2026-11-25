@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "tsx --test test/vite-plugins.test.ts test/plugins.test.ts test/plugin-operation-errors.test.ts test/host-client.test.ts test/os-trash.test.ts test/host-paths.test.ts test/assistant-host.test.ts test/provider-connections.test.ts test/file-operations.test.ts test/file-identity.test.ts test/http-host.test.ts test/bibliography.test.ts test/editor.test.ts test/plain-markdown.test.ts test/recovery-diff.test.ts test/block-commands.test.ts test/figure-authoring.test.ts test/image-assets.test.ts test/authoring-thread.test.ts test/shell.test.tsx test/table-editing.test.ts test/table-authoring.test.ts test/link-authoring.test.ts test/inline-math.test.ts test/admonition-authoring.test.ts test/structural-authoring.test.ts test/document-view-editing.test.ts test/label-authoring.test.ts test/cross-reference.test.ts test/browser-fixtures.test.ts test/visual-tokens.test.ts test/list-authoring.test.ts test/code-authoring.test.ts test/footnote-authoring.test.ts test/outline.test.ts test/folder-tree.test.ts",
+    "test": "tsx --test test/vite-plugins.test.ts test/plugins.test.ts test/plugin-operation-errors.test.ts test/host-client.test.ts test/os-trash.test.ts test/host-paths.test.ts test/assistant-host.test.ts test/provider-connections.test.ts test/file-operations.test.ts test/file-identity.test.ts test/http-host.test.ts test/bibliography.test.ts test/editor.test.ts test/plain-markdown.test.ts test/recovery-diff.test.ts test/block-commands.test.ts test/figure-authoring.test.ts test/image-assets.test.ts test/authoring-thread.test.ts test/shell.test.tsx test/table-editing.test.ts test/table-authoring.test.ts test/link-authoring.test.ts test/inline-math.test.ts test/admonition-authoring.test.ts test/structural-authoring.test.ts test/document-view-editing.test.ts test/label-authoring.test.ts test/cross-reference.test.ts test/browser-fixtures.test.ts test/visual-tokens.test.ts test/list-authoring.test.ts test/code-authoring.test.ts test/footnote-authoring.test.ts test/outline.test.ts test/folder-tree.test.ts test/document-find.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -46,6 +46,7 @@
     "mermaid": "12.2.0",
     "pdfjs-dist": "6.5.438",
     "pretendard": "1.3.9",
+    "prosemirror-search": "1.1.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-i18next": "^17.1.0",
@@ -56,13 +57,13 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "npm": "11.19.1",
     "@tailwindcss/vite": "^4.3.5",
     "@types/markdown-it": "13.0.9",
     "@types/node": "^24.19.2",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "6.3.0",
+    "npm": "11.19.1",
     "shadcn": "^4.21.0",
     "tailwindcss": "^4.3.5",
     "tsx": "^4.23.15",
