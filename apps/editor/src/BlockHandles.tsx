@@ -221,9 +221,17 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
       publish(next, hostRect);
       return true;
     };
+    let layoutFrame: number | null = null;
+    const scheduleUpdate = () => {
+      if (layoutFrame !== null) return;
+      layoutFrame = requestAnimationFrame(() => {
+        layoutFrame = null;
+        update();
+      });
+    };
     const transaction = (event?: EditorEvents["transaction"]) => {
       if (handlingKey && event?.transaction.docChanged) input();
-      if (!event || !updateChanged(event.transaction)) update();
+      if (layoutFrame === null && (!event || !updateChanged(event.transaction))) scheduleUpdate();
       const selection = editor.state.selection;
       selectionBlocks = [selection.$from.index(0), selection.$to.index(0)];
       setActive(selection.$from.index(0));
@@ -280,17 +288,13 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
     window.addEventListener("focus", windowFocus);
     editor.on("transaction", transaction);
     // Layout changes must not replace the hovered block with the selected one.
-    const resize = new ResizeObserver(update);
+    const resize = new ResizeObserver(scheduleUpdate);
     resize.observe(host);
     // A minimum-height paper can stay fixed while fonts, images or NodeViews resize the content.
     resize.observe(editor.view.dom);
     // A reread can replace React NodeViews with the same final outer height.
     // Measure after their DOM commits, even when ResizeObserver sees no net resize.
-    let layoutFrame = 0;
-    const mutations = new MutationObserver(() => {
-      cancelAnimationFrame(layoutFrame);
-      layoutFrame = requestAnimationFrame(update);
-    });
+    const mutations = new MutationObserver(scheduleUpdate);
     mutations.observe(editor.view.dom, { childList: true, subtree: true });
     // Settings can move the content without resizing either the paper or editor.
     const settings = host.querySelector(".document-settings");
@@ -317,7 +321,7 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
       window.removeEventListener("focus", windowFocus);
       resize.disconnect();
       mutations.disconnect();
-      cancelAnimationFrame(layoutFrame);
+      if (layoutFrame !== null) cancelAnimationFrame(layoutFrame);
       window.removeEventListener("mousemove", hover);
       editor.view.dom.removeEventListener("beforeinput", input, true);
       editor.view.dom.removeEventListener("keydown", keydown, true);
