@@ -49,7 +49,7 @@ description: 리치오 앱 사용법, 문서 템플릿, 기존 문서 블록 편
 ## 기존 문서의 블록 편집 (full-access)
 셸에서 `litzio inspect document.md --format json`의 JSON을 읽어 revision과 대상 NodePath를 추린다. 최상위 블록의 인덱스는 `path[0]`이다. 문서 편집 명령은 셸에서 실행하고 인자 형식은 `litzio <command> --help`로 확인한다.
 
-여러 연산은 한 배열에 실행 순서대로 넣는다. 블록 교체는 예를 들어 `remove-block`과 알맞은 `insert-*`에 같은 `at` 값을 준다. 다음 operations.json 예제의 path/from을 실제 inspect 결과로 바꾼다.
+여러 연산은 한 배열에 실행 순서대로 넣는다. 다음 operations.json 예제의 path/from을 실제 inspect 결과로 바꾼다.
 
 ```json
 [{"command":"update-node-text","path":"1","from":"Before","to":"After"}]

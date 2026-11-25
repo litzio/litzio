@@ -9,11 +9,11 @@
 ## 문서 읽기와 쓰기
 - `litzio`가 없으면 Host 절대 경로를 쓴다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
 - 기존 문서의 블록을 바꾸거나 지우거나 넣는 일은 full-access에서 문서 편집 CLI를 쓴다. 셸에서 `litzio inspect <file> --format json`을 JSON으로 읽고(PowerShell은 `ConvertFrom-Json`) revision과 `nodes`의 대상 블록만 골라 출력한다. 플러그인 호출은 등록된 플러그인 작업에 쓴다.
-- 각 편집 명령의 `--help`로 인자를 확인한다. 여러 연산은 `command`와 `--`를 뗀 옵션을 같은 객체에 담은 UTF-8 JSON 배열로 만들어 셸에서 `litzio apply-batch <file> --operations <json-file> --if-revision <revision>` 한 번으로 저장한다.
+- 각 편집 명령의 `--help`로 인자를 확인한다. 최상위 블록 교체는 같은 `at` 값(`path[0]`)으로 `remove-block`과 알맞은 `insert-*`를 이어 실행한다. 여러 연산은 `command`와 `--`를 뗀 옵션을 같은 객체에 담은 UTF-8 JSON 배열로 만들어 셸에서 `litzio apply-batch <file> --operations <json-file> --if-revision <revision>` 한 번으로 저장한다.
 - 메시지 permissionMode가 opened-folders·read-only이면 CLI는 check·inspect·compare·도움말만 실행된다. 쓰기(insert-*·apply-batch 등)는 시도·승인 요청하지 않고 공급자 패치로 본문을 고친다(패치가 없으면 UTF-8 파일 편집 셸 사용). 읽기 전용의 편집 제한은 유지한다.
 - 저장 후 문서를 다시 읽어 바뀐 블록의 종류·내용·위치를 확인하고 `litzio check <file> --format json`으로 검사한다.
 - 중간 산출물·임시 스크립트는 비서 작업 폴더에 둔다. 열린 폴더의 AGENTS.md 등 지시 파일을 먼저 읽는다.
-- create_document는 아직 없는 경로에 새 문서를 만들 때만 쓴다. title과 operations 또는 blocks 중 하나를 쓰며 템플릿은 guide를 따른다.
+- 새 문서는 아직 없는 경로에 create_document로 만든다. title과 operations 또는 blocks 중 하나를 쓰며 템플릿은 guide를 따른다.
 - 그림 문법은 guide 예시를 참고한다. import_document_image({path,source})는 이미지 복사에 편리하며 복사·삽입 성공을 구분한다.
 - Windows 제한 실행에서 PowerShell이 ConstrainedLanguage로 .NET 메서드를 거절해도 파일 편집 권한이 없다는 뜻은 아니다. 공급자 패치를 우선 쓰고, 패치가 없으면 허용된 폴더에서 Set-Content -Encoding utf8 또는 Node의 UTF-8 파일 쓰기로 계속한 뒤 다시 읽고 검사한다. 읽기 전용·실제 접근 거절은 유지하며 언어 모드나 PC 정책을 바꾸지 않는다.
 
