@@ -825,6 +825,7 @@ export function createEditorExtensions(
   onAssetChange?: (path: string) => void,
   client?: HostClient,
   onInlineMathShortcut?: (editor: Editor) => boolean,
+  lockStructure = false,
 ): Extensions {
   return [...editorExtensions(onDraftChange, documentPath, validateFigure, hasActiveDraft, chooseImage),
     Extension.create({
@@ -834,14 +835,14 @@ export function createEditorExtensions(
       }),
     }),
     ...(documentPath ? [imageAssets({ host: client && createAssetHost(client), documentPath, reject: onAssetError ?? onReject, pending: onAssetPendingChange, changed: onAssetChange, hasActiveDraft })] : []),
-    documentInteraction(onReject), structureGuard(baseline, onReject, initialDeletedPaths)];
+    documentInteraction(onReject), structureGuard(baseline, onReject, initialDeletedPaths, lockStructure)];
 }
 
-function structureGuard(baseline: TiptapJSON, onReject: (reason?: UiMessage) => void, initialDeletedPaths: readonly string[]): Extension {
+function structureGuard(baseline: TiptapJSON, onReject: (reason?: UiMessage) => void, initialDeletedPaths: readonly string[], lockStructure: boolean): Extension {
   return Extension.create({
     name: "structureGuard",
     addProseMirrorPlugins() {
-      return [structureGuardPlugin(baseline, onReject, initialDeletedPaths)];
+      return [structureGuardPlugin(baseline, onReject, initialDeletedPaths, lockStructure)];
     },
   });
 }
@@ -876,10 +877,36 @@ function commandDeletions(transaction: Transaction, declared: string[]): string[
   return removed.length ? [...new Set([...declared, ...removed])] : declared;
 }
 
-export function structureGuardPlugin(baseline: TiptapJSON, onReject: (reason?: UiMessage) => void, initialDeletedPaths: readonly string[] = []): Plugin {
+/** Shown when a content-only editor refuses a change to its top-level structure. */
+export const LOCKED_STRUCTURE_REJECTION = "This view keeps every block as it is. You can edit the content inside blocks.";
+
+/** The part of a top-level block that content editing keeps: identity, kind (heading level,
+ * Admonition variant) and a table's row and column counts. List items may change. */
+function lockedShape(node: ProseMirrorNode): string {
+  const kind = node.type.name === "heading" ? `:${node.attrs.level}`
+    : node.type.name === "admonition" ? `:${node.attrs.variant}`
+    : node.type.name === "table" ? `:${node.children.filter(child => child.type.name === "tableRow").map(row => row.childCount).join(",")}`
+    : "";
+  return `${node.type.name}${kind}@${node.attrs.sourcePath}`;
+}
+
+/** True when `next` keeps every top-level block of `before`, in order and of the same kind. */
+export function keepsTopLevelStructure(before: ProseMirrorNode, next: ProseMirrorNode): boolean {
+  if (before.childCount !== next.childCount) return false;
+  for (let index = 0; index < next.childCount; index++) {
+    const previous = before.child(index), current = next.child(index);
+    // Typing replaces only the edited block; unchanged siblings stay the same node.
+    if (previous !== current && lockedShape(previous) !== lockedShape(current)) return false;
+  }
+  return true;
+}
+
+export function structureGuardPlugin(baseline: TiptapJSON, onReject: (reason?: UiMessage) => void, initialDeletedPaths: readonly string[] = [], lockStructure = false): Plugin {
   const blocksByPath = snapshotBlocksByPath(baseline);
   return new Plugin<string[]>({
     key: structureGuardKey,
+    // Read by input rules (markdown-input-rules.ts), which would otherwise turn typed text into blocks.
+    lockStructure,
     state: {
       init: () => [...initialDeletedPaths],
       apply(transaction, declared) {
@@ -890,6 +917,11 @@ export function structureGuardPlugin(baseline: TiptapJSON, onReject: (reason?: U
     // save representation. This retains table/inline validation.
     filterTransaction(transaction, state) {
       if (!transaction.docChanged) return true;
+      // Each accepted step keeps the previous structure, so the opening structure is kept.
+      if (lockStructure && !keepsTopLevelStructure(transaction.before, transaction.doc)) {
+        onReject({ key: LOCKED_STRUCTURE_REJECTION });
+        return false;
+      }
       try {
         const next = normalizeEngineDocument(baseline, {
           ...transaction.doc.toJSON(), attrs: { [DELETED_PATHS_ATTR]: commandDeletions(transaction, declaredDeletions(state)) },

@@ -8,8 +8,9 @@ import { getSchema } from "@tiptap/core";
 import { AllSelection, EditorState, NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
 import { parse, serialize, type InlineContent } from "@litzio/core";
 import { applyBlockShortcut, type BlockShortcut } from "../src/markdown-input-rules.ts";
-import { changeHeadingLevel, headingToParagraph, insertDividerAfter, insertQuoteAfter, paragraphToHeading, paragraphToHeadingRejection } from "../src/block-commands.ts";
-import { editorDocumentJSON, editorExtensions, structureGuardPlugin } from "../src/editor-schema.tsx";
+import { addTableColumnRight, addTableRowBelow, BLOCK_COMMANDS, changeAdmonitionVariant, changeHeadingLevel, deleteBlock, headingToParagraph, insertDividerAfter, insertParagraphAfter, insertQuoteAfter, paragraphToHeading, paragraphToHeadingRejection, removeTableColumn, removeTableRow } from "../src/block-commands.ts";
+import { editorDocumentJSON, editorExtensions, LOCKED_STRUCTURE_REJECTION, structureGuardPlugin } from "../src/editor-schema.tsx";
+import { admitContentEdits, structuralEditKinds } from "../src/editor-save.ts";
 import { joinRichProse, selectAllTransaction } from "../src/document-interaction.ts";
 import { collectSupportedEdits, toTiptapDocument, type TiptapJSON } from "../src/tiptap-document.ts";
 import { documentRevision, saveDocumentFile } from "../server/document-api.ts";
@@ -323,4 +324,89 @@ test("empty block select all uses consecutive state and document expansion can b
     assert.ok(node.apply(selectAllTransaction(node)).selection instanceof AllSelection);
     assert.deepEqual(node.apply(selectAllTransaction(node, undefined, false)).selection.toJSON(), node.selection.toJSON());
   }
+});
+
+// Content editing (#1976): the structure guard keeps every top-level block; Save refuses the rest.
+const lockedSource = nativeSource("# Title\n\nFirst paragraph.\n\nSecond paragraph.\n\n:::{table} Caption\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n:::\n\n- one\n- two\n\n:::{warning}\nCheck.\n:::\n");
+
+function contentEditor(lock: boolean) {
+  const editable = loadEditableDocument(lockedSource);
+  const baseline = toTiptapDocument(editable);
+  const schema = getSchema(editorExtensions());
+  const rejections: unknown[] = [];
+  const state = EditorState.create({ schema, doc: schema.nodeFromJSON(baseline),
+    plugins: [structureGuardPlugin(baseline, reason => rejections.push(reason ?? "unsupported"), [], lock)] });
+  return { editable, state, rejections, schema };
+}
+
+function topPos(state: EditorState, index: number): number {
+  let pos = 0;
+  for (let i = 0; i < index; i++) pos += state.doc.child(i).nodeSize;
+  return pos;
+}
+
+function innerPos(state: EditorState, type: string, occurrence = 0): number {
+  const found: number[] = [];
+  state.doc.descendants((node, pos) => { if (node.type.name === type) found.push(pos); });
+  return found[occurrence]! + 1;
+}
+
+const structuralChanges: [string, (state: EditorState) => Transaction][] = [
+  ["Enter split", state => state.tr.split(topPos(state, 1) + 3)],
+  ["Backspace merge", state => state.tr.join(topPos(state, 2))],
+  ["insert", state => { const tr = insertParagraphAfter(state, 1); return tr.insertText("New", tr.selection.from); }],
+  ["delete", state => deleteBlock(state, 1)],
+  ["move", state => BLOCK_COMMANDS.find(command => command.id === "move-down")!.run(state, 1)],
+  ["kind by input rule", state => { const tr = state.tr; assert.ok(applyBlockShortcut(tr, topPos(state, 1) + 1, topPos(state, 1) + 1, { block: "heading", level: 2 })); return tr; }],
+  ["heading level", state => changeHeadingLevel(state, 0, 2)],
+  ["table row", state => addTableRowBelow(state, 3)],
+  ["table column", state => addTableColumnRight(state, 3)],
+  ["table row removal", state => removeTableRow(state, 3, { row: 1, column: 0 })],
+  ["table column removal", state => removeTableColumn(state, 3, { row: 0, column: 1 })],
+  ["Admonition kind", state => changeAdmonitionVariant(state, 5, "tip")],
+  ["select across blocks and type", state => state.tr.insertText("x", topPos(state, 1) + 3, topPos(state, 2) + 3)],
+  ["select all and delete", state => state.tr.setSelection(new AllSelection(state.doc)).deleteSelection()],
+];
+
+test("content editing refuses each structural change and leaves the document unchanged", () => {
+  for (const [name, change] of structuralChanges) {
+    const { state, rejections } = contentEditor(true);
+    const next = state.apply(change(state));
+    assert.ok(next.doc.eq(state.doc), name);
+    assert.deepEqual(rejections, [{ key: LOCKED_STRUCTURE_REJECTION }], name);
+  }
+});
+
+test("a Save request with a structural change is never sent from content editing", () => {
+  for (const [name, change] of structuralChanges) {
+    // The same change as a document tab collects it.
+    const { editable, state, rejections } = contentEditor(false);
+    const next = state.apply(change(state));
+    assert.deepEqual(rejections, [], name);
+    const edits = collectSupportedEdits(editable, editorDocumentJSON(next));
+    assert.notDeepEqual(structuralEditKinds(edits), [], name);
+    assert.throws(() => admitContentEdits(edits), /structural changes/, name);
+  }
+});
+
+test("content editing keeps text, inline math in a cell, list items and captions", () => {
+  const { editable, state, rejections, schema } = contentEditor(true);
+  let next = state.apply(state.tr.insertText(" Fixed", topPos(state, 1) + 1 + "First paragraph".length));
+  next = next.apply(next.tr.insert(innerPos(next, "tableCell", 3), schema.nodes.inlineMath.create({ value: "x^2" })));
+  next = next.apply(next.tr.insertText(" text", innerPos(next, "tableCaption") + "Caption".length));
+  const list = next.doc.child(4);
+  next = next.apply(next.tr.insert(topPos(next, 4) + list.nodeSize - 1,
+    schema.nodes.listItem.create(null, schema.nodes.paragraph.create(null, schema.text("three")))));
+  next = next.apply(next.tr.delete(topPos(next, 4) + 1, topPos(next, 4) + 1 + list.child(0).nodeSize));
+  assert.deepEqual(rejections, []);
+  const edits = collectSupportedEdits(editable, editorDocumentJSON(next));
+  assert.deepEqual(structuralEditKinds(edits), []);
+  admitContentEdits(edits);
+  const saved = saveEdits(lockedSource, edits).markdown;
+  assert.match(saved, /First paragraph Fixed\./);
+  assert.match(saved, /\| 1 \| \$x\^2\$2 \|/);
+  assert.match(saved, /:::\{table\} Caption text/);
+  assert.match(saved, /\*   two\n\*   three\n/);
+  assert.doesNotMatch(saved, /one/);
+  assert.deepEqual(loadEditableDocument(saved).blocks.map(block => block.block), editable.blocks.map(block => block.block));
 });

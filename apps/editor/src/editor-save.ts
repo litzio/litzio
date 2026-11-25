@@ -47,3 +47,28 @@ export async function saveLiveEditor(
     return { kind: "failed", error, conflict: cause instanceof SaveConflictError };
   }
 }
+
+/** Save request items that change top-level structure: block order, splits, merges,
+ * insertions, deletions, heading levels, table rows and columns, and Admonition kinds. */
+export function structuralEditKinds(edits: SupportedEdits): string[] {
+  return [
+    ...(edits.order ? ["order"] : []),
+    ...(edits.splits?.length ? ["splits"] : []),
+    ...(edits.merges?.length ? ["merges"] : []),
+    ...(edits.inserts?.length ? ["inserts"] : []),
+    ...(edits.deletes?.length ? ["deletes"] : []),
+    ...(edits.headingLevels?.length ? ["headingLevels"] : []),
+    ...(edits.tables?.length ? ["tables"] : []),
+    ...(edits.admonitions?.some(edit => edit.variant !== undefined) ? ["admonitionKinds"] : []),
+  ];
+}
+
+/** Content editing never sends a structural change, even if one got past the editor's guard. */
+export function admitContentEdits(edits: SupportedEdits): void {
+  const kinds = structuralEditKinds(edits);
+  if (kinds.length) {
+    throw new SaveContentError(`Content editing does not save structural changes (${kinds.join(", ")}).`, undefined, {
+      phase: "collect", action: "Nothing was sent. Read the document again to discard this change.",
+    });
+  }
+}
