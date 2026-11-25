@@ -201,9 +201,9 @@ in the legend. Table numbering still numbers the table as a whole.
 ```markdown
 :::{table} Operating limits
 
-| Setting | Value             |
-| ------- | ----------------- |
-| Output  | Nominal<br>Limit  |
+| Setting | Value            |
+| ------- | ---------------- |
+| Output  | Nominal<br>Limit |
 
 a. Nominal value.
 
