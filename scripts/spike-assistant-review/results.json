@@ -1,0 +1,4970 @@
+{
+  "catalog": [
+    {
+      "model": "gpt-6.2-sol",
+      "supportedReasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra"
+      ]
+    },
+    {
+      "model": "gpt-6.2-astra",
+      "supportedReasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra"
+      ]
+    },
+    {
+      "model": "gpt-6.1-terra",
+      "supportedReasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra"
+      ]
+    }
+  ],
+  "groups": {
+    "participants-heading": [
+      "std-participants-label"
+    ],
+    "roster": [
+      "std-name-0-0",
+      "std-name-0-1",
+      "std-name-0-2",
+      "std-name-0-3",
+      "std-name-0-4",
+      "std-name-0-5",
+      "std-name-1-0",
+      "std-name-1-1",
+      "std-name-1-2",
+      "std-name-1-3",
+      "std-name-1-4",
+      "std-name-1-5",
+      "std-name-2-0",
+      "std-name-2-1",
+      "std-name-2-2",
+      "std-name-2-3",
+      "std-name-2-4",
+      "std-name-2-5"
+    ],
+    "table-2": [
+      "std-settings"
+    ],
+    "table-L1": [
+      "std-conditional-table"
+    ],
+    "equation-1": [
+      "std-equation-1"
+    ],
+    "equation-2": [
+      "std-equation-2"
+    ],
+    "equation-3": [
+      "std-equation-3"
+    ],
+    "chart-K2": [
+      "std-chart"
+    ],
+    "table-L2": [
+      "std-local-table-a"
+    ],
+    "table-L3": [
+      "std-local-table-b"
+    ],
+    "caption-L3": [
+      "std-local-cap-b"
+    ],
+    "note-L2": [
+      "std-local-note-a"
+    ],
+    "note-L3": [
+      "std-local-note-b"
+    ],
+    "annex-M-title": [
+      "std-record-title"
+    ]
+  },
+  "runs": {
+    "terra-low-1": {
+      "turns": [
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "low",
+          "providerSeconds": 51.574,
+          "observedResponsesWithUsage": 7,
+          "lastResponseTokens": 47831,
+          "totalTokens": 268537,
+          "inputTokens": 266600,
+          "cachedInputTokens": 235008,
+          "outputTokens": 1937,
+          "reasoningOutputTokens": 30,
+          "seconds": 55,
+          "approvalCards": 0
+        },
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "low",
+          "providerSeconds": 62.539,
+          "observedResponsesWithUsage": 9,
+          "lastResponseTokens": 69548,
+          "totalTokens": 558518,
+          "inputTokens": 556352,
+          "cachedInputTokens": 535680,
+          "outputTokens": 2166,
+          "reasoningOutputTokens": 220,
+          "seconds": 64,
+          "approvalCards": 0
+        }
+      ],
+      "detection": {
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19"
+        ],
+        "falseClaims": [],
+        "ambiguous": [
+          "possible-implied-missing-body-call"
+        ],
+        "ownerTable1Notes": false,
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "firstPage": true
+      },
+      "correct": 103,
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 6,
+          "wrong": 2,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 0,
+          "wrong": 3,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 1,
+          "wrong": 1,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [],
+      "stillWrong": [
+        "std-participants-label",
+        "std-settings",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-record-title"
+      ],
+      "fullFixesOfFound": [
+        "roster",
+        "table-L2",
+        "table-L3",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "blocks": {
+        "baselineErrors": 12,
+        "other": 0,
+        "changes": [
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          }
+        ]
+      },
+      "mathMeaning": {
+        "standalone": 0,
+        "cells": 0
+      },
+      "sourceMethods": [
+        "pdftotext",
+        "PyMuPDF"
+      ],
+      "editMethods": [
+        "패치",
+        "Host 이미지 가져오기 시도"
+      ],
+      "externalRead": [
+        "pdf-skill",
+        "memory"
+      ],
+      "readEarlierResultOrAnswer": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "sourcePdfUnchanged": true,
+      "stale": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsPreserved": true,
+      "sidecarUnchanged": true,
+      "display": {
+        "headings": 15,
+        "listItems": 18,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0,
+        "notes": [
+          "K.2 세로축 제목·눈금이 그림 밖에 남음"
+        ]
+      }
+    },
+    "astra-low-1": {
+      "turns": [
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "low",
+          "providerSeconds": 47.394,
+          "observedResponsesWithUsage": 5,
+          "lastResponseTokens": 40895,
+          "totalTokens": 178076,
+          "inputTokens": 176521,
+          "cachedInputTokens": 136832,
+          "outputTokens": 1555,
+          "reasoningOutputTokens": 0,
+          "seconds": 49,
+          "approvalCards": 0
+        },
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "low",
+          "providerSeconds": 115.524,
+          "observedResponsesWithUsage": 12,
+          "lastResponseTokens": 50986,
+          "totalTokens": 564382,
+          "inputTokens": 561139,
+          "cachedInputTokens": 552448,
+          "outputTokens": 3243,
+          "reasoningOutputTokens": 166,
+          "seconds": 118,
+          "approvalCards": 0
+        }
+      ],
+      "detection": {
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "ownerTable1Notes": false,
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "firstPage": true
+      },
+      "correct": 83,
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 7,
+          "wrong": 5,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [
+        "std-matrix-note-a",
+        "std-matrix-note-b",
+        "std-page-note-18",
+        "std-settings-note-a",
+        "std-page-note-19"
+      ],
+      "stillWrong": [
+        "std-participants-label",
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-settings",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-record-title"
+      ],
+      "fullFixesOfFound": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "blocks": {
+        "baselineErrors": 22,
+        "other": 22,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      },
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4
+      },
+      "sourceMethods": [
+        "pdftotext",
+        "pdftoppm",
+        "PyMuPDF"
+      ],
+      "editMethods": [
+        "Python 패치·자산 준비",
+        "패치"
+      ],
+      "externalRead": [
+        "pdf-skill",
+        "memory"
+      ],
+      "readEarlierResultOrAnswer": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "sourcePdfUnchanged": true,
+      "stale": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsPreserved": true,
+      "sidecarUnchanged": true,
+      "display": {
+        "headings": 17,
+        "listItems": 5,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [
+          {
+            "rendered": "(1)",
+            "formula": "J=\\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}"
+          },
+          {
+            "rendered": "(2)",
+            "formula": "R=\\frac{\\sqrt{A_{\\mathrm{rms}}^2-A_0^2}}{A_{\\mathrm{base}}}\\times100\\%"
+          },
+          {
+            "rendered": "(3)",
+            "formula": "\\Theta=\\sqrt[3]{\\sum_{j=2}^{9}b_j^3}"
+          }
+        ],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0,
+        "notes": [
+          "표 1·2가 입력 표와 참조 이미지로 중복 표시됨"
+        ]
+      }
+    },
+    "sol-low-1": {
+      "turns": [
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "low",
+          "providerSeconds": 68.838,
+          "observedResponsesWithUsage": 8,
+          "lastResponseTokens": 52277,
+          "totalTokens": 331849,
+          "inputTokens": 329492,
+          "cachedInputTokens": 277632,
+          "outputTokens": 2357,
+          "reasoningOutputTokens": 52,
+          "seconds": 72,
+          "approvalCards": 0
+        },
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "low",
+          "providerSeconds": 130.286,
+          "observedResponsesWithUsage": 11,
+          "lastResponseTokens": 69490,
+          "totalTokens": 708904,
+          "inputTokens": 704880,
+          "cachedInputTokens": 684544,
+          "outputTokens": 4024,
+          "reasoningOutputTokens": 626,
+          "seconds": 132,
+          "approvalCards": 0
+        }
+      ],
+      "detection": {
+        "missed": [
+          "participants-heading"
+        ],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "ownerTable1Notes": false,
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3",
+          "annex-M-title"
+        ],
+        "firstPage": true
+      },
+      "correct": 104,
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 40,
+          "wrong": 1,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 10,
+          "wrong": 2,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 1,
+          "wrong": 0,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b",
+        "std-record-title"
+      ],
+      "damaged": [
+        "std-page-note-18",
+        "std-page-note-19",
+        "std-record-sponsor"
+      ],
+      "stillWrong": [
+        "std-participants-label",
+        "std-settings",
+        "std-local-table-a",
+        "std-local-table-b"
+      ],
+      "fullFixesOfFound": [
+        "roster",
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3",
+        "annex-M-title"
+      ],
+      "blocks": {
+        "baselineErrors": 23,
+        "other": 23,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 17,
+            "error": true
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 47,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 81,
+            "error": true
+          },
+          {
+            "before": 83,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      },
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4
+      },
+      "sourceMethods": [
+        "pdftotext",
+        "pdftoppm"
+      ],
+      "editMethods": [
+        "Python 사본·자산 준비",
+        "패치"
+      ],
+      "externalRead": [
+        "pdf-skill",
+        "memory",
+        "product-source"
+      ],
+      "readEarlierResultOrAnswer": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "sourcePdfUnchanged": true,
+      "stale": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsPreserved": true,
+      "sidecarUnchanged": true,
+      "display": {
+        "headings": 17,
+        "listItems": 18,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [
+          {
+            "rendered": "(1)",
+            "formula": "J=\\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}"
+          },
+          {
+            "rendered": "(2)",
+            "formula": "R=\\frac{\\sqrt{A_{\\mathrm{rms}}^2-A_0^2}}{A_{\\mathrm{base}}}\\times100\\%"
+          },
+          {
+            "rendered": "(3)",
+            "formula": "\\Theta=\\sqrt[3]{\\sum_{j=2}^{9}b_j^3}"
+          }
+        ],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0,
+        "notes": [
+          "표 2가 세 열로 축소됨"
+        ]
+      }
+    },
+    "terra-low-2": {
+      "turns": [
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "low",
+          "providerSeconds": 53.999,
+          "observedResponsesWithUsage": 7,
+          "lastResponseTokens": 49928,
+          "totalTokens": 285023,
+          "inputTokens": 283237,
+          "cachedInputTokens": 249472,
+          "outputTokens": 1786,
+          "reasoningOutputTokens": 33,
+          "seconds": 56,
+          "approvalCards": 0
+        },
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "low",
+          "providerSeconds": 68.381,
+          "observedResponsesWithUsage": 7,
+          "lastResponseTokens": 70456,
+          "totalTokens": 452941,
+          "inputTokens": 450898,
+          "cachedInputTokens": 431616,
+          "outputTokens": 2043,
+          "reasoningOutputTokens": 119,
+          "seconds": 71,
+          "approvalCards": 0
+        }
+      ],
+      "detection": {
+        "missed": [
+          "participants-heading",
+          "roster",
+          "annex-M-title"
+        ],
+        "unsupported": [
+          "flattened-table"
+        ],
+        "falseClaims": [
+          "printed-equation-numbers-present-in-images"
+        ],
+        "ambiguous": [],
+        "ownerTable1Notes": false,
+        "found": [
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "firstPage": true
+      },
+      "correct": 86,
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 6,
+          "wrong": 2,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 0,
+          "wrong": 3,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-chart",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [],
+      "stillWrong": [
+        "std-participants-label",
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-settings",
+        "std-equation-1",
+        "std-equation-2",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-record-title"
+      ],
+      "fullFixesOfFound": [
+        "chart-K2",
+        "table-L2",
+        "table-L3",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "blocks": {
+        "baselineErrors": 12,
+        "other": 8,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          }
+        ]
+      },
+      "mathMeaning": {
+        "standalone": 0,
+        "cells": 0
+      },
+      "sourceMethods": [
+        "pdftotext",
+        "pdftoppm",
+        "PyMuPDF"
+      ],
+      "editMethods": [
+        "Python 자산 생성",
+        "패치"
+      ],
+      "externalRead": [
+        "pdf-skill",
+        "memory"
+      ],
+      "readEarlierResultOrAnswer": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "sourcePdfUnchanged": true,
+      "stale": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsPreserved": true,
+      "sidecarUnchanged": true,
+      "display": {
+        "headings": 16,
+        "listItems": 5,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0,
+        "notes": [
+          "그림 속 수식 번호를 본문에도 추가해 세 번호가 중복됨"
+        ]
+      }
+    },
+    "astra-low-2": {
+      "turns": [
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "low",
+          "providerSeconds": 62.415,
+          "observedResponsesWithUsage": 6,
+          "lastResponseTokens": 41926,
+          "totalTokens": 217032,
+          "inputTokens": 215314,
+          "cachedInputTokens": 174720,
+          "outputTokens": 1718,
+          "reasoningOutputTokens": 0,
+          "seconds": 65,
+          "approvalCards": 0
+        },
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "low",
+          "providerSeconds": 112.136,
+          "observedResponsesWithUsage": 9,
+          "lastResponseTokens": 49427,
+          "totalTokens": 415962,
+          "inputTokens": 412695,
+          "cachedInputTokens": 407040,
+          "outputTokens": 3267,
+          "reasoningOutputTokens": 226,
+          "seconds": 114,
+          "approvalCards": 0
+        }
+      ],
+      "detection": {
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "ownerTable1Notes": false,
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "firstPage": true
+      },
+      "correct": 82,
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 39,
+          "wrong": 2,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 9,
+          "wrong": 3,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 9,
+          "wrong": 1,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [
+        "std-after-matrix",
+        "std-page-note-18",
+        "std-math-note",
+        "std-page-note-19",
+        "std-bands-a",
+        "std-bands-cap-b",
+        "std-bands-b",
+        "std-bands-note-b"
+      ],
+      "stillWrong": [
+        "std-participants-label",
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-settings",
+        "std-record-title"
+      ],
+      "fullFixesOfFound": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "table-L2",
+        "table-L3",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "blocks": {
+        "baselineErrors": 22,
+        "other": 25,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 30,
+            "error": false
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 36,
+            "error": false
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 39,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      },
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4
+      },
+      "sourceMethods": [
+        "pdftotext",
+        "PyMuPDF"
+      ],
+      "editMethods": [
+        "Python 직접 저장"
+      ],
+      "externalRead": [
+        "pdf-skill",
+        "memory"
+      ],
+      "readEarlierResultOrAnswer": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "sourcePdfUnchanged": true,
+      "stale": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsPreserved": true,
+      "sidecarUnchanged": true,
+      "display": {
+        "headings": 17,
+        "listItems": 5,
+        "tables": 7,
+        "invalidMath": 0,
+        "equationNumbers": [
+          {
+            "rendered": "(1)",
+            "formula": "J=\\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}"
+          },
+          {
+            "rendered": "(2)",
+            "formula": "R=\\frac{\\sqrt{A_{\\mathrm{rms}}^2-A_0^2}}{A_{\\mathrm{base}}}\\times 100\\%"
+          },
+          {
+            "rendered": "(3)",
+            "formula": "\\Theta=\\sqrt[3]{\\sum_{j=2}^{9}b_j^3}"
+          }
+        ],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0,
+        "notes": [
+          "참가자 목록이 그림으로 표시됨",
+          "표 1·2 참조 이미지가 추가됨"
+        ]
+      }
+    },
+    "sol-low-2": {
+      "turns": [
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "low",
+          "providerSeconds": 66.167,
+          "observedResponsesWithUsage": 7,
+          "lastResponseTokens": 49192,
+          "totalTokens": 282362,
+          "inputTokens": 280053,
+          "cachedInputTokens": 231168,
+          "outputTokens": 2309,
+          "reasoningOutputTokens": 24,
+          "seconds": 69,
+          "approvalCards": 0
+        },
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "low",
+          "providerSeconds": 521.534,
+          "observedResponsesWithUsage": 11,
+          "lastResponseTokens": 68056,
+          "totalTokens": 675405,
+          "inputTokens": 671186,
+          "cachedInputTokens": 648832,
+          "outputTokens": 4219,
+          "reasoningOutputTokens": 623,
+          "seconds": 523,
+          "approvalCards": 0
+        }
+      ],
+      "detection": {
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "ownerTable1Notes": false,
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "firstPage": true
+      },
+      "correct": 88,
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [],
+      "stillWrong": [
+        "std-participants-label",
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-settings",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-record-title"
+      ],
+      "fullFixesOfFound": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "blocks": {
+        "baselineErrors": 21,
+        "other": 9,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 83,
+            "error": false
+          }
+        ]
+      },
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4
+      },
+      "sourceMethods": [
+        "pdftotext",
+        "pdftoppm"
+      ],
+      "editMethods": [
+        "Python 후보 작성",
+        "PowerShell 사본 반영"
+      ],
+      "externalRead": [
+        "pdf-skill",
+        "memory",
+        "product-directory",
+        "product-source"
+      ],
+      "readEarlierResultOrAnswer": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "sourcePdfUnchanged": true,
+      "stale": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsPreserved": true,
+      "sidecarUnchanged": true,
+      "display": {
+        "headings": 16,
+        "listItems": 5,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [
+          {
+            "rendered": "(1)",
+            "formula": "J = \\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}"
+          },
+          {
+            "rendered": "(2)",
+            "formula": "R = \\frac{\\sqrt{A_{\\mathrm{rms}}^2-A_0^2}}{A_{\\mathrm{base}}}\\times 100\\%"
+          },
+          {
+            "rendered": "(3)",
+            "formula": "\\Theta = \\sqrt[3]{\\sum_{j=2}^{9}b_j^3}"
+          }
+        ],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0,
+        "notes": [
+          "참가자 이름이 목록 대신 줄바꿈 텍스트로 표시됨"
+        ]
+      }
+    },
+    "terra-low-3": {
+      "turns": [
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "low",
+          "providerSeconds": 71.944,
+          "observedResponsesWithUsage": 8,
+          "lastResponseTokens": 48829,
+          "totalTokens": 318386,
+          "inputTokens": 315901,
+          "cachedInputTokens": 283648,
+          "outputTokens": 2485,
+          "reasoningOutputTokens": 34,
+          "seconds": 75,
+          "approvalCards": 0
+        },
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "low",
+          "providerSeconds": 45.279,
+          "observedResponsesWithUsage": 5,
+          "lastResponseTokens": 57159,
+          "totalTokens": 272856,
+          "inputTokens": 270990,
+          "cachedInputTokens": 263808,
+          "outputTokens": 1866,
+          "reasoningOutputTokens": 99,
+          "seconds": 47,
+          "approvalCards": 0
+        }
+      ],
+      "detection": {
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "unsupported": [
+          "flattened-table"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "ownerTable1Notes": false,
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "firstPage": true
+      },
+      "correct": 102,
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 4,
+          "wrong": 4,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 0,
+          "wrong": 3,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-chart",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [],
+      "stillWrong": [
+        "std-participants-label",
+        "std-settings",
+        "std-equation-1",
+        "std-equation-2",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-record-title"
+      ],
+      "fullFixesOfFound": [
+        "roster",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "blocks": {
+        "baselineErrors": 18,
+        "other": 5,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          }
+        ]
+      },
+      "mathMeaning": {
+        "standalone": 0,
+        "cells": 0
+      },
+      "sourceMethods": [
+        "pdftotext",
+        "PyMuPDF"
+      ],
+      "editMethods": [
+        "Python 자산 생성",
+        "패치"
+      ],
+      "externalRead": [
+        "pdf-skill",
+        "memory"
+      ],
+      "readEarlierResultOrAnswer": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "sourcePdfUnchanged": true,
+      "stale": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsPreserved": true,
+      "sidecarUnchanged": true,
+      "display": {
+        "headings": 17,
+        "listItems": 37,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0,
+        "notes": [
+          "수식이 있는 표 칸이 일반 텍스트로 표시됨"
+        ]
+      }
+    },
+    "astra-low-3": {
+      "turns": [
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "low",
+          "providerSeconds": 53.024,
+          "observedResponsesWithUsage": 5,
+          "lastResponseTokens": 42686,
+          "totalTokens": 184153,
+          "inputTokens": 182569,
+          "cachedInputTokens": 141184,
+          "outputTokens": 1584,
+          "reasoningOutputTokens": 0,
+          "seconds": 56,
+          "approvalCards": 0
+        },
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "low",
+          "providerSeconds": 88.045,
+          "observedResponsesWithUsage": 9,
+          "lastResponseTokens": 50726,
+          "totalTokens": 428464,
+          "inputTokens": 425961,
+          "cachedInputTokens": 419072,
+          "outputTokens": 2503,
+          "reasoningOutputTokens": 50,
+          "seconds": 93,
+          "approvalCards": 0
+        }
+      ],
+      "detection": {
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "ownerTable1Notes": false,
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "firstPage": true
+      },
+      "correct": 104,
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 10,
+          "wrong": 2,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [
+        "std-page-note-18",
+        "std-page-note-19"
+      ],
+      "stillWrong": [
+        "std-participants-label",
+        "std-settings",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-record-title"
+      ],
+      "fullFixesOfFound": [
+        "roster",
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "blocks": {
+        "baselineErrors": 22,
+        "other": 22,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      },
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4
+      },
+      "sourceMethods": [
+        "pdftotext",
+        "pdftoppm",
+        "PyMuPDF"
+      ],
+      "editMethods": [
+        "Python 패치·자산 준비",
+        "패치"
+      ],
+      "externalRead": [
+        "pdf-skill"
+      ],
+      "readEarlierResultOrAnswer": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "sourcePdfUnchanged": true,
+      "stale": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsPreserved": true,
+      "sidecarUnchanged": true,
+      "display": {
+        "headings": 17,
+        "listItems": 23,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [
+          {
+            "rendered": "(1)",
+            "formula": "J=\\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}"
+          },
+          {
+            "rendered": "(2)",
+            "formula": "R=\\frac{\\sqrt{A_{\\mathrm{rms}}^2-A_0^2}}{A_{\\mathrm{base}}}\\times 100\\%"
+          },
+          {
+            "rendered": "(3)",
+            "formula": "\\Theta=\\sqrt[3]{\\sum_{j=2}^{9}b_j^3}"
+          }
+        ],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0,
+        "notes": [
+          "표 1·2 참조 이미지가 추가됨"
+        ]
+      }
+    },
+    "sol-low-3": {
+      "turns": [
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "low",
+          "providerSeconds": 62.597,
+          "observedResponsesWithUsage": 7,
+          "lastResponseTokens": 57673,
+          "totalTokens": 316887,
+          "inputTokens": 314820,
+          "cachedInputTokens": 273792,
+          "outputTokens": 2067,
+          "reasoningOutputTokens": 17,
+          "seconds": 65,
+          "approvalCards": 0
+        },
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "low",
+          "providerSeconds": 174.876,
+          "observedResponsesWithUsage": 16,
+          "lastResponseTokens": 80496,
+          "totalTokens": 1144616,
+          "inputTokens": 1139638,
+          "cachedInputTokens": 1112320,
+          "outputTokens": 4978,
+          "reasoningOutputTokens": 757,
+          "seconds": 177,
+          "approvalCards": 0
+        }
+      ],
+      "detection": {
+        "missed": [
+          "participants-heading"
+        ],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "ownerTable1Notes": false,
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3",
+          "annex-M-title"
+        ],
+        "firstPage": true
+      },
+      "correct": 107,
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 40,
+          "wrong": 1,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 7,
+          "wrong": 1,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "newlyCorrect": [
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [
+        "std-record-sponsor"
+      ],
+      "stillWrong": [
+        "std-participants-label",
+        "std-settings",
+        "std-record-title"
+      ],
+      "fullFixesOfFound": [
+        "roster",
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "table-L2",
+        "table-L3",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "blocks": {
+        "baselineErrors": 23,
+        "other": 12,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 9,
+            "error": false
+          },
+          {
+            "before": 17,
+            "error": true
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 81,
+            "error": true
+          },
+          {
+            "before": 83,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      },
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4
+      },
+      "sourceMethods": [
+        "pdftotext",
+        "pdftoppm"
+      ],
+      "editMethods": [
+        "Python 직접 저장",
+        "CLI 이미지 가져오기"
+      ],
+      "externalRead": [
+        "pdf-skill",
+        "memory"
+      ],
+      "readEarlierResultOrAnswer": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "sourcePdfUnchanged": true,
+      "stale": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsPreserved": true,
+      "sidecarUnchanged": true,
+      "display": {
+        "headings": 15,
+        "listItems": 32,
+        "tables": 8,
+        "invalidMath": 0,
+        "equationNumbers": [
+          {
+            "rendered": "(1)",
+            "formula": "J=\\sum_{k=2}^{7}\\frac{a_k^2}{1+k^2}"
+          },
+          {
+            "rendered": "(2)",
+            "formula": "R=\\frac{\\sqrt{A_{rms}^{2}-A_{0}^{2}}}{A_{base}}\\times100\\%"
+          },
+          {
+            "rendered": "(3)",
+            "formula": "\\Theta=\\sqrt[3]{\\sum_{j=2}^{9}b_j^3}"
+          }
+        ],
+        "codeBlocks": [],
+        "images": [
+          {
+            "loaded": true
+          },
+          {
+            "loaded": true
+          }
+        ],
+        "imageErrors": 0,
+        "notes": [
+          "표 2의 병합 대응 칸이 비어 있음"
+        ]
+      }
+    }
+  },
+  "historicalSupplement": {
+    "sol-1": {
+      "version": "0.172.0",
+      "turns": [
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "medium",
+          "providerSeconds": 82.67,
+          "observedResponsesWithUsage": 9,
+          "lastResponseTokens": 60269,
+          "totalTokens": 425785,
+          "inputTokens": 423127,
+          "cachedInputTokens": 362240,
+          "outputTokens": 2658,
+          "reasoningOutputTokens": 28
+        },
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "medium",
+          "providerSeconds": 140.672,
+          "observedResponsesWithUsage": 13,
+          "lastResponseTokens": 79077,
+          "totalTokens": 942236,
+          "inputTokens": 937407,
+          "cachedInputTokens": 915328,
+          "outputTokens": 4829,
+          "reasoningOutputTokens": 669
+        }
+      ],
+      "blocks": {
+        "baselineErrors": 23,
+        "other": 10,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 9,
+            "error": false
+          },
+          {
+            "before": 17,
+            "error": true
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 81,
+            "error": true
+          },
+          {
+            "before": 83,
+            "error": false
+          }
+        ]
+      }
+    },
+    "terra-2": {
+      "version": "0.172.0",
+      "turns": [
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "high",
+          "providerSeconds": 52.384,
+          "observedResponsesWithUsage": 6,
+          "lastResponseTokens": 45710,
+          "totalTokens": 231910,
+          "inputTokens": 230194,
+          "cachedInputTokens": 200448,
+          "outputTokens": 1716,
+          "reasoningOutputTokens": 44
+        },
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "high",
+          "providerSeconds": 54.991,
+          "observedResponsesWithUsage": 7,
+          "lastResponseTokens": 58872,
+          "totalTokens": 382957,
+          "inputTokens": 381030,
+          "cachedInputTokens": 368512,
+          "outputTokens": 1927,
+          "reasoningOutputTokens": 148
+        }
+      ],
+      "blocks": {
+        "baselineErrors": 15,
+        "other": 16,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          }
+        ]
+      }
+    },
+    "terra-3": {
+      "version": "0.172.0",
+      "turns": [
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "high",
+          "providerSeconds": 53.275,
+          "observedResponsesWithUsage": 6,
+          "lastResponseTokens": 45752,
+          "totalTokens": 231444,
+          "inputTokens": 229591,
+          "cachedInputTokens": 200192,
+          "outputTokens": 1853,
+          "reasoningOutputTokens": 44
+        },
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "high",
+          "providerSeconds": 67.871,
+          "observedResponsesWithUsage": 8,
+          "lastResponseTokens": 65816,
+          "totalTokens": 479215,
+          "inputTokens": 476805,
+          "cachedInputTokens": 457728,
+          "outputTokens": 2410,
+          "reasoningOutputTokens": 229
+        }
+      ],
+      "blocks": {
+        "baselineErrors": 18,
+        "other": 7,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          }
+        ]
+      }
+    },
+    "terra-1": {
+      "version": "0.172.0",
+      "turns": [
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "high",
+          "providerSeconds": 48.137,
+          "observedResponsesWithUsage": 6,
+          "lastResponseTokens": 47527,
+          "totalTokens": 241722,
+          "inputTokens": 239977,
+          "cachedInputTokens": 208768,
+          "outputTokens": 1745,
+          "reasoningOutputTokens": 43
+        },
+        {
+          "model": "gpt-6.1-terra",
+          "effort": "high",
+          "providerSeconds": 69.695,
+          "observedResponsesWithUsage": 7,
+          "lastResponseTokens": 58394,
+          "totalTokens": 388467,
+          "inputTokens": 386103,
+          "cachedInputTokens": 376448,
+          "outputTokens": 2364,
+          "reasoningOutputTokens": 148
+        }
+      ],
+      "blocks": {
+        "baselineErrors": 21,
+        "other": 4,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          }
+        ]
+      }
+    },
+    "sol-2": {
+      "version": "0.172.0",
+      "turns": [
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "medium",
+          "providerSeconds": 81.755,
+          "observedResponsesWithUsage": 9,
+          "lastResponseTokens": 51701,
+          "totalTokens": 391815,
+          "inputTokens": 389058,
+          "cachedInputTokens": 336640,
+          "outputTokens": 2757,
+          "reasoningOutputTokens": 97
+        },
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "medium",
+          "providerSeconds": 133.318,
+          "observedResponsesWithUsage": 11,
+          "lastResponseTokens": 69475,
+          "totalTokens": 687141,
+          "inputTokens": 682207,
+          "cachedInputTokens": 661120,
+          "outputTokens": 4934,
+          "reasoningOutputTokens": 521
+        }
+      ],
+      "blocks": {
+        "baselineErrors": 23,
+        "other": 24,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 17,
+            "error": true
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 27,
+            "error": false
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 81,
+            "error": true
+          },
+          {
+            "before": 83,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      }
+    },
+    "sol-3": {
+      "version": "0.172.0",
+      "turns": [
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "medium",
+          "providerSeconds": 71.079,
+          "observedResponsesWithUsage": 8,
+          "lastResponseTokens": 49745,
+          "totalTokens": 333428,
+          "inputTokens": 331007,
+          "cachedInputTokens": 281216,
+          "outputTokens": 2421,
+          "reasoningOutputTokens": 38
+        },
+        {
+          "model": "gpt-6.2-sol",
+          "effort": "medium",
+          "providerSeconds": 163.273,
+          "observedResponsesWithUsage": 12,
+          "lastResponseTokens": 74273,
+          "totalTokens": 797015,
+          "inputTokens": 790962,
+          "cachedInputTokens": 763008,
+          "outputTokens": 6053,
+          "reasoningOutputTokens": 739
+        }
+      ],
+      "blocks": {
+        "baselineErrors": 23,
+        "other": 13,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 81,
+            "error": true
+          },
+          {
+            "before": 83,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      }
+    },
+    "astra-1": {
+      "version": "0.172.0",
+      "turns": [
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "medium",
+          "providerSeconds": 48.774,
+          "observedResponsesWithUsage": 5,
+          "lastResponseTokens": 41506,
+          "totalTokens": 179241,
+          "inputTokens": 177665,
+          "cachedInputTokens": 137088,
+          "outputTokens": 1576,
+          "reasoningOutputTokens": 0
+        },
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "medium",
+          "providerSeconds": 143.902,
+          "observedResponsesWithUsage": 10,
+          "lastResponseTokens": 54971,
+          "totalTokens": 497176,
+          "inputTokens": 493828,
+          "cachedInputTokens": 482816,
+          "outputTokens": 3348,
+          "reasoningOutputTokens": 501
+        }
+      ],
+      "blocks": {
+        "baselineErrors": 21,
+        "other": 16,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "before": 27,
+            "error": false
+          },
+          {
+            "before": 28,
+            "error": false
+          },
+          {
+            "before": 29,
+            "error": false
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "before": 34,
+            "error": false
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 40,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 46,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      }
+    },
+    "astra-2": {
+      "version": "0.172.0",
+      "turns": [
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "medium",
+          "providerSeconds": 54.56,
+          "observedResponsesWithUsage": 5,
+          "lastResponseTokens": 42537,
+          "totalTokens": 181733,
+          "inputTokens": 179849,
+          "cachedInputTokens": 137856,
+          "outputTokens": 1884,
+          "reasoningOutputTokens": 0
+        },
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "medium",
+          "providerSeconds": 117.694,
+          "observedResponsesWithUsage": 11,
+          "lastResponseTokens": 53052,
+          "totalTokens": 544731,
+          "inputTokens": 541820,
+          "cachedInputTokens": 529152,
+          "outputTokens": 2911,
+          "reasoningOutputTokens": 73
+        }
+      ],
+      "blocks": {
+        "baselineErrors": 22,
+        "other": 22,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      }
+    },
+    "astra-3": {
+      "version": "0.172.0",
+      "turns": [
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "medium",
+          "providerSeconds": 44.227,
+          "observedResponsesWithUsage": 4,
+          "lastResponseTokens": 40659,
+          "totalTokens": 141969,
+          "inputTokens": 140393,
+          "cachedInputTokens": 100736,
+          "outputTokens": 1576,
+          "reasoningOutputTokens": 0
+        },
+        {
+          "model": "gpt-6.2-astra",
+          "effort": "medium",
+          "providerSeconds": 90.946,
+          "observedResponsesWithUsage": 9,
+          "lastResponseTokens": 53547,
+          "totalTokens": 443164,
+          "inputTokens": 440561,
+          "cachedInputTokens": 428672,
+          "outputTokens": 2603,
+          "reasoningOutputTokens": 129
+        }
+      ],
+      "blocks": {
+        "baselineErrors": 22,
+        "other": 22,
+        "changes": [
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 18,
+            "error": true
+          },
+          {
+            "before": 19,
+            "error": true
+          },
+          {
+            "before": 20,
+            "error": true
+          },
+          {
+            "before": 21,
+            "error": true
+          },
+          {
+            "before": 22,
+            "error": true
+          },
+          {
+            "before": 23,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "before": 31,
+            "error": false
+          },
+          {
+            "before": 33,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "before": 37,
+            "error": false
+          },
+          {
+            "before": 45,
+            "error": false
+          },
+          {
+            "before": 51,
+            "error": true
+          },
+          {
+            "before": 52,
+            "error": true
+          },
+          {
+            "before": 63,
+            "error": true
+          },
+          {
+            "before": 64,
+            "error": true
+          },
+          {
+            "before": 65,
+            "error": true
+          },
+          {
+            "before": 66,
+            "error": true
+          },
+          {
+            "before": 67,
+            "error": true
+          },
+          {
+            "before": 68,
+            "error": true
+          },
+          {
+            "before": 73,
+            "error": true
+          },
+          {
+            "before": 74,
+            "error": true
+          },
+          {
+            "before": 76,
+            "error": true
+          },
+          {
+            "before": 77,
+            "error": true
+          },
+          {
+            "before": 78,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": true
+          },
+          {
+            "addition": true,
+            "error": false
+          },
+          {
+            "addition": true,
+            "error": false
+          }
+        ]
+      }
+    }
+  }
+}
