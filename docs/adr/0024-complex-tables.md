@@ -1,8 +1,8 @@
 # ADR-0024: 복잡한 표의 저장 형식과 편집기 전환
 
-- Status: Proposed
+- Status: Accepted
 - Last verified: 2026-11-26. `cbb6d85f`의 잠금 버전으로 MyST AST, Core 내부 쓰기, 공개 읽기·정규 쓰기를 실행했다. 편집기·SDK·Host는 소스를 대조했다.
-- Authority: [#1996의 2026-11-25 소유자 결정](https://github.com/litzio/litzio/issues/1996)에 따른 제안. 수용과 구현은 소유자 승인 뒤 진행한다.
+- Authority: [#1996](https://github.com/litzio/litzio/issues/1996), 2026-11-26 소유자 승인.
 - Related: [ADR-0001](0001-single-document-editor-architecture.md), [ADR-0006](0006-native-document-boundary.md), [ADR-0015](0015-shared-host-operations.md), [ADR-0023](0023-table-inline-breaks-and-notes.md), [표 계약](../design/table-caption-v1.md), [표 상호작용](../design/table-interaction-v1.md)
 
 ## 배경과 제안

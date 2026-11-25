@@ -39,7 +39,7 @@
 | [ADR-0021: 범용 에이전트 비서](adr/0021-general-agent-assistant.md) | Accepted | 범용 비서의 원본 직접 수정, CLI·스킬 기본, 공급자 권한과 앱 데이터 작업 폴더를 정한다. 활성 문서의 저장 경로는 메시지에 직접 전달한다. |
 | [ADR-0022: 플러그인 화면 코드](adr/0022-plugin-screen-code.md) | Accepted | 플러그인이 React 화면 코드를 제공하고 공통 부품·Core 의미·공식 저장 경로를 사용하는 경계를 정한다. 적용 범위는 같은 PC/개발 Host다. |
 | [ADR-0023: 표 칸 줄바꿈과 표 주석](adr/0023-table-inline-breaks-and-notes.md) | Accepted | 직사각형 MyST 표의 인라인 줄바꿈과 표가 소유하는 주석 문단의 저장 형식을 정한다. |
-| [ADR-0024: 복잡한 표의 저장 형식과 편집기 전환](adr/0024-complex-tables.md) | Proposed | 복잡한 격자에만 쓰는 HTML 부분집합, Core와 인터페이스 계약, Tiptap 표 전환 순서를 제안한다. |
+| [ADR-0024: 복잡한 표의 저장 형식과 편집기 전환](adr/0024-complex-tables.md) | Accepted | 복잡한 격자에만 쓰는 HTML 부분집합, Core와 인터페이스 계약, Tiptap 표 전환 순서를 제안한다. |
 
 UI 작업은 루트 [DESIGN.md](../DESIGN.md)에서 시작하고, 아래 세부 계약과 결정표에서 표면·공통 구현을 확인한다.
 
