@@ -164,9 +164,9 @@ async (page, { screenshots = false, openPath, reloadDocument, expect, recoveryRe
   assert(JSON.stringify(await chips.evaluateAll(nodes => nodes.map(node => node.dataset.label))) === '["b","a"]', 'Chip labels');
   assert(JSON.stringify(await texts(editor.getByTestId('footnote-number'))) === '["1","2"]', 'Definition numbers');
   assert(await editor.evaluate(element => {
-    const accent=getComputedStyle(element.querySelector('[data-testid="footnote-reference"] sup')).color;
-    return [...element.querySelectorAll('[data-testid="footnote-number"]')].every(number=>getComputedStyle(number).color===accent);
-  }), 'Definition numbers must share the superscript reference accent');
+    const callColor=getComputedStyle(element.querySelector('[data-testid="footnote-reference"] sup')).color;
+    return [...element.querySelectorAll('[data-testid="footnote-number"]')].every(number=>getComputedStyle(number).color===callColor);
+  }), 'Definition numbers must share the superscript reference color');
   result.numberedByFirstReference = true;
 
   await editor.locator('[data-testid="footnote-reference"][data-label="a"] sup').click();

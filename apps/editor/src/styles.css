@@ -1999,6 +1999,11 @@ ul.list[data-type="taskList"] > li > label > input {
   line-height: 0;
 }
 
+.footnote-reference[data-resolved="true"] sup,
+.footnote-number[data-resolved="true"] {
+  color: var(--id-color-content-link);
+}
+
 .footnote-number {
   margin-right: var(--space-1);
   cursor: pointer;
@@ -3173,7 +3178,12 @@ h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-
 .bibliography-list > li > div { min-width: 0; }
 .bibliography-number { flex-shrink: 0; }
 .bibliography-resources { padding-left: var(--space-4); }
-.citation[data-readiness="complete"] .cross-reference-chip { color: var(--id-color-interaction); text-decoration: none; }
+.citation[data-readiness="complete"] .cross-reference-chip,
+.reference-preview-citation[data-readiness="complete"],
+.reference-preview-entry[data-readiness="complete"] .bibliography-number {
+  color: var(--id-color-content-link);
+  text-decoration: none;
+}
 
 /* Read-only folder preview uses the shared modal surface and existing spacing/type roles. */
 .file-preview[data-slot="dialog-content"] { width: min(var(--layout-file-preview-width), calc(100% - 2rem)); max-width: calc(100% - 2rem); }

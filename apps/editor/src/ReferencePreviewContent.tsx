@@ -5,7 +5,7 @@ import { citationText } from "@litzio/core/citation";
 import { useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { BibliographyReferenceText } from "./BibliographyReferenceText.tsx";
-import { citationNumbers, citationStatus, useBibliography } from "./citation.tsx";
+import { citationNumbers, citationReadiness, citationStatus, useBibliography } from "./citation.tsx";
 import { referenceDisplay, referenceTargets } from "./cross-reference.tsx";
 import { renderEquation } from "./equation-render.ts";
 
@@ -17,7 +17,7 @@ export function ReferencePreviewContent({ editor, anchor }: { editor: Editor; an
     const keys = JSON.parse(anchor.dataset.keys ?? "[]") as string[];
     return <>{keys.map((key, index) => {
       const reference = bibliography?.references.find(reference => reference.key === key);
-      return <div className="reference-preview-entry" key={index}>
+      return <div className="reference-preview-entry" data-readiness={reference?.status} key={index}>
         {reference ? <><span className="bibliography-number">[{reference.number}]</span><BibliographyReferenceText reference={reference} /></>
           : citationStatus([key], citationText([key], citationNumbers(editor.state.doc)), bibliography)}
       </div>;
@@ -36,6 +36,7 @@ export function ReferencePreviewContent({ editor, anchor }: { editor: Editor; an
  * editor instances, event handlers, form controls or document writes. */
 function EndnotePreviewBody({ editor, definition }: { editor: Editor; definition: ProseMirrorNode }) {
   const body = useRef<HTMLParagraphElement>(null);
+  const bibliography = useBibliography();
   useLayoutEffect(() => {
     const schema = DOMSerializer.fromSchema(editor.schema);
     const targets = referenceTargets(editor.state.doc);
@@ -53,13 +54,16 @@ function EndnotePreviewBody({ editor, definition }: { editor: Editor; definition
         const { text, resolved } = referenceDisplay(targets, node.attrs.role as ReferenceRole, String(node.attrs.label));
         return ["span", { class: resolved ? "cross-reference-chip reference-preview-numbered-reference" : "cross-reference-chip" }, text];
       },
-      citation: node => ["span", { class: "cross-reference-chip" }, citationText(node.attrs.keys, citationNumbers(editor.state.doc))],
+      citation: node => ["span", {
+        class: "cross-reference-chip reference-preview-citation",
+        "data-readiness": citationReadiness(node.attrs.keys, bibliography),
+      }, citationText(node.attrs.keys, citationNumbers(editor.state.doc))],
     }, { ...schema.marks,
       // Display link text with its formatting, without creating a focusable destination
       // in this pointer-transparent reading overlay.
       link: () => ["span", { class: "reference-preview-link" }, 0],
     });
     body.current?.replaceChildren(serializer.serializeFragment(definition.content));
-  }, [editor, definition]);
+  }, [editor, definition, bibliography]);
   return <p className="reference-preview-body" ref={body} />;
 }

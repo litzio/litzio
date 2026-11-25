@@ -42,7 +42,7 @@ Plum·Blue·Violet·Teal·Green·Graphite 프리셋도 같은 역할을 바꾸�
 
 `--id-color-interaction`과 `--id-color-accent`는 포인트 색이다.
 주 동작·선택·앱 화면의 링크형 조작·focus에 쓰며, hover·pressed·selected 면은 각각의 surface 토큰을 쓴다.
-문서의 일반 링크와 해결된 번호 참조는 테마별 고정 파랑인 `--id-color-content-link`를 쓴다.
+문서의 일반 링크와 해결된 번호 참조·완료된 인용 번호·정상 미주 호출 및 정의 번호는 테마별 고정 파랑인 `--id-color-content-link`를 쓴다.
 선택 상태와 keyboard focus는 별개로 보인다. 현재 값과 다음 조작 위치가 다르기 때문이다.
 목록·트리·표처럼 여러 줄을 가진 부품은 focus를 상자 전체가 아니라 현재 줄에 표시한다. 상자 테두리는 어느 줄에 있는지 알려 주지 못하고, 창을 열 때마다 큰 강조를 만들기 때문이다.
 
