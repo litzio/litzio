@@ -106,9 +106,9 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
     onSave: save => saved.current?.(save),
   }) : undefined, [file, edit, inherited]);
   sessionRef.current = session;
-  useLocalWriteVerification(scope?.client, file?.path ?? path, session?.pendingLocalWrite, previous => {
+  useLocalWriteVerification(scope?.client, file?.path ?? path, session?.pendingLocalWrite, session?.state === "saving", (previous, result) => {
     // Replace this clean view before a new input can reach the old editor.
-    if (sessionRef.current?.corrected(previous) === "reload") flushSync(discardEdits);
+    if (sessionRef.current?.settle(previous, result) === "reload") flushSync(discardEdits);
   });
   if (session) lastSession.current = session;
   useEffect(() => {

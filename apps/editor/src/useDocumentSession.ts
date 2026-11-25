@@ -20,7 +20,7 @@ import { SaveDisplayError, type SaveErrorLocation } from "./save-error.ts";
 import type { DocumentView } from "./shell/TopBar.tsx";
 import { collectSupportedEdits } from "./tiptap-document.ts";
 import { createDocumentSessionLifetime, messageOf, createDocumentRequests } from "./document-session.ts";
-import { saveLiveEditor } from "./editor-save.ts";
+import { saveLiveEditor, type ProvisionalSave } from "./editor-save.ts";
 import { useLocalWriteVerification } from "./useLocalWriteVerification.ts";
 
 /** Shown until the first Save of a source whose endnote definitions canonical write moves. */
@@ -56,13 +56,12 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   const [document, setDocument] = useState<EditableDocument>(initial.document);
   const sourceRevision = useRef(initial.revision);
   const [externalRevision, setExternalRevision] = useState<string | null>();
-  const [pendingLocalWrite, setPendingLocalWrite] = useState<{ path: string; revision: string }>();
-  useLocalWriteVerification(client, openedPath, pendingLocalWrite?.path === openedPath ? pendingLocalWrite.revision : undefined,
-    (previous, corrected) => {
-      if (!isCurrent() || sourceRevision.current !== previous) return;
-      setExternalRevision(corrected);
-      if (!busyRef.current && editorRef.current && !editorRef.current.hasUnsavedChanges()) void reloadFromDisk(true);
-    });
+  const pendingSave = useRef<{ revision: string; previousRevision: string; checkpoint: ProvisionalSave; awaiting: boolean } | undefined>(undefined);
+  const [pendingRevision, setPendingRevision] = useState<string>();
+  function clearPendingSave(): void {
+    pendingSave.current = undefined;
+    setPendingRevision(undefined);
+  }
   const [bibliography, setBibliography] = useState(initial.bibliography);
   const [bibliographyRoot] = useState(initial.bibliographyRoot);
   const [initialBase] = useState<SaveRequest["base"]>(() => ({
@@ -137,7 +136,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       onAssetPendingChange: (active: boolean) => { if (isCurrent()) setAssetPending(active); },
       onAssetChange: (path: string) => assetChangeRef.current?.(openedPathRef.current, path),
       onAssetError: (reason: string) => { if (isCurrent()) setError(reason); },
-      onAppliedEdit: (dirty: boolean) => { if (isCurrent()) recorder?.edit(dirty); },
+      onAppliedEdit: (dirty: boolean) => { if (isCurrent()) recorder?.edit(dirty || !!pendingSave.current); },
       onDirtyChange: (dirty: boolean) => { if (isCurrent()) setDocumentDirty(dirty); },
       onReferenceTemplatesChange: (templates: import("@litzio/core").ReferenceTemplates | null) => { if (isCurrent()) setReferenceTemplates(templates); },
       onHeadingNumberingChange: (enabled: boolean) => { if (isCurrent()) setHeadingNumbering(enabled); },
@@ -161,7 +160,36 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   busyRef.current = busy;
   const switching = status === "loading" || status === "opening" || status === "creating";
 
+  useLocalWriteVerification(client, openedPath, pendingRevision, busy, (revision, result) => {
+    const pending = pendingSave.current;
+    const editor = editorRef.current;
+    if (!isCurrent() || busyRef.current || !editor || pending?.revision !== revision || sourceRevision.current !== revision) return;
+    if (result.state === "uncorrected" || (result.state === "done" && !result.verified)) {
+      pending.awaiting = false;
+      setPendingRevision(undefined);
+      return;
+    }
+    clearPendingSave();
+    if (result.state === "rejected") {
+      sourceRevision.current = result.revision;
+      sessionBase.current.savedEdits = pending.checkpoint.previousEdits;
+      setExternalRevision(undefined);
+      setError(pending.checkpoint.reject(result));
+      setStatus("save-failed");
+      recorder?.edit();
+    } else if (result.state === "corrected") {
+      setExternalRevision(result.revision);
+      if (!editor.hasUnsavedChanges()) {
+        if (!editor.hasDocumentChanges()) void recorder?.discard();
+        void reloadFromDisk(true);
+      } else if (!editor.hasDocumentChanges()) void recorder?.discard();
+      else recorder?.checkpoint();
+    } else if (editor.hasDocumentChanges()) recorder?.checkpoint();
+    else void recorder?.discard();
+  });
+
   function acceptDocument(next: DocumentFileResponse): void {
+    clearPendingSave();
     setEditorGeneration(lifetime.replace());
     imageChoiceRef.current?.resolve(undefined);
     imageChoiceRef.current = null;
@@ -205,7 +233,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
         return i18n.t("Changes applied on disk. Save or close your local edits before reloading the document.");
       }
       const accept = () => {
-        recorder?.discard();
+        if (!pendingSave.current) void recorder?.discard();
         if (next.kind === "text") replaceFile?.(next);
         else acceptDocument(next);
       };
@@ -226,12 +254,13 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     if (!isCurrent() || view === "read" || !document || !editorRef.current || !openedPath || !sessionBase.current || busyRef.current) return false;
     const editor = editorRef.current;
     const base = sessionBase.current;
+    const previousRevision = sourceRevision.current;
     setError("");
     setNotice("");
     busyRef.current = true;
     setStatus("saving");
     try {
-      const result = await saveLiveEditor(editor, document, { path: openedPath, revision: sourceRevision.current, base }, requestSave, isCurrent);
+      const result = await saveLiveEditor(editor, document, { path: openedPath, revision: previousRevision, base }, requestSave, isCurrent);
       if (result.kind === "superseded") return false;
       if (result.kind === "failed") {
         setError(result.error);
@@ -240,7 +269,13 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       }
       const { payload } = result;
       sourceRevision.current = result.revision;
-      if (result.pendingLocalWrite) setPendingLocalWrite({ path: openedPath, revision: result.revision });
+      if (result.provisional) {
+        pendingSave.current = { revision: result.revision, previousRevision, checkpoint: result.provisional, awaiting: true };
+        setPendingRevision(result.revision);
+        recorder?.edit();
+        await recorder?.flush();
+        if (!isCurrent()) return false;
+      } else clearPendingSave();
       setExternalRevision(undefined);
       setEndnotesMove(false);
       if (payload.bibliography !== undefined && JSON.stringify(payload.bibliography) !== JSON.stringify(bibliography?.declarations ?? [])) {
@@ -249,8 +284,10 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
         if (!isCurrent()) return false;
         setBibliography({ declarations, sources });
       }
-      if (editor.hasDocumentChanges()) recorder?.checkpoint();
-      else recorder?.discard();
+      if (!pendingSave.current) {
+        if (editor.hasDocumentChanges()) recorder?.checkpoint();
+        else void recorder?.discard();
+      }
       const hasPendingUserState = editor.hasUnsavedChanges();
       setStatus(hasPendingUserState ? "saved-pending" : "saved");
       return true;
@@ -360,17 +397,27 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     });
   }
 
-  captureRef.current = () => isCurrent() && editorRef.current?.hasDocumentChanges() ? getSnapshot() : null;
+  captureRef.current = () => {
+    const pending = pendingSave.current;
+    if (!isCurrent() || (!pending && !editorRef.current?.hasDocumentChanges())) return null;
+    const snapshot = getSnapshot();
+    if (pending) {
+      snapshot.file.revision = pending.previousRevision;
+      snapshot.savedEdits = pending.checkpoint.previousEdits;
+      snapshot.editor.savedDocument = pending.checkpoint.savedDocument;
+    }
+    return snapshot;
+  };
 
   return {
     client, kind: "native" as const,
-    recoveryError, discardRecovery: () => recorder?.discard(),
+    recoveryError, discardRecovery: () => pendingSave.current ? undefined : recorder?.discard(),
     suspendRecovery: () => recorder?.cancel(),
-    resumeRecovery: () => { if (editorRef.current?.hasDocumentChanges()) recorder?.edit(); },
+    resumeRecovery: () => { if (pendingSave.current || editorRef.current?.hasDocumentChanges()) recorder?.edit(); },
     relocate(next: string) {
       openedPathRef.current = next;
       setOpenedPath(next);
-      if (editorRef.current?.hasDocumentChanges()) recorder?.edit();
+      if (pendingSave.current || editorRef.current?.hasDocumentChanges()) recorder?.edit();
     },
     async appliedSource(): Promise<string> {
       if (!editorRef.current) throw new Error("Editor is not ready");
@@ -380,8 +427,9 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     acknowledgedRevision: sourceRevision.current,
     externalRevision, externalChanged: externalRevision !== undefined && externalRevision !== sourceRevision.current,
     observeRevision(revision: string | null, expected: string) {
-      if (!isCurrent() || openedPathRef.current !== openedPath || sourceRevision.current !== expected || busyRef.current) return;
+      if (!isCurrent() || openedPathRef.current !== openedPath || sourceRevision.current !== expected || busyRef.current || pendingSave.current?.awaiting) return;
       setExternalRevision(revision);
+      if (pendingSave.current) return;
       if (revision !== null && revision !== sourceRevision.current && revision !== externalRevision && editorRef.current && !editorRef.current.hasUnsavedChanges()) {
         void reloadFromDisk(true);
       }
@@ -402,7 +450,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       sourceRevision.current = result.revision;
       setExternalRevision(undefined);
       if (editor.hasDocumentChanges()) recorder?.edit();
-      else recorder?.discard();
+      else if (!pendingSave.current) void recorder?.discard();
     },
     view, setView, sourceMarkdown, status, setStatus, error, setError, errorCause: errorValue, notice, setNotice, noticeCause: noticeValue, noticeAction,
     saveFailure: errorValue instanceof SaveDisplayError ? errorValue : undefined,

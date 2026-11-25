@@ -6,12 +6,12 @@ import { i18n } from "./i18n.ts";
 
 /** Temporary #1986 receipt observer shared by the tab and the plugin document view. */
 export function useLocalWriteVerification(client: HostClient | undefined, path: string, revision: string | undefined,
-  onCorrection: (revision: string, corrected: string) => void) {
-  const observe = useRef(onCorrection);
-  observe.current = onCorrection;
+  paused: boolean, onSettled: (revision: string, status: Exclude<LocalWriteStatus, { state: "pending" }>) => void) {
+  const observe = useRef(onSettled);
+  observe.current = onSettled;
   const [notice, setNotice] = useState<{ revision: string; corrected: boolean }>();
   useEffect(() => {
-    if (!client || !revision) return;
+    if (!client || !revision || paused) return;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const query = new URLSearchParams({ path, revision });
@@ -21,16 +21,16 @@ export function useLocalWriteVerification(client: HostClient | undefined, path: 
         if (!response.ok) return;
         const status: LocalWriteStatus = await response.json();
         if (controller.signal.aborted) return;
-        if (status.state === "pending") timer = setTimeout(() => void check(), 500);
+        if (status.state === "pending") { timer = setTimeout(() => void check(), 500); return; }
         if (status.state === "corrected" || status.state === "uncorrected") {
           setNotice({ revision, corrected: status.state === "corrected" });
-          if (status.state === "corrected") observe.current(revision, status.revision);
         }
+        observe.current(revision, status);
       } catch { /* Existing disk revision checks still protect the next Save. */ }
     };
     timer = setTimeout(() => void check(), 500);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [client, path, revision]);
+  }, [client, path, revision, paused]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(undefined), 5000);

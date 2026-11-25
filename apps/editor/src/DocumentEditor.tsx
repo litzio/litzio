@@ -101,6 +101,7 @@ export type DocumentEditorHandle = {
   setReferenceStyle(style: ReferenceStyle): void;
   beginSave(): TiptapJSON;
   finishSave(succeeded?: boolean): void;
+  provisionalCheckpoint(): { savedDocument: TiptapJSON; reject(locations: readonly SaveErrorLocation[]): void };
   showSaveErrors(locations: readonly SaveErrorLocation[]): void;
   revealSaveLocation(location: SaveErrorLocation): void;
   renameImagePaths(replacements: MediaReplacement[]): void;
@@ -685,6 +686,15 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         pending.current = null;
         pendingDocument.current = null;
         onDirtyChangeRef.current?.(hasDocumentChanges());
+      },
+      provisionalCheckpoint() {
+        const savedDocument = saved.current!;
+        const submitted = pendingDocument.current;
+        return { savedDocument, reject(locations) {
+          saved.current = savedDocument;
+          updateSaveLocations(editor?.state.doc === submitted ? locations : []);
+          onDirtyChangeRef.current?.(hasDocumentChanges());
+        } };
       },
       showSaveErrors(locations) {
         // Input during the request invalidates the submitted coordinates before they arrive.

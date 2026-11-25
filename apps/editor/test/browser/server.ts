@@ -2,6 +2,7 @@ import { fork } from "node:child_process";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { REPOSITORY_ROOT } from "./fixtures.ts";
 
 const log = process.env.LITZIO_BROWSER_SERVER_LOG;
@@ -17,6 +18,9 @@ if (log) for (const stream of [process.stdout, process.stderr]) {
 // Playwright captures this URL and passes it to workers; it never probes/reuses
 // an unrelated listener while the owned child is starting.
 const ready = (url: string) => console.log(`Browser server: ${url} (port ${new URL(url).port}, owner ${process.pid})`);
+const scenarios: string[] = JSON.parse(process.env.LITZIO_BROWSER_SCENARIOS ?? "[]");
+const rejectionFixture = scenarios.some(name => name === "save-session" || name === "document-view-editing")
+  ? pathToFileURL(path.join(REPOSITORY_ROOT, "apps/editor/test/browser/local-write-rejection.mjs")).href : undefined;
 
 if (process.env.LITZIO_BROWSER_HOST === "http") {
   // The public production CLI deliberately rejects port zero. Ask the OS for
@@ -32,7 +36,8 @@ if (process.env.LITZIO_BROWSER_HOST === "http") {
   const child = fork(path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), [
     "daemon", "run", "--channel", "development", "--port", String(port),
     "--root", "tmp/http-host-a", "--root", "tmp/http-host-b",
-  ], { cwd: REPOSITORY_ROOT, execArgv: [], stdio: ["ignore", "pipe", "pipe", "ipc"], windowsHide: true });
+  ], { cwd: REPOSITORY_ROOT, execArgv: rejectionFixture ? ["--import", rejectionFixture] : [],
+    stdio: ["ignore", "pipe", "pipe", "ipc"], windowsHide: true });
   child.stdout!.on("data", chunk => process.stdout.write(chunk));
   child.stderr!.on("data", chunk => process.stderr.write(chunk));
   const stop = () => { child.kill("SIGTERM"); };
@@ -48,7 +53,8 @@ if (process.env.LITZIO_BROWSER_HOST === "http") {
     if ((message as { ready?: boolean }).ready) ready(`http://127.0.0.1:${port}`);
   });
 } else {
-  if (JSON.parse(process.env.LITZIO_BROWSER_SCENARIOS ?? "[]").includes("vite-plugins")) {
+  if (rejectionFixture) await import(rejectionFixture);
+  if (scenarios.includes("vite-plugins")) {
     const directory = process.env.LITZIO_BROWSER_DAEMON_DIR!;
     const fixture = path.join(REPOSITORY_ROOT, "apps/editor/test/fixtures/codex-app-server.mjs");
     const windows = process.platform === "win32";

@@ -208,8 +208,10 @@ export type SaveResponse = Pick<DocumentFileResponse, "revision"> & { pendingLoc
 /** Temporary #1986 verification receipt, scoped to the path and acknowledged revision. */
 export type LocalWriteStatus =
   | { state: "pending" }
-  | { state: "done" }
+  /** An expired or unknown receipt does not confirm the candidate. */
+  | { state: "done"; verified?: true }
   | { state: "corrected"; revision: string }
+  | { state: "rejected"; revision: string; reason: string; failure: SaveFailure }
   | { state: "uncorrected" };
 
 export type SourceResponse = { markdown: string };

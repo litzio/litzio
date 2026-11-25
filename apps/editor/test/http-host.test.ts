@@ -590,8 +590,19 @@ test("fast Save verifies the original work, corrects only its own bytes, and kee
   inject = "rejected";
   const invalid = await (await submit(rejected, "")).json();
   assert.equal(invalid.pendingLocalWrite, true);
-  assert.deepEqual(await receipt(rejected.path, invalid.revision), { state: "corrected", revision: rejected.revision });
+  const rejection = await receipt(rejected.path, invalid.revision);
+  assert.equal(rejection.state, "rejected");
+  assert.equal(rejection.revision, rejected.revision);
   assert.equal(fs.readFileSync(rejected.path, "utf8"), rejected.source);
+  const refusedAgain = await submit(rejected, "");
+  assert.equal(refusedAgain.status, 400);
+  const diagnostic = await refusedAgain.json();
+  assert.equal(rejection.reason, diagnostic.error);
+  assert.deepEqual(rejection.failure, diagnostic.failure);
+  assert.deepEqual(rejection.failure.target, { path: [2], part: 0 });
+  const accepted = await submit(rejected, "Valid retry.");
+  assert.equal(accepted.status, 200);
+  assert.equal((await accepted.json()).pendingLocalWrite, undefined);
 
   const external = await open("external");
   const waitingExternal = hold();
@@ -609,7 +620,7 @@ test("fast Save verifies the original work, corrects only its own bytes, and kee
   const interruptedSave = await (await submit(interrupted, "Remain saved.")).json();
   assert.equal(interruptedSave.pendingLocalWrite, true);
   await (await waitingWorker).worker.terminate();
-  assert.deepEqual(await receipt(interrupted.path, interruptedSave.revision), { state: "done" });
+  assert.deepEqual(await receipt(interrupted.path, interruptedSave.revision), { state: "done", verified: true });
   assert.equal(fs.readFileSync(interrupted.path, "utf8"), interrupted.source.replace("Alpha.", "Remain saved."));
 
   const stats = await (await send("/api/local-write-statistics")).json();
@@ -617,8 +628,8 @@ test("fast Save verifies the original work, corrects only its own bytes, and kee
   assert.equal(stats.paragraph.mismatches, 3);
   assert.equal(stats.paragraph.documents, 5);
   assert.equal(stats.fallback["verification-pending"], 1);
-  assert.equal(stats.fallback["verification-disabled-for-document"], 1);
-  assert.match(warnings.join("\n"), /verify-local-write: paragraph, rejected\/corrected, 3 blocks/);
+  assert.equal(stats.fallback["verification-disabled-for-document"], 3);
+  assert.match(warnings.join("\n"), /verify-local-write: paragraph, rejected\/corrected, 3 blocks, block 2/);
   assert.match(warnings.join("\n"), /verify-local-write: paragraph, different\/uncorrected, 3 blocks/);
   for (const entry of warnings) assert.doesNotMatch(entry, /Alpha|Injected|\.md|New external/);
 

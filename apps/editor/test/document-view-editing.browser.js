@@ -333,6 +333,45 @@ async (page, {expect, screenshots, pluginFixture}) => {
   if (screenshots) await captureSizes('fast-save-correction');
   await page.unroute(heldStatus);
 
+  const rejectedPath = [root, 'content-edit', 'local-write-rejected.md'].join(separator);
+  config = {path: rejectedPath, edit: true, linked: false, revision: '', paths: []};
+  await open();
+  const beforeReject = await read(rejectedPath);
+  const saveResponse = () => page.waitForResponse(response => response.url().endsWith('/api/document') && response.request().method() === 'POST');
+  let holdReceipt = true;
+  await page.route(heldStatus, route => holdReceipt ? route.fulfill({json:{state:'pending'}}) : route.continue());
+  try {
+    await paragraph('Second paragraph.').click(); await page.keyboard.press('End'); await page.keyboard.type(' Rejected edit.');
+    const posted = saveResponse();
+    await page.keyboard.press('Control+s');
+    const candidate = await (await posted).json();
+    expect(candidate.pendingLocalWrite).toBe(true);
+    await expect.poll(lastEdit).toMatchObject({state:'clean', revision:candidate.revision});
+    holdReceipt = false;
+    await expect.poll(lastEdit).toMatchObject({state:'failed', revision:beforeReject.revision});
+    expect((await read(rejectedPath)).source).toBe(beforeReject.source);
+    await expect(paragraph('Second paragraph.')).toHaveText('Second paragraph. Rejected edit.');
+    await expect(workspace.locator('.task-header')).toContainText('Not saved');
+    const error = workspace.getByTestId('document-view-save-error');
+    await expect(error).toContainText('Block 2 (paragraph)');
+    await expect(error).toContainText('empty paragraph cannot be saved');
+    await page.keyboard.type(' Newer text.');
+    const retry = saveResponse();
+    await page.keyboard.press('Control+s');
+    const refused = await retry;
+    expect(refused.status()).toBe(400);
+    expect(await refused.json()).toMatchObject({error:'empty paragraph cannot be saved', failure:{target:{path:[2],part:0}}});
+    expect(refused.request().postDataJSON().revision).toBe(beforeReject.revision);
+    expect(refused.request().postDataJSON().base.savedEdits).toBeUndefined();
+    await expect(error).toContainText('empty paragraph cannot be saved');
+    await expect(paragraph('Second paragraph.')).toHaveText('Second paragraph. Rejected edit. Newer text.');
+    const accepted = saveResponse();
+    await page.keyboard.press('Control+s');
+    expect((await (await accepted).json()).pendingLocalWrite).toBeUndefined();
+    await expect.poll(lastEdit).toMatchObject({state:'clean'});
+    expect((await read(rejectedPath)).source).toContain('Second paragraph. Rejected edit. Newer text.');
+  } finally { await page.unroute(heldStatus); }
+
   // A document without blocks takes no input: nothing it could hold can be saved.
   config = {path: emptyPath, edit: true, linked: false, revision: '', paths: []};
   await open();

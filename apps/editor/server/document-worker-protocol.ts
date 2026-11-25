@@ -17,8 +17,9 @@ export type DocumentResults = {
   open: DocumentReadModel | undefined;
   bibliography: string[];
   "check-text": boolean;
-  save: SaveResponse & { markdown: string; localWrite?: { kind: LocalWriteKind; blockCount: number }; fallback?: string };
-  "verify-local-write": { outcome: "equal" } | { outcome: "different"; markdown: string; revision: string } | { outcome: "rejected" };
+  save: SaveResponse & { markdown: string; localWrite?: { kind: LocalWriteKind; blockCount: number; path: readonly number[] }; fallback?: string };
+  "verify-local-write": { outcome: "equal" } | { outcome: "different"; markdown: string; revision: string }
+    | ({ outcome: "rejected" } & Pick<Extract<Diagnostic, { kind: "save" }>, "reason" | "failure">);
 };
 
 type Diagnostic =
@@ -33,10 +34,13 @@ export function documentDiagnostic(error: unknown): Diagnostic {
   if (error instanceof DocumentConflictError) return { kind: "conflict" };
   if (error instanceof NativeDocumentError) return { kind: "native", code: error.code, issue: writeIssueOf(error) };
   if (error instanceof SaveContentError) {
-    const { reason, code, phase, action, target, block, cell, line } = error;
-    return { kind: "save", reason, failure: { code, phase, action, target, block, cell, line } };
+    return { kind: "save", ...saveDiagnostic(error) };
   }
   return { kind: "error", message: error instanceof Error ? error.message : String(error) };
+}
+
+export function saveDiagnostic({ reason, code, phase, action, target, block, cell, line }: SaveContentError) {
+  return { reason, failure: { code, phase, action, target, block, cell, line } };
 }
 
 export function documentWorkError(diagnostic: Diagnostic): Error {

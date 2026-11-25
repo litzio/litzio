@@ -44,6 +44,7 @@ import type { DocumentSaveCache } from "./document-save-cache.ts";
 import { DocumentConflictError, prepareDocumentSave, replayCurrent, verifySaveRevision, type FileSaveRequest } from "./document-save-compute.ts";
 export { DocumentConflictError } from "./document-save-compute.ts";
 import { DocumentThreadError, type DocumentThread } from "./document-thread.ts";
+import { saveDiagnostic } from "./document-worker-protocol.ts";
 
 import type {
   SampleAvailability,
@@ -62,11 +63,12 @@ import type {
 import type { SaveFailure } from "../shared/save-error.ts";
 
 function errorPayload(error: unknown, access: FileAccess = LOCAL_FILE_ACCESS): DocumentErrorResponse {
-  return { error: error instanceof NativeDocumentError ? error.message : fileErrorMessage(error instanceof SaveContentError && error.phase === "file" ? error.cause ?? error : error, access),
+  if (error instanceof SaveContentError) {
+    return { error: error.phase === "file" ? fileErrorMessage(error.cause ?? error, access) : error.reason,
+      target: error.target, failure: saveDiagnostic(error).failure };
+  }
+  return { error: error instanceof NativeDocumentError ? error.message : fileErrorMessage(error, access),
     ...(error instanceof NativeDocumentError ? { code: error.code, issue: writeIssueOf(error) } : {}),
-    ...(error instanceof SaveContentError ? { target: error.target, failure: {
-      code: error.code, phase: error.phase, action: error.action, target: error.target, block: error.block, cell: error.cell, line: error.line,
-    } } : {}),
     ...(error instanceof DocumentConflictError ? { failure: { phase: "revision", action:
       "Keep editing, or copy applied content from Source. Reload only when you are ready to discard local changes." } satisfies SaveFailure } : {}),
   };

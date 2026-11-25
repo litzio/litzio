@@ -1,7 +1,7 @@
 import type { ScreenDocumentEditState } from "@litzio/plugin-sdk";
-import type { DocumentFileResponse, SaveRequest, SaveResponse } from "../../shared/document-protocol.ts";
+import type { DocumentFileResponse, LocalWriteStatus, SaveRequest, SaveResponse } from "../../shared/document-protocol.ts";
 import type { DocumentEditorHandle } from "../DocumentEditor.tsx";
-import { admitContentEdits, saveLiveEditor } from "../editor-save.ts";
+import { admitContentEdits, saveLiveEditor, type ProvisionalSave } from "../editor-save.ts";
 import type { SaveDisplayError } from "../save-error.ts";
 
 export type ContentEditState = ScreenDocumentEditState["state"];
@@ -26,7 +26,7 @@ export function createContentEditSession(options: {
   const base: SaveRequest["base"] = { source: snapshot.source };
   const own = new Set([...options.continues ?? [], snapshot.revision]);
   let latest = snapshot.revision;
-  let pendingLocalWrite: string | undefined;
+  let pending: { revision: string; checkpoint: ProvisionalSave } | undefined;
   let state: ContentEditState = "clean";
   let error: SaveDisplayError | undefined;
   let edits = 0, failedEdits = -1;
@@ -62,7 +62,7 @@ export function createContentEditSession(options: {
     }
     own.add(result.revision);
     latest = result.revision;
-    if (result.pendingLocalWrite) pendingLocalWrite = result.revision;
+    pending = result.provisional && { revision: result.revision, checkpoint: result.provisional };
     set(editor.hasDocumentChanges() ? "unsaved" : "clean");
     options.onSave({ previousRevision, revision: result.revision });
     return true;
@@ -77,11 +77,22 @@ export function createContentEditSession(options: {
   return {
     get state() { return state; },
     get revision() { return latest; },
-    get pendingLocalWrite() { return pendingLocalWrite; },
-    corrected(previous: string): "reload" | undefined {
-      if (disposed || latest !== previous) return;
-      if (state === "saving" || options.editor()?.hasUnsavedChanges()) set("conflict");
-      else return "reload";
+    get pendingLocalWrite() { return pending?.revision; },
+    settle(previous: string, result: Exclude<LocalWriteStatus, { state: "pending" }>): "reload" | undefined {
+      if (disposed || state === "saving" || latest !== previous || pending?.revision !== previous) return;
+      if (result.state === "uncorrected" || (result.state === "done" && !result.verified)) return;
+      const { checkpoint } = pending;
+      pending = undefined;
+      if (result.state === "rejected") {
+        own.delete(previous);
+        latest = result.revision;
+        base.savedEdits = checkpoint.previousEdits;
+        failedEdits = edits;
+        set("failed", checkpoint.reject(result));
+      } else if (result.state === "corrected") {
+        if (options.editor()?.hasUnsavedChanges()) set("conflict");
+        else return "reload";
+      } else options.onChange();
     },
     get path() { return snapshot.path; },
     get error() { return error; },

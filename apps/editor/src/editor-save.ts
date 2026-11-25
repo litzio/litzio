@@ -1,5 +1,5 @@
 import type { EditableDocument } from "@litzio/core";
-import type { SaveRequest, SaveResponse, SupportedEdits } from "../shared/document-protocol.ts";
+import type { LocalWriteStatus, SaveRequest, SaveResponse, SupportedEdits } from "../shared/document-protocol.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 import type { DocumentEditorHandle } from "./DocumentEditor.tsx";
 import { messageOf, SaveConflictError } from "./document-session.ts";
@@ -7,8 +7,14 @@ import { SaveDisplayError } from "./save-error.ts";
 import { collectSupportedEdits, toTiptapDocument, type TiptapJSON } from "./tiptap-document.ts";
 import { keepsEndnoteReferences } from "./structure-lock.ts";
 
+export type ProvisionalSave = {
+  savedDocument: TiptapJSON;
+  previousEdits: SupportedEdits | undefined;
+  reject(status: Extract<LocalWriteStatus, {state: "rejected"}>): SaveDisplayError;
+};
+
 export type EditorSaveResult =
-  | ({ kind: "saved"; payload: SupportedEdits } & SaveResponse)
+  | ({ kind: "saved"; payload: SupportedEdits; provisional?: ProvisionalSave } & SaveResponse)
   | { kind: "failed"; error: SaveDisplayError; conflict: boolean }
   /** The editor was replaced or unmounted while the request was pending; nothing was acknowledged. */
   | { kind: "superseded" };
@@ -35,9 +41,24 @@ export async function saveLiveEditor(
     admit?.(payload, submitted);
     const next = await requestSave({ path: target.path, revision: target.revision, base: target.base, ...payload });
     if (!current()) return { kind: "superseded" };
+    let provisional: ProvisionalSave | undefined;
+    if (next.pendingLocalWrite) {
+      const checkpoint = editor.provisionalCheckpoint();
+      provisional = {
+        savedDocument: checkpoint.savedDocument,
+        previousEdits: target.base.savedEdits,
+        reject(status) {
+          const failure = new SaveDisplayError(
+            [new SaveContentError(status.reason, status.failure.target, status.failure)], submitted, payload,
+          );
+          checkpoint.reject(failure.locations);
+          return failure;
+        },
+      };
+    }
     target.base.savedEdits = payload;
     editor.finishSave(true);
-    return { kind: "saved", ...next, payload };
+    return { kind: "saved", ...next, payload, ...(provisional ? { provisional } : {}) };
   } catch (cause) {
     if (!current()) return { kind: "superseded" };
     const failure = cause instanceof SaveContentError ? cause

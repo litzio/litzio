@@ -345,24 +345,29 @@ export function createRecoveryRecorder(id: string, documentPath: () => string, c
     return recordingGeneration;
   };
   const reportFailure = (error: unknown) => { failures++; failed(error); };
+  const record = () => {
+    const allowed = permit;
+    if (!allowed) return queue;
+    const current = epoch;
+    queue = queue.then(async () => {
+      const token = await allowed;
+      if (!token || current !== epoch) return;
+      let capturedFailures = failures;
+      const written = await recoveryStorage.write(id, token, () => {
+        if (current !== epoch) return undefined;
+        const snapshot = capture();
+        capturedFailures = failures;
+        return snapshot ? { id, version: RECOVERY_VERSION, recordingGeneration: resumeDirty(), path: snapshot.file.path, recordedAt: Date.now(), recoveryText: recoveryText(snapshot), snapshot } : null;
+      });
+      if (written && current === epoch && capturedFailures === failures) succeeded();
+    }).catch(error => { if (current === epoch) reportFailure(error); });
+    return queue;
+  };
   const schedule = () => {
     if (timer || !permit) return;
-    const current = epoch;
     timer = setTimeout(() => {
       timer = undefined;
-      const allowed = permit!;
-      queue = queue.then(async () => {
-        const token = await allowed;
-        if (!token || current !== epoch) return;
-        let capturedFailures = failures;
-        const written = await recoveryStorage.write(id, token, () => {
-          if (current !== epoch) return undefined;
-          const snapshot = capture();
-          capturedFailures = failures;
-          return snapshot ? { id, version: RECOVERY_VERSION, recordingGeneration: resumeDirty(), path: snapshot.file.path, recordedAt: Date.now(), recoveryText: recoveryText(snapshot), snapshot } : null;
-        });
-        if (written && current === epoch && capturedFailures === failures) succeeded();
-      }).catch(error => { if (current === epoch) reportFailure(error); });
+      void record();
     }, 500);
   };
   const cancel = () => { epoch++; clearTimeout(timer); timer = undefined; permit = undefined; };
@@ -381,6 +386,11 @@ export function createRecoveryRecorder(id: string, documentPath: () => string, c
       schedule();
     },
     checkpoint: schedule,
+    flush() {
+      clearTimeout(timer);
+      timer = undefined;
+      return record();
+    },
     discard(): Promise<boolean> {
       cancel();
       // A never-edited recorder owns neither a ticket nor a record. Restores call edit().

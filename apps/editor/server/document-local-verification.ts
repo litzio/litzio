@@ -19,6 +19,7 @@ type Counts = ReturnType<typeof empty>;
 export class LocalWriteVerification {
   readonly enabled = process.env.LITZIO_LOCAL_WRITE !== "0";
   readonly pending = new Map<string, string>();
+  private readonly verified = new Map<string, string>();
   // Kept for the lifetime of the Host, including through a worker restart.
   readonly disabled = new Map<string, { revision: string; status: Exclude<LocalWriteStatus, { state: "pending" } | { state: "done" }> }>();
 
@@ -27,7 +28,8 @@ export class LocalWriteVerification {
   status(path: string, revision: string): LocalWriteStatus {
     const failure = this.disabled.get(path);
     if (failure?.revision === revision) return failure.status;
-    return { state: this.pending.get(path) === revision ? "pending" : "done" };
+    if (this.pending.get(path) === revision) return { state: "pending" };
+    return { state: "done", ...(this.verified.get(path) === revision ? { verified: true } : {}) };
   }
 
   statistics() {
@@ -59,9 +61,15 @@ export class LocalWriteVerification {
           corrected = true;
         }
       } catch { /* A concurrent change or file error can prevent correction. */ }
-      this.disabled.set(path, { revision, status: corrected
-        ? { state: "corrected", revision: correctedRevision } : { state: "uncorrected" } });
-      this.report(kind, blockCount, `${full.outcome}/${corrected ? "corrected" : "uncorrected"}`);
+      this.disabled.set(path, { revision, status: full.outcome === "rejected"
+        ? { state: "rejected", revision: correctedRevision, reason: full.reason, failure: full.failure }
+        : corrected ? { state: "corrected", revision: correctedRevision } : { state: "uncorrected" } });
+      this.report(kind, blockCount, localWrite!.path, `${full.outcome}/${corrected ? "corrected" : "uncorrected"}`);
+    } else {
+      this.verified.delete(path);
+      this.verified.set(path, revision);
+      // Receipts are disposable, like the worker's approval cache.
+      if (this.verified.size > 64) this.verified.delete(this.verified.keys().next().value!);
     }
     this.count(path, kind, blockCount, mismatch);
     // A foreground Save can supersede the candidate before its comparison runs.
@@ -70,7 +78,7 @@ export class LocalWriteVerification {
 
   failed(path: string, candidate: DocumentResults["save"]) {
     this.disabled.set(path, { revision: candidate.revision, status: { state: "uncorrected" } });
-    this.report(candidate.localWrite!.kind, candidate.localWrite!.blockCount, "verification-unavailable");
+    this.report(candidate.localWrite!.kind, candidate.localWrite!.blockCount, candidate.localWrite!.path, "verification-unavailable");
   }
 
   private count(path: string, kind: LocalWriteKind, blockCount: number, mismatch: boolean) {
@@ -89,8 +97,10 @@ export class LocalWriteVerification {
     });
   }
 
-  private report(kind: LocalWriteKind, blockCount: number, reason: string) {
-    this.warn(`verify-local-write: ${kind}, ${reason}, ${blockCount} blocks`);
+  private report(kind: LocalWriteKind, blockCount: number, location: readonly number[], reason: string) {
+    // Core's body paths start at 1. Cell row/column offsets start at 0.
+    const [block, row, column] = location;
+    this.warn(`verify-local-write: ${kind}, ${reason}, ${blockCount} blocks, block ${block}${kind === "cell" ? `, row ${row + 1}, column ${column + 1}` : ""}`);
   }
 
   private read(): { counts: Counts; revision?: string } {

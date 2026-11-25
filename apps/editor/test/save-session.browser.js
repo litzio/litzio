@@ -1,5 +1,5 @@
 // Real scratch-file saves across engine history, drafts and an external conflict.
-async (page, { expect, openDocument, waitForActivePath, reloadDocument, screenshots }) => {
+async (page, { expect, openDocument, waitForActivePath, reloadDocument, recoveryRecords, screenshots }) => {
   await page.unrouteAll();
   await page.reload();
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -629,5 +629,66 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
     await expect(paragraph()).toHaveText('First paragraph. Fast. Keep this edit.');
     check('dirtyTabKeepsInputAfterLocalSaveCorrection', (await read(localFile)).revision === correctionRevision);
   } finally { await page.unroute('**/api/local-write-status?*'); }
+
+  for (const closeBeforeReceipt of [false, true]) {
+    const name = closeBeforeReceipt ? 'local-write-closed.md' : 'local-write-rejected.md';
+    const path = [root, 'tmp', 'save-session', name].join(separator);
+    await open(path);
+    const original = await read(path);
+    let holdReceipt = true;
+    const receiptURL = '**/api/local-write-status?*';
+    const saveResponse = () => page.waitForResponse(response => response.url() === origin + '/api/document' && response.request().method() === 'POST');
+    await page.route(receiptURL, route => holdReceipt ? route.fulfill({json:{state:'pending'}}) : route.continue());
+    try {
+      await paragraph().click(); await page.keyboard.press('End'); await page.keyboard.type(' Rejected edit.');
+      const posted = saveResponse();
+      await save();
+      const candidate = await (await posted).json();
+      expect(candidate.pendingLocalWrite).toBe(true);
+      if (closeBeforeReceipt) {
+        await page.getByRole('button', {name:'Close ' + name, exact:true}).click();
+        await expect(page.getByRole('tab', {name, exact:true})).toHaveCount(0);
+      } else {
+        await paragraph().click(); await page.keyboard.press('End'); await page.keyboard.type(' Newer text.');
+      }
+      let receipt;
+      await expect.poll(async () => {
+        receipt = await (await page.request.get(origin + '/api/local-write-status?path=' +
+          encodeURIComponent(path) + '&revision=' + candidate.revision)).json();
+        return receipt.state;
+      }).toBe('rejected');
+      expect(receipt.revision).toBe(original.revision);
+      expect((await read(path)).source).toBe(original.source);
+      holdReceipt = false;
+      if (closeBeforeReceipt) {
+        await openDocument(page, path);
+        const prompt = page.getByTestId('recovery-prompt');
+        await expect(prompt).toContainText(name);
+        await prompt.getByRole('button', {name:'Restore work', exact:true}).click();
+        await expect(paragraph()).toHaveText('First paragraph. Rejected edit.');
+      } else {
+        await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'save-failed');
+        await expect(paragraph()).toHaveText('First paragraph. Rejected edit. Newer text.');
+        await expect(page.locator('.save-error-content')).toContainText('Block 1 (paragraph)');
+        await page.locator('.save-error-details summary').click();
+        await expect(page.locator('.save-error-details')).toContainText(receipt.reason);
+        const retry = saveResponse();
+        await page.getByTestId('save').click();
+        const refused = await retry;
+        expect(refused.status()).toBe(400);
+        expect(await refused.json()).toMatchObject({error:receipt.reason, failure:receipt.failure});
+        expect(refused.request().postDataJSON().revision).toBe(original.revision);
+        expect(refused.request().postDataJSON().base.savedEdits).toBeUndefined();
+        await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'save-failed');
+        await expect(paragraph()).toHaveText('First paragraph. Rejected edit. Newer text.');
+      }
+      const accepted = saveResponse();
+      await save();
+      expect((await (await accepted).json()).pendingLocalWrite).toBeUndefined();
+      expect((await read(path)).source).toContain(closeBeforeReceipt ? 'Rejected edit.' : 'Rejected edit. Newer text.');
+      await expect.poll(async () => (await recoveryRecords(page)).some(record => record.path === path)).toBe(false);
+      check(closeBeforeReceipt ? 'closedTabRestoresRejectedEdit' : 'liveTabKeepsRejectedAndNewerEdits', true);
+    } finally { await page.unroute(receiptURL); }
+  }
   return result;
 }

@@ -4,7 +4,7 @@ import { citationReport, type LocalWriteBaseline } from "@litzio/core";
 import { readModel } from "./document-replay.ts";
 import { DocumentSaveCache } from "./document-save-cache.ts";
 import { prepareDocumentSave } from "./document-save-compute.ts";
-import { documentDiagnostic, type DocumentWork, type DocumentWorkReply } from "./document-worker-protocol.ts";
+import { documentDiagnostic, saveDiagnostic, type DocumentWork, type DocumentWorkReply } from "./document-worker-protocol.ts";
 import { localEdit } from "./document-local-edit.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 
@@ -57,11 +57,12 @@ port.on("message", (work: DocumentWork | { kind: "settle-save"; committed: boole
                 ? citationReport(opening.original).bibliography : [];
               const change = localEdit(opening.editable, bibliography, base.source === disk ? {} : base.savedEdits!, edits);
               const result = "reason" in change ? change : baseline.write(change.edit);
-              if ("reason" in result) fallback = result.reason;
+              if ("reason" in change) fallback = change.reason;
+              else if ("reason" in result) fallback = result.reason;
               else {
                 const { markdown, kind, blockCount } = result;
                 rememberCommitted = () => candidates.set(path, result.baseline);
-                reply({ result: { markdown, revision: textRevision(markdown), localWrite: { kind, blockCount } } });
+                reply({ result: { markdown, revision: textRevision(markdown), localWrite: { kind, blockCount, path: change.edit.path } } });
                 break;
               }
             } catch { fallback = "unproven-edit"; }
@@ -87,7 +88,7 @@ port.on("message", (work: DocumentWork | { kind: "settle-save"; committed: boole
           reply({ result: { outcome: "equal" } });
         } catch (error) {
           if (!(error instanceof SaveContentError)) throw error;
-          reply({ result: { outcome: "rejected" } });
+          reply({ result: { outcome: "rejected", ...saveDiagnostic(error) } });
         }
         break;
       }
