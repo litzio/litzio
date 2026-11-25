@@ -183,6 +183,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [2026-11-24 Ollama 공급자의 실행 엔진을 pi(ACP 어댑터)로 바꾸기](spikes/2026-11-24-ollama-pi-audio.md) | Historical | 스파이크 기록. 결론: 폐기. 코드는 태그·브랜치에만 있다. |
 | [2026-11-24 Ollama 공급자의 Codex 엔진 연결과 음성 전달](spikes/2026-11-24-ollama-codex-audio.md) | Historical | 스파이크 기록. 결론 폐기. 코드는 태그·브랜치에만 있다. |
 | [2026-11-25 Ollama 비서의 PDF 수식 교체](spikes/2026-11-25-ollama-formula-mission.md) | Historical | 스파이크 기록. 결론 미정. 코드는 태그·브랜치에만 있다. |
+| [2026-11-25 Ollama 비서의 소형 모델 과제 범위](spikes/2026-11-25-ollama-small-model-range.md) | Historical | 스파이크 기록. 결론 미정. 코드는 태그·브랜치에만 있다. |
 
 ## Verification
 
