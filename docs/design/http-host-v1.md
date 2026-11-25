@@ -1,6 +1,6 @@
 # HTTP Host v1
 
-#1285: [앱 초기화](app-reset-v1.md)의 local apply는 실행 중인 Host를 강제 종료하거나 원격 삭제 API로 노출하지 않는다. HTTP/Vite Host와 CLI가 계정 공용 process gate에 참여해 데이터 삭제와 새 writer 시작을 배타 제어한다. `GET /api/app-reset/paths`는 runtime이 고정한 절대 templates·assistant cwd·설정 파일 경로만 반환하며 Desktop은 자신의 해석과 대조한다. Host close는 listener/socket 종료뿐 아니라 이미 수락한 비동기 request handler의 완료도 기다린 뒤 writer lease를 해제하고, 반복 close는 같은 종료 promise를 반환한다. Vite는 문서·asset middleware의 SSR module loading부터 promise를 추적하며 종료 중 새 Host 서비스 생성을 거부한다. `server.close()`는 그 정리도 기다리고 내부 restart의 listener 종료 이벤트 역시 같은 drain 후에만 lease를 해제한다. socket 종료를 파일 변경 취소로 간주하지 않는다. 종료 실패는 marker로 남아 확인 없이 초기화하지 못하게 한다. 일반 클라이언트 단절이 Host/AI 수명을 끝내는 것으로 취급하지 않는다.
+#1285: [앱 초기화](app-reset-v1.md)의 local apply는 실행 중인 Host를 강제 종료하거나 원격 삭제 API로 노출하지 않는다. HTTP/Vite Host와 CLI가 계정 공용 process gate에 참여해 데이터 삭제와 새 writer 시작을 배타 제어한다. `GET /api/app-reset/paths`는 runtime이 고정한 절대 templates·assistant cwd·설정 파일 경로만 반환하며 Desktop은 자신의 해석과 대조한다. Host close는 listener/socket 종료뿐 아니라 이미 수락한 비동기 request handler의 완료도 기다린 뒤 writer lease를 해제하고, 반복 close는 같은 종료 promise를 반환한다. Vite는 문서·asset middleware의 SSR module loading부터 promise를 추적하며 종료 중 새 Host 서비스 생성을 거부한다. `server.close()`는 그 정리도 기다리고 내부 restart의 listener 종료 이벤트 역시 같은 drain 후에만 lease를 해제한다. 파일 커밋이 시작된 뒤에는 socket 종료와 별개로 커밋이 처리된다. 종료 실패는 marker로 남아 확인 없이 초기화하지 못하게 한다. 일반 클라이언트 단절이 Host/AI 수명을 끝내는 것으로 취급하지 않는다.
 
 AI는 daemon 공식 기능이며 현재 계약은 [비서 계약](main-agent-v1.md)을 따른다.
 
@@ -102,6 +102,10 @@ replace a running daemon. Desktop uses this daemon through the connection/owner-
 plugin/AI lifetime follows [the plugin contract](plugin-stage1-v1.md) and [assistant contract](main-agent-v1.md).
 
 공용 문서 작성 경로(`createAuthoredDocumentFile`, 재생성 포함)의 Core 작성 계산은 Host 프로세스가 소유하는 Node `worker_threads` 작업 스레드 하나에서 실행한다. 주 스레드는 요청 받기·같은 실제 대상 경로에 대한 쓰기의 접수 순서·그림 경로 결정과 게시·파일 커밋(배타 생성, revision 확인)·health를 맡아, 큰 문서를 저장하는 동안에도 다른 요청과 `/daemon/health`에 응답한다. 다른 프로세스와의 경쟁은 계속 파일 게시 경계에서 검사한다. 작업 스레드는 호출이 대기하는 동안만 프로세스를 붙잡고 Host 프로세스와 함께 끝난다. 스레드가 실패하거나 종료되면 대기 중 호출은 오류로 끝나 문서를 게시하지 않으며(이미 게시한 공유 그림은 남을 수 있다), 다음 호출이 새 스레드를 띄운다. 계산하는 동안 같은 Host의 다른 요청이 그림을 바꿀 수 있으므로, 문서를 게시하기 직전에 이 저장이 참조하는 그림이 모두 같은 자리에 같은 내용(크기·SHA-256)으로 있는지 다시 확인하고 아니면 충돌 오류로 끝낸다. 같은 대상의 순서는 실제 경로(없는 파일은 가장 가까운 기존 상위 폴더의 실제 경로와 나머지 이름)로 판단해 junction 등 별칭도 같은 대상으로 본다. 입력·결과·receipt와 Core 문서 의미는 같다.
+
+Editor의 Save와 Open(참고문헌 선언 읽기 포함)은 Host 서비스 인스턴스당 Node 작업 스레드 하나를 첫 계산에 시작해 재사용한다. 독립 HTTP Host, Desktop daemon, Vite가 이 서비스를 공유한다. 파일 접근·디스크 revision·파일 교체·승인은 주 스레드에 있다. 같은 실제 파일의 Save는 순서대로 읽고 교체한다. 계산은 한 번에 하나씩 보내며, 다음 계산을 고르는 대기는 Host에 둔다. 접근과 교체 및 [승인 기억](editing-session-save-v1.md)의 조건은 Save 계약을 따른다.
+
+작업 스레드의 오류·종료 또는 계산 시작 후 60초 동안 무응답이면 현재 요청은 HTTP 503으로 끝나며 파일은 교체되지 않는다. 다음 요청은 새 스레드에서 계산한다. 커밋 전에 클라이언트 단절이 관찰되면 대기 중 계산을 취소하고, 실행 중이면 스레드를 종료한다. Host 종료는 대기·실행 중 계산을 거부하고 스레드 종료를 기다린 뒤 writer lease를 해제한다. daemon 로그는 `document worker started`, `document worker restarted`, `document worker failed`를 기록한다.
 
 ### Host and daemon terminology (#1139)
 

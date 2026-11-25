@@ -29,6 +29,7 @@ import { FakeGitHub } from "./fake-github.ts";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { DESKTOP_ORIGIN } from "../shared/desktop-origin.ts";
+import { Worker } from "node:worker_threads";
 
 const isolatedData = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-unit-data-"));
 process.env.LITZIO_DATA_DIR = isolatedData;
@@ -504,6 +505,95 @@ test("Host close waits for an accepted filesystem mutation even after its caller
 });
 
 const documentQuery = (file: string) => `/api/document?${new URLSearchParams({ path: file })}`;
+
+test("HTTP document worker preserves save order, external changes, and uncommitted bytes on cancellation or exit", { timeout: 30_000 }, async t => {
+  const { a, host, url, send } = await fixture(t);
+  const file = path.join(a, "document.md");
+  const opening = fs.readFileSync(file, "utf8");
+  const revision = documentRevision(opening);
+  const body = (text: string) => ({ path: file, revision, base: { source: opening },
+    paragraphs: [{ path: [2], content: [{ kind: "text", text }] }] });
+  const submit = (text: string) => send("/api/document", "POST", body(text));
+
+  // Pause a real dispatch after the Host has read the disk and before Core's result
+  // can be used. Fixtures stay small and exercise actual TCP requests and worker IO.
+  const postMessage = Worker.prototype.postMessage;
+  type Dispatch = { worker: Worker; release(): void };
+  let nextSave: ((dispatch: Dispatch) => void) | undefined;
+  t.mock.method(Worker.prototype, "postMessage", function (this: Worker, message: any) {
+    if (message?.kind === "save" && nextSave) {
+      const observed = nextSave;
+      nextSave = undefined;
+      observed({ worker: this, release: () => postMessage.call(this, message) });
+    } else postMessage.call(this, message);
+  });
+  const observeSave = () => new Promise<Dispatch>(resolve => { nextSave = resolve; });
+
+  const firstDispatch = observeSave();
+  const first = submit("First writer.");
+  const waiting = await firstDispatch;
+  const second = submit("Second writer.");
+  waiting.release();
+  const [accepted, conflicted] = await Promise.all([first, second]);
+  assert.equal(accepted.status, 200);
+  assert.equal(conflicted.status, 409);
+  assert.match(fs.readFileSync(file, "utf8"), /First writer/);
+  await accepted.arrayBuffer();
+  await conflicted.arrayBuffer();
+  fs.writeFileSync(file, opening);
+
+  const staleDispatch = observeSave();
+  const stale = submit("Must not overwrite.");
+  const computing = await staleDispatch;
+  const external = opening + "\nUpdated outside the Host.\n";
+  fs.writeFileSync(file, external);
+  computing.release();
+  const conflict = await stale;
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).failure.phase, "revision");
+  assert.equal(fs.readFileSync(file, "utf8"), external);
+  fs.writeFileSync(file, opening);
+
+  const killedDispatch = observeSave();
+  const killed = submit("Worker lost.");
+  const lost = await killedDispatch;
+  lost.release();
+  await lost.worker.terminate();
+  const failed = await killed;
+  assert.equal(failed.status, 503);
+  assert.match((await failed.json()).error, /document worker stopped/);
+  assert.equal(fs.readFileSync(file, "utf8"), opening);
+  const recovered = await submit("Recovered.");
+  assert.equal(recovered.status, 200);
+  await recovered.arrayBuffer();
+  assert.match(fs.readFileSync(file, "utf8"), /Recovered/);
+  fs.writeFileSync(file, opening);
+
+  const cancelledDispatch = observeSave();
+  const controller = new AbortController();
+  const cancelled = fetch(url + "/api/document", {
+    method: "POST", headers: { Origin: url, "Content-Type": "application/json" },
+    body: JSON.stringify(body("Client disconnected.")), signal: controller.signal,
+  });
+  const disconnected = await cancelledDispatch;
+  const terminated = once(disconnected.worker, "exit");
+  const cancelledReply = assert.rejects(cancelled, { name: "AbortError" });
+  controller.abort();
+  await Promise.all([cancelledReply, terminated]);
+  assert.equal(fs.readFileSync(file, "utf8"), opening);
+
+  const closingDispatch = observeSave();
+  const closingSave = submit("Host closed.");
+  const finishing = await closingDispatch;
+  const exited = once(finishing.worker, "exit");
+  await host.close();
+  await exited;
+  const closingReply = await closingSave;
+  assert.equal(closingReply.status, 503);
+  await closingReply.arrayBuffer();
+  assert.equal(finishing.worker.threadId, -1);
+  assert.equal(fs.readFileSync(file, "utf8"), opening);
+});
 // fetch normalizes/overrides Host; use an actual Node request to test a forged wire header.
 const rawStatus = (url: string, headers: Record<string, string>) => new Promise<number>((resolve, reject) => {
   const req = request(url, { headers }, res => { res.resume(); res.on("end", () => resolve(res.statusCode!)); });

@@ -215,8 +215,8 @@ export async function startHttpHost(options: HttpHostOptions) {
             try { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
             finally { clearTimeout(forced); }
           }
-          // Socket closure does not cancel an already accepted filesystem write.
-          // Retain the writer lease until its handler has actually settled.
+          // Retain the writer lease until accepted handlers have settled, including
+          // any filesystem work whose client has already disconnected.
           await Promise.allSettled([...inFlight]);
         } catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
         finally { requests?.flush(); releaseResetGuard(); }
