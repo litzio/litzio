@@ -1972,13 +1972,11 @@ ul.list[data-type="taskList"] > li > label > input {
 
 .inline-math-properties { width: var(--layout-inline-math-popover-width); }
 /* The draft preview scrolls inside the popover's width at the body text size, as in text. */
-.inline-math-preview {
-  min-width: 0;
-  min-height: 0;
+.inline-math-preview { min-width: 0; min-height: 0; text-align: left; }
+.inline-math-preview:not(.equation-preview-error) {
   padding-block: var(--space-2);
   overflow-y: hidden;
   font-size: var(--font-size-document);
-  text-align: left;
 }
 .inline-math-preview .katex { font-size: var(--math-inline-size); }
 .inline-math-input {

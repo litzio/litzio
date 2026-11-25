@@ -220,7 +220,7 @@ export function EquationFormula({ className, latex, testId, inline = false, onDo
   const result = renderEquation(latex, !inline);
   if (result.error) {
     return (
-      <Notice className={`${className} equation-preview-error`} tone="error" data-testid={`${testId}-error`} onDoubleClick={onDoubleClick}>{i18n.t("Equation preview unavailable:")}{result.error}
+      <Notice className={`${className} equation-preview-error`} tone="error" data-testid={`${testId}-error`} onDoubleClick={onDoubleClick}>{i18n.t("Equation preview unavailable:")}{" "}{result.error}
       </Notice>
     );
   }

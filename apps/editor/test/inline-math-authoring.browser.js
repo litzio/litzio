@@ -363,7 +363,7 @@ async (page, { openPath, expect, screenshots }) => {
   expect(await preview.locator('.katex-display').count(), 'Preview uses inline mode').toBe(0);
   await capture('inline-preview-light-1440');
   await field.fill(String.raw`\frac{a`);
-  await expect(previewError).toContainText('Equation preview unavailable:');
+  await expect(previewError).toContainText('Equation preview unavailable: KaTeX');
   await expect(preview).toHaveCount(0);
   await capture('inline-preview-error-light-1440');
   await field.fill('');
