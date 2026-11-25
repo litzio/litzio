@@ -240,3 +240,27 @@ test("public Core writes formatted headings and rejects line breaks or read-only
     assert.equal(serialize(document), before);
   }
 });
+
+test('composing block operations preserves rich inline content and footnote definitions', async () => {
+  const core = await import('../src/index.ts');
+  const original = core.parse('---\nlitzio: 1\n---\n\n**Bold** [link](https://example.com)[^n]\n\nNext.\n\n[^n]: Note.\n');
+  const blocks = core.getEditableDocument(original).blocks;
+  const first = blocks[0], second = blocks[1];
+  assert.ok(first.block === 'paragraph' && second.block === 'paragraph');
+  let changed = core.removeBlock(core.removeBlock(original, 1), 1);
+  changed = core.insertList(changed, 1, {ordered:false, items:[{content:first.content},{content:second.content}]});
+  let round = core.parse(core.serialize(changed));
+  const list = core.getEditableDocument(round).blocks[0];
+  assert.ok(list.block === 'list');
+  assert.deepEqual(list.items.map(item => item.content), [first.content, second.content]);
+  assert.match(core.serialize(round), /\[\^n\]: Note/);
+  changed = core.insertAdmonition(core.removeBlock(original, 1), 1, 'note', first.content);
+  round = core.parse(core.serialize(changed));
+  const note = core.getEditableDocument(round).blocks[0];
+  assert.ok(note.block === 'admonition');
+  assert.deepEqual(note.content, first.content);
+  changed = core.insertParagraph(core.removeBlock(round, 1), 1, note.content);
+  const paragraph = core.getEditableDocument(core.parse(core.serialize(changed))).blocks[0];
+  assert.ok(paragraph.block === 'paragraph');
+  assert.deepEqual(paragraph.content, first.content);
+});
