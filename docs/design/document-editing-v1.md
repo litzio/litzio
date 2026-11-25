@@ -244,7 +244,9 @@ A changed document recomputes numbering; source semantics and canonical output a
   edits in its document position: a full-column, auto-growing code-style LaTeX field, draft
   preview with computed number, label and actions. Inline math uses a wider BlockProperties
   popover with a wrapping multiline field; pasted line breaks become spaces and plain Enter
-  submits as before. Both forms use explicit Apply, Cancel and Escape. Outside
+  submits as before. Below the field, a non-empty draft renders as inline math in text
+  does, scrolling within the popover; an unrenderable draft shows Equation's preview error
+  and can still be applied (#1998). Both forms use explicit Apply, Cancel and Escape. Outside
   click, blur and selection movement neither apply nor discard drafts. Save/Source and tab
   switching retain them under the [editing-session contract](editing-session-save-v1.md#applied-content-and-drafts).
   Type `$source$`, choose **Inline math** from the slash menu, or press Ctrl/Cmd+Shift+6

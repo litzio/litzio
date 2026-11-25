@@ -115,8 +115,13 @@ async (page, { openPath, expect, screenshots }) => {
   await (await mathNamed('i_d')).dblclick();
   const field637 = page.getByTestId('inline-math-source');
   const popup637 = page.getByTestId('inline-math-properties');
+  const popupWidth637 = (await popup637.boundingBox()).width;
   await field637.fill('x '.repeat(200));
   expect(await field637.evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight > el.clientHeight), 'Long source wraps within the field').toBe(true);
+  // #1998: a long draft preview scrolls inside the popover instead of widening it.
+  const preview637 = page.getByTestId('inline-math-preview');
+  expect(await preview637.evaluate(el => el.scrollWidth > el.clientWidth), 'Long preview scrolls').toBe(true);
+  expect((await popup637.boundingBox()).width).toBe(popupWidth637);
   await field637.fill('first second');
   await field637.press('Enter');
   await page.getByTestId('inline-math-editor').waitFor({state:'detached'});
@@ -349,6 +354,21 @@ async (page, { openPath, expect, screenshots }) => {
   expect(await snapshot()).toEqual(beforeInsert);
   await page.keyboard.press('Control+Shift+6');
   await expect(field).toBeFocused();
+  // #1998: the draft renders inline under the field; an invalid one shows the preview error.
+  const preview = page.getByTestId('inline-math-preview');
+  const previewError = page.getByTestId('inline-math-preview-error');
+  await expect(preview).toHaveCount(0);
+  await field.fill(String.raw`\frac{a}{b} + x^2`);
+  await expect(preview.locator('.katex')).toBeVisible();
+  expect(await preview.locator('.katex-display').count(), 'Preview uses inline mode').toBe(0);
+  await capture('inline-preview-light-1440');
+  await field.fill(String.raw`\frac{a`);
+  await expect(previewError).toContainText('Equation preview unavailable:');
+  await expect(preview).toHaveCount(0);
+  await capture('inline-preview-error-light-1440');
+  await field.fill('');
+  await expect(preview).toHaveCount(0);
+  await expect(previewError).toHaveCount(0);
   await field.fill('x-1');
   await field.press('Enter');
   await expect(field).toHaveCount(0);
@@ -384,6 +404,18 @@ async (page, { openPath, expect, screenshots }) => {
     await mathItem.click();
     await expect(field).toBeFocused();
     await field.fill(value);
+    if (index === 0) {
+      await expect(page.getByTestId('inline-math-preview').locator('.katex')).toBeVisible();
+      await capture('table-preview-light-1440');
+      if (screenshots) {
+        const colorMode = page.getByRole('button', {name:/^Color mode:/});
+        await colorMode.click();
+        await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+        await capture('table-preview-dark-1440');
+        await colorMode.click();
+        await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+      }
+    }
     await field.press('Enter');
     await expect(cell.locator('.katex')).toHaveCount(1);
   }
