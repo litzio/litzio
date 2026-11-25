@@ -160,12 +160,25 @@ async (page, {expect, screenshots, pluginFixture}) => {
   await expect(paragraph('# Closing paragraph')).toHaveCount(0);
   await page.keyboard.press('Control+s');
   await expect.poll(lastEdit).toMatchObject({state: 'clean'});
-  await paragraph('The first paragraph').click();
+  const firstParagraph = paragraph('The first paragraph');
+  const firstParagraphHasCaret = atEnd => firstParagraph.evaluate((node, atEnd) => {
+    const { view, state } = node.closest('.ProseMirror').editor;
+    const dom = window.getSelection();
+    const selection = state.selection;
+    return view.hasFocus() && selection.empty && dom?.isCollapsed && node.contains(dom.anchorNode) &&
+      view.posAtDOM(dom.anchorNode, dom.anchorOffset) === selection.from &&
+      (!atEnd || selection.$from.parentOffset === selection.$from.parent.content.size);
+  }, atEnd);
+  await firstParagraph.click();
   await page.keyboard.press('End');
+  // Undo restores the selection recorded before typing, which can still point to the previous block.
+  await expect.poll(() => firstParagraphHasCaret(true)).toBe(true);
   await page.keyboard.type(' Later.');
   await paragraph('Closing paragraph').click();
   await expect.poll(disk).toContain('has a typo. Later.');
-  await paragraph('The first paragraph').click();
+  await expect.poll(lastEdit).toMatchObject({state: 'clean'});
+  await firstParagraph.click();
+  await expect.poll(() => firstParagraphHasCaret(false)).toBe(true);
   await page.keyboard.press('Control+z');
   await expect(paragraph('has a typo. Later.')).toHaveCount(0);
   await paragraph('Closing paragraph').click();
