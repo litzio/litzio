@@ -1,4 +1,4 @@
-import { DocumentDiagnosticError } from "../write-error.ts";
+import { DocumentDiagnosticError, DocumentWriteError, writeIssueOf } from "../write-error.ts";
 import { writeMd } from "myst-to-md";
 import { VFile } from "vfile";
 import { parse } from "./parse.ts";
@@ -18,13 +18,26 @@ const REFERENCE_KEYS = new Set(["type", "kind", "identifier", "label", "children
 const TARGET_KEYS = new Set(["type", "label", "position"]);
 
 /** Rewrite semantic references in a serializer-owned clone, or fail closed. */
-export function prepareReferences(node: MystNode): void {
+export function prepareReferences(node: MystNode, pipeConversionPath?: number[]): void {
   // Never add a `children` key to leaf nodes: mdast handlers treat its presence as meaningful.
   if (!node.children) return;
   node.children = node.children.map((child) => {
     if (child.type === "crossReference") return referenceRole(child);
     if (child.type === "mystTarget") return targetLine(child);
-    prepareReferences(child);
+    if (child.type === "table") {
+      if (child.headerRows !== undefined) return child; // Its HTML writer owns inline roles.
+      if (pipeConversionPath) {
+        child.children?.forEach((row, r) => row.children?.forEach((cell, c) => {
+          try { prepareReferences(cell); }
+          catch (error) {
+            const issue = writeIssueOf(error);
+            throw new DocumentWriteError(issue.reason, { ...issue, path: [...pipeConversionPath, r, c] }, { cause: error });
+          }
+        }));
+        return child;
+      }
+    }
+    prepareReferences(child, pipeConversionPath);
     return child;
   });
 }

@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import * as core from "@litzio/core";
+import { parse as parseTree } from "../src/myst/parse.ts";
+import { roundTrip, repeatRoundTrip } from "../src/myst/serialize.ts";
+import { tableOf } from "../src/myst/table.ts";
+import { writeIssueOf } from "../src/write-error.ts";
 import {
   getEditableDocument,
   insertTable,
@@ -24,6 +28,131 @@ import {
 
 const technical = readFileSync(new URL("./fixtures/technical-document.md", import.meta.url), "utf8");
 const TABLE = 12;
+
+test("internally read a complex table and write stable canonical bytes with caption, options and notes", () => {
+  const source = [
+    "---", "litzio: 1", "---", "", ":::{table} Operating limits",
+    ":name: limits", ":enumerator: A.3", "", "<table>", "<thead>", "<tr>",
+    '<th colspan="2"><p>Limits</p></th>', "</tr>", "<tr>", "<th><p>Item</p></th>",
+    "<th><p>Conditions</p></th>", "</tr>", "</thead>", "<tbody>", "<tr>",
+    '<td rowspan="2" style="text-align: right"><p>Voltage<br>rating</p><p>A &amp; B</p></td>',
+    '<td><ol start="2"><li>Nominal<ul><li>Maximum</li></ul></li></ol></td>', "</tr>", "<tr>",
+    '<td><p><span data-myst="math">x &lt; y</span> <span data-myst="numref">limits</span> <span data-myst="footnote">test</span> <span data-myst="cite:t">alpha,beta</span></p></td>',
+    "</tr>", "</tbody>", "</table>", "", "a. Measured at full load.", "", "b. At sea level.",
+    ":::", "", "[^test]: In the test report.", "",
+  ].join("\n");
+  assert.throws(() => core.parse(source), /Unsupported native content/);
+  const input = source.replace("<table>\n<thead>", "<TABLE>  \n<THEAD>")
+    .replace('rowspan="2" style="text-align: right"', "STYLE='text-align:right;' ROWSPAN=02")
+    .replace('data-myst="cite:t"', 'data-myst="cite"');
+  const first = roundTrip(parseTree(input, { complexTables: true }));
+  const grid = tableOf(first.reparsed.children[1])!;
+  assert.equal(grid.headerRows, 2);
+  assert.deepEqual(grid.children!.map(row => row.children!.map(cell => [cell.column, cell.rowspan, cell.colspan])),
+    [[[0, 1, 2]], [[0, 1, 1], [1, 1, 1]], [[0, 2, 1], [1, 1, 1]], [[1, 1, 1]]]);
+  assert.equal(first.markdown, source);
+  assert.equal(repeatRoundTrip(first).markdown, source);
+  const changed = structuredClone(first.reparsed);
+  const editedCell = tableOf(changed.children[1])!.children![3].children![0];
+  editedCell.rowspan = 2;
+  assert.throws(() => roundTrip(changed), error => {
+    assert.deepEqual(writeIssueOf(error).path, [1, 3, 1]);
+    return /span exceeds/.test(writeIssueOf(error).reason);
+  });
+  assert.equal(roundTrip(first.reparsed).markdown, source);
+});
+
+const tableSource = (grid: string, options = "", notes = "") =>
+  ":::{table}\n" + options + "\n" + grid + (notes ? "\n\n" + notes : "") + "\n:::\n";
+const parseComplex = (source: string) => parseTree(source, { complexTables: true });
+
+test("HTML cells preserve block boundaries and data whitespace, and a captionless first note stays a note", () => {
+  const grid = [
+    "<table>", "<thead>", "<tr>",
+    '<th rowspan="2"><p> A&#10;B&#13;C&#9;D </p><p></p><p><strong><em>Marked</em></strong> <del>removed</del> H<sub>2</sub> x<sup>3</sup> <code>&lt;tag&gt;</code> <a href="https://example.org/?x=1&amp;y=2" title="A &quot;quote&quot;">link</a></p><ul><li> <ol><li>Item</li></ol></li></ul></th>',
+    "</tr>", "<tr>", "</tr>", "</thead>", "</table>",
+  ].join("\n");
+  const source = tableSource(grid, ":enumerated: false\n", "a. First note.");
+  const inline = source.replace("A&#10;B", "A\nB").replace("&#13;", "&#xD;")
+    .replace("<ol><li>", '<ol start="01"><li>');
+  const first = roundTrip(parseComplex(inline));
+  assert.equal(first.markdown, source);
+  assert.equal(repeatRoundTrip(first).markdown, source);
+  assert.deepEqual(first.reparsed.children[0].children!.map(node => node.type), ["table", "legend"]);
+});
+
+test("HTML-to-pipe conversion preserves alignment, breaks and notes, and promotion preserves old inline cells", () => {
+  const html = '<table><thead><tr><th style="text-align: center"><p>Header</p></th></tr></thead>' +
+    '<tbody><tr><td style="text-align: center"><p>two<br>lines</p></td></tr></tbody></table>';
+  const pipe = tableSource("|    Header    |\n| :----------: |\n| two<br>lines |", "", "a. First note.");
+  const lowered = roundTrip(parseComplex(tableSource(html, "", "a. First note.")));
+  assert.equal(lowered.markdown, pipe);
+  assert.equal(repeatRoundTrip(lowered).markdown, pipe);
+  assert.equal(roundTrip(parseComplex(pipe)).markdown, pipe);
+
+  const grid = tableOf(lowered.reparsed.children[0])!;
+  // A cell changes to block content. The body cell still has its old inline children.
+  const header = grid.children![0].children![0];
+  header.children = [
+    { type: "paragraph", children: header.children },
+    { type: "paragraph", children: [{ type: "text", value: "Second paragraph" }] },
+  ];
+  const raised = roundTrip(lowered.reparsed);
+  assert.match(raised.markdown, /<th style="text-align: center"><p>Header<\/p><p>Second paragraph<\/p><\/th>/);
+  assert.match(raised.markdown, /<td style="text-align: center"><p>two<br>lines<\/p><\/td>/);
+  assert.equal(repeatRoundTrip(raised).markdown, raised.markdown);
+
+  const edited = tableOf(raised.reparsed.children[0])!;
+  edited.children![0].children![0].children!.pop();
+  assert.equal(roundTrip(raised.reparsed).markdown, pipe);
+
+  for (const changed of [html.replace('center"><p>two', 'right"><p>two'), html.replace("two<br>lines", " two ")]) {
+    const document = parseComplex(tableSource(changed));
+    const before = structuredClone(document);
+    assert.throws(() => roundTrip(document), error => {
+      assert.deepEqual(writeIssueOf(error).path, [0, 1, 0]);
+      return /pipe table/.test(writeIssueOf(error).reason);
+    });
+    assert.deepEqual(document, before);
+  }
+});
+
+test("complex table input refuses repaired, malformed and out-of-scope HTML", () => {
+  const header = "<thead><tr><th><p>A</p></th></tr></thead>";
+  const grid = "<table>" + header + "</table>";
+  const malformed = [
+    "<table><tr><th><p>A</p></th></tr></table>",
+    grid.replace("</th>", ""),
+    grid.replace("<th>", '<th colspan="1" COLSPAN="2">'),
+    grid.replace("<p>A</p>", "<p>A</bogus>B</p>"),
+    grid.replace("<p>A</p>", "<p><a href=x>outer<a href=y>inner</a></a></p>"),
+    grid.replace("<p>A</p>", "<p><a href=x>first</a><a href=x>second</a></p>"),
+    grid.replace("<tr>", "<tr>Fostered text"),
+    grid.replace("<th>", '<th style="text-align: left; width: 5px">'),
+    grid.replace("<p>A</p>", '<p><img src="x">A</p>'),
+    grid.replace("<p>A</p>", '<p><span data-myst="math"><em>x</em></span></p>'),
+    grid.replace("<p>A</p>", "<p>A<!-- hidden --></p>"),
+    grid.replace("<thead>", "<thead>\n\n"),
+    grid + " stray text",
+    grid + grid,
+    "<table>" + header + "<tbody><tr></tr></tbody></table>",
+    grid.replace("<th>", '<th rowspan="2">'),
+    grid.replace("<th>", '<th colspan="9007199254740992">'),
+    grid.replace("<th>", '<th colspan="33">'),
+    '<table><thead><tr><th><p>A</p></th><th rowspan="2"><p>B</p></th></tr><tr><th colspan="2"><p>C</p></th></tr></thead></table>',
+  ];
+  for (const source of malformed) assert.throws(() => parseComplex(tableSource(source)), source);
+  assert.throws(() => parseComplex(grid), /inside a \{table\} directive/);
+  assert.throws(() => parseComplex(tableSource(grid) + "\n<div>Outside</div>"), /inside a \{table\} directive/);
+  assert.throws(() => parseComplex(tableSource(grid.replace("A", '<span data-myst="footnote">note</span>')) +
+    '\n[^note]: Has <em>raw HTML</em>.\n'), /inside a \{table\} directive/);
+  assert.throws(() => parseComplex(tableSource(grid, "", "- A list is not a table note.")), /caption, notes or options/);
+  for (const options of [":align: center\n", ":name: a\n:name: b\n", ":enumerated: xyz\n",
+    ":constructor: a\n", ":invented: true\n"]) {
+    assert.throws(() => parseComplex(tableSource(grid, options)), /Unsupported table options/);
+  }
+  assert.throws(() => parseComplex(tableSource(grid, ":enumerator: A.3\n:enumerated: false\n")), /numbering options/);
+});
 
 function cells(document: MystDocument, index: number) {
   const block = getEditableDocument(document).blocks[index];

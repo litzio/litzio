@@ -65,11 +65,22 @@ function sourceDefinitions(text: string, options: object): SourceDefinition[] {
  * document therefore has the order canonical write gives it, whatever the source placement:
  * the read model, the Editor and section operations see one order.
  */
-export function locateFootnotes(document: MystDocument, text: string, options: object): void {
+export function locateFootnotes(document: MystDocument, text: string, options: object,
+  parseDefinition?: (source: string, label: string) => MystNode | undefined): void {
   const written = sourceDefinitions(text, options);
   rememberLiteralSource(document, text, options, new Set(written.map(item => item.label)));
   // The last definition of a label is the one kept.
   const last = new Map(written.map(definition => [definition.label, definition]));
+  if (parseDefinition && written.length) {
+    const existing = new Set(document.children.filter(node => node.type === "footnoteDefinition").map(node => node.label));
+    const needed = new Set(document.children.flatMap(footnoteReferences));
+    const lines = text.split(/\r?\n/);
+    for (const [label, range] of last) {
+      if (!needed.has(label) || existing.has(label)) continue;
+      const definition = parseDefinition(lines.slice(range.start - 1, range.end).join("\n"), label);
+      if (definition) document.children.push(definition);
+    }
+  }
   const kept = new Set<string>();
   for (const node of document.children) {
     if (node.type !== "footnoteDefinition") continue;

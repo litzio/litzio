@@ -32,7 +32,7 @@ import { assertReferenceableLabel } from "./myst/reference.ts";
 import { renameLabelReferences } from "./myst/rename-label.ts";
 import { labelError, targetLabelError } from "./label.ts";
 import { isAdmonitionVariant, supportedAdmonitionContent, type AdmonitionVariant } from "./myst/admonition.ts";
-import { LIST_STYLES, type ListContent } from "./list.ts";
+import { LIST_STYLES, MAX_LIST_START, type ListContent } from "./list.ts";
 import type { CodeBlockContent } from "./code.ts";
 import { createCodeNode, supportedCodeBlock } from "./myst/code.ts";
 import { createListNode, supportedListContent } from "./myst/list.ts";
@@ -557,7 +557,6 @@ export function insertDivider(document: MystDocument, index: number): MystDocume
 
 
 const LIST_FAILURE = "list cannot round-trip losslessly through canonical Markdown";
-const MAX_LIST_START = 999_999_999;
 
 /** Insert a top-level bullet list, numbered list or checklist. */
 export function insertList(document: MystDocument, index: number, list: ListContent): MystDocument {

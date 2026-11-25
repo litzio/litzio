@@ -1,6 +1,6 @@
 import { isMap, isScalar, parseDocument } from "yaml";
 import { createHtmlId } from "myst-common";
-import { inlineContentText, projectInlineContent, type InlineContent } from "../inline.ts";
+import { hasAdjacentMatchingLinks, inlineContentText, projectInlineContent, type InlineContent } from "../inline.ts";
 import { DocumentWriteError, writeIssueOf, type WriteIssue } from "../write-error.ts";
 import { validateStructure } from "../validation.ts";
 import { supportedAdmonitionContent } from "./admonition.ts";
@@ -14,7 +14,7 @@ import { parse as parseTree } from "./parse.ts";
 import { isDivider, supportedQuoteContent } from "./quote.ts";
 import { supportedTargetLabel } from "./reference.ts";
 import { repeatRoundTrip, roundTrip, serialize as serializeTree } from "./serialize.ts";
-import { tableCellContent, tableOf, tableCaptionParagraph, tableNoteContent, tableNoteParagraphs, isNativeTableSource } from "./table.ts";
+import { tableCellContent, tableOf, tableCaptionParagraph, tableNoteContent, tableNoteParagraphs, isNativeTableSource, validNumberOptions } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
 import { NUMBERED_KINDS, referenceTemplatesError, type NumberedKind } from "../numbering.ts";
 import { referenceTemplateValue } from "./reference-templates.ts";
@@ -91,8 +91,7 @@ function metadata(document: MystDocument): void {
 
 function supportedBlock(node: MystNode): boolean {
   if (!isNativeTableSource(node)) return false;
-  if (node.enumerated !== undefined && (typeof node.enumerated !== "boolean" || !isFigure(node) && !tableOf(node) || node.enumerated === false && node.enumerator !== undefined)) return false;
-  if (node.enumerator !== undefined && (typeof node.enumerator !== "string" || !node.enumerator.trim() || /[\r\n]/.test(node.enumerator))) return false;
+  if (!validNumberOptions(node) || (node.enumerated !== undefined && !isFigure(node) && !tableOf(node))) return false;
   if (node.type === "heading") return supportedHeadingContent(node) !== undefined;
   if (node.type === "paragraph") return fields(node, ["children"]) && projectInlineContent(node) !== undefined;
   if (node.type === "admonition") return supportedAdmonitionContent(node) !== undefined;
@@ -116,25 +115,13 @@ function supportedBlock(node: MystNode): boolean {
   return isDivider(node) || supportedListContent(node) !== undefined || supportedCodeBlock(node) !== undefined || supportedTargetLabel(node) !== undefined;
 }
 
-/** Separate adjacent links with equal targets have no distinct native inline identity. */
 function assertInlineContent(node: MystNode, path: number[]): void {
   if (["heading", "paragraph", "tableCell"].includes(node.type)) {
     const content = projectInlineContent(node);
     if (!content) throw new NativeDocumentError("native-content", "Unsupported native inline content", path, node.position?.start.line);
-    let previous: Extract<InlineContent, { kind: "link" }> | undefined;
-    const visit = (items: InlineContent[], owner?: Extract<InlineContent, { kind: "link" }>): void => {
-      for (const item of items) {
-        if (item.kind === "link") visit(item.children, item);
-        else if ("children" in item) visit(item.children, owner);
-        else {
-          if (owner && previous && owner !== previous && owner.url === previous.url && owner.title === previous.title) {
-            throw new NativeDocumentError("native-content", "Adjacent separate links with the same target are not supported", path, node.position?.start.line);
-          }
-          previous = owner;
-        }
-      }
-    };
-    visit(content);
+    if (hasAdjacentMatchingLinks(content)) {
+      throw new NativeDocumentError("native-content", "Adjacent separate links with the same target are not supported", path, node.position?.start.line);
+    }
   }
   node.children?.forEach((child, index) => assertInlineContent(child, [...path, index]));
 }

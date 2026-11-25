@@ -4,10 +4,11 @@ import {
   liftMystDirectivesAndRolesTransform,
 } from "myst-transforms";
 import { VFile } from "vfile";
+import { DocumentWriteError } from "../write-error.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { locateFootnotes } from "./footnote.ts";
 import { retainMermaidOptions } from "./figure.ts";
-import { readTableBreaks, retainTableSource } from "./table.ts";
+import { isNativeTableSource, readTableBreaks, retainTableSource } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
 import { assertUnicode } from "./unicode.ts";
 
@@ -38,13 +39,14 @@ export function sourcePosition(node: MystNode): MystNode["position"] {
   return directiveRanges.get(node) ?? node.position;
 }
 
-export function parse(source: string): MystDocument {
+export function parse(source: string, { complexTables = false } = {}): MystDocument {
   assertUnicode(source);
   const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
   const file = new VFile();
   const document = parseMyst(text, file) as MystDocument;
   markFrontMatter(document, text);
-  retainTableSource(document, file);
+  const complexGrids = complexTables ? new Map<MystNode, MystNode>() : undefined;
+  retainTableSource(document, file, complexGrids);
   retainMermaidOptions(document, file);
   for (const node of document.children) {
     if (node.type === "mystDirective" && node.children?.length === 1 && node.position) {
@@ -53,9 +55,26 @@ export function parse(source: string): MystDocument {
   }
   liftMystDirectivesAndRolesTransform(document);
   containerChildrenTransform(document, new VFile());
+  complexGrids?.forEach((grid, placeholder) => Object.assign(placeholder, grid));
   readTableBreaks(document);
-  locateFootnotes(document, text, OPTIONS);
+  locateFootnotes(document, text, OPTIONS, complexGrids?.size ? (definition, label) => {
+    // MyST's footnote tail needs an inline reference to keep a definition. HTML
+    // spans are opaque to it; ask the existing parser to read the definition.
+    return parse("Note [^" + label + "]\n\n" + definition).children.find(node =>
+      node.type === "footnoteDefinition" && node.label === label);
+  } : undefined);
+  if (complexTables) rejectOutOfScopeHtml(document);
   return document;
+}
+
+function rejectOutOfScopeHtml(node: MystNode, path: number[] = []): void {
+  if (node.type === "html" || !isNativeTableSource(node)) {
+    throw new DocumentWriteError("Only a table grid inside a {table} directive supports HTML", {
+      code: "native-content", path, line: node.position?.start.line,
+      action: "Use supported Markdown outside the table grid.",
+    });
+  }
+  node.children?.forEach((child, index) => rejectOutOfScopeHtml(child, [...path, index]));
 }
 
 /**
