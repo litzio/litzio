@@ -695,6 +695,14 @@ test("structured creation reuse Core batches and report image readiness separate
   assert.deepEqual(getEditableDocument(parse(created.source)).blocks.map(block => block.block), ["table", "list", "figure", "figure", "figure", "equation"]);
   assert.equal(invoke("create_document", { path: file, title: "Conflict", operations }).errorKind, "conflict");
   const bad = path.join(root, "bad.md");
+  for (const field of ["language", "unexpected"]) {
+    const result = invoke("create_document", { path: bad, title: "Bad", blocks: [], [field]: "value" });
+    assert.equal(result.errorKind, "invalid_input");
+    assert.equal(result.receipt.outcome, "failure");
+    for (const key of [field, "path", "title", "blocks", "operations"]) assert.ok(result.error.includes(key));
+    if (field === "language") assert.ok(result.error.includes("template"));
+    else assert.ok(!result.error.includes("template"));
+  }
   for (const input of [
     { path: bad, title: "Bad", operations, blocks: [] },
     { path: bad, title: "Bad", operations: [...operations, { command: "remove-block", at: 99999 }] },

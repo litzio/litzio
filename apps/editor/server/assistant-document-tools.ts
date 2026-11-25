@@ -45,7 +45,8 @@ function execute(name: string, input: unknown, scope: DocumentToolScope) {
   const invalid = (message: string): never => { throw new DocumentDiagnosticError("invalid-operation", message); };
   if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.path !== "string" || !path.isAbsolute(value.path)) invalid("An absolute path is required.");
   const keys = name === "import_document_image" ? ["path", "source"] : name === "create_document" ? ["path", "title", "blocks", "operations"] : ["path"];
-  if (Object.keys(value).some(key => !keys.includes(key))) invalid("Unsupported tool input.");
+  const unsupported = Object.keys(value).find(key => !keys.includes(key));
+  if (unsupported) invalid(`Unsupported field: ${unsupported}. Allowed fields: ${keys.join(", ")}.${name === "create_document" && Object.keys(templateOperations.create.inputSchema.properties).includes(unsupported) ? ` ${unsupported} is only for template creation; remove it or supply template.` : ""}`);
   if (!scope.folders) throw Object.assign(new Error("No opened folders for this turn."),{errorKind:"forbidden"});
   if (name === "import_document_image") {
     if (!["opened-folders", "full-access"].includes(scope.permissionMode)) throw Object.assign(new Error("Image import is read-only for this turn."), { errorKind: "forbidden" });
