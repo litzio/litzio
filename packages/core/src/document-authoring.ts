@@ -58,7 +58,7 @@ export async function authorDocument(raw: unknown, imageAssets: Readonly<Record<
         case "list": part = operations.insertList(part, index, { ordered: block.ordered, checklist: block.checklist, start: block.start, style: block.style, delimiter: block.delimiter,
           items: block.items.map(item => typeof item === "string" ? { content: [{ kind: "text", text: item }] } : item) }); break;
         case "table":
-          part = operations.insertTable(part, index, block.rows, block.align);
+          part = operations.insertTable(part, index, block.rows, block.align, block.notes);
           if (block.caption !== undefined) part = operations.updateTableCaption(part, [index], block.caption);
           break;
         case "figure": {

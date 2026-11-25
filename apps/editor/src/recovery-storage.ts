@@ -314,7 +314,7 @@ export function recoveryText(snapshot: SessionSnapshot): string {
     const type = node.type;
     const attrs = node.attrs ?? {};
     const string = (value: unknown) => typeof value === "string" ? value : "";
-    const separator = type === "doc" ? "\n\n" : type === "table" || type === "bulletList" || type === "orderedList" || type === "listItem" || type === "taskList" || type === "taskItem" ? "\n" : type === "tableRow" ? "\t" : "";
+    const separator = type === "doc" ? "\n\n" : type === "table" || type === "tableNotes" || type === "bulletList" || type === "orderedList" || type === "listItem" || type === "taskList" || type === "taskItem" ? "\n" : type === "tableRow" ? "\t" : "";
     let text = string(node.text) || (Array.isArray(node.content) ? node.content.map(visit).join(separator) : "");
     if (type === "doc") text = [string(attrs.title), text].filter(Boolean).join("\n\n");
     if (type === "hardBreak") text = "\n";

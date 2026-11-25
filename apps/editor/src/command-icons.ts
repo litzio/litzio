@@ -15,6 +15,7 @@ import {
   Rows3,
   Pencil,
   SlidersHorizontal,
+  StickyNote,
   Trash2,
   BookOpen,
   Bookmark,
@@ -70,7 +71,7 @@ export function insertCommandIcon(id: string): LucideIcon | undefined {
 
 const BLOCK_ICONS: Record<string, LucideIcon> = {
   "move-up": ArrowUp, "move-down": ArrowDown,
-  "table-row": Rows3, "table-column": Columns3,
+  "table-row": Rows3, "table-column": Columns3, "table-note": StickyNote,
   "table-row-up": ArrowUp, "table-row-down": ArrowDown,
   "table-column-left": ArrowLeft, "table-column-right": ArrowRight,
   "table-align-left": AlignLeft, "table-align-center": AlignCenter,

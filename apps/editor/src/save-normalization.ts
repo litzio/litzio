@@ -7,8 +7,8 @@ import { fromTiptapContent } from "./tiptap-inline.ts";
 export function normalizeSaveTails(state: EditorState) {
   const tr = closeHistory(state.tr);
   state.doc.descendants((node, pos, parent) => {
-    if (!["paragraph", "quote", "admonition", "figure", "footnoteDefinition"].includes(node.type.name)) return;
-    // Table cells have a separate single-line contract.
+    if (!["paragraph", "quote", "admonition", "figure", "footnoteDefinition", "tableNote"].includes(node.type.name)) return;
+    // Table cells preserve their hard breaks and have separate padding rules.
     if (parent?.type.name === "tableCell" || parent?.type.name === "tableHeader") return;
     let length: number, leading: number;
     try {

@@ -12,7 +12,7 @@ import { encodeEmphasisBoundaries, hasAlternateBoundaries } from "./emphasis-bou
 import { encodeLineStarts, hasLineStartSyntax } from "./line-start.ts";
 import { parse } from "./parse.ts";
 import { prepareReferences } from "./reference.ts";
-import { isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode } from "./table.ts";
+import { isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode, tableNoteParagraphs } from "./table.ts";
 import { cloneDocument, type MystDocument, type MystNode } from "./tree.ts";
 
 const LOSS = "Document contains semantic content that cannot be preserved in canonical Markdown";
@@ -103,10 +103,14 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
   const footnotes = footnoteWriteIssue(document);
   if (footnotes) throw new SemanticLossError(footnotes.reason, footnotes);
   const tree = cloneDocument(document);
-  // Normalize only prose paragraphs on the disposable write clone. Tables and
-  // Figure captions have their own whitespace contracts.
+  // Normalize prose on the disposable write clone. Table notes are prose;
+  // cells and figure/table captions have separate whitespace contracts.
   const normalizeStarts = (node: MystNode): void => {
-    if (isFigure(node) || tableOf(node)) return;
+    if (isFigure(node)) return;
+    if (tableOf(node)) {
+      tableNoteParagraphs(node).forEach(normalizeStarts);
+      return;
+    }
     if (node.type === "paragraph") {
       const content = projectInlineContent(node);
       let remaining = content ? paragraphLeadingSpaceLength(content) : 0;
@@ -183,8 +187,8 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
   let prefix = "";
   // A table caption is written into its directive's line, not at a line start.
   const captions = new WeakSet<MystNode>();
-  function visit(node: MystNode, index: number, parent?: MystNode, path: number[] = [], inLink = false): void {
-    try { prepare(node, index, parent, path, inLink || node.type === "link"); }
+  function visit(node: MystNode, index: number, parent?: MystNode, path: number[] = [], inLink = false, inCell = false): void {
+    try { prepare(node, index, parent, path, inLink || node.type === "link", inCell || node.type === "tableCell"); }
     catch (error) {
       if (error instanceof DocumentWriteError) {
         if (!error.location.path?.length && path.length) error.location.path = path;
@@ -195,7 +199,11 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
         ...(issue.line ? { line: issue.line } : {}) }, { cause: error });
     }
   }
-  function prepare(node: MystNode, index: number, parent: MystNode | undefined, path: number[], inLink: boolean): void {
+  function prepare(node: MystNode, index: number, parent: MystNode | undefined, path: number[], inLink: boolean, inCell: boolean): void {
+    if (inCell && node.type === "break") {
+      node.type = "html";
+      node.value = "<br>";
+    }
     // Reference/inline writer adaptations change caption leaves, not the Figure's content kind.
     const figureKind = isFigure(node) ? figureContentKind(node) : undefined;
     const mermaidFigure = figureKind === "mermaid";
@@ -237,7 +245,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
         ? { type: "html", value: `$${child.value}$` } : child);
     }
     node.children?.forEach((child, childIndex) => visit(child, childIndex, node,
-      node === tree ? blockPaths[childIndex] : [...path, childIndex], inLink));
+      node === tree ? blockPaths[childIndex] : [...path, childIndex], inLink, inCell));
     // myst-to-md has no GFM task list writer and drops `checked`. Write each checkbox before
     // the item's prepared inline content; an empty item is its checkbox alone, which the pinned
     // task list patch reads back as an empty item. A checklist is written tight, also around a
@@ -299,7 +307,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     // wraps cells in paragraphs and drops column alignment. The full guard still applies.
     if (isTableDirective(node)) {
       const caption = tableCaptionParagraph(node);
-      const body = render(tableOf(node)!);
+      const body = [render(tableOf(node)!), ...tableNoteParagraphs(node).map(render)].join("\n\n");
       const title = caption ? render(caption) : "";
       if (/[\r\n]/.test(title)) throw new SemanticLossError("table caption must fit on one line", { code: "line-break", path,
         action: "Remove line breaks from the table caption." });

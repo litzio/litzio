@@ -62,7 +62,7 @@ test("changed header and body cells become Core cell edits; unchanged tables sen
   ]);
 });
 
-test("table structure, formatted cells and line breaks cannot change", () => {
+test("unsupported table grid changes are refused", () => {
   const baseline = toTiptapDocument(loadEditableDocument(mixed));
   const changes: [string, (table: TiptapJSON) => void][] = [
     ["added row", (table) => { table.content!.push(structuredClone(table.content![2])); }],
@@ -70,7 +70,6 @@ test("table structure, formatted cells and line breaks cannot change", () => {
     ["cell kind", (table) => { table.content![1].content![1] = { type: "tableCell", attrs: { header: false }, content: [] }; }],
     ["header flag", (table) => { table.content![2].content![0].attrs!.header = true; }],
     ["column alignment", (table) => { table.content![2].content![0].attrs!.align = "right"; }],
-    ["line break", (table) => { table.content![1].content![0].content = [{ type: "text", text: "U" }, { type: "hardBreak" }, { type: "text", text: "V" }]; }],
   ];
   for (const [name, change] of changes) {
     const next = structuredClone(baseline);

@@ -230,6 +230,9 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   // A separately saved copy has a fresh document-scoped image URL: the ordinary tab
   // must not supply an already decoded tall image to the delayed-loading regression.
   const origin=page.url().split('/').slice(0,3).join('/');
+  const previewTable = creationInput.authoring.inputs[0].blocks.find(block=>block.kind==='table');
+  previewTable.rows[2][11] = '24\nNominal';
+  previewTable.notes = ['a. Measured at full load.'];
   creationInput.authoring.inputs[0].blocks.find(block=>block.content?.some(item=>item.kind==='reference')).content.push(
     {kind:'text',text:' or '},{kind:'link',url:'#complex',children:[{kind:'text',text:'see the complex equation'}]});
   const copy=await page.request.put(origin+'/api/document',{headers:{Connection:'close',Origin:origin},data:{...creationInput,path:documentPath.replace(/\.md$/,'-preview.md')}});
@@ -259,6 +262,8 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect(preview).toContainText('Fixed sample block 399');
   const viewLoadMs=Date.now()-viewStarted;
   await expect(preview.locator('table')).toContainText('18');
+  await expect(preview.locator('[data-table-cell]').filter({hasText:/24\s*Nominal/}).locator('br')).toHaveCount(1);
+  await expect(preview.locator('[data-table-note]')).toHaveText('a. Measured at full load.');
   await expect(preview.getByTestId('equation-preview').first().locator('.katex')).toBeVisible();
   await expect(preview.getByTestId('cross-reference')).toContainText('(1)');
   await expect.poll(()=>preview.locator('figure img').first().evaluate(image=>image.complete&&image.naturalWidth>0)).toBe(true);

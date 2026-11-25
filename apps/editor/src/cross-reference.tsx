@@ -311,7 +311,7 @@ export function referenceCandidates(doc: ProseMirrorNode, query: string, include
   doc.forEach((node) => {
     const label = String(node.attrs.label ?? "");
     if (!label || !["figure", "table"].includes(node.type.name)) return;
-    const content = node.type.name === "table" ? node.lastChild?.type.name === "tableCaption" ? node.lastChild : undefined : node;
+    const content = node.type.name === "table" ? node.content.content.find(child => child.type.name === "tableCaption") : node;
     const caption = content?.textBetween(0, content.content.size, " ",
       leaf => String(leaf.attrs.value ?? leaf.attrs.label ?? " ")).replace(/\s+/g, " ").trim();
     if (caption) captions.set(label, caption);
@@ -366,7 +366,7 @@ export function insertReference(editor: Editor, range: { from: number; to: numbe
   const $to = state.doc.resolve(range.to);
   const parent = $from.parent;
   if (!$from.sameParent($to) || !(parent.type.name === "paragraph" ||
-      parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "heading" || parent.type.name === "tableCell" || parent.type.name === "figure" || parent.type.name === "tableCaption" || parent.type.name === "admonition")) return false;
+      parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "heading" || parent.type.name === "tableCell" || parent.type.name === "figure" || parent.type.name === "tableCaption" || parent.type.name === "tableNote" || parent.type.name === "admonition")) return false;
   const marks = (range.from === range.to ? state.storedMarks ?? $from.marks() : $from.marksAcross($to) ?? [])
     .filter((mark) => mark.type.name !== "link");
   const tr = state.tr;

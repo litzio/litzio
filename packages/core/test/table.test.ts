@@ -147,8 +147,7 @@ test("updateTableCell fails closed without mutating the document", () => {
   const document = parse(technical);
   const before = structuredClone(document);
   const rejected: [number[], string | InlineContent[], RegExp][] = [
-    [[TABLE, 1, 1], "A\nB", /line breaks/],
-    [[TABLE, 1, 1], [{ kind: "text", text: "A" }, { kind: "break" }, { kind: "text", text: "B" }], /line breaks/],
+    [[TABLE, 1, 1], [{ kind: "text", text: "A\nB" }], /line breaks/],
     [[TABLE, 1, 1], [{ kind: "strong", children: [{ kind: "text", text: "AC " }] }], /whitespace/],
     [[TABLE, 1, 1], " AC", /whitespace/],
     [[TABLE, 1, 1], "AC ", /whitespace/],
@@ -221,7 +220,7 @@ test("table insertion fails closed without mutating the document", () => {
     [() => insertTable(document, 0, []), /header row with at least one cell/],
     [() => insertTable(document, 0, [[]]), /header row with at least one cell/],
     [() => insertTable(document, 0, [["A", "B"], ["x"]]), /same number of cells/],
-    [() => insertTable(document, 0, [["A"], ["x\ny"]]), /line breaks/],
+    [() => insertTable(document, 0, [["A"], [[{ kind: "text", text: "x\ny" }]]]), /line breaks/],
     [() => insertTable(document, 0, [[" A"]]), /whitespace/],
     [() => insertTable(document, 99, [["A"]]), /index out of range/],
     [() => insertTableRow(document, [TABLE], 0), /from 1 to 3/],
@@ -318,4 +317,87 @@ test("table captions and labels survive cell, grid and alignment edits, and can 
   assert.match(serialize(updateLabel(plain, [0], "tbl-only")), /:name: tbl-only/);
   assert.throws(() => updateTableCaption(plain, [0], " two lines\ncaption"), /line breaks|whitespace/);
 
+});
+
+const text = (text: string): InlineContent => ({ kind: "text", text });
+const nativeTable = "---\nlitzio: 1\n---\n\n:::{table}\n\n| Name |\n| ---- |\n| A |\n";
+
+test("table cell breaks round-trip at the edges, consecutively and within marks", () => {
+  const doc = core.parse(nativeTable + ":::\n");
+  const changed = core.updateTableCell(doc, [1, 1, 0], "\r\nA\n\nB\r");
+  const markdown = core.serialize(changed);
+  assert.match(markdown, /\| <br>A<br><br>B<br> \|/);
+  const reopened = core.parse(markdown);
+  const block = core.getEditableDocument(reopened).blocks[0];
+  assert.ok(block.block === "table");
+  assert.deepEqual(block.rows[1].cells[0].content, [
+    { kind: "break" }, text("A"), { kind: "break" }, { kind: "break" }, text("B"), { kind: "break" },
+  ]);
+  assert.equal(core.serialize(reopened), markdown);
+  const rich = core.parse(nativeTable.replace("| A |", "| **a<br>b** <br> c |") + ":::\n");
+  const withMarks = core.getEditableDocument(rich).blocks[0];
+  assert.ok(withMarks.block === "table");
+  assert.deepEqual(withMarks.rows[1].cells[0].content, [
+    { kind: "strong", children: [text("a"), { kind: "break" }, text("b")] }, text(" "), { kind: "break" }, text(" c"),
+  ]);
+  for (const html of ["<BR>", "<br/>", "<br />", '<br class="note">', "<span>x</span>"]) {
+    assert.throws(() => core.parse(nativeTable.replace("| A |", "| x" + html + "y |") + ":::\n"), /Unsupported native content/);
+  }
+});
+
+test("table note whitespace follows paragraph writes and supports field-level authoring reuse", async () => {
+  const raw = nativeTable + "\n&#32;&#9;a. note&#32;\n:::\n";
+  const document = core.parse(raw);
+  const block = core.getEditableDocument(document).blocks[0];
+  assert.ok(block.block === "table" && block.notes);
+  assert.deepEqual(block.notes, [[text(" \ta. note ")]]);
+  const body = core.serialize(core.parse("---\nlitzio: 1\n---\n\n&#32;&#9;a. note&#32;\n"));
+  const canonical = core.serialize(document);
+  assert.match(body, /\na\. note&#x20;\n$/);
+  assert.match(canonical, /\na\. note&#x20;\n:::\n$/);
+  assert.equal(core.serialize(core.parse(canonical)), canonical);
+  const authored = await core.authorDocument({ inputs: [{ key: "table", blocks: [
+    { kind: "table", rows: block.rows.map(row => row.cells.map(cell => cell.content)), notes: block.notes },
+  ] }] });
+  assert.equal(authored.source, canonical);
+  assert.equal(core.serialize(core.updateTableNote(document, [1], 0, block.notes[0])), canonical);
+});
+
+test("table notes round-trip as owned paragraphs and follow whole-table operations", async () => {
+  const source = nativeTable.replace("| A |", "| <br>A<br> B <br> |") + "\na. **Nominal** {sub}`x` $y$ [Link](https://example.test) {ref}`next`\n\nb. Limit\\\ncontinued\n:::\n\n(next)=\n\n# Next\n";
+  const doc = core.parse(source);
+  const read = (document: core.Document) => {
+    const block = core.getEditableDocument(document).blocks.find(block => block.block === "table");
+    assert.ok(block);
+    return block;
+  };
+  const initial = read(doc);
+  assert.equal(initial.caption, undefined);
+  assert.deepEqual(initial.notes?.map(core.inlineContentText), ["a. Nominal x $y$ Link {ref}\x60next\x60", "b. Limit\ncontinued"]);
+  const canonical = core.serialize(doc);
+  assert.equal(core.serialize(core.parse(canonical)), canonical);
+  const machine = core.machineNodes(core.getEditableDocument(doc));
+  const table = machine.find(node => node.type === "table")!;
+  const rows = initial.rows.map(row => row.cells.map(cell => machine.find(node => node.path.join() === cell.path.join())!.content));
+  const authored = await core.authorDocument({ inputs: [{ key: "table", blocks: [
+    { kind: "table", rows, notes: table.notes }, { kind: "target", label: "next" }, { kind: "heading", level: 1, text: "Next" },
+  ] }] });
+  assert.equal(authored.source, canonical);
+  let edited = core.insertTableNote(doc, [1], 1, "c. Added");
+  edited = core.updateTableNote(edited, [1], 0, "a. Updated");
+  edited = core.moveTableNote(edited, [1], 2, 0);
+  edited = core.removeTableNote(edited, [1], 2);
+  edited = core.insertTableRow(edited, [1], 1);
+  edited = core.updateTableCaption(edited, [1], "Measurements");
+  edited = core.updateLabel(edited, [1], "measurements");
+  assert.deepEqual(read(core.parse(core.serialize(edited))).notes?.map(core.inlineContentText), ["b. Limit\ncontinued", "a. Updated"]);
+  const moved = core.moveBlock(edited, 1, 3);
+  assert.deepEqual(read(moved).notes, read(edited).notes);
+  assert.doesNotMatch(core.serialize(core.removeBlock(moved, read(moved).path[0])), /Limit|Updated/);
+  for (const block of ["- List", "# Heading", "![Image](image.png)", "| Another |\n| ------- |\n| Cell |",
+    "[^n]"]) {
+    assert.throws(() => core.parse(nativeTable + "\n" + block + "\n:::\n" + (block === "[^n]" ? "\n[^n]: Endnote\n" : "")), /Unsupported native content/);
+  }
+  assert.throws(() => core.insertTableNote(doc, [1], 4, "Out of bounds"), /index is out of range/);
+  assert.throws(() => core.updateTableNote(doc, [1], 0, [{ kind: "footnote", label: "n" }]), /cannot contain an endnote/);
 });

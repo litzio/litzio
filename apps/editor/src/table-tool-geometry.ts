@@ -32,7 +32,7 @@ export function useTableToolGeometry(grid: RefObject<HTMLDivElement | null>, act
         const rect = cell.getBoundingClientRect(), center = rect.left + rect.width / 2;
         return { left: Math.max(viewport.left + target / 2, Math.min(viewport.right - target / 2, center)) - origin.left, visible: center >= viewport.left + target / 2 && center <= viewport.right - target / 2 };
       });
-      const rows = [...table.rows].map(row => { const r = row.getBoundingClientRect(); return { top: r.top - origin.top, height: r.height }; });
+      const rows = [...table.rows].filter(row => row.cells[0]?.hasAttribute("data-table-cell")).map(row => { const r = row.getBoundingClientRect(); return { top: r.top - origin.top, height: r.height }; });
       const next = { columns, rows, left: viewport.left - origin.left, top: bounds.top - origin.top,
         targetSize: target, clearance: gap, scrolled: scroll.scrollLeft > 0, actionWidth: bar.getBoundingClientRect().width };
       setGeometry(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);

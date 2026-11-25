@@ -1562,13 +1562,12 @@ test("empty paragraph and empty heading saves are rejected", () => {
   });
   const table = loadEditableDocument(nativeSource("# Title\n\n| a | b |\n|--|--|\n| c | d |\n"));
   const broken = clone(toTiptapDocument(table));
-  broken.content![1].content![1].content![1].content = [{ type: "hardBreak" }];
+  broken.content![1].content![1].content![1].content = [{ type: "image" }];
   assert.throws(() => collectSupportedEdits(table, broken), (error: unknown) => {
     assert.ok(error instanceof SaveContentError);
-    assert.match(error.message, /line breaks/);
+    assert.match(error.message, /unsupported Tiptap node "image"/);
     assert.deepEqual(error.block, { index: 1, type: "table" });
     assert.deepEqual(error.cell, { row: 1, column: 1 });
-    assert.match(error.action, /Remove.*line break/);
     return true;
   });
 });

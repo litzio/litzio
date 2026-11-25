@@ -7,7 +7,7 @@ import { getDocumentTitle } from "./myst/title.ts";
 import { getHeadingNumbering } from "./myst/heading-numbering.ts";
 import type { HeadingNumbering, ReferenceTemplates } from "./numbering.ts";
 import { getReferenceTemplates } from "./myst/reference-templates.ts";
-import { tableCellContent, tableOf, tableCaptionParagraph } from "./myst/table.ts";
+import { tableCellContent, tableOf, tableCaptionParagraph, tableNoteParagraphs, tableNoteContent } from "./myst/table.ts";
 import { inlineContentText, projectInlineContent, type InlineContent } from "./inline.ts";
 import { supportedAdmonitionContent } from "./myst/admonition.ts";
 import type { ListContent } from "./list.ts";
@@ -117,6 +117,7 @@ export type EditableBlock =
       rows: EditableTableRow[];
       label?: string;
       caption?: InlineContent[];
+      notes?: InlineContent[][];
     }
   | ({
       /** A List v1 structure. */
@@ -267,9 +268,10 @@ function tableBlock(node: MystNode, path: NodePath): EditableBlock {
   const rows = (tableOf(node)!.children ?? []).map((row, rowIndex) => ({
     cells: (row.children ?? []).map((cell, cellIndex) => {
       const content = requireContent(tableCellContent(cell));
+      const inline = inlineContentText(content);
       return {
         path: [...path, rowIndex, cellIndex] as NodePath,
-        text: toText(cell),
+        text: inline.includes("\n") ? inline : toText(cell),
         content,
         header: rowIndex === 0,
         editable: true as const,
@@ -278,12 +280,14 @@ function tableBlock(node: MystNode, path: NodePath): EditableBlock {
       };
     }),
   }));
+  const notes = tableNoteParagraphs(node).map(note => requireContent(tableNoteContent(note)));
   return {
     block: "table",
     ...(node.enumerator !== undefined ? { enumerator: node.enumerator as string } : {}),
     ...(node.enumerated !== undefined ? { enumerated: node.enumerated as boolean } : {}),
     path,
     rows,
+    ...(notes.length ? { notes } : {}),
     ...(nodeLabel(node) ? { label: nodeLabel(node) } : {}),
     ...(tableCaptionParagraph(node) ? { caption: projectInlineContent(tableCaptionParagraph(node)!)! } : {}),
   };

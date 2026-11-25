@@ -14,7 +14,7 @@ import { parse as parseTree } from "./parse.ts";
 import { isDivider, supportedQuoteContent } from "./quote.ts";
 import { supportedTargetLabel } from "./reference.ts";
 import { repeatRoundTrip, roundTrip, serialize as serializeTree } from "./serialize.ts";
-import { tableCellContent, tableOf, tableCaptionParagraph, isNativeTableSource } from "./table.ts";
+import { tableCellContent, tableOf, tableCaptionParagraph, tableNoteContent, tableNoteParagraphs, isNativeTableSource } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
 import { NUMBERED_KINDS, referenceTemplatesError, type NumberedKind } from "../numbering.ts";
 import { referenceTemplateValue } from "./reference-templates.ts";
@@ -108,7 +108,8 @@ function supportedBlock(node: MystNode): boolean {
   const table = tableOf(node);
   if (table) {
     const caption = tableCaptionParagraph(node);
-    return (!caption || projectInlineContent(caption) !== undefined) && fields(table, ["children"]) &&
+    return (!caption || projectInlineContent(caption) !== undefined) &&
+      tableNoteParagraphs(node).every(note => tableNoteContent(note) !== undefined) && fields(table, ["children"]) &&
       (table.children ?? []).length > 0 && (table.children ?? []).every(row => row.type === "tableRow" && fields(row, ["children"]) &&
         (row.children ?? []).every(cell => fields(cell, ["header", "align", "children"]) && tableCellContent(cell) !== undefined));
   }

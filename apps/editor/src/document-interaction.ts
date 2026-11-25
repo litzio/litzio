@@ -65,7 +65,7 @@ export function pasteFootnotes(state: EditorState, slice: Slice, incoming: Footn
   return tr;
 }
 
-const TYPES = new Set(["paragraph", "heading", "admonition", "quote", "divider", "equation", "figure", "table", "tableRow", "tableCell", "tableCaption", "bulletList", "orderedList", "listItem", "taskList", "taskItem", "codeBlock", "text", "hardBreak", "inlineMath", "crossReference", "footnoteReference", "citation"]);
+const TYPES = new Set(["paragraph", "heading", "admonition", "quote", "divider", "equation", "figure", "table", "tableRow", "tableCell", "tableCaption", "tableNotes", "tableNote", "bulletList", "orderedList", "listItem", "taskList", "taskItem", "codeBlock", "text", "hardBreak", "inlineMath", "crossReference", "footnoteReference", "citation"]);
 const COPY_RESTRICTION = "This selection cannot be copied losslessly. Use Source to copy its original Markdown. The selection is kept.";
 const CUT_RESTRICTION = "This selection cannot be cut losslessly. Use Source to copy its original Markdown. Nothing was removed.";
 
@@ -118,7 +118,7 @@ function internalPasteError(html: string, schema: Schema): UiMessage | undefined
     if (box) checkboxes.add(box).add(box.parentElement?.tagName === "LABEL" && box.parentElement.parentElement === item ? box.parentElement : box);
   }
   // Content of a typed textblock must be what its schema allows: marks and inline atoms in a heading,
-  // but no line break in a heading or cell and no block inside text.
+  // with no block inside text.
   const misplaced = (element: Element, typed: string) => {
     const type = schema.nodes[typed], parent = schema.nodes[element.parentElement?.closest("[data-litzio-type]")?.getAttribute("data-litzio-type") ?? ""];
     return Boolean(type && parent?.isTextblock && !parent.contentMatch.matchType(type));
@@ -175,8 +175,8 @@ function closeExternalSlice(slice: Slice): Slice {
   return new Slice(slice.content, open(slice.content.firstChild, slice.openStart), open(slice.content.lastChild, slice.openEnd));
 }
 
-/** Textblocks that hold one line of a larger structure: their content is never split into blocks. */
-const ONE_LINE_PLACES = new Set(["tableCell", "tableCaption", "figure", "footnoteDefinition"]);
+/** Inline parts of larger structures cannot be split by block paste. */
+const INLINE_PLACES = new Set(["tableCell", "tableCaption", "tableNote", "figure", "footnoteDefinition"]);
 
 /** The slice as the inline content of one textblock, or undefined when it holds blocks. Open
  * wrappers (a copied cell's table and row) are descended; a closed block is a block. */
@@ -234,7 +234,7 @@ export function documentEnd(state: EditorState): Transaction {
 function atNestedDocumentEnd(view: EditorView): boolean {
   const { state } = view, { selection } = state, { $from } = selection;
   if (!selection.empty || $from.depth < 2 || $from.after(1) !== state.doc.content.size) return false;
-  const lastLine = $from.node(1).type.name === "table"
+  const lastLine = $from.node(1).type.name === "table" && $from.parent.type.name !== "tableNote"
     ? $from.index(1) === $from.node(1).childCount - 1
     : !TextSelection.findFrom(state.doc.resolve($from.after()), 1, true);
   return lastLine && view.endOfTextblock("down");
@@ -242,7 +242,7 @@ function atNestedDocumentEnd(view: EditorView): boolean {
 
 function tableTab(state: EditorState, backward: boolean, editable: boolean): Transaction | null {
   const { $from } = state.selection;
-  if ($from.depth < 3 || $from.node(1).type.name !== "table") return null;
+  if ($from.depth < 3 || $from.parent.type.name !== "tableCell" || $from.node(1).type.name !== "table") return null;
   const cells: number[] = [];
   const start = $from.before(1);
   $from.node(1).descendants((node, pos) => { if (node.type.name === "tableCell") cells.push(start + pos + 2); });
@@ -366,6 +366,18 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
         if (this.editor.isEditable && !this.editor.view.composing && backward && selection instanceof TextSelection &&
             selection.empty && selection.$from.parentOffset === 0 &&
             ["figure", "tableCaption"].includes(selection.$from.parent.type.name)) return true;
+        if (this.editor.isEditable && !this.editor.view.composing && backward && selection instanceof TextSelection &&
+            selection.empty && selection.$from.parent.type.name === "tableNote" && !selection.$from.parent.content.size) {
+          const { $from } = selection;
+          const removeGroup = $from.node(-1).childCount === 1;
+          const depth = removeGroup ? $from.depth - 1 : $from.depth;
+          const from = $from.before(depth), to = $from.after(depth);
+          const tr = closeHistory(state.tr).delete(from, to);
+          const previous = TextSelection.findFrom(tr.doc.resolve(from), -1, true);
+          if (previous) tr.setSelection(previous);
+          this.editor.view.dispatch(tr.scrollIntoView());
+          return true;
+        }
         if (state.selection instanceof NodeSelection && state.selection.node.type.name === "table") {
           this.editor.view.dispatch(closeHistory(state.tr).deleteSelection().setMeta(TABLE_DELETE_META, true).scrollIntoView());
           return true;
@@ -485,7 +497,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           getAttrs: (element: HTMLElement) => {
             try { return JSON.parse(element.getAttribute("data-litzio-attrs") ?? "{}"); } catch { return false; }
           },
-          ...(type === "table" ? { contentElement: "table" } : type === "figure" ? { contentElement: "figcaption" } : {}),
+          ...(type === "table" ? { contentElement: "table" } : type === "tableNotes" ? { contentElement: "td" } : type === "figure" ? { contentElement: "figcaption" } : {}),
           // As Tiptap reads its own checklist item: the content is in the item's div, and the
           // leading checkbox is the check state.
           ...(type === "taskItem" ? {
@@ -769,17 +781,21 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           if (event.clipboardData?.files.length && !isInternalClipboard(event.clipboardData.getData("text/html"))) return fail(`Add one ${ASSET_FORMATS} image at a time. Your selection and clipboard are kept.`);
           if (!slice.content.content.every(portable)) return fail({ key: "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." });
           const target = view.state.selection.$from.parent.type.name;
-          if (target === "heading" || target === "tableCell" || target === "tableCaption") {
+          if (target === "heading" || target === "tableCaption" || target === "tableCell") {
             let lineBreak = false;
-            // A soft line break read from Markdown is a newline inside text.
-            slice.content.descendants(node => { if (node.type.name === "hardBreak" || node.isText && node.text!.includes("\n")) lineBreak = true; });
-            if (lineBreak) return fail(`A ${target === "heading" ? "heading" : target === "tableCaption" ? "table caption" : "table cell"} cannot contain line breaks. Paste into a paragraph to keep them. The clipboard and selection are kept.`);
+            // A soft break read from Markdown is a physical newline inside a text node.
+            slice.content.descendants(node => {
+              if (node.isText && node.text!.includes("\n") || target !== "tableCell" && node.type.name === "hardBreak") lineBreak = true;
+            });
+            if (lineBreak && target === "tableCell") return fail({ key: "A table cell needs hard line breaks. Use Shift+Enter in the cell. The clipboard and selection are kept." });
+            if (lineBreak) return fail(`A ${target === "heading" ? "heading" : "table caption"} cannot contain line breaks. Paste into a paragraph to keep them. The clipboard and selection are kept.`);
           }
-          // One-line places take inline content only. The engine would otherwise split the place
+          // Inline places take inline content only. The engine would otherwise split the place
           // and carry the text after the caret into the body.
-          if (ONE_LINE_PLACES.has(target)) {
+          if (INLINE_PLACES.has(target)) {
             const inline = inlineContentOf(slice);
-            if (!inline) return fail({ key: "Only one line of text can be pasted here. Paste blocks into a paragraph. Nothing was pasted; the clipboard and selection are kept." });
+            if (!inline) return fail({ key: "Only inline content can be pasted here. Paste blocks into a paragraph. Nothing was pasted; the clipboard and selection are kept." });
+            if (target === "tableNote" && referenceLabels(inline).length) return fail({ key: "Table notes cannot contain endnote references. Nothing was pasted; the clipboard and selection are kept." });
             if (target === "footnoteDefinition" && referenceLabels(inline).length) return fail({ key: "An endnote cannot contain another endnote. Nothing was pasted; the clipboard and selection are kept." });
           }
           const { selection } = view.state;

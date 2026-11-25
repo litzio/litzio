@@ -38,6 +38,7 @@
 | [ADR-0020: 플러그인 구조와 공통 UI](adr/0020-plugin-architecture.md) | Accepted | 공통 공개 SDK·패키지, Host 하위 프로세스·등록 단위 신뢰·reload·Windows secret과 비서 제작·관리의 공용 작업·CLI 경계를 정한다. |
 | [ADR-0021: 범용 에이전트 비서](adr/0021-general-agent-assistant.md) | Accepted | 범용 비서의 원본 직접 수정, CLI·스킬 기본, 공급자 권한과 앱 데이터 작업 폴더를 정한다. 활성 문서의 저장 경로는 메시지에 직접 전달한다. |
 | [ADR-0022: 플러그인 화면 코드](adr/0022-plugin-screen-code.md) | Accepted | 플러그인이 React 화면 코드를 제공하고 공통 부품·Core 의미·공식 저장 경로를 사용하는 경계를 정한다. 적용 범위는 같은 PC/개발 Host다. |
+| [ADR-0023: 표 칸 줄바꿈과 표 주석](adr/0023-table-inline-breaks-and-notes.md) | Accepted | 직사각형 MyST 표의 인라인 줄바꿈과 표가 소유하는 주석 문단의 저장 형식을 정한다. |
 
 UI 작업은 루트 [DESIGN.md](../DESIGN.md)에서 시작하고, 아래 세부 계약과 결정표에서 표면·공통 구현을 확인한다.
 
@@ -65,7 +66,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Citations](design/citations-v1.md) | Implemented | ADR-0008 단위 A·B·C. role·선언 보존, Core 번호·제한 IEEE·readiness, CLI/Host 자료 읽기와 파생 References. 슬래시 검색·인용 폼 저작 UI. |
 | [Heading numbering](design/heading-numbering-v1.md) | Implemented | Core의 본문 H1–H6 번호, 그림·표·수식의 자동·고정 번호·참조 템플릿과 CLI·Editor 표시 및 쓰기 경계를 정의한다. |
 | [Section references](design/section-references-v1.md) | Implemented | 문서 안의 MyST heading label·참조와 Core·CLI·Editor의 대상 변경·표시·미해결 진단을 정의한다. |
-| [Table caption and label](design/table-caption-v1.md) | Implemented | 표 caption·label·참조 대상과 Core 번호, 정규 table directive 저장 및 직접 편집·보존을 정의한다. |
+| [Table caption and label](design/table-caption-v1.md) | Implemented | 표 칸 줄바꿈, 표 주석·캡션·라벨·참조와 번호, 정규 table directive 저장 및 편집을 정의한다. |
 | [Table interaction](design/table-interaction-v1.md) | Implemented | 표 cell·행·열 handle·추가 도구·메뉴, 키보드·history·스크롤과 보존 경계를 정의한다. |
 | [Figure authoring](design/figure-authoring-v1.md) | Implemented | pending·image·Mermaid Figure의 Core·CLI 의미와 Editor 원문·미리보기·속성 초안, 정규 저장·readiness 경계를 정의한다. |
 | [Editor UX Shell](design/editor-ux-shell-v1.md) | Implemented | 공용 제목 줄·에디터 그룹·탭별 읽기/편집/소스·Sidebar와 초안 유지, 작성 interaction·상태 표시를 정의한다. |

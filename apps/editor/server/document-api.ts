@@ -509,7 +509,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function supportedEditsOf(value: unknown): SupportedEdits {
   if (!isObject(value)) throw new Error("invalid session edits");
-  const arrayFields = ["headings", "headingLevels", "paragraphs", "equations", "figures", "cells", "tables", "tableCaptions",
+  const arrayFields = ["headings", "headingLevels", "paragraphs", "equations", "figures", "cells", "tables", "tableCaptions", "tableNotes",
     "admonitions", "quotes", "footnotes", "lists", "codes", "labels", "enumerators", "splits", "merges", "inserts", "deletes", "order", "bibliography"] as const;
   for (const key of Object.keys(value)) {
     if (key !== "status" && key !== "title" && key !== "headingNumbering" && key !== "referenceTemplates" && !arrayFields.some(field => field === key)) throw new Error(`invalid ${key} edits`);

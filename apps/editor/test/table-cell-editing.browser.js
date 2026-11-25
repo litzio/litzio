@@ -3,7 +3,7 @@
 // cells keep applied, pasted and removed formatting, Enter exits the table, and read-only cells stay unchanged.
 // Files are scratch copies under the repository's ignored tmp/ directory; prepare them first
 // (see docs/test/TEST_GUIDE.md). The scenario writes those copies only.
-async (page, { openPath }) => {
+async (page, { openPath, expect, screenshots }) => {
   const problems = [];
   page.on('console', message => { if (message.type() === 'error') problems.push(message.text()); });
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -107,6 +107,126 @@ async (page, { openPath }) => {
   result.boldRemoved = await cell('bold').locator('strong').count() === 0;
   await save();
   result.formattingRemovedOnDisk = /\| U +\| bold +\| \*\*V\*\* +\|/.test(await markdown(mixed, 'mixed-table.md'));
+  // A cell hard break and table-owned paragraphs travel through the real Save, Read and Visual comparison.
+  const notes = table.locator('[data-table-note]');
+  const addNote = async text => {
+    // Note editing uses the existing text caret and history.
+    await table.locator('[data-table-cell]').first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Add table note', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.type.name === 'tableNote');
+    await page.keyboard.type(text);
+  };
+  if (screenshots) {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByTestId('view-read').click();
+    await expect(table.getByRole('button', { name: 'Table properties', exact: true })).toHaveCount(0);
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: 'tmp/1973-captures/before-1440-light.png' });
+    await page.getByTestId('view-visual').click();
+  }
+  await cell('U').click();
+  await page.keyboard.press('End');
+  const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
+  // Exercise the browser event sequence without claiming OS IME behavior.
+  const composing = await editor.evaluate(el => {
+    const view = el.editor.view, dom = view.dom, before = view.state.doc;
+    const composition = (type, data) => dom.dispatchEvent(new CompositionEvent(type, { bubbles: true, data }));
+    composition('compositionstart', '');
+    composition('compositionupdate', '한');
+    const active = view.composing;
+    dom.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter', code: 'Enter', shiftKey: true, isComposing: true, bubbles: true, cancelable: true,
+    }));
+    const unchanged = view.state.doc.eq(before);
+    composition('compositionend', '');
+    return { active, unchanged };
+  });
+  expect(composing).toEqual({ active: true, unchanged: true });
+  await expect.poll(() => editor.evaluate(el => el.editor.view.composing)).toBe(false);
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('Line two');
+  await expect(table.locator('[data-table-cell]').filter({ hasText: /^U\s*Line two$/ }).locator('br')).toHaveCount(1);
+  await addNote('a. Nominal value');
+  await addNote('b. Measured at full load');
+  await expect(notes).toHaveText(['a. Nominal value', 'b. Measured at full load']);
+  await notes.last().click();
+  await page.keyboard.press('End');
+  if (screenshots) {
+    await page.evaluate(() => document.fonts.ready);
+    await table.screenshot({ path: 'tmp/1973-captures/editing-1440.png', caret: 'initial' });
+  }
+  await page.keyboard.type('.');
+  await expect(notes.last()).toHaveText('b. Measured at full load.');
+  await page.getByRole('button', { name: 'File actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Changes before saving', exact: true }).click();
+  const dialog = page.getByTestId('save-comparison');
+  await dialog.getByRole('button', { name: 'Visual', exact: true }).click();
+  const diff = dialog.getByTestId('visual-comparison');
+  await expect(diff.locator('[data-table-note]').filter({ hasText: 'Measured at full load.' })).toBeVisible();
+  await expect(diff.locator('[data-table-cell] br')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await save();
+  await open(mixed);
+  await expect(notes).toHaveText(['a. Nominal value', 'b. Measured at full load.']);
+  await expect(table.locator('[data-table-cell]').filter({ hasText: /^U\s*Line two$/ }).locator('br')).toHaveCount(1);
+  const readView = async () => {
+    await page.getByTestId('view-read').click();
+    await expect(notes).toHaveText(['a. Nominal value', 'b. Measured at full load.']);
+    await expect(table.locator('[data-table-cell] br')).toHaveCount(1);
+    await expect(table.getByRole('button', { name: 'Table properties', exact: true })).toHaveCount(0);
+  };
+  await readView();
+  for (const [width, height, theme] of [[1440, 900, 'light'], [1920, 1080, 'light'], [1440, 900, 'dark']]) {
+    if (!screenshots) break;
+    await page.setViewportSize({ width, height });
+    await page.evaluate(theme => localStorage.setItem('litzio.theme', theme), theme);
+    await page.reload();
+    await readView();
+    await page.evaluate(() => document.fonts.ready);
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path: 'tmp/1973-captures/' + width + '-' + theme + '.png' });
+  }
+  await page.getByTestId('view-visual').click();
+  await notes.last().click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Shift+Home');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Backspace');
+  await expect(notes).toHaveText(['a. Nominal value']);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(notes).toHaveCount(2);
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  await expect(notes).toHaveText(['a. Nominal value']);
+  await save();
+  await open(mixed);
+  await expect(notes).toHaveText(['a. Nominal value']);
+
+  // External HTML's cell BR is meaningful input. The clipboard is used as in a normal paste.
+  await table.getByTestId('table-caption').click();
+  await page.keyboard.press('Enter');
+  await page.evaluate(async () => {
+    const html = '<table><tr><th>Check</th></tr><tr><td>Upper<br>Lower</td></tr></table>';
+    await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }) })]);
+  });
+  await page.keyboard.press('ControlOrMeta+v');
+  const pasted = table.locator('[data-table-cell]').filter({ hasText: /^Upper\s*Lower$/ });
+  await expect(pasted.locator('br')).toHaveCount(1);
+  await save();
+  await open(mixed);
+  await expect(pasted.locator('br')).toHaveCount(1);
+
+  // Whole-table copy uses the editor's typed HTML and must carry table-owned notes.
+  await table.first().hover();
+  await table.first().locator('.block-metadata').click();
+  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.node?.type.name === 'table');
+  await page.keyboard.press('ControlOrMeta+c');
+  await table.last().getByLabel('Table caption', { exact: true }).click();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ControlOrMeta+v');
+  await expect(table).toHaveCount(3);
+  await expect(table.last().locator('[data-table-note]')).toHaveText('a. Nominal value');
+  await expect(table.last().locator('[data-table-cell] br')).toHaveCount(1);
   result.consoleErrors = problems;
   const failed = Object.entries(result).filter(([key, value]) => key !== 'consoleErrors' && value !== true);
   if (failed.length > 0 || problems.length > 0) throw new Error(`Table cell editing failed: ${JSON.stringify(result)}`);

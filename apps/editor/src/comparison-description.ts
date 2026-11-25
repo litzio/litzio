@@ -17,6 +17,7 @@ function value(block: EditableBlock | undefined, field: string): string {
     const content = Array.isArray(item) ? item : item && typeof item === "object" && "content" in item ? item.content : [];
     return clip(inline(content as InlineContent[]));
   }
+  if (field === "notes" && block.block === "table" && block.notes) return clip(block.notes.map(inline).join("\n"));
   return item === undefined ? "∅" : clip(String(item));
 }
 /** Format Core's selected fields using neutral read data; never decide equality here. */
@@ -27,7 +28,7 @@ export function comparisonDescription(row: CompareRow, before: EditableDocument,
   const b = after.blocks.find(block => block.path.join(",") === row.after?.join(","));
   const details = row.change.details.map(detail => {
     const field = detail.split(":", 1)[0];
-    const labels = { level: i18n.t("Heading level"), content: i18n.t("Text, formatting and links"), caption: i18n.t("Caption"),
+    const labels = { level: i18n.t("Heading level"), content: i18n.t("Text, formatting and links"), caption: i18n.t("Caption"), notes: i18n.t("Table notes"),
       imageUrl: i18n.t("Image path"), imageAlt: i18n.t("Alt text"), latex: i18n.t("Equation source"), mermaidSource: i18n.t("Mermaid source"),
       label: i18n.t("Label"), enumerator: i18n.t("Fixed number"), code: i18n.t("Code"), language: i18n.t("Language") };
     if (field === "rows") return i18n.t("Table rows or cells changed.");

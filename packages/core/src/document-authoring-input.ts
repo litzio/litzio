@@ -36,7 +36,7 @@ const block = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("list"), ordered: z.boolean(), checklist: z.boolean().optional(), start: z.number().int().positive().optional(),
     style: z.enum(LIST_STYLES).optional(), delimiter: z.enum([".", ")"]).optional(), items: z.array(z.union([text, listItem])).min(1).max(100) }),
   z.strictObject({ kind: z.literal("table"), rows: z.array(z.array(z.union([text, content])).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableColumns)).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableRows),
-    align: z.array(z.enum(["left", "center", "right"]).nullable()).optional(), caption: z.union([text, content]).optional(), label: text.optional(), enumerator: text.optional(), enumerated: z.boolean().optional() }),
+    notes: z.array(z.union([text, content])).max(DOCUMENT_AUTHORING_LIMITS.blocks).optional(), align: z.array(z.enum(["left", "center", "right"]).nullable()).optional(), caption: z.union([text, content]).optional(), label: text.optional(), enumerator: text.optional(), enumerated: z.boolean().optional() }),
   z.strictObject({ kind: z.literal("figure"), imageUrl: text.optional(), imageAsset: text.min(1).max(512).optional(), imageAlt: text, caption: z.union([text, content]), label: text.optional(), enumerator: text.optional(), enumerated: z.boolean().optional() }).refine(value => (value.imageUrl !== undefined) !== (value.imageAsset !== undefined), "Expected imageUrl or imageAsset"),
   z.strictObject({ kind: z.literal("code"), language: text, code: text }),
   z.strictObject({ kind: z.literal("equation"), latex: text, label: text.optional(), enumerator: text.optional() }),
@@ -50,16 +50,17 @@ const block = z.discriminatedUnion("kind", [
 export const documentAuthoringSchema = z.strictObject({ status: z.enum(DOCUMENT_STATUSES).optional(), title: text.optional(), inputs: z.array(z.strictObject({
   key: text.min(1).max(512), blocks: z.array(block).max(DOCUMENT_AUTHORING_LIMITS.blocks),
 })).max(DOCUMENT_AUTHORING_LIMITS.inputs) }).superRefine((value, ctx) => {
-  // Count nested list items as blocks too; inline atoms and every nested string are bounded by bytes/string limits.
+  // Count nested list items and table note paragraphs as blocks too; inline atoms and every nested string are bounded by bytes/string limits.
   let nested = 0;
   const visit = (node: unknown): void => {
     if (!node || typeof node !== "object") return;
     if (!Array.isArray(node) && "items" in node && Array.isArray(node.items)) nested += node.items.length;
+    if ("notes" in node && Array.isArray(node.notes)) nested += node.notes.length;
     for (const child of Object.values(node)) visit(child);
   };
   visit(value);
   if (nested + value.inputs.reduce((sum, input) => sum + input.blocks.length, 0) > DOCUMENT_AUTHORING_LIMITS.blocks)
-    ctx.addIssue({ code: "custom", message: "Too many blocks including list items" });
+    ctx.addIssue({ code: "custom", message: "Too many blocks including list items and table notes" });
   if (new Set(value.inputs.map(input => input.key)).size !== value.inputs.length) ctx.addIssue({ code: "custom", message: "Duplicate input key" });
   if (value.inputs.reduce((sum, input) => sum + input.blocks.length, 0) > DOCUMENT_AUTHORING_LIMITS.blocks) ctx.addIssue({ code: "custom", message: "Too many blocks" });
 });

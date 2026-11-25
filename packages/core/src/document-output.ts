@@ -81,7 +81,7 @@ function machineBlock(block: EditableBlock): MachineNode[] {
   }
   if (block.block === "table") {
     return [
-      { ...base, ...(block.label ? { label: block.label } : {}), ...(block.caption ? { caption: block.caption } : {}) },
+      { ...base, ...(block.label ? { label: block.label } : {}), ...(block.caption ? { caption: block.caption } : {}), ...(block.notes ? { notes: block.notes } : {}) },
       ...block.rows.flatMap((row) =>
         row.cells.map((cell) => ({
           path: [...cell.path],

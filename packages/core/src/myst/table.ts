@@ -2,19 +2,21 @@ import { inlineContentToNodes, projectInlineContent, type InlineContent } from "
 import type { MystNode } from "./tree.ts";
 import type { VFile } from "vfile";
 
-/**
- * Editable cells of a top-level Markdown (GFM) table hold supported inline content
- * (marks, links, inline math, references) without line breaks, or nothing. Cells with
- * any other inline node are rejected by native admission.
- */
-export function tableCellContent(cell: MystNode | undefined): InlineContent[] | undefined {
-  if (cell?.type !== "tableCell") return undefined;
-  const content = projectInlineContent(cell);
-  return content && !containsBreak(content) ? content : undefined;
+/** The only raw HTML with native meaning is a bare <br> within a table cell. */
+export function readTableBreaks(node: MystNode, inCell = false): void {
+  if (inCell && node.type === "html" && node.value === "<br>") {
+    node.type = "break";
+    delete node.value;
+  }
+  node.children?.forEach(child => readTableBreaks(child, inCell || node.type === "tableCell"));
 }
 
-function containsBreak(content: InlineContent[]): boolean {
-  return content.some((item) => item.kind === "break" || ("children" in item && containsBreak(item.children)));
+export function tableCellContent(cell: MystNode | undefined): InlineContent[] | undefined {
+  return cell?.type === "tableCell" ? projectInlineContent(cell) : undefined;
+}
+
+export function tableNoteHasFootnote(content: InlineContent[]): boolean {
+  return content.some(item => item.kind === "footnote" || ("children" in item && tableNoteHasFootnote(item.children)));
 }
 
 /** Replace a supported cell's content; an empty cell has no children, as MyST parses it. */
@@ -103,6 +105,15 @@ export function retainTableSource(node: MystNode, file: VFile): void {
       .forEach(child => nonNativeTableSources.add(child));
   }
   if (node.type === "mystDirective" && node.name === "table") {
+    // MyST's generic container transform promotes the first loose paragraph to a
+    // caption when the directive has no argument. Preserve the table's source order.
+    const container = node.children?.[0];
+    const children = container?.children ?? [];
+    const grid = children.findIndex(child => child.type === "table");
+    if (container?.kind === "table" && grid >= 0 && grid < children.length - 1) {
+      const after = children.splice(grid + 1);
+      children.push({ type: "legend", children: after });
+    }
     const unsupported = Object.fromEntries(Object.entries(node.options ?? {})
       .filter(([name]) => name !== "name" && name !== "label" && name !== "enumerator" && name !== "enumerated" && name !== "numbered"));
     const diagnostics = file.messages.filter(message => message.line != null && node.position &&
@@ -117,7 +128,7 @@ export function retainTableSource(node: MystNode, file: VFile): void {
 
 /**
  * A `{table}` directive Core can author: a Markdown table with optional one-paragraph caption
- * and label. Other table directives (options, legends) are rejected by native admission.
+ * and label, followed by an optional legend of note paragraphs.
  */
 export function isTableDirective(node: MystNode | undefined): boolean {
   if (node?.type !== "container" || node.kind !== "table") return false;
@@ -125,7 +136,11 @@ export function isTableDirective(node: MystNode | undefined): boolean {
   const children = node.children ?? [];
   const caption = children[0]?.type === "caption" ? children[0] : undefined;
   const rest = caption ? children.slice(1) : children;
-  if (rest.length !== 1 || rest[0].type !== "table") return false;
+  if (rest.length < 1 || rest.length > 2 || rest[0].type !== "table") return false;
+  const legend = rest[1];
+  if (legend && (legend.type !== "legend" || !Object.keys(legend).every(key => CAPTION_FIELDS.has(key)) ||
+      !legend.children?.length || !legend.children.every(note => note.type === "paragraph" &&
+        Object.keys(note).every(key => CAPTION_FIELDS.has(key))))) return false;
   // Native grids have a header row. Headerless csv/list-table containers are
   // outside this writer's GFM shape and must not acquire an invented header.
   const header = rest[0].children?.[0]?.children;
@@ -147,10 +162,26 @@ export function tableCaptionParagraph(node: MystNode | undefined): MystNode | un
   return isTableDirective(node) && node!.children![0].type === "caption" ? node!.children![0].children![0] : undefined;
 }
 
+/** The table-owned paragraphs, after the grid. */
+export function tableNoteParagraphs(node: MystNode | undefined): MystNode[] {
+  return isTableDirective(node) ? node!.children!.find(child => child.type === "legend")?.children ?? [] : [];
+}
+
+export function tableNoteContent(note: MystNode): InlineContent[] | undefined {
+  const content = projectInlineContent(note);
+  return content?.length && !tableNoteHasFootnote(content) ? content : undefined;
+}
+
+export function setTableNoteParagraphs(block: MystNode, paragraphs: MystNode[]): void {
+  const children = block.children!.filter(child => child.type !== "legend");
+  if (paragraphs.length) children.push({ type: "legend", children: paragraphs });
+  block.children = children;
+}
+
 /**
  * The top-level block for every authored table: a `{table}` directive, even without caption or label.
  */
-export function tableBlockNode(table: MystNode, caption: InlineContent[], label: string, identifier?: string, enumerator?: string, enumerated?: boolean): MystNode {
+export function tableBlockNode(table: MystNode, caption: InlineContent[], label: string, identifier?: string, enumerator?: string, enumerated?: boolean, notes: MystNode[] = []): MystNode {
   return {
     type: "container",
     kind: "table",
@@ -160,6 +191,7 @@ export function tableBlockNode(table: MystNode, caption: InlineContent[], label:
     children: [
       ...(caption.length > 0 ? [{ type: "caption", children: [{ type: "paragraph", children: inlineContentToNodes(caption) }] }] : []),
       table,
+      ...(notes.length ? [{ type: "legend", children: notes }] : []),
     ],
   };
 }

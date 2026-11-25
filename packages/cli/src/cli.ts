@@ -276,7 +276,7 @@ const COMMANDS: CommandSpec[] = [
     usage: `${brand.cliCommand} inspect <file> [--format <text|json>]`,
     details: [
       "Inspect semantic blocks and editable targets.",
-      "JSON nodes expose Core InlineContent as content (table caption as caption; list items as items). text is a readable summary. JSON includes revision: the SHA-256 of the original UTF-8 text read for this inspect.",
+      "JSON nodes expose Core InlineContent as content (table caption as caption, note paragraphs as notes, list items as items). text is a readable summary. JSON includes revision: the SHA-256 of the original UTF-8 text read for this inspect.",
       ...REVISION_NOTE,
       "",
       "Editability fields describe the current semantic projection.",
@@ -549,7 +549,7 @@ const COMMANDS: CommandSpec[] = [
       "--cells is a JSON array of rows, each an array of cells; the first row is the header row.",
       "A cell is its text or Core InlineContent JSON. Every row needs the same number of cells. Cells may be empty.",
       "--align is an optional JSON array of left, center, right or null, one per column.",
-      "Cell content must be one line without leading or trailing whitespace.",
+      "Cell text can contain line endings. In InlineContent, use break nodes. Cell padding whitespace is refused.",
       "--caption is single-line text; --caption-content is Core InlineContent JSON. They are mutually exclusive.",
       "--label follows update-label's validation and duplicate rules; a caption is not required for a label.",
       "Insertion, caption and label are applied in one write; any failure leaves the original unchanged.",
@@ -723,14 +723,42 @@ const COMMANDS: CommandSpec[] = [
     details: ["Set a single-line caption; empty text removes it. Every table remains a numbered table directive, with or without a caption or label."],
   },
   {
+    name: "insert-table-note",
+    group: "Edit — tables",
+    summary: "Insert a note into a table",
+    usage: `${brand.cliCommand} insert-table-note <file> --path <table> --at <note> (--text <text> | --content <json>)`,
+    details: ["Table notes are ordered paragraphs. Note indices are zero-based."],
+  },
+  {
+    name: "update-table-note",
+    group: "Edit — tables",
+    summary: "Replace a table note",
+    usage: `${brand.cliCommand} update-table-note <file> --path <table> --at <note> (--text <text> | --content <json>)`,
+    details: ["Table notes are ordered paragraphs. Note indices are zero-based."],
+  },
+  {
+    name: "remove-table-note",
+    group: "Edit — tables",
+    summary: "Remove a table note",
+    usage: `${brand.cliCommand} remove-table-note <file> --path <table> --at <note>`,
+    details: ["Table notes are ordered paragraphs. Note indices are zero-based."],
+  },
+  {
+    name: "move-table-note",
+    group: "Edit — tables",
+    summary: "Move a note within a table",
+    usage: `${brand.cliCommand} move-table-note <file> --path <table> --from <note> --to <note>`,
+    details: ["Table notes are ordered paragraphs. Note indices are zero-based."],
+  },
+  {
     name: "update-table-cell",
     group: "Edit — tables",
     summary: "Replace the content of a Markdown table cell through Core",
     usage: `${brand.cliCommand} update-table-cell <file> --path <table,row,cell> (--text <text> | --content <json>)`,
     details: [
-      "Replace the whole content of one cell in a top-level Markdown table. Use an empty --text to clear it.",
-      "--content is Core InlineContent JSON (marks, links, inline math and references) without line breaks.",
-      "The content must be one line without leading or trailing whitespace. Cells require supported native inline content.",
+      "Replace the whole content of one cell in a top-level Markdown table. Use line endings in --text or break nodes in --content. Empty --text clears the cell.",
+      "--content is Core InlineContent JSON, including marks, links, inline math, references and break nodes.",
+      "Cell content must not have leading or trailing padding whitespace.",
       ...PATH_NOTE,
     ],
   },
@@ -1211,7 +1239,8 @@ function formatBlock(block: EditableBlock): string[] {
           `  ${formatPath(cell.path)} cell header=${cell.header} textEditable=${cell.editable} text=${quote(cell.text)}`,
       ),
     );
-    return [`${path} table`, ...cells];
+    const notes = (block.notes ?? []).map((note, index) => `  note ${index} text=${quote(inlineText(note))}`);
+    return [`${path} table`, ...cells, ...notes];
   }
   if (block.block === "list") {
     return [`${path} list${block.ordered ? ` style=${block.style ?? "decimal"} delimiter=${quote(block.delimiter ?? ".")}` : ""}`, ...formatListItems(block, 1)];

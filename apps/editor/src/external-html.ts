@@ -248,7 +248,7 @@ function trailing(element: Element): boolean {
   return true;
 }
 
-/** A rectangular grid of single-line cells, header cells in the first row only, as Core tables are. */
+/** A rectangular grid of inline cells, with headers in the first row only. */
 function tableBlock(table: HTMLTableElement, notices: Set<Notice>): void {
   const document = table.ownerDocument;
   if (table.querySelector("table")) throw new Rejected("nested tables are not supported");
@@ -265,7 +265,7 @@ function tableBlock(table: HTMLTableElement, notices: Set<Notice>): void {
     if (row.length !== rows[0].length) throw new Rejected("table rows must have the same number of cells");
     for (const cell of row) {
       if (cell.colSpan !== 1 || cell.rowSpan !== 1) throw new Rejected("merged table cells are not supported");
-      if (!inlineOnly(cell) || lineBreaks(cell)) throw new Rejected("a table cell holds one line of inline content");
+      if (!inlineOnly(cell)) throw new Rejected("a table cell holds inline content only");
     }
   }
   if (rows.some((row, index) => row.some(cell => (cell.tagName === "TH") !== (index === 0)))) notices.add("header");

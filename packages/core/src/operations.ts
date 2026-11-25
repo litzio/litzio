@@ -50,6 +50,7 @@ import { DocumentDiagnosticError, DocumentWriteError } from "./write-error.ts";
 import {
   createTableNode, insertTableColumnNode, insertTableRowNode, moveTableColumnNode, moveTableRowNode, removeTableColumnNode, removeTableRowNode,
   setTableCellContent, setTableColumnAlignNode, tableBlockNode, tableCaptionParagraph, tableCellContent, tableOf,
+  setTableNoteParagraphs, tableNoteHasFootnote, tableNoteParagraphs,
 } from "./myst/table.ts";
 import { assertBodyIndex, cloneDocument, getNode, type MystDocument, type MystNode, toText } from "./myst/tree.ts";
 
@@ -753,7 +754,7 @@ export function insertFigure(document: MystDocument, index: number, figure: Figu
 
 const TABLE_CELL_FAILURE = "table cell text cannot be preserved through canonical round-trip";
 
-/** A cell's content: plain text, or supported inline content without line breaks. */
+/** A cell's content: plain text (including line endings), or supported inline content. */
 export type TableCellInput = string | InlineContent[];
 
 /** Replace the whole content of an editable cell in a top-level table ([table, row, cell]). */
@@ -804,30 +805,104 @@ export function updateTableCaption(document: MystDocument, path: NodePath, capti
   if (paragraph && projectInlineContent(paragraph) === undefined) {
     throw new DocumentDiagnosticError("unsupported-content", `table caption at [${path.join(",")}] is not editable in this version`);
   }
-  const content = tableCellInput(caption);
+  const content = tableCellInput(caption, true);
   const next = cloneDocument(document);
   const label = typeof current.label === "string" ? current.label : "";
   next.children[path[0]] = tableBlockNode(tableOf(next.children[path[0]])!, content, label,
-    typeof current.identifier === "string" ? current.identifier : undefined, current.enumerator as string | undefined, current.enumerated as boolean | undefined);
+    typeof current.identifier === "string" ? current.identifier : undefined, current.enumerator as string | undefined, current.enumerated as boolean | undefined,
+    tableNoteParagraphs(next.children[path[0]]));
   assertStableTable(next, path[0], TABLE_CAPTION_FAILURE);
   return next;
 }
 
-function tableCellInput(cell: TableCellInput): InlineContent[] {
+function tableCellInput(cell: TableCellInput, caption = false): InlineContent[] {
   if (typeof cell !== "string" && !Array.isArray(cell)) {
     throw new DocumentDiagnosticError("invalid-operation", "table cell content must be text or InlineContent");
   }
-  const content: InlineContent[] = typeof cell === "string" ? (cell.length > 0 ? [{ kind: "text", text: cell }] : []) : cell;
+  const content: InlineContent[] = typeof cell === "string"
+    ? caption ? [{ kind: "text", text: cell }] : cell.split(/(\r\n?|\n)/).map((text, index) => index % 2 ? { kind: "break" } : { kind: "text", text })
+    : cell;
   assertInlineContent(content);
   const text = inlineContentText(content);
-  if (containsBreak(content) || /[\r\n]/.test(text)) {
-    throw new DocumentWriteError("table cell text cannot contain line breaks", { code: "line-break", action: "Remove line breaks from this table cell." });
+  if ((caption && containsBreak(content)) || tableHasLiteralNewline(content)) {
+    throw new DocumentWriteError(caption ? "table caption cannot contain line breaks" : "Use break nodes for line breaks in structured table cells", { code: "line-break",
+      action: caption ? "Remove line breaks from the table caption." : "Use InlineContent break nodes or plain text with line endings." });
   }
-  if (text !== text.trim()) {
+  // A hard break can bound the cell. Spaces on its inside are cell content.
+  if ((!text.startsWith("\n") && text !== text.trimStart()) || (!text.endsWith("\n") && text !== text.trimEnd())) {
     throw new DocumentWriteError("table cell text cannot start or end with whitespace", { code: "table-cell-whitespace", action: "Remove leading and trailing whitespace from this table cell." });
   }
   // An empty cell has no children, as MyST parses it.
   return concatenateInlineContent(content).filter((item) => item.kind !== "text" || item.text.length > 0);
+}
+
+function tableHasLiteralNewline(content: InlineContent[]): boolean {
+  return content.some(item => (item.kind === "text" ? /[\r\n]/.test(item.text)
+    : item.kind === "code" || item.kind === "math" ? /[\r\n]/.test(item.value)
+    : "children" in item && tableHasLiteralNewline(item.children)));
+}
+
+function tableNoteNode(input: TableCellInput): MystNode {
+  if (typeof input !== "string" && !Array.isArray(input)) {
+    throw new DocumentDiagnosticError("invalid-operation", "table note content must be text or InlineContent");
+  }
+  const content: InlineContent[] = typeof input === "string" ? [{ kind: "text", text: input }] : input;
+  assertInlineContent(content);
+  const paragraph = structuralInlineContent(content);
+  if (!paragraph.length || tableNoteHasFootnote(paragraph)) {
+    throw new DocumentDiagnosticError("unsupported-content", "a table note needs paragraph content and cannot contain an endnote reference");
+  }
+  return { type: "paragraph", children: inlineContentToNodes(paragraph) };
+}
+
+/** Insert a paragraph at a zero-based position in a table's notes. */
+export function insertTableNote(document: MystDocument, path: NodePath, at: number, content: TableCellInput): MystDocument {
+  return editTableNotes(document, path, (notes) => {
+    assertTableNoteIndex(at, notes.length + 1);
+    notes.splice(at, 0, tableNoteNode(content));
+  });
+}
+
+/** Replace one table note's complete paragraph. */
+export function updateTableNote(document: MystDocument, path: NodePath, at: number, content: TableCellInput): MystDocument {
+  return editTableNotes(document, path, (notes) => {
+    assertTableNoteIndex(at, notes.length);
+    notes[at] = tableNoteNode(content);
+  });
+}
+
+export function removeTableNote(document: MystDocument, path: NodePath, at: number): MystDocument {
+  return editTableNotes(document, path, (notes) => {
+    assertTableNoteIndex(at, notes.length);
+    notes.splice(at, 1);
+  });
+}
+
+export function moveTableNote(document: MystDocument, path: NodePath, from: number, to: number): MystDocument {
+  return editTableNotes(document, path, (notes) => {
+    assertTableNoteIndex(from, notes.length);
+    assertTableNoteIndex(to, notes.length);
+    notes.splice(to, 0, ...notes.splice(from, 1));
+  });
+}
+
+function assertTableNoteIndex(at: number, limit: number): void {
+  if (!Number.isInteger(at) || at < 0 || at >= limit) {
+    throw new DocumentDiagnosticError("invalid-operation", "table note index is out of range");
+  }
+}
+
+function editTableNotes(document: MystDocument, path: NodePath, edit: (notes: MystNode[]) => void): MystDocument {
+  tableAt(document, path, "edit table notes");
+  const next = cloneDocument(document);
+  const index = path[0];
+  const block = next.children[index];
+  const notes = [...tableNoteParagraphs(block)];
+  edit(notes);
+  if (block.type === "table") next.children[index] = tableBlockNode(block, [], "");
+  setTableNoteParagraphs(next.children[index], notes);
+  assertStableTable(next, index, "table notes cannot be preserved through canonical round-trip");
+  return next;
 }
 
 // serialize() rejects any semantic change; also require a stable canonical form in which every
@@ -854,7 +929,7 @@ function assertStableTable(document: MystDocument, index: number, failure: strin
 const TABLE_FAILURE = "table cannot be preserved through canonical round-trip";
 
 /** Insert a top-level Markdown table of text or inline-content cells; the first row is its header row. */
-export function insertTable(document: MystDocument, index: number, rows: TableCellInput[][], align?: ("left" | "center" | "right" | null)[]): MystDocument {
+export function insertTable(document: MystDocument, index: number, rows: TableCellInput[][], align?: ("left" | "center" | "right" | null)[], notes?: TableCellInput[]): MystDocument {
   if (!Array.isArray(rows) || !Array.isArray(rows[0]) || rows[0].length === 0) {
     throw new DocumentDiagnosticError("table-shape", "a table needs a header row with at least one cell");
   }
@@ -865,8 +940,13 @@ export function insertTable(document: MystDocument, index: number, rows: TableCe
       align.some(value => value !== null && !["left", "center", "right"].includes(value)))) {
     throw new DocumentDiagnosticError("table-shape", "table alignment must contain left, center, right or null for each column");
   }
-  const content = rows.map((row) => row.map(tableCellInput));
-  const next = insertBlock(document, index, tableBlockNode(createTableNode(content, align), [], ""));
+  if (notes !== undefined && !Array.isArray(notes)) {
+    throw new DocumentDiagnosticError("invalid-operation", "table notes must be an array of paragraphs");
+  }
+  const content = rows.map(row => row.map(cell => tableCellInput(cell)));
+  const block = tableBlockNode(createTableNode(content, align), [], "");
+  if (notes?.length) setTableNoteParagraphs(block, notes.map(tableNoteNode));
+  const next = insertBlock(document, index, block);
   assertStableTable(next, index, TABLE_FAILURE);
   return next;
 }
@@ -1047,7 +1127,8 @@ export function updateLabel(document: MystDocument, path: NodePath, label: strin
   if (kind === "Table") {
     const paragraph = tableCaptionParagraph(current);
     if (paragraph && projectInlineContent(paragraph) === undefined) throw new DocumentDiagnosticError("unsupported-content", "table caption is not editable in this version");
-    next.children[path[0]] = tableBlockNode(tableOf(next.children[path[0]])!, tableCaptionContent(current), label, identifier, current.enumerator as string | undefined, current.enumerated as boolean | undefined);
+    next.children[path[0]] = tableBlockNode(tableOf(next.children[path[0]])!, tableCaptionContent(current), label, identifier, current.enumerator as string | undefined, current.enumerated as boolean | undefined,
+      tableNoteParagraphs(next.children[path[0]]));
   }
   const node = getNode(next, path);
   // `$$ ... $$ (label)` math records an anchor derived from the old identifier.

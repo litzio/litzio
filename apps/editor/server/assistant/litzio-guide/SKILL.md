@@ -55,6 +55,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 
 `litzio apply-batch document.md --operations operations.json --if-revision <inspect의-revision> --format json`은 작업 하나도 `{ok,command,applied,revision}`으로 결과를 준다. `--dry-run`으로 먼저 확인할 수 있다. mismatch는 쓰지 않고 거부한다. 성공 뒤 다시 inspect하여 새 경로와 revision을 얻는다. 단일 edit 명령은 새 revision receipt를 출력하지 않는다. 부분 의미 편집도 canonical 문서 전체를 저장하며 미저장 편집본이나 창의 Undo와 공유하지 않는다. 제한 권한의 CLI guard를 우회하지 않는다.
 
+- 표 칸의 줄바꿈은 `InlineContent`의 `{"kind":"break"}`이며 표 주석은 표에 속한 문단 배열 `notes`다. 작성 입력은 읽기에서 얻은 두 필드를 그대로 받는다.
 - `create --input`과 화면 `saveDocument`는 같은 Core 작성 schema다. text는 글자 그대로이며 content는 읽기 출력의 InlineContent 배열이다. 표 caption·label·셀 구조, 미주 정의/표시, Core ListContent의 중첩·style·delimiter·start, target과 reference를 보존한다. 완성 입력의 끊긴 연결은 위치·이유와 함께 거부한다.
 
 문서 검토 상태는 `litzio inspect <file> --format json`의 `status`(없으면 null)로 읽는다. `litzio update-status <file> --value draft|review|approved`로 정하고 `--remove`로 없앤다. 새 문서의 `create --input` 작성 JSON도 선택 `status`를 받으며 상태는 편집을 제한하지 않는다.
