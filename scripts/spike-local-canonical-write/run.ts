@@ -93,6 +93,13 @@ function evaluate(snapshot: Snapshot, edit: Edit, suite: string, document: strin
       row.shadowSame = !row.shadowDifference;
     }
   }
+  if (process.env.SPIKE_RERUN_STAGES === "1") {
+    for (const [index, stagedPolicy] of enabledByStage.entries()) {
+      const replayed = tryLocal(snapshot, edit, stagedPolicy);
+      assert.equal(Boolean(replayed.candidate), !!local.candidate && stage <= index);
+      if (replayed.candidate) assert.equal(compare(replayed.candidate), undefined);
+    }
+  }
   return row;
 }
 
@@ -273,7 +280,8 @@ if (process.argv[2] === "--child") {
   }));
   const batches = await Promise.all(jobs);
   const rows = batches.flatMap(result => result.results);
-  console.log(JSON.stringify({ smoke, workerCount, seconds: (performance.now() - started) / 1000,
+  console.log(JSON.stringify({ smoke, workerCount, reranStages: process.env.SPIKE_RERUN_STAGES === "1",
+    seconds: (performance.now() - started) / 1000,
     inputs: batches.flatMap(result => result.inputs), mechanical: totals(rows.filter(r => r.suite === "mechanical")),
     mixed: totals(rows.filter(r => r.suite === "mixed")), mismatches: rows.filter(r => r.mismatch),
     shadowDifferences: rows.filter(r => r.shadowDifference),
