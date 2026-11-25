@@ -203,7 +203,14 @@ export type TextSaveRequest = { kind: "text"; path: string; revision: string; so
 export type DocumentStartResponse = SampleAvailability & { start: true; allowedRoots?: string[] };
 
 /** Save acknowledges applied edits without replacing the Editor's opening source. */
-export type SaveResponse = Pick<DocumentFileResponse, "revision">;
+export type SaveResponse = Pick<DocumentFileResponse, "revision"> & { pendingLocalWrite?: true };
+
+/** Temporary #1986 verification receipt, scoped to the path and acknowledged revision. */
+export type LocalWriteStatus =
+  | { state: "pending" }
+  | { state: "done" }
+  | { state: "corrected"; revision: string }
+  | { state: "uncorrected" };
 
 export type SourceResponse = { markdown: string };
 

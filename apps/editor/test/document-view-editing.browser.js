@@ -10,6 +10,7 @@ async (page, {expect, screenshots, pluginFixture}) => {
   const documentPath = [root, 'content-edit', 'content.md'].join(separator);
   const largePath = [root, 'content-edit', 'large.md'].join(separator);
   const endnotePath = [root, 'content-edit', 'endnote.md'].join(separator);
+  const localWritePath = [root, 'content-edit', 'local-write.md'].join(separator);
   const endnoteTablePath = [root, 'content-edit', 'endnote-table.md'].join(separator);
   const emptyPath = [root, 'content-edit', 'empty.md'].join(separator);
   const read = async file => (await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(file), {headers: {Connection: 'close'}})).json());
@@ -296,6 +297,41 @@ async (page, {expect, screenshots, pluginFixture}) => {
   expect((await read(endnotePath)).source).toContain('Second paragraph. Edited.');
   await expect(workspace.getByTestId('document-view-highlight')).toBeVisible();
   await expect.poll(() => page.evaluate(() => globalThis.__viewStates.at(-1).state)).toBe('ready');
+
+  // HTTP tests inject verification mismatches in the worker. Here use the same
+  // correction receipt with real changed disk bytes to exercise the live UI handoff.
+  config = {path: localWritePath, edit: true, linked: false, revision: '', paths: []};
+  await open();
+  await expect(paragraph('Second paragraph.')).toBeVisible();
+  if (screenshots) await capture('fast-save-before-1440-light');
+  const heldStatus = '**/api/local-write-status?*';
+  let correctedRevision, localRevision;
+  await page.route(heldStatus, route => {
+    const revision = /[?&]revision=([a-f0-9]+)/.exec(route.request().url())?.[1];
+    return route.fulfill({json: revision === localRevision && correctedRevision
+      ? {state: 'corrected', revision: correctedRevision} : {state: 'pending'}});
+  });
+  await paragraph('Second paragraph.').click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Fast.');
+  const localResponse = page.waitForResponse(response => response.url().endsWith('/api/document') && response.request().method() === 'POST');
+  await paragraph('First paragraph.').click();
+  const provisional = await (await localResponse).json();
+  expect(provisional.pendingLocalWrite).toBe(true);
+  localRevision = provisional.revision;
+  await expect.poll(lastEdit).toMatchObject({state: 'clean', revision: localRevision});
+  const provisionalFile = await read(localWritePath);
+  const editedBlock = provisionalFile.document.blocks.find(block => block.text?.includes('Second paragraph.'));
+  const correction = await page.request.post(origin + '/api/document', {headers: {Origin: origin, Connection: 'close'},
+    data: {path: localWritePath, revision: localRevision, base: {source: provisionalFile.source},
+      paragraphs: [{path: editedBlock.path, content: [{kind: 'text', text: 'Second paragraph. Corrected.'}]}]}});
+  expect(correction.ok()).toBe(true);
+  correctedRevision = (await correction.json()).revision;
+  await expect(page.getByTestId('local-write-correction')).toContainText('The Host checked your save and corrected the file.');
+  await expect(paragraph('Second paragraph. Corrected.')).toBeVisible();
+  await expect.poll(lastEdit).toMatchObject({state: 'clean', revision: correctedRevision});
+  if (screenshots) await captureSizes('fast-save-correction');
+  await page.unroute(heldStatus);
 
   // A document without blocks takes no input: nothing it could hold can be saved.
   config = {path: emptyPath, edit: true, linked: false, revision: '', paths: []};

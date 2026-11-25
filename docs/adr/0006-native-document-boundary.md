@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Amended by: [#939 소유자 결정 (2026-11-02)](https://github.com/litzio/litzio/issues/939#issuecomment-6571054811) — 별도 텍스트 종류 `.md`의 기본 읽기 화면과 Read/Text 전환.
+- Amended by: [#1983 소유자 결정 (2026-11-25)](https://github.com/litzio/litzio/issues/1983) — 국소 정규 저장과 전체 확인 시점.
 - Last verified: 2026-11-16 — #1658: #817·#939 소유자 결정, Read/Text 구현·기존 테스트와 개정 관계를 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Previous verification: 2026-10-14 (post-#234 implementation status and current design contract/supersession links checked).
 - Authority: product and architectural decision under [AGENTS.md](../../AGENTS.md). Related: [#232](https://github.com/litzio/litzio/issues/232) · [ADR-0001](0001-single-document-editor-architecture.md) · [ADR-0002](0002-document-persistence-semantic-ownership.md) · [ADR-0004](0004-desktop-host-distribution.md)
@@ -24,6 +25,21 @@
 현재 세부 계약은 [Text files](../design/document-support-v1.md#text-files-in-the-editor-817)를 따른다.
 아래 Context와 원래 결정은 당시 근거를 보존하며, Editor의 무조건 열기 거부 조항만 이
 명시적 예외로 대체한다. CLI 거부와 네이티브 Source 읽기 전용 계약은 유지한다.
+
+## Amendment: 국소 정규 저장 (#1983)
+
+Editor Host는 자신이 확인한 정규 원문의 적격한 편집에 Core 국소 쓰기를 적용한다.
+고친 블록과 양옆의 의미 및 범위를 검증한 뒤, 기존 revision 검사를 거쳐 파일을 교체하고
+승인한다. 전체 정규 쓰기는 뒤에서 같은 요청을 계산한다. 이 확인이 끝날 때까지는 전체
+검증이 끝나지 않은 결과가 디스크에 있을 수 있다. 보통 약 1~2초를 예상하며, 대기열·문서
+크기·종료에 따라 더 길 수 있다. 그 사이 Host가 종료되면 다음 열기의 전체 네이티브 읽기와
+쓰기 가능 검사가 남는다. 열기는 이전 편집의 의도를 복원하지 않는다.
+
+불일치가 나면 그대로인 후보에 한해 전체 결과 또는 직전 바이트로 교체하고, 알림과
+문서별 비활성화를 적용한다. 적용 조건과 처리 순서는 [편집 세션 저장](../design/editing-session-save-v1.md#빠른-저장-1983)을 따른다.
+뒤따르는 확인과 교정·계수는 [#1986](https://github.com/litzio/litzio/issues/1986)의 실사용
+3,000건·무불일치·문서 분포·14일·대량 대조 조건을 모두 채울 때까지 적용한다. CLI·SDK와
+적격하지 않은 저장은 전체 검증을 커밋 전에 완료한다.
 
 ## Context
 

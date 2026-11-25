@@ -1472,8 +1472,9 @@ test("a saved revision can save again and the loaded revision cannot", () => {
   );
 });
 
-for (const useWorker of [false, true]) test(
-  `session save agrees with independent replay across a save history (${useWorker ? "HTTP worker" : "local memo"})`, async t => {
+for (const mode of ["local memo", "HTTP worker", "HTTP fast Save"] as const) test(
+  `session save agrees with independent replay across a save history (${mode})`, async t => {
+  const useWorker = mode !== "local memo";
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-save-memo-"));
   const file = path.join(dir, "mixed.md");
   const other = path.join(dir, "other.md");
@@ -1486,7 +1487,7 @@ for (const useWorker of [false, true]) test(
   const approved = t.mock.method(cache, "approved");
   let origin: string | undefined;
   if (useWorker) {
-    const documents = new DocumentThread();
+    const documents = new DocumentThread(undefined, mode === "HTTP fast Save" ? path.join(dir, "local-write-statistics.json") : undefined);
     const server = createServer((req, res) => {
       void handleDocumentRequest(req, res, () => res.end(), undefined, undefined, undefined, undefined, { documents });
     });

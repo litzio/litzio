@@ -21,6 +21,7 @@ import type { DocumentView } from "./shell/TopBar.tsx";
 import { collectSupportedEdits } from "./tiptap-document.ts";
 import { createDocumentSessionLifetime, messageOf, createDocumentRequests } from "./document-session.ts";
 import { saveLiveEditor } from "./editor-save.ts";
+import { useLocalWriteVerification } from "./useLocalWriteVerification.ts";
 
 /** Shown until the first Save of a source whose endnote definitions canonical write moves. */
 const ENDNOTES_MOVE_NOTICE = "Save moves this file's endnote definitions after the body, in the order of their first reference, keeping each label and text. Source shows the Markdown Save writes.";
@@ -55,6 +56,13 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   const [document, setDocument] = useState<EditableDocument>(initial.document);
   const sourceRevision = useRef(initial.revision);
   const [externalRevision, setExternalRevision] = useState<string | null>();
+  const [pendingLocalWrite, setPendingLocalWrite] = useState<{ path: string; revision: string }>();
+  useLocalWriteVerification(client, openedPath, pendingLocalWrite?.path === openedPath ? pendingLocalWrite.revision : undefined,
+    (previous, corrected) => {
+      if (!isCurrent() || sourceRevision.current !== previous) return;
+      setExternalRevision(corrected);
+      if (!busyRef.current && editorRef.current && !editorRef.current.hasUnsavedChanges()) void reloadFromDisk(true);
+    });
   const [bibliography, setBibliography] = useState(initial.bibliography);
   const [bibliographyRoot] = useState(initial.bibliographyRoot);
   const [initialBase] = useState<SaveRequest["base"]>(() => ({
@@ -232,6 +240,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       }
       const { payload } = result;
       sourceRevision.current = result.revision;
+      if (result.pendingLocalWrite) setPendingLocalWrite({ path: openedPath, revision: result.revision });
       setExternalRevision(undefined);
       setEndnotesMove(false);
       if (payload.bibliography !== undefined && JSON.stringify(payload.bibliography) !== JSON.stringify(bibliography?.declarations ?? [])) {

@@ -3,7 +3,7 @@
 #1285의 [완전 초기화](app-reset-v1.md)는 기존 pending-work/restart 검사를 재사용하며 현재 미저장 편집·초안·진행 작업을 먼저 정리해야 한다. 사용자가 삭제 범위를 확인한 뒤 로컬 복구 기록도 제거하므로 기존 일반 닫기에서의 복구 보존과 구분한다. 늦은 `beforeunload` 거부는 종료 후 helper 취소로 연결하며, CLI가 살아 있는 편집 owner를 확인 flag로 우회하지 못한다.
 
 - Status: Implemented
-- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
+- Last verified: 2026-11-25 — #1983의 HTTP 저장·교정과 브라우저 탭·문서 보기·복구를 확인했다.
 
 - Boundaries: ADR-0001, ADR-0002, ADR-0003. Markdown remains the disk SSOT; Core operations and canonical validation remain the write path.
 
@@ -212,21 +212,63 @@ Outside IME composition, Save closes the current history group so input typed wh
 
 Extension and view option identities also remain stable for this keyed lifetime, preserving NodeViews that hold drafts across React rerenders. [Endnotes](footnotes-v1.md#editor) need no session state of their own: Core's snapshot already places them after the body, the displayed order is the saved order, and canonical write places them again.
 
-Open/New return the source and editable model with canonical writeability and whether the source's endnotes are already in canonical place (`endnotesInPlace`); when not, the first Save moves them and the Editor says so before it. Save returns only the written revision; it does not return or project a replacement display model. Replay produces canonical Markdown through the same Core operations and final serializer used for Source and previously acknowledged edits. The final-state pending Figure rules remain distinct from operations' composable intermediate-state checks. Open/New still run canonical writeability preflight.
+Open/New return the source and editable model with canonical writeability and whether the source's endnotes are already in canonical place (`endnotesInPlace`); when not, the first Save moves them and the Editor says so before it. Save returns the written revision and, for a local write, a pending verification indicator. It does not return or project a replacement display model. Replay produces canonical Markdown through the same Core operations and final serializer used for Source and previously acknowledged edits. The final-state pending Figure rules remain distinct from operations' composable intermediate-state checks. Open/New still run canonical writeability preflight.
 
 The HTTP Save/Source boundary requires a document path, a 64-character SHA-256 revision and `base.source`; `base.savedEdits`, when present, must be an edits object. Missing or malformed session fields and non-array edit collections are rejected with 400. A well-formed stale revision still produces 409. Internal file helpers can replay against a supplied disk snapshot without an HTTP session; this is not an alternate browser write route.
 
 Malformed UTF-8 document files/request bodies and unpaired Unicode surrogates in applied content are rejected without a Save acknowledgement or file replacement. Source uses the same Core Unicode validation as Save. Valid Korean, emoji and literal U+FFFD retain their actual UTF-8 bytes; revisions match those bytes, so a subsequent Save does not create a false external-change conflict.
 
-Save requests include the opening Markdown and the last accepted Core edit payload (`base.source`, `base.savedEdits`). The local Host first compares the requested revision with the actual disk. If the opening source differs from disk, the result of replaying the previous edits through Core must match the disk bytes exactly. Only then does Host apply the new payload to the opening source through Core and check the final canonical output by reading it back. Both replays share the same admitted, read-only opening snapshot and editable model. Within each replay, paragraph content edits apply their individual checks in request order on a private Core copy. A failure identifies its edit and discards the copy. The submitted block order is applied by one Core `reorderBlocks`, with the canonical block-boundary check on the final order. This permits saving Undo/Redo of insertions, deletions, splits, merges and table changes without turning snapshot paths into persistent identities. An arbitrary replacement source or stale checkpoint is rejected.
+Save requests include the opening Markdown and the last accepted Core edit payload (`base.source`, `base.savedEdits`). The local Host first compares the requested revision with the actual disk. If the opening source differs from disk, the result of replaying the previous edits through Core must match the disk bytes exactly. On the full path Host then applies the new payload to the opening source through Core and checks the final canonical output by reading it back. Both replays share the same admitted, read-only opening snapshot and editable model. Within each replay, paragraph content edits apply their individual checks in request order on a private Core copy. A failure identifies its edit and discards the copy. The submitted block order is applied by one Core `reorderBlocks`, with the canonical block-boundary check on the final order. This permits saving Undo/Redo of insertions, deletions, splits, merges and table changes without turning snapshot paths into persistent identities. An arbitrary replacement source or stale checkpoint is rejected.
 
 The Host reads the actual disk bytes and verifies the revision on its main thread. A Host-owned worker performs native admission, replay, canonical writing and readback. The Host rechecks access and the revision, commits the completed bytes through the common file replacement path, and acknowledges the Save. Saves to the same resolved file are processed in order once their request bodies are accepted. Each reads the disk after the preceding Save settles. Saves to different files can submit independently to the shared worker. An Open takes a disk snapshot without waiting for a Save of the same file. Atomic replacement gives the read either the previous or the newly committed bytes, and its revision describes those exact bytes.
 
 The worker keeps a disposable memory of successful admission and file commits. It can reuse an opening read and its writeability check for exactly the same source at the same path. Only after the Host confirms a successful commit does the worker remember the opening source and edit fingerprints, the written bytes and revision, and the Core readback model. A later Save may reuse that previous result only when its path, opening fingerprint and previous edit fingerprint match, and a fresh disk read matches the remembered revision and bytes. Otherwise it replays the previous edits. The worker holds up to 16 path entries within a 64 MiB serialized-size budget and evicts the oldest stored entry first. Restart or eviction discards the corresponding memory. Source and recovery previews independently validate their session checkpoint without updating the memory. Session ownership remains with the Editor.
 
-A worker failure or timeout returns an error before file replacement and the next calculation can start a fresh worker. A disconnect observed before commit cancels the pending calculation. Once commit starts, a missing reply can still leave the client uncertain about the committed revision. See [Host lifetime](http-host-v1.md) for shutdown and logging.
+A foreground worker failure or timeout returns an error before file replacement and the next calculation can start a fresh worker. A disconnect observed before commit cancels the pending calculation. Once commit starts, a missing reply can still leave the client uncertain about the committed revision. See [Host lifetime](http-host-v1.md) for shutdown and logging.
 
 Historical Save replay and nested-parser verification: [Save, switching and property interaction evidence](../reviews/editing-session-save-history-2026-11.md#save-switching-and-property-interaction-evidence).
+
+### 빠른 저장 (#1983)
+
+문서 탭과 플러그인 문서 보기의 내용 편집은 같은 HTTP Save를 쓴다. worker는 Host가 직접
+검증한 정규 바이트와 Core 범위 지도를 승인 결과와 함께 보관한다. 열기의 원문이 첫 정규
+출력과 정확히 같아도 이 기준이 된다. 저장 시 실제 디스크의 revision과 바이트가 기준과
+같아야 하며, 다른 출발 원문의 승인 기록에는 열기·이전 편집 지문도 일치해야 한다.
+범위 지도도 기존 경로 수·크기 예산과 퇴출 규칙을 따른다.
+
+요청은 열기 기준의 누적 편집을 유지한다. Host는 이전과 이번 내용을 비교해 바뀐 경로 하나를
+Core에 전달한다. 구조·문서 설정·지원 밖 편집이 섞인 누적 요청, 여러 내용 변경, 적격 여부를
+확정할 수 없는 경우는 전체 재생을 사용한다. Undo로 편집 항목이 없어지면 열기 시 내용이
+후보다. [Core 조건](document-support-v1.md#local-canonical-output-1983)을 통과하면 Host는
+기존 교체 직전 revision 검사를 거쳐 승인한다.
+
+임시 `verify-local-write`는 승인 뒤 같은 출발 원문·편집으로 전체 Save를 계산한다. 대기 중인
+응답 요청을 worker에 먼저 보낸다. 이미 실행 중인 확인은 같은 worker에서 끝까지 실행한다.
+일치한 뒤에도 디스크 바이트가 그대로일 때만 다음 빠른 저장 기준으로 승격한다. 확인이
+끝나기 전에 도착한 같은 문서의 다음 저장은 즉시 전체 경로를 선택한다. 이전 편집의 전체
+재생이 현재 디스크와 다르면 기존 충돌 규칙을 적용한다.
+
+다르면 빠른 결과의 revision과 정확한 바이트가 여전히 디스크에 있을 때만 전체 결과로
+교체한다. 전체 Save가 거부한 편집은 빠른 저장 직전 바이트로 되돌린다. 새 저장·외부 변경을
+덮어쓰지 않는다. Host는 그 파일의 빠른 저장을 종료 때까지 끄고, 유형·결과·블록 수만
+daemon 로그에 기록한다. 확인 중 worker가 종료되면 새 worker에서 같은 확인을 한 번 더
+실행한다. 확인을 끝내지 못하면 그 파일의 빠른 저장을 끄고 미확인 상태를 알린다.
+
+승인한 세션은 확인 receipt를 조회한다. 교정하면 기존 알림 센터가 알리고, 깨끗한 탭이나
+보기는 다시 읽어 새 revision을 표시한다. 그 사이 입력한 내용은 보존하며, 바뀐 디스크에
+덮어쓰지 않는 기존 보호를 적용한다. [ADR-0006](../adr/0006-native-document-boundary.md#amendment-국소-정규-저장-1983)에
+따라 확인 전 종료가 남기는 틈은 다음 열기의 네이티브 검사로 확인한다.
+문서 보기의 [교정 전](assets/fast-save-1983/before-1440.png)과
+[교정 알림](assets/fast-save-1983/corrected-1440.png)은 같은 화면의 합성 문서다.
+
+`LITZIO_LOCAL_WRITE=0`으로 Host를 시작하면 전체 저장만 사용한다.
+`litzio local-write-statistics --host <origin> --json`은 앱 데이터의 확인 완료·불일치·서로
+다른 문서·2,000블록 이상 문서·첫 집계일·마지막 불일치일(UTC)을 문단과 표 칸별로, 전체 경로
+선택은 사유별로 제공한다. 중복을 제거한 전체 문서 수도 제공한다. 내부에 경로 지문을
+저장하며 CLI에는 집계만 반환한다. 규칙 수정으로 집계를 다시 시작할 때 저장소의 규칙
+버전을 올린다. [#1986](https://github.com/litzio/litzio/issues/1986)의 종료 조건을 채우면
+`verify-local-write` 확인·교정·알림·CLI·집계와 이 임시 계약을 걷어낸다. 대량 대조 검사는
+유지하며 `pnpm exec tsx packages/core/test/local-write-corpus.ts`로 실행한다.
 
 ## Recovery snapshot initialization
 

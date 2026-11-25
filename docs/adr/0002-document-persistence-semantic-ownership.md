@@ -1,6 +1,7 @@
 # ADR-0002: Document Persistence & Semantic Ownership
 
 - Status: Accepted
+- Amended by: [ADR-0006의 빠른 저장 예외](0006-native-document-boundary.md#amendment-국소-정규-저장-1983).
 - Last verified: 2026-10-08 (current implementation and decision scope reviewed; original decision date retained).
 - Authority: architectural decision under [AGENTS.md](../../AGENTS.md). Related: [ADR-0001](0001-single-document-editor-architecture.md) · [ADR-0003](0003-document-addressing-identity-boundary.md)
 - Decision date: 2026-09-23
@@ -23,6 +24,8 @@ Litzio는 다음을 채택한다.
 - 보존할 수 없는 의미를 조용히 flatten하거나 drop하여 저장하지 않는다. 의미를 보존할 수 없으면 write를 fail-closed 방식으로 거부한다.
 - MyST는 현재 parser/serializer 구현 기반이며, Litzio의 영구 domain model로 고정하지 않는다. MyST별 처리는 Core 내부의 경계에 둔다.
 - canonical write는 Git에서 검토 가능한 사람이 읽을 수 있는 plain-text 결과를 유지한다.
+
+네이티브 빠른 저장의 커밋 전 전체 readback에는 [ADR-0006이 정한 예외](0006-native-document-boundary.md#amendment-국소-정규-저장-1983)를 적용한다.
 
 ## Rationale
 

@@ -8,7 +8,7 @@ import { collectSupportedEdits, toTiptapDocument, type TiptapJSON } from "./tipt
 import { keepsEndnoteReferences } from "./structure-lock.ts";
 
 export type EditorSaveResult =
-  | { kind: "saved"; revision: string; payload: SupportedEdits }
+  | ({ kind: "saved"; payload: SupportedEdits } & SaveResponse)
   | { kind: "failed"; error: SaveDisplayError; conflict: boolean }
   /** The editor was replaced or unmounted while the request was pending; nothing was acknowledged. */
   | { kind: "superseded" };
@@ -37,7 +37,7 @@ export async function saveLiveEditor(
     if (!current()) return { kind: "superseded" };
     target.base.savedEdits = payload;
     editor.finishSave(true);
-    return { kind: "saved", revision: next.revision, payload };
+    return { kind: "saved", ...next, payload };
   } catch (cause) {
     if (!current()) return { kind: "superseded" };
     const failure = cause instanceof SaveContentError ? cause

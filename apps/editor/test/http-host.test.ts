@@ -30,6 +30,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { DESKTOP_ORIGIN } from "../shared/desktop-origin.ts";
 import { Worker } from "node:worker_threads";
+import { DocumentThread } from "../server/document-thread.ts";
 
 const isolatedData = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-unit-data-"));
 process.env.LITZIO_DATA_DIR = isolatedData;
@@ -365,7 +366,7 @@ test("folder image preview is read-only, root bounded and isolated for GET, HEAD
   assert.equal((await send(route(a, path.join(a, "bad.png")), "HEAD")).status, 413);
 });
 
-async function fixture(t: TestContext, external?: string, controlled: boolean | "desktop" = false, bind = "127.0.0.1") {
+async function fixture(t: TestContext, external?: string, controlled: boolean | "desktop" = false, bind = "127.0.0.1", warn?: (message: string) => void) {
   const base = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-"));
   const a = path.join(base, "문서 A"), b = path.join(base, "documents-B");
   const outside = path.join(base, "문서 A-other"), editorDir = path.join(base, "editor");
@@ -379,7 +380,7 @@ async function fixture(t: TestContext, external?: string, controlled: boolean | 
   const trashed: string[] = [];
   const health = { processStartedAt: "test", daemonHome: "test", executable: process.execPath, roots: [], nonLoopback: false, launcher: controlled === "desktop" ? "desktop" as const : "cli-run" as const, pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
   let stopped = false;
-  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: controlled && !external ? [] : [a, b], port: 0, host: bind, publicOrigin: external,
+  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: controlled && !external ? [] : [a, b], port: 0, host: bind, publicOrigin: external, warn,
     ...(controlled ? { daemon: { health, stop: () => { stopped = true; } } } : {}),
     removeFile: file => { trashed.push(file); fs.renameSync(file, path.join(base, "trashed-" + path.basename(file))); } }));
   const address = host.server.address();
@@ -505,6 +506,139 @@ test("Host close waits for an accepted filesystem mutation even after its caller
 });
 
 const documentQuery = (file: string) => `/api/document?${new URLSearchParams({ path: file })}`;
+
+test("fast Save verifies the original work, corrects only its own bytes, and keeps verification state across worker exit", { timeout: 30_000 }, async t => {
+  const warnings: string[] = [];
+  const { a, send, host, editorDir } = await fixture(t, undefined, false, "127.0.0.1", message => warnings.push(message));
+  const post = Worker.prototype.postMessage;
+  let pause: ((worker: Worker, release: () => void) => void) | undefined;
+  let inject: "different" | "rejected" | undefined;
+  t.mock.method(Worker.prototype, "postMessage", function (this: Worker, message: any) {
+    if (message.kind === "save" && inject) {
+      const replacement = inject;
+      inject = undefined;
+      post.call(this, { ...message, request: { ...message.request, paragraphs: [{ path: [2],
+        content: [{ kind: "text", text: replacement === "different" ? "Injected candidate." : "Unexpectedly accepted." }] }] } });
+      return;
+    }
+    if (message.kind === "verify-local-write" && pause) {
+      const callback = pause;
+      pause = undefined;
+      callback(this, () => post.call(this, message));
+      return;
+    }
+    post.call(this, message);
+  });
+  const hold = () => new Promise<{ worker: Worker; release: () => void }>(resolve => {
+    pause = (worker, release) => resolve({ worker, release });
+  });
+  const open = async (name: string) => {
+    const file = path.join(a, name + ".md");
+    fs.writeFileSync(file, nativeSource("# Title\n\nAlpha.\n\nBeta.\n"));
+    const response = await send(documentQuery(file));
+    assert.equal(response.status, 200);
+    return await response.json() as { path: string; revision: string; source: string };
+  };
+  const submit = (file: Awaited<ReturnType<typeof open>>, text: string, revision = file.revision, previous?: string) =>
+    send("/api/document", "POST", { path: file.path, revision, base: { source: file.source,
+      ...(previous ? { savedEdits: { paragraphs: [{ path: [2], content: [{ kind: "text", text: previous }] }] } } : {}) },
+    paragraphs: [{ path: [2], content: [{ kind: "text", text }] }] });
+  const query = (file: string, revision: string) => `/api/local-write-status?${new URLSearchParams({ path: file, revision })}`;
+  const receipt = async (file: string, revision: string) => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const response = await send(query(file, revision));
+      assert.equal(response.status, 200);
+      const status = await response.json();
+      if (status.state !== "pending") return status;
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+    assert.fail("the verification receipt was not settled");
+  };
+
+  const first = await open("first");
+  const waiting = hold();
+  const firstSave = await (await submit(first, "First edit.")).json();
+  assert.equal(firstSave.pendingLocalWrite, true);
+  assert.match(fs.readFileSync(first.path, "utf8"), /First edit/);
+  const check = await waiting;
+  const save = DocumentThread.prototype.save;
+  const submitted = Promise.withResolvers<void>();
+  t.mock.method(DocumentThread.prototype, "save", function (this: DocumentThread, ...args: Parameters<typeof save>) {
+    const result = save.apply(this, args);
+    submitted.resolve();
+    return result;
+  });
+  const queued = submit(first, "Second edit.", firstSave.revision, "First edit.");
+  await submitted.promise;
+  check.release();
+  const second = await queued;
+  assert.equal(second.status, 200);
+  assert.equal((await second.json()).pendingLocalWrite, undefined);
+  assert.match(fs.readFileSync(first.path, "utf8"), /Second edit/);
+
+  const corrected = await open("corrected");
+  inject = "different";
+  const different = await (await submit(corrected, "Full result.")).json();
+  assert.equal(different.pendingLocalWrite, true);
+  const status = await receipt(corrected.path, different.revision);
+  assert.deepEqual(status, { state: "corrected", revision: documentRevision(fs.readFileSync(corrected.path, "utf8")) });
+  assert.equal(fs.readFileSync(corrected.path, "utf8"), corrected.source.replace("Alpha.", "Full result."));
+  const next = await (await submit(corrected, "Regular save.", status.revision, "Full result.")).json();
+  assert.equal(next.pendingLocalWrite, undefined);
+
+  const rejected = await open("rejected");
+  inject = "rejected";
+  const invalid = await (await submit(rejected, "")).json();
+  assert.equal(invalid.pendingLocalWrite, true);
+  assert.deepEqual(await receipt(rejected.path, invalid.revision), { state: "corrected", revision: rejected.revision });
+  assert.equal(fs.readFileSync(rejected.path, "utf8"), rejected.source);
+
+  const external = await open("external");
+  const waitingExternal = hold();
+  inject = "different";
+  const externalSave = await (await submit(external, "Intended")).json();
+  const externalCheck = await waitingExternal;
+  const outside = external.source + "\nNew external bytes.\n";
+  fs.writeFileSync(external.path, outside);
+  externalCheck.release();
+  assert.deepEqual(await receipt(external.path, externalSave.revision), { state: "uncorrected" });
+  assert.equal(fs.readFileSync(external.path, "utf8"), outside);
+
+  const interrupted = await open("worker-exit");
+  const waitingWorker = hold();
+  const interruptedSave = await (await submit(interrupted, "Remain saved.")).json();
+  assert.equal(interruptedSave.pendingLocalWrite, true);
+  await (await waitingWorker).worker.terminate();
+  assert.deepEqual(await receipt(interrupted.path, interruptedSave.revision), { state: "done" });
+  assert.equal(fs.readFileSync(interrupted.path, "utf8"), interrupted.source.replace("Alpha.", "Remain saved."));
+
+  const stats = await (await send("/api/local-write-statistics")).json();
+  assert.equal(stats.paragraph.completed, 5);
+  assert.equal(stats.paragraph.mismatches, 3);
+  assert.equal(stats.paragraph.documents, 5);
+  assert.equal(stats.fallback["verification-pending"], 1);
+  assert.equal(stats.fallback["verification-disabled-for-document"], 1);
+  assert.match(warnings.join("\n"), /verify-local-write: paragraph, rejected\/corrected, 3 blocks/);
+  assert.match(warnings.join("\n"), /verify-local-write: paragraph, different\/uncorrected, 3 blocks/);
+  for (const entry of warnings) assert.doesNotMatch(entry, /Alpha|Injected|\.md|New external/);
+
+  const shutdown = await open("host-exit");
+  const waitingHost = hold();
+  const shutdownSave = await (await submit(shutdown, "Open after restart.")).json();
+  assert.equal(shutdownSave.pendingLocalWrite, true);
+  await waitingHost;
+  await host.close();
+  const reopened = await startHttpHost({ editorDir, roots: [a], port: 0 });
+  try {
+    const address = reopened.server.address() as { port: number };
+    const response = await fetch(`http://127.0.0.1:${address.port}${documentQuery(shutdown.path)}`);
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.kind, "native");
+    assert.equal(result.revision, shutdownSave.revision);
+    assert.match(result.source, /Open after restart/);
+  } finally { await reopened.close(); }
+});
 
 test("HTTP document worker preserves save order, external changes, and uncommitted bytes on cancellation or exit", { timeout: 30_000 }, async t => {
   const { a, host, url, send } = await fixture(t);

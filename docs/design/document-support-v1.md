@@ -286,6 +286,25 @@ list-shaped highlighting/navigation contract is unchanged.
 
 ## Canonical output and compatibility
 
+### Local canonical output (#1983)
+
+The [Editor Host Save path](editing-session-save-v1.md#빠른-저장-1983) can splice one
+top-level block into confirmed canonical source. Core requires an exact match to the
+first canonical write attempt, because document-wide retries can change escaping
+outside the edited block. It uses the existing semantic operation and writer on one
+single-line paragraph or a table with one changed cell. Paragraph inline content is
+limited to ordinary text, supported emphasis marks, code, single-line math and simple
+HTTP(S) links. Table edits allow plain cell text and single-line math.
+
+Unknown spans, list neighbours, endnote references, reference definitions or targets,
+unsupported inline syntax and multiline prose use full Save. These exclusions protect
+against list continuation, document-wide reference binding and endnote relocation.
+Core rereads the changed block and its existing neighbours, compares their exact
+boundaries and meanings, and preserves source outside the replacement. Structural,
+title, label, numbering and metadata edits use full Save. Any inconclusive check also
+uses full Save. [ADR-0006](../adr/0006-native-document-boundary.md#amendment-국소-정규-저장-1983)
+defines the temporary interval between local commit and full readback.
+
 Adjacent lists retain separate boundaries without HTML comments: canonical output
 alternates `*` / `-` for adjacent unordered lists. Ordered delimiters retain their
 meaning: when two ordered siblings use the same delimiter, the second receives a

@@ -193,6 +193,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "content.md", create: () => nativeSource("# Content editing\n\nTeh first paragraph has a typo.\n\nSecond paragraph stays.\n\n" +
       ":::{table} Measured values\n\n| Item | Formula |\n| --- | --- |\n| Area |  |\n| Mass | m |\n:::\n\n- First item\n- Second item\n\nClosing paragraph.\n") },
     { name: "endnote.md", create: () => nativeSource("First paragraph with a note[^a]\n\nSecond paragraph.\n\n[^a]: The note text.\n") },
+    { name: "local-write.md", create: () => nativeSource("First paragraph.\n\nSecond paragraph.\n") },
     // A caption reference read before the cell's: removing it would reorder the definitions.
     { name: "endnote-table.md", create: () => nativeSource("Intro paragraph.\n\n:::{table} Caption note[^b]\n\n| Item | Note |\n| --- | --- |\n| A | cell[^a] |\n:::\n\nAfter the table[^b].\n\n[^a]: Note A.\n\n[^b]: Note B.\n") },
     { name: "empty.md", create: () => nativeSource("") },
@@ -240,7 +241,8 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
       "| **Head** | Plain |\n| --- | --- |\n| *it* `c` $z$ | {eq}`eq-a` |\n\nAfter.\n") },
     ], scenarios: ["continuous-editing"] },
   "save-session": {
-    files: [...technical, { name: "session.md", create: () => nativeSource("# Session\n\nAlpha.\n\nBeta.\n") }],
+    files: [...technical, { name: "session.md", create: () => nativeSource("# Session\n\nAlpha.\n\nBeta.\n") },
+      { name: "local-write.md", create: () => nativeSource("First paragraph.\n\nSecond paragraph.\n") }],
     scenarios: ["save-session"],
   },
   "quiet-document": {

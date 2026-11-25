@@ -80,7 +80,7 @@ type Attempt = { alternate: boolean; lineStarts: boolean };
  * Only a refused document takes the later attempts (see hasAlternateBoundaries and
  * hasLineStartSyntax); when they are refused as well, the first refusal stands. */
 export function roundTrip(document: MystDocument, previous?: RoundTrip): RoundTrip {
-  try { return writeRoundTrip(document, previous, { alternate: false, lineStarts: false }); }
+  try { return plainRoundTrip(document, previous); }
   catch (error) {
     if (!(error instanceof SemanticLossError) || error.location.code !== "round-trip-mismatch") throw error;
     const alternate = hasAlternateBoundaries(document), lineStarts = hasLineStartSyntax(document);
@@ -95,6 +95,11 @@ export function roundTrip(document: MystDocument, previous?: RoundTrip): RoundTr
     }
     throw error;
   }
+}
+
+/** Local replacement cannot request escaping changes to other blocks. */
+export function plainRoundTrip(document: MystDocument, previous?: RoundTrip): RoundTrip {
+  return writeRoundTrip(document, previous, { alternate: false, lineStarts: false });
 }
 
 function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined, attempt: Attempt): RoundTrip {

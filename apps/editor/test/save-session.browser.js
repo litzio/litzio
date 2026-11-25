@@ -604,5 +604,30 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   } finally {
     await cdp.detach();
   }
+  // A late correction is an external revision for a dirty tab. It must not replace
+  // input entered after the acknowledgement. Worker mismatch injection lives in the HTTP test.
+  const localFile = [root, 'tmp', 'save-session', 'local-write.md'].join(separator);
+  await open(localFile);
+  let correctionRevision;
+  await page.route('**/api/local-write-status?*', route => route.fulfill({json: correctionRevision
+    ? {state:'corrected', revision:correctionRevision} : {state:'pending'}}));
+  try {
+    await paragraph().click(); await page.keyboard.press('End'); await page.keyboard.type(' Fast.');
+    const posted = page.waitForResponse(response => response.url() === origin + '/api/document' && response.request().method() === 'POST');
+    await save();
+    const provisional = await (await posted).json();
+    expect(provisional.pendingLocalWrite).toBe(true);
+    await paragraph().click(); await page.keyboard.press('End'); await page.keyboard.type(' Keep this edit.');
+    const source = (await read(localFile)).source;
+    const corrected = await page.request.post(origin + '/api/document', {headers: {Origin:origin, Connection:'close'},
+      data: {path:localFile, revision:provisional.revision, base:{source},
+        paragraphs:[{path:[1], content:[{kind:'text', text:'First paragraph. Corrected.'}]}]}});
+    expect(corrected.ok()).toBe(true);
+    correctionRevision = (await corrected.json()).revision;
+    await expect(page.getByTestId('local-write-correction')).toContainText('The Host checked your save and corrected the file.');
+    await expect(page.getByTestId('external-change')).toBeVisible();
+    await expect(paragraph()).toHaveText('First paragraph. Fast. Keep this edit.');
+    check('dirtyTabKeepsInputAfterLocalSaveCorrection', (await read(localFile)).revision === correctionRevision);
+  } finally { await page.unroute('**/api/local-write-status?*'); }
   return result;
 }

@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
+import { LocalWriteBaseline } from "@litzio/core";
 import { serialize } from "node:v8";
 import type { SupportedEdits } from "../shared/document-protocol.ts";
 import { prepareReplay, type replayEdits } from "./document-replay.ts";
 
 type Snapshot = ReturnType<typeof prepareReplay>;
-type Opening = { source: string; snapshot: Snapshot; bytes: number };
+type Opening = { source: string; snapshot: Snapshot; bytes: number; baseline?: LocalWriteBaseline };
 type Saved = ReturnType<typeof replayEdits> & { revision: string };
-type Approval = { openingFingerprint: string; editsFingerprint: string; saved: Saved; bytes: number };
+type Approval = { openingFingerprint: string; editsFingerprint: string; saved: Saved; bytes: number; baseline?: LocalWriteBaseline };
 type Entry = { opening?: Opening; approval?: Approval; bytes: number };
 
 function fingerprint(value: string | Uint8Array): string {
@@ -32,7 +33,8 @@ export class DocumentSaveCache {
   private readonly entries = new Map<string, Entry>();
   private bytes = 0;
 
-  constructor(private readonly maxEntries = 16, private readonly maxBytes = 64 * 1024 * 1024) {}
+  constructor(private readonly maxEntries = 16, private readonly maxBytes = 64 * 1024 * 1024,
+    private readonly localWrite = false) {}
 
   opening(path: string, source: string): Snapshot | undefined {
     const opening = this.entries.get(path)?.opening;
@@ -43,31 +45,45 @@ export class DocumentSaveCache {
     const entry = this.entries.get(path);
     if (entry?.opening?.source === source) return entry.opening.snapshot;
     const snapshot = prepareReplay(source);
-    this.set(path, this.measureOpening(source, snapshot), entry?.approval);
+    const baseline = this.localWrite ? LocalWriteBaseline.fromCanonical(source, snapshot.original) : undefined;
+    this.set(path, this.measureOpening(source, snapshot, baseline), entry?.approval);
     return snapshot;
   }
 
   approved(path: string, source: string, edits: SupportedEdits, disk: { source: string; revision: string }): Saved | undefined {
+    return this.approval(path, source, edits, disk)?.saved;
+  }
+
+  baseline(path: string, source: string, edits: SupportedEdits | undefined, disk: { source: string; revision: string }) {
+    if (source !== disk.source) return edits && this.approval(path, source, edits, disk)?.baseline;
+    const opening = this.entries.get(path)?.opening;
+    return opening?.source === source ? opening.baseline : undefined;
+  }
+
+  private approval(path: string, source: string, edits: SupportedEdits, disk: { source: string; revision: string }) {
     const entry = this.entries.get(path)?.approval;
     if (entry?.saved.revision !== disk.revision || entry.saved.markdown !== disk.source ||
         entry.openingFingerprint !== fingerprint(source) || entry.editsFingerprint !== editsFingerprint(edits)) return;
-    return entry.saved;
+    return entry;
   }
 
-  remember(path: string, source: string, snapshot: Snapshot, edits: SupportedEdits, saved: Saved): void {
+  remember(path: string, source: string, snapshot: Snapshot, edits: SupportedEdits, saved: Saved,
+    confirmed?: LocalWriteBaseline): void {
     const editsKey = editsFingerprint(edits);
     const opening = this.entries.get(path)?.opening;
+    const baseline = confirmed ?? (this.localWrite ? LocalWriteBaseline.fromCanonical(saved.markdown, saved.document) : undefined);
     const approval = editsKey === undefined ? undefined : {
       openingFingerprint: fingerprint(source),
       editsFingerprint: editsKey,
       saved,
-      bytes: 256 + saved.markdown.length * 2 + payloadBytes(saved.document),
+      baseline,
+      bytes: 256 + saved.markdown.length * 2 + payloadBytes(saved.document) + (baseline ? payloadBytes(baseline) : 0),
     };
     this.set(path, opening?.snapshot === snapshot ? opening : this.measureOpening(source, snapshot), approval);
   }
 
-  private measureOpening(source: string, snapshot: Snapshot): Opening {
-    return { source, snapshot, bytes: source.length * 2 + payloadBytes(snapshot) };
+  private measureOpening(source: string, snapshot: Snapshot, baseline?: LocalWriteBaseline): Opening {
+    return { source, snapshot, baseline, bytes: source.length * 2 + payloadBytes(snapshot) + (baseline ? payloadBytes(baseline) : 0) };
   }
 
   private set(path: string, opening: Opening | undefined, approval: Approval | undefined): void {

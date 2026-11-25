@@ -1,21 +1,24 @@
-import { NativeDocumentError, writeIssueOf } from "@litzio/core";
+import { NativeDocumentError, writeIssueOf, type LocalWriteKind } from "@litzio/core";
 import type { SaveRequest, SaveResponse } from "../shared/document-protocol.ts";
 import { SaveContentError, type SaveFailure } from "../shared/save-error.ts";
 import type { readModel } from "./document-replay.ts";
 import { DocumentConflictError } from "./document-save-compute.ts";
 
 export type DocumentReadModel = ReturnType<typeof readModel>;
+export type SaveWork = { kind: "save"; path: string; disk: string; request: SaveRequest; local?: boolean };
 export type DocumentWork =
   | { kind: "open"; path: string; source: string }
   | { kind: "bibliography"; path: string; source: string }
   | { kind: "check-text"; source: string }
-  | { kind: "save"; path: string; disk: string; request: SaveRequest };
+  | SaveWork
+  | { kind: "verify-local-write"; save: SaveWork; expected: string };
 
 export type DocumentResults = {
   open: DocumentReadModel | undefined;
   bibliography: string[];
   "check-text": boolean;
-  save: SaveResponse & { markdown: string };
+  save: SaveResponse & { markdown: string; localWrite?: { kind: LocalWriteKind; blockCount: number }; fallback?: string };
+  "verify-local-write": { outcome: "equal" } | { outcome: "different"; markdown: string; revision: string } | { outcome: "rejected" };
 };
 
 type Diagnostic =
@@ -24,7 +27,7 @@ type Diagnostic =
   | { kind: "save"; reason: string; failure: SaveFailure }
   | { kind: "error"; message: string };
 
-export type DocumentWorkReply = { result: DocumentResults[keyof DocumentResults] } | { error: Diagnostic };
+export type DocumentWorkReply = { result: DocumentResults[keyof DocumentResults] } | { error: Diagnostic; fallback?: string };
 
 export function documentDiagnostic(error: unknown): Diagnostic {
   if (error instanceof DocumentConflictError) return { kind: "conflict" };

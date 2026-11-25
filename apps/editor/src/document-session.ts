@@ -130,7 +130,7 @@ export function createDocumentRequests(client: HostClient) {
         phase: "transport", action: "Keep your edits and check the disk version before saving again or Reloading.",
       });
     }
-    return { revision: payload.revision };
+    return { revision: payload.revision, ...(payload.pendingLocalWrite === true ? { pendingLocalWrite: true } : {}) };
   }
 
   /** Asks the Host for the canonical Markdown a Save request would write. */

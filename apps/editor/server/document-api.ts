@@ -132,7 +132,7 @@ async function openEditorFile(
   const source = decodeUtf8(readFileSync(filePath));
   const file = { path: filePath, source, revision: documentRevision(source) };
   const model = path.extname(filePath).toLowerCase() === ".md"
-    ? await thread.read({ kind: "open", path: filePath, source }, signal)
+    ? await thread.read({ kind: "open", path: canonicalFilePath(filePath), source }, signal)
     : undefined;
   return model ? { ...file, kind: "native", ...model } : { ...file, kind: "text" };
 }
@@ -146,14 +146,19 @@ async function saveFileInOrder(request: SaveRequest | TextSaveRequest, access: F
     if (canonicalFilePath(checked) !== target) throw new DocumentConflictError();
     return checked;
   };
-  const commit = (markdown: string) => fileStep(() => replaceDocumentFile(currentPath(), markdown, request.revision));
+  const commit = (markdown: string, revision = request.revision) => fileStep(() => replaceDocumentFile(currentPath(), markdown, revision));
   return thread.inSaveOrder(target, async () => {
     signal.throwIfAborted();
     const disk = fileStep(() => decodeUtf8(readFileSync(currentPath())));
     verifySaveRevision(disk, request.revision);
     if (!text) {
-      const { revision } = await thread.save({ kind: "save", path: filePath, disk, request }, signal, saved => commit(saved.markdown));
-      return { revision };
+      const { revision, localWrite } = await thread.save({ kind: "save", path: target, disk, request }, signal,
+        saved => commit(saved.markdown),
+        markdown => {
+          try { return readFileSync(currentPath()).equals(Buffer.from(markdown, "utf8")); }
+          catch { return false; }
+        }, commit);
+      return { revision, ...(localWrite ? { pendingLocalWrite: true } : {}) };
     }
     if ([filePath, target].some(file => path.extname(file).toLowerCase() === ".md") &&
         await thread.read({ kind: "check-text", source: disk }, signal)) {
@@ -270,6 +275,21 @@ export async function handleDocumentRequest(
   try { query = requestQuery(req.url ?? ""); }
   catch (error) { failure(error); return; }
   const url = new URL(req.url ?? "", "http://localhost").pathname;
+  if (url === "/api/local-write-statistics" || url === "/api/local-write-status") {
+    if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
+    try {
+      if (url === "/api/local-write-statistics") {
+        if (!documents?.localWrite) { res.statusCode = 404; res.end(); return; }
+        sendJson(res, 200, documents.localWrite.statistics());
+      } else {
+        const revision = query.get("revision") ?? "";
+        if (!/^[a-f0-9]{64}$/.test(revision)) throw new Error("invalid document revision");
+        const file = resolveDocumentPath(query.get("path") ?? undefined, access);
+        sendJson(res, 200, documents?.localWrite?.status(canonicalFilePath(file), revision) ?? { state: "done" });
+      }
+    } catch (error) { failure(error); }
+    return;
+  }
   if (url.startsWith("/api/assistant/")) {
     try { if (await services?.assistant?.http(req, res)) return; }
     catch (error) { failure(error); return; }
@@ -523,7 +543,7 @@ export async function handleDocumentRequest(
       try {
         const saved = documents ? await withDocumentResponse(res, signal => saveFileInOrder(request, access, documents, signal))
           : saveDocumentFile(request.path, request, access);
-        sendJson(res, 200, { revision: saved.revision } satisfies SaveResponse);
+        sendJson(res, 200, { revision: saved.revision, ...(saved.pendingLocalWrite ? { pendingLocalWrite: true } : {}) } satisfies SaveResponse);
       } catch (error) {
         if (error instanceof DocumentConflictError) {
           sendJson(res, 409, errorPayload(error, access));

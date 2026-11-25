@@ -26,6 +26,7 @@ export function createContentEditSession(options: {
   const base: SaveRequest["base"] = { source: snapshot.source };
   const own = new Set([...options.continues ?? [], snapshot.revision]);
   let latest = snapshot.revision;
+  let pendingLocalWrite: string | undefined;
   let state: ContentEditState = "clean";
   let error: SaveDisplayError | undefined;
   let edits = 0, failedEdits = -1;
@@ -61,6 +62,7 @@ export function createContentEditSession(options: {
     }
     own.add(result.revision);
     latest = result.revision;
+    if (result.pendingLocalWrite) pendingLocalWrite = result.revision;
     set(editor.hasDocumentChanges() ? "unsaved" : "clean");
     options.onSave({ previousRevision, revision: result.revision });
     return true;
@@ -75,6 +77,12 @@ export function createContentEditSession(options: {
   return {
     get state() { return state; },
     get revision() { return latest; },
+    get pendingLocalWrite() { return pendingLocalWrite; },
+    corrected(previous: string): "reload" | undefined {
+      if (disposed || latest !== previous) return;
+      if (state === "saving" || options.editor()?.hasUnsavedChanges()) set("conflict");
+      else return "reload";
+    },
     get path() { return snapshot.path; },
     get error() { return error; },
     accepts(revision: string) { return own.has(revision); },

@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { documentWorkError, type DocumentResults, type DocumentWork, type DocumentWorkReply } from "./document-worker-protocol.ts";
+import { LocalWriteVerification } from "./document-local-verification.ts";
 
 const COMPUTATION_TIMEOUT_MS = 60_000;
 
@@ -11,6 +12,8 @@ type Call = {
   work: DocumentWork;
   reject(error: unknown): void;
   accept(result: DocumentResults[keyof DocumentResults]): boolean;
+  remember?: () => boolean;
+  fallback?: string;
   dispose(): void;
 };
 
@@ -25,8 +28,12 @@ export class DocumentThread {
   private readonly saves = new Map<string, Promise<void>>();
   private active?: Call;
   private timer?: NodeJS.Timeout;
+  readonly localWrite?: LocalWriteVerification;
 
-  constructor(private readonly logging?: { log?(message: string): void; warn?(message: string): void }) {}
+  constructor(private readonly logging?: { log?(message: string): void; warn?(message: string): void }, statisticsFile?: string) {
+    if (statisticsFile) this.localWrite = new LocalWriteVerification(statisticsFile, message =>
+      (logging?.warn ?? logging?.log)?.(message));
+  }
 
   /** Hold a path through the disk read, computation and publication. Each
    * different path can submit computation independently of this ordering. */
@@ -43,17 +50,52 @@ export class DocumentThread {
     return result;
   }
 
-  read<K extends Exclude<DocumentWork["kind"], "save">>(work: Extract<DocumentWork, { kind: K }>, signal: AbortSignal): Promise<DocumentResults[K]> {
+  read<K extends Exclude<DocumentWork["kind"], "save" | "verify-local-write">>(work: Extract<DocumentWork, { kind: K }>, signal: AbortSignal): Promise<DocumentResults[K]> {
     return this.run(work, signal, result => result as DocumentResults[K]);
   }
 
   /** The Host performs the synchronous commit before telling the worker to memoize. */
-  save(work: Extract<DocumentWork, { kind: "save" }>, signal: AbortSignal, commit: (result: DocumentResults["save"]) => void): Promise<DocumentResults["save"]> {
-    return this.run(work, signal, value => {
+  save(work: Extract<DocumentWork, { kind: "save" }>, signal: AbortSignal, commit: (result: DocumentResults["save"]) => void,
+    diskMatches?: (markdown: string) => boolean, correct?: (markdown: string, revision: string) => void): Promise<DocumentResults["save"]> {
+    const verification = this.localWrite;
+    const fallback = verification?.pending.has(work.path) ? "verification-pending"
+      : verification?.disabled.has(work.path) ? "verification-disabled-for-document" : undefined;
+    const save = { ...work, local: Boolean(verification?.enabled && !fallback && diskMatches && correct) };
+    return this.run(save, signal, value => {
       const result = value as DocumentResults["save"];
       commit(result);
+      if (result.localWrite && verification && diskMatches && correct) {
+        verification.pending.set(save.path, result.revision);
+        setImmediate(() => { void this.verifyLocalWrite(save, result, verification, diskMatches, correct); });
+      }
       return result;
-    });
+    }, { fallback });
+  }
+
+  private async verifyLocalWrite(save: Extract<DocumentWork, { kind: "save" }>, candidate: DocumentResults["save"],
+    verification: LocalWriteVerification, diskMatches: (markdown: string) => boolean,
+    correct: (markdown: string, revision: string) => void): Promise<void> {
+    const { path } = save;
+    const { revision, markdown } = candidate;
+    let attempt = 0;
+    try {
+      while (!this.closed) {
+        let promote = false;
+        try {
+          await this.run({ kind: "verify-local-write", save, expected: markdown }, new AbortController().signal, value => {
+            promote = verification.complete(save, candidate, value as DocumentResults["verify-local-write"], diskMatches, correct);
+          }, { remember: () => promote });
+          return;
+        } catch {
+          if (this.closed) return;
+          if (attempt++ === 0) continue; // Recompute the exact request after a worker exit.
+          verification.failed(path, candidate);
+          return;
+        }
+      }
+    } finally {
+      if (verification.pending.get(path) === revision) verification.pending.delete(path);
+    }
   }
 
   async close(): Promise<void> {
@@ -70,7 +112,8 @@ export class DocumentThread {
     await Promise.all(this.saves.values());
   }
 
-  private run<T>(work: DocumentWork, signal: AbortSignal, receive: (result: DocumentResults[keyof DocumentResults]) => T): Promise<T> {
+  private run<T>(work: DocumentWork, signal: AbortSignal, receive: (result: DocumentResults[keyof DocumentResults]) => T,
+    options?: Pick<Call, "remember" | "fallback">): Promise<T> {
     return new Promise((resolve, reject) => {
       if (this.closed) throw new DocumentThreadError("The Host is closing.");
       signal.throwIfAborted();
@@ -83,7 +126,7 @@ export class DocumentThread {
         reject(signal.reason);
       };
       const call: Call = {
-        work, reject,
+        work, reject, ...options,
         accept: value => {
           try {
             signal.throwIfAborted();
@@ -101,7 +144,11 @@ export class DocumentThread {
 
   private dispatch(): void {
     if (this.closed || this.active || this.stopping) return;
-    const call = this.waiting.values().next().value;
+    let call: Call | undefined;
+    for (const waiting of this.waiting) {
+      call ??= waiting;
+      if (waiting.work.kind !== "verify-local-write") { call = waiting; break; }
+    }
     if (!call) return;
     this.waiting.delete(call);
     this.active = call;
@@ -130,11 +177,15 @@ export class DocumentThread {
       if (this.worker !== worker) return;
       const call = this.finish();
       if (!call) return;
+      if (call.work.kind === "save") {
+        const fallback = call.fallback ?? ("error" in reply ? reply.fallback : (reply.result as DocumentResults["save"]).fallback);
+        if (fallback) this.localWrite?.countFallback(fallback);
+      }
       if ("error" in reply) call.reject(documentWorkError(reply.error));
       else {
         const committed = call.accept(reply.result);
-        if (call.work.kind === "save") {
-          try { worker.postMessage({ kind: "settle-save", committed }); }
+        if (call.work.kind === "save" || call.work.kind === "verify-local-write") {
+          try { worker.postMessage({ kind: "settle-save", committed: committed && (call.remember?.() ?? true) }); }
           catch { this.fail(worker, "could not settle a save"); }
         }
       }
