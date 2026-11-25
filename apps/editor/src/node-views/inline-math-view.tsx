@@ -9,6 +9,7 @@ import { i18n } from "../i18n.ts";
 import { BlockProperties } from "../block-properties.tsx";
 import { canEditEndnoteAt, endnoteAt, endnoteEditorToken } from "../endnotes.ts";
 import { renderEquation } from "../equation-render.ts";
+import { EquationFormula } from "./equation-view.tsx";
 import { focusBlock, usePropertyEntry, type DraftListener } from "./shared.ts";
 
 export function InlineMathView({ node, editor, getPos, updateAttributes, selected }: ReactNodeViewProps) {
@@ -122,6 +123,7 @@ export function InlineMathProperties({ anchor, value, path, busy, endnoteOwner, 
             setError("");
           }}
         />
+        {draft.length ? <EquationFormula className="equation-math inline-math-preview" latex={draft} testId="inline-math-preview" inline /> : null}
         <FieldError id={`${formId}-error`}>{error}</FieldError>
       </div>
       {onRemove ? <Button type="button" size="sm" variant="outline" data-testid="inline-math-remove" disabled={busy} onClick={onRemove}>{i18n.t("Remove")}</Button> : null}

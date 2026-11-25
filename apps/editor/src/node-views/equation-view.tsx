@@ -214,12 +214,13 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
   );
 }
 
-function EquationFormula({ className, latex, testId, onDoubleClick }: { className: string; latex: string; testId: string; onDoubleClick?: () => void }) {
+/** Renders a formula, or the shared preview error; `inline` draws it as inline math does in text. */
+export function EquationFormula({ className, latex, testId, inline = false, onDoubleClick }: { className: string; latex: string; testId: string; inline?: boolean; onDoubleClick?: () => void }) {
   useTranslation();
-  const result = renderEquation(latex);
+  const result = renderEquation(latex, !inline);
   if (result.error) {
     return (
-      <Notice className={`${className} equation-preview-error`} tone="error" data-testid={`${testId}-error`} onDoubleClick={onDoubleClick}>{i18n.t("Equation preview unavailable:")}{result.error}
+      <Notice className={`${className} equation-preview-error`} tone="error" data-testid={`${testId}-error`} onDoubleClick={onDoubleClick}>{i18n.t("Equation preview unavailable:")}{" "}{result.error}
       </Notice>
     );
   }
