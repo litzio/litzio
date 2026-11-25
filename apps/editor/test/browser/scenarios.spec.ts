@@ -67,6 +67,10 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
       context.setDefaultNavigationTimeout(workerInfo.project.use.navigationTimeout!);
       await context.clearCookies();
       const scratchRoots = [path.join(REPOSITORY_ROOT, "tmp"), FILE_ACTIONS_ROOT].map(root => root.replaceAll("\\", "/"));
+      const authoringRun = process.env.LITZIO_SPIKE_AUTHORING_CAPTURE;
+      if (authoringRun && scenarios.includes("spike-plugin-authoring")) {
+        scratchRoots.push(JSON.parse(readFileSync(authoringRun, "utf8")).folder.replaceAll("\\", "/"));
+      }
       const withinScratch = (file: string, root: string) => {
         if (file.split("/").includes("..")) return false;
         const relative = path.relative(root, file);
@@ -189,7 +193,10 @@ for (const name of scenarios) {
     if (name === "http-plugins") test.setTimeout(180_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { document: string; directory: string; folder: string; otherFolder: string; otherJobInput: string; editSource(): void; cli(args: string[]): any; corruptSecret(): void; changeInstalledCopy(): void; }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; assertTableToolGeometry: typeof assertTableToolGeometry; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const captureConfig = name === "spike-plugin-authoring"
+      ? JSON.parse(readFileSync(process.env.LITZIO_SPIKE_AUTHORING_CAPTURE!, "utf8"))
+      : undefined;
+    const scenario = runInNewContext(`(${source})`, { captureConfig }) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { document: string; directory: string; folder: string; otherFolder: string; otherJobInput: string; editSource(): void; cli(args: string[]): any; corruptSecret(): void; changeInstalledCopy(): void; }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; assertTableToolGeometry: typeof assertTableToolGeometry; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
