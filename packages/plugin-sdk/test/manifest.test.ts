@@ -41,3 +41,16 @@ test('SDK exposes document title and admonition operations', () => {
 });
 
 import * as sdk from '../src/index.ts';
+
+test('SDK exposes table note operations', () => {
+  let doc = sdk.insertTable(sdk.parse('---\nlitzio: 1\n---\n\nBody.\n'), 1, [['A', 'B'], ['1', '2']]);
+  doc = sdk.insertTableNote(doc, [1], 0, [{kind:'text', text:'First'}]);
+  doc = sdk.insertTableNote(doc, [1], 1, [{kind:'text', text:'Second'}]);
+  doc = sdk.updateTableNote(doc, [1], 0, [{kind:'text', text:'Revised'}]);
+  doc = sdk.moveTableNote(doc, [1], 1, 0);
+  doc = sdk.removeTableNote(doc, [1], 1);
+  const table = sdk.getEditableDocument(doc).blocks.find(block => block.block === 'table');
+  assert.equal(table?.block, 'table');
+  assert.deepEqual(table?.block === 'table' && table.notes?.map(note => sdk.inlineContentText(note)), ['Second']);
+  assert.throws(() => sdk.removeTableNote(doc, [1], 1));
+});

@@ -323,7 +323,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, brand }) =>
   await toggle.click();
   await expect(external.getByRole("switch")).toBeChecked();
   const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" } })).json();
-  expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.15.0");
+  expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.16.0");
   if (screenshots) {
     for (const width of [1440, 640]) {
       await page.setViewportSize({ width, height: 900 });
