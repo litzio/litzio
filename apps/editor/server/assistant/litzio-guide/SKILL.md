@@ -1,6 +1,6 @@
 ---
 name: litzio-guide
-description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어하기를 안내한다. 템플릿 생성·저장이나 앱 조작 안내가 필요할 때 읽는다.
+description: 리치오 앱 사용법, 문서 템플릿, 기존 문서 블록 편집과 터미널 CLI 이어하기를 안내한다.
 ---
 # 리치오 사용 안내
 
@@ -35,8 +35,8 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - `litzio`를 찾지 못하면 Host가 제공한 절대 경로로 실행한다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
 - Codex thread ID로 대화를 이어간다. 리치오 dynamic tools는 터미널에서 실행되지 않으므로 설치된 CLI를 사용한다. litzio --help와 각 명령의 --help로 설치 버전의 옵션·연산 schema를 확인한다.
 - Host는 자기 CLI의 private shim을 자식 PATH 앞에 두며 시스템 PATH는 바꾸지 않는다. 리치오 밖에서 이어갈 때는 의도한 Host/카탈로그의 CLI인지 명시적으로 확인한다.
-- 메시지 맥락의 permissionMode가 opened-folders(열린 폴더)·read-only(읽기 전용)이면 CLI는 check·inspect·compare·도움말만 실행된다. 쓰기(insert-*·apply-batch 등)는 시도하거나 실행 승인을 요청하지 말고 본문을 직접 고친 뒤 litzio check로 검사한다. 공급자 패치 도구가 없으면 UTF-8 파일 편집 셸을 쓴다. 읽기 전용의 편집 제한은 유지하며 full-access(전체 접근)에서는 쓰기 CLI도 쓸 수 있다.
-- 기존 본문은 공급자 패치로 고쳐 변경 보기·되돌리기와 역슬래시를 보존하고 `litzio check <file> --format json`으로 검사한다. 셸은 읽기·검사·변환·일괄 처리 등에 쓴다. 임시 파일은 현재 폴더에 두며 열린 폴더의 지시 파일을 먼저 읽는다.
+- 메시지 맥락의 permissionMode가 opened-folders(열린 폴더)·read-only(읽기 전용)이면 CLI는 check·inspect·compare·도움말만 실행된다. 쓰기(insert-*·apply-batch 등)는 시도하거나 실행 승인을 요청하지 않고 공급자 패치로 본문을 고친다. 공급자 패치 도구가 없으면 UTF-8 파일 편집 셸을 쓴다. 읽기 전용의 편집 제한은 유지한다.
+- 편집한 블록을 다시 읽고 `litzio check <file> --format json`으로 검사한다. 임시 파일은 비서 작업 폴더에 두며 열린 폴더의 지시 파일을 먼저 읽는다.
 - 문장부호로 끝나는(또는 시작하는) 굵게·기울임 바로 바깥에 글자를 붙이면 강조가 풀린다(예: `**정확도(Accuracy)**를`). check의 emphasis 경고를 보면 그 바깥 글자를 `&#x...;` 문자 참조로 바꿔 고친다.
 - 전체 접근의 이미지 자산 CLI: litzio assistant import-image <absolute-document> --source <absolute-image>로 가져올 수 있다. 삽입 방법과 무관하게 litzio check로 그림 경로를 검사한다.
 - 전체 접근의 새 문서 CLI: litzio create <new-file>, litzio inspect <file>, litzio apply-batch <file> --operations <json-file> --if-revision <revision>, litzio check <file> 순서로 작성·검사한다.
@@ -46,14 +46,16 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - 구조가 필요한 읽기는 `litzio inspect <file> --format json`의 Core `content`를 사용한다. `text`는 요약이다. 표 캡션은 `caption`, 목록은 `items[].content`와 `items[].list`이며 그림 캡션·셀·미주 정의에도 `content`가 있다. 체크리스트는 `checklist: true`와 항목별 `checked`다.
 - 체크리스트(할 일·점검표)는 글머리표 목록의 모든 항목에 `- [ ] 할 일` / `- [x] 끝난 일`을 붙이고 항목 사이에 빈 줄을 두지 않는다. 번호 목록이나 일부 항목에만 체크박스를 쓰면 문서가 열리지 않는다. 체크는 그 항목의 `[ ]`↔`[x]`만 바꾸거나 전체 접근에서 `litzio update-list-item-checked <file> --path <목록> --item <항목 번호,중첩 번호> --checked true|false`를 쓴다. `insert-list`·`update-list`의 ListContent는 `"checklist":true`와 항목 `"checked"`를 받는다.
 
-## 안전한 부분 편집 (쓰기 CLI를 허용하는 전체 접근)
-`litzio inspect document.md --format json`에서 현재 revision과 NodePath를 얻는다. 해당 블록에 Before가 있을 때 아래 operations.json 예제를 쓸 수 있다. 실제 inspect 결과의 path/from으로 바꾼다.
+## 기존 문서의 블록 편집 (full-access)
+셸에서 `litzio inspect document.md --format json`의 JSON을 읽어 revision과 대상 NodePath를 추린다. 최상위 블록의 인덱스는 `path[0]`이다. 문서 편집 명령은 셸에서 실행하고 인자 형식은 `litzio <command> --help`로 확인한다.
+
+여러 연산은 한 배열에 실행 순서대로 넣는다. 블록 교체는 예를 들어 `remove-block`과 알맞은 `insert-*`에 같은 `at` 값을 준다. 다음 operations.json 예제의 path/from을 실제 inspect 결과로 바꾼다.
 
 ```json
 [{"command":"update-node-text","path":"1","from":"Before","to":"After"}]
 ```
 
-`litzio apply-batch document.md --operations operations.json --if-revision <inspect의-revision> --format json`은 작업 하나도 `{ok,command,applied,revision}`으로 결과를 준다. `--dry-run`으로 먼저 확인할 수 있다. mismatch는 쓰지 않고 거부한다. 성공 뒤 다시 inspect하여 새 경로와 revision을 얻는다. 단일 edit 명령은 새 revision receipt를 출력하지 않는다. 부분 의미 편집도 canonical 문서 전체를 저장하며 미저장 편집본이나 창의 Undo와 공유하지 않는다. 제한 권한의 CLI guard를 우회하지 않는다.
+`litzio apply-batch document.md --operations operations.json --if-revision <inspect의-revision> --format json`은 여러 연산을 한 번에 저장하고 `{ok,command,applied,revision}`을 돌려준다. `--dry-run`으로 미리 볼 수 있고 revision이 다르면 저장을 거부한다. 성공 뒤 다시 inspect하여 요청한 블록의 종류·내용·위치를 확인한다. 단일 edit 명령은 새 revision receipt를 출력하지 않는다. 부분 의미 편집도 canonical 문서 전체를 저장하며 미저장 편집본이나 창의 Undo와 공유하지 않는다.
 
 - `create --input`과 화면 `saveDocument`는 같은 Core 작성 schema다. text는 글자 그대로이며 content는 읽기 출력의 InlineContent 배열이다. 표 caption·label·셀 구조, 미주 정의/표시, Core ListContent의 중첩·style·delimiter·start, target과 reference를 보존한다. 완성 입력의 끊긴 연결은 위치·이유와 함께 거부한다.
 
