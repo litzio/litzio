@@ -73,9 +73,11 @@ async (page, { openPath, expect }) => {
         expect(place,JSON.stringify(place)).toEqual({inBar:true,aboveSettings:true,sameSize:true,hit:true});
         expect(bellRect.x + bellRect.width, 'Closed bell must remain outside document content').toBeLessThanOrEqual(documentRect.x);
         if (expanded) {
-          // The manual list opens to the bell's right with its lower edge at the bell's.
+          // The manual list opens to the bell's right with its lower edge at the bell's; its left edge
+          // matches the automatic cards: 8px right of the Activity bar.
           const popup = await center.locator('.notification-popover').boundingBox();
-          expect(popup.x).toBeGreaterThanOrEqual(bellRect.x + bellRect.width);
+          const barRight = await page.getByTestId('activity-bar').evaluate(bar => bar.getBoundingClientRect().right);
+          expect(Math.abs(popup.x - (barRight + 8)), JSON.stringify({popup, barRight})).toBeLessThanOrEqual(0.5);
           expect(Math.abs(popup.y + popup.height - (bellRect.y + bellRect.height))).toBeLessThanOrEqual(1);
           expect(popup.x + popup.width).toBeLessThanOrEqual(width);
           expect(popup.y).toBeGreaterThanOrEqual(0);
@@ -148,7 +150,7 @@ async (page, { openPath, expect }) => {
   });
   expect(autoPlacement.card.top,JSON.stringify(autoPlacement)).toBeGreaterThanOrEqual(autoPlacement.headerBottom);
   expect(900 - autoPlacement.card.bottom,'Automatic cards sit at the window bottom, not below the tab strip').toBe(16);
-  expect(autoPlacement.card.left - autoPlacement.barRight,'Automatic cards start just right of the Activity bar').toBe(32);
+  expect(autoPlacement.card.left - autoPlacement.barRight,'Automatic cards start 8px right of the Activity bar, like the manual list').toBe(8);
   expect(autoPlacement.actions.length).toBeGreaterThan(0);
   expect(autoPlacement.actions.filter(action => action.covered || !action.visible),JSON.stringify(autoPlacement.actions)).toEqual([]);
   await toggle().click();

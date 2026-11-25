@@ -214,7 +214,8 @@ button {
 /* Names hidden in Settings: icon-only items, named by their tooltip and accessible name. */
 :root[data-activity-labels="hidden"] .activity-bar-label { display: none; }
 :root[data-activity-labels="hidden"] .activity-bar-screens { min-height: calc(var(--activity-icon) + 2 * var(--space-1) + 2 * var(--border-width)); }
-.notification-slot { flex-shrink: 0; width: var(--size-control-compact); height: var(--size-control-compact); }
+/* scroll-margin carries the list gap (--space-2) to the shell as a resolved length; it never affects layout. */
+.notification-slot { flex-shrink: 0; width: var(--size-control-compact); height: var(--size-control-compact); scroll-margin-right: var(--space-2); }
 .activity-bar-status { display: flex; align-items: center; justify-content: center; height: var(--size-control-compact); }
 .activity-more { width: var(--layout-sidebar-width); gap: var(--space-2); padding: var(--space-2); }
 .activity-more-list { display: flex; flex-direction: column; gap: var(--space-1); min-height: 0; margin: 0; padding: 0; list-style: none; overflow-y: auto; }
@@ -3323,7 +3324,7 @@ h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-
 .notification-popover > ul { max-height: var(--available-height); }
 @media print { .notification-center { display: none; } }
 /* Automatic cards rise from the window's lower edge just right of the Activity bar, beside the button. */
-.notification-auto { position: fixed; z-index: 40; pointer-events: none; left: calc(var(--layout-activity-bar-width) + var(--space-8)); bottom: var(--space-4); display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: var(--space-2); width: min(28rem, calc(100vw - var(--layout-activity-bar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8) - var(--space-4)); --notification-enter-offset: var(--space-1); color: inherit; font-size: var(--font-size-sm); line-height: var(--line-height-label); }
+.notification-auto { position: fixed; z-index: 40; pointer-events: none; left: calc(var(--layout-activity-bar-width) + var(--space-2)); bottom: var(--space-4); display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: var(--space-2); width: min(28rem, calc(100vw - var(--layout-activity-bar-width) - var(--notification-panel-width, 0px) - var(--space-2) - var(--space-4))); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8) - var(--space-4)); --notification-enter-offset: var(--space-1); color: inherit; font-size: var(--font-size-sm); line-height: var(--line-height-label); }
 .notification-center[data-severity="error"] { color: var(--id-color-danger); }
 .notification-center[data-severity="warning"] { color: var(--id-color-warning); }
 

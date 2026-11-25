@@ -123,6 +123,9 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
       const rect = slot.getBoundingClientRect();
       notifications.current?.style.setProperty("--notification-top", `${rect.top}px`);
       notifications.current?.style.setProperty("--notification-left", `${rect.left}px`);
+      // The manual list starts where automatic cards do: the bar's right edge plus --space-2.
+      const gap = parseFloat(getComputedStyle(slot).scrollMarginRight) || 0;
+      notifications.current?.style.setProperty("--notification-list-offset", `${bar.getBoundingClientRect().right - rect.right + gap}px`);
     };
     place();
     const observer = new ResizeObserver(place);

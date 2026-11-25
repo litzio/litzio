@@ -283,12 +283,12 @@ shared; the two presentations never render duplicate notification rows.
 New errors, warnings and named progress/actions expand an automatic card just right of
 the Activity bar at the window's lower edge
 ([1440 capture](assets/notification-activity-bar-1994/after-1440-light-auto-one.png)).
-Its left edge is 32px (`--space-8`) right of the bar and its bottom 16px (`--space-4`)
-above the window edge. Several causes stack upward in one list
+Its left edge is 8px (`--space-2`) right of the bar, the same edge as the manual list,
+and its bottom 16px (`--space-4`) above the window edge. Several causes stack upward in one list
 ([several causes](assets/notification-activity-bar-1994/after-1440-light-auto-many.png))
 that scrolls inside the card, whose top never rises above the measured title strip and
 tab row (`--app-header-height`) plus 32px, so title-strip and tab-row actions stay
-usable. Its width keeps the 32px + 16px insets and stops left of an open Assistant or
+usable. Its width keeps the 8px + 16px insets and stops left of an open Assistant or
 Document panel. The card enters from below. Automatic cards are named regions, not
 dialogs, and keep a temporary, dismissible overlap of the Explorer panel and document
 ([640 Korean dark with Explorer overlay](assets/notification-activity-bar-1994/after-640-dark-ko-explorer-auto.png)).
@@ -298,8 +298,10 @@ Button activation collapses an expanded presentation; activation while closed op
 manual list.
 
 The existing Base UI Popover anchors only the manual list to the button's right with its
-lower edge at the button's (side right, align end, 8px offset like the bar's More list);
-it never flips to another side, shifts within the viewport, and a short window scrolls
+lower edge at the button's (side right, align end); its offset puts its left edge 8px
+(`--space-2`) right of the Activity bar's right edge, where automatic cards start, so the
+list never covers the bar. The shell resolves that offset with the slot coordinates. The list
+never flips to another side, shifts within the viewport, and a short window scrolls
 inside the list ([1440 capture](assets/notification-activity-bar-1994/after-1440-light-manual.png)).
 It is a named nonmodal Notifications dialog, distinct from Save/New/Reload modal
 dialogs. Focus-only document navigation keeps it open; outside pointer dismissal and

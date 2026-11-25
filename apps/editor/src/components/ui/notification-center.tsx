@@ -190,7 +190,9 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
         aria-label={i18n.t("Notifications")} aria-description={accessibleLabel} />} />}>
       <Bell />{visible.length ? <span className="notification-count" aria-hidden="true">{visible.length}</span> : null}
     </TooltipTrigger><TooltipContent side="right">{i18n.t("Notifications")}</TooltipContent></Tooltip>
-    {presentation === "manual" || manualMounted ? <PopoverContent anchor={toggle} portalContainer={outlet} side="right" align="end" sideOffset={8}
+    {presentation === "manual" || manualMounted ? <PopoverContent anchor={toggle} portalContainer={outlet} side="right" align="end"
+      // The shell aligns the list with the automatic cards: its offset clears the Activity bar edge.
+      sideOffset={() => parseFloat(outlet ? getComputedStyle(outlet).getPropertyValue("--notification-list-offset") : "") || 8}
       collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
       initialFocus={false} finalFocus={() => {
         const target = returnFocus.current ? toggle.current : false;
