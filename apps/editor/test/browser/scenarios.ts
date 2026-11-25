@@ -149,10 +149,11 @@ export const NOTIFICATION_SCENARIOS = [
   "table-authoring",
   "text-mode",
   "ui-language",
+  "document-view-editing",
 ];
 
 /** Production HTTP has a different startup and filesystem policy; run it against its own Host. */
-export const HTTP_SCENARIOS = ["plugin-screen-code", "plugin-screen-connection", "http-host", "http-plugins"];
+export const HTTP_SCENARIOS = ["plugin-screen-code", "plugin-screen-connection", "http-host", "http-plugins", "document-view-editing"];
 
 /** Select before starting a server probe or browser; an invalid/empty shard must fail. */
 export function selectBrowserScenarios(args: readonly string[]): {

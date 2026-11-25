@@ -22,3 +22,8 @@
 .screen-document-view-content .table-grid {
   max-width: calc(100% * var(--document-view-scale, 1) - 2 * var(--space-5) * (1 - var(--document-view-scale, 1)));
 }
+
+/* Content editing: a lasting Save problem names its state and the one action available. */
+.screen-document-view-notice { margin: 0; overflow-wrap: anywhere; }
+.screen-document-view-notice > p { margin: 0; }
+.screen-document-view-notice > p + button { margin-top: var(--space-2); color: var(--id-color-text); }

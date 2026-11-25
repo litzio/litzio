@@ -224,7 +224,12 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       return <><p>{${JSON.stringify(label)}}</p><ui.Button onClick={()=>invoke("snapshot",{}).then(setResult).catch(error=>setResult(error.message))}>Read installed value</ui.Button><output>{result}</output></>;
     }`);
     if (name === "http-plugins") writeDriveScreen("Runtime fixture");
-    const pluginFixture = { document: path.join(pluginFolder, "a.md"), directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput, editSource() {
+    const pluginFixture = { document: path.join(pluginFolder, "a.md"), directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput,
+      // An outside edit of a content-editing fixture (#1976), as another program would write it.
+      writeContentEditDocument(name: string, source: string) {
+        if (name.includes("/") || name.includes("\\")) throw new Error("Content edit fixture names are file names");
+        writeFileSync(path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "content-edit", name), source);
+      }, editSource() {
       const file = path.join(pluginDirectory, "host.mjs");
       writeFileSync(file, readFileSync(file, "utf8").replace("Original value", "Updated value"));
       writeDriveScreen("Updated runtime fixture");

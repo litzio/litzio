@@ -21,7 +21,7 @@ import { PropertyForm } from "../block-properties.tsx";
 import { MetadataLabel } from "../metadata-properties.tsx";
 import { FigureProperties } from "../figure-properties.tsx";
 import { NumberField, useNumberDraft } from "../numbering-properties.tsx";
-import { useEditorAuthoring } from "../editor-visibility.ts";
+import { useEditorAuthoring, useEditorContentOnly } from "../editor-visibility.ts";
 import { updateFigure } from "../block-commands.ts";
 import { captionPrefixText, useCaptionNumberText } from "../cross-reference.tsx";
 import { MermaidPreview } from "../mermaid-preview.tsx";
@@ -94,7 +94,8 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
   const imageFailed = !!src && failedSource === src;
   const label = String(node.attrs.label ?? "");
   const sourcePath = String(node.attrs.sourcePath ?? "");
-  const editableFigure = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable });
+  const authoring = !useEditorContentOnly();
+  const editableFigure = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable }) && authoring;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(applied);
   const previousImage = useRef(applied.imageUrl);
@@ -192,7 +193,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
   // Apply commits only a value Core accepts as persistent; an invalid draft keeps the form open.
   // Core checks the live target/reference context before committing a label rename.
   const apply = async (rename = false, returnCaret = true) => {
-    if (!view.editable || validating || choosing) return;
+    if (!(view.editable && authoring) || validating || choosing) return;
     setErrorField(undefined);
     if (!numberDraft.validate()) return;
     if (rename && canRename && filenameDraft && !validFileStem(filename)) {
@@ -233,7 +234,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
     // destroyed before React runs the NodeView's effect cleanup.
     if (request !== pendingRequest.current || editor.isDestroyed) return;
     setValidating(false);
-    if (!view.editable) return; // Read keeps the validated input as an unapplied draft.
+    if (!(view.editable && authoring)) return; // Read keeps the validated input as an unapplied draft.
     if (message) {
       setError(message);
       return;
@@ -416,7 +417,8 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
 
 function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange, validateFigure, onCancelPending }: FigureViewProps & { onCancelPending?(): void }) {
   useTranslation();
-  const editable = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable });
+  const authoring = !useEditorContentOnly();
+  const editable = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable }) && authoring;
   const placeholder = useCaptionPlaceholder({ editor, getPos }, "figure");
   const visible = useEditorAuthoring();
   const numbered = useCaptionNumberText(editor, getPos, "figure");
@@ -462,13 +464,13 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
   }, [sourcePath, hasDraft, onDraftChange]);
   function begin(source: boolean) {
     // Re-entry never replaces an open metadata/source draft with the other form.
-    if (!view.editable || editing || properties) return;
+    if (!(view.editable && authoring) || editing || properties) return;
     setDraft(applied.mermaidSource ?? ""); setLabelDraft(label); numberDraft.reset(enumerator); setError("");
     if (source) setEditing(true); else setProperties(true);
   }
   const beginProperties = () => begin(false);
   const beginSource = () => begin(true);
-  const [openOnInsert] = useState(() => view.editable && isNewBlockPath(sourcePath));
+  const [openOnInsert] = useState(() => (view.editable && authoring) && isNewBlockPath(sourcePath));
   useEffect(() => { if (openOnInsert) setEditing(true); }, [openOnInsert]);
   usePropertyEntry(anchor, beginSource);
   useObjectActions(anchor, { properties: beginProperties, content: beginSource });
@@ -481,7 +483,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
     focusBlock(view, getPos);
   };
   const apply = async (openSource = false, returnCaret = true) => {
-    if (!view.editable || busy) return;
+    if (!(view.editable && authoring) || busy) return;
     setErrorField(undefined);
     if (!numberDraft.validate()) return;
     const position = getPos();
@@ -522,7 +524,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
     finally { tracking.abort(); }
     if (request.current !== pending || editor.isDestroyed) return;
     setBusy(false);
-    if (!view.editable) return; // Do not close or acknowledge a suspended source draft.
+    if (!(view.editable && authoring)) return; // Do not close or acknowledge a suspended source draft.
     if (message) { reject(message); return; }
     const latestPosition = getPos();
     const latest = typeof latestPosition === "number" ? view.state.doc.nodeAt(latestPosition) : null;
@@ -585,7 +587,7 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
       <NodeViewContent data-testid="figure-caption-content" aria-label={i18n.t("Figure caption")}
         data-empty-caption={node.content.size === 0 || undefined} data-placeholder={placeholder} />
     </figcaption>
-    {view.editable && !editing ? <div className="object-tools" data-object-tools="" contentEditable={false}>
+    {(view.editable && authoring) && !editing ? <div className="object-tools" data-object-tools="" contentEditable={false}>
       <ObjectTool icon={blockCommandAppearance("object-properties").icon!} label={i18n.t("Properties")} name={i18n.t("Figure properties")} aria-expanded={properties} onClick={beginProperties} />
       <ObjectTool icon={blockCommandAppearance("object-source").icon!} label={i18n.t("Edit source")} data-testid="mermaid-edit-source" disabled={busy}
         onClick={() => properties ? void apply(true) : beginSource()} />

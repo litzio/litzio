@@ -177,6 +177,15 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "unsafe.svg", create: () => '<svg xmlns="http://www.w3.org/2000/svg"><script>window.__litzioSVG = true; fetch("/api/folder-places");</script><text y="20">Untrusted media</text></svg>' },
   ], scenarios: ["http-host"] },
   "http-host-b/fixture": { files: [{ name: "b.md", create: () => nativeSource("# HTTP B\n\nBeta.\n") }], scenarios: ["http-host"] },
+  // Content editing in a plugin document view (#1976), inside the HTTP Host's first root.
+  "http-host-a/content-edit": { files: [
+    { name: "content.md", create: () => nativeSource("# Content editing\n\nTeh first paragraph has a typo.\n\nSecond paragraph stays.\n\n" +
+      ":::{table} Measured values\n\n| Item | Formula |\n| --- | --- |\n| Area |  |\n| Mass | m |\n:::\n\n- First item\n- Second item\n\nClosing paragraph.\n") },
+    // About 2,000 top-level blocks: paragraphs with a small table every 20 blocks.
+    { name: "large.md", create: () => nativeSource(Array.from({ length: 2000 }, (_, index) => index % 20 === 19
+      ? `:::{table}\n\n| Item | Value |\n| --- | --- |\n| Row ${index} | ${index} |\n:::\n`
+      : `Synthetic passage ${index + 1} for measuring content editing in a long document.\n`).join("\n")) },
+  ], scenarios: ["document-view-editing"] },
   "new-document": { files: [], scenarios: ["new-document", "recovery-structure", "template-gallery"] },
   "open-files": { files: [
     { name: "긴파일이름" + "unbrokendocumentname".repeat(7) + ".md", create: () => nativeSource("# Long name\n") },

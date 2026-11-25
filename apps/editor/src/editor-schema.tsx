@@ -883,9 +883,11 @@ export const LOCKED_STRUCTURE_REJECTION = "This view keeps every block as it is.
 /** The part of a top-level block that content editing keeps: identity, kind (heading level,
  * Admonition variant) and a table's row and column counts. List items may change. */
 function lockedShape(node: ProseMirrorNode): string {
+  const rows: number[] = [];
+  if (node.type.name === "table") node.forEach(child => { if (child.type.name === "tableRow") rows.push(child.childCount); });
   const kind = node.type.name === "heading" ? `:${node.attrs.level}`
     : node.type.name === "admonition" ? `:${node.attrs.variant}`
-    : node.type.name === "table" ? `:${node.children.filter(child => child.type.name === "tableRow").map(row => row.childCount).join(",")}`
+    : node.type.name === "table" ? `:${rows.join(",")}`
     : "";
   return `${node.type.name}${kind}@${node.attrs.sourcePath}`;
 }
@@ -905,7 +907,7 @@ export function structureGuardPlugin(baseline: TiptapJSON, onReject: (reason?: U
   const blocksByPath = snapshotBlocksByPath(baseline);
   return new Plugin<string[]>({
     key: structureGuardKey,
-    // Read by input rules (markdown-input-rules.ts), which would otherwise turn typed text into blocks.
+    // Read through isStructureLocked (structure-lock.ts).
     lockStructure,
     state: {
       init: () => [...initialDeletedPaths],

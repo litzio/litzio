@@ -5,17 +5,17 @@ import { closeHistory } from "@tiptap/pm/history";
 import { useTranslation } from "react-i18next";
 
 /** Plain metadata input; the shared ProseMirror document owns its value and history. */
-export function DocumentTitle({ editor }: { editor: Editor }) {
+export function DocumentTitle({ editor, readOnly = false }: { editor: Editor; readOnly?: boolean }) {
   const { t } = useTranslation();
   const title = useEditorState({ editor, selector: ({ editor }) => editor.state.doc.attrs.title as string | null });
   const boundary = () => editor.view.dispatch(closeHistory(editor.state.tr));
   return <textarea className="document-title-input" data-document-title="true" rows={1}
-    aria-label={t("Title")} placeholder={editor.isEditable ? t("Add a title (optional)") : undefined} value={title ?? ""}
-    readOnly={!editor.isEditable} spellCheck={false}
+    aria-label={t("Title")} placeholder={editor.isEditable && !readOnly ? t("Add a title (optional)") : undefined} value={title ?? ""}
+    readOnly={readOnly || !editor.isEditable} spellCheck={false}
     onFocus={boundary} onBlur={boundary}
     onChange={event => editor.view.dispatch(editor.state.tr.setDocAttribute("title", event.target.value.replace(/[\r\n\v\f\u0085\u2028\u2029]+/gu, " ")))}
     onKeyDown={event => {
-      if (!editor.isEditable || event.nativeEvent.isComposing) return;
+      if (readOnly || !editor.isEditable || event.nativeEvent.isComposing) return;
       if ((event.ctrlKey || event.metaKey) && !event.altKey) {
         const key = event.key.toLowerCase();
         if (key === "z" || key === "y") {

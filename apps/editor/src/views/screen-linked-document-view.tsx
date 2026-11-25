@@ -37,7 +37,8 @@ export function LinkedDocumentView({ document: view, revision, source, sourceLab
   }, [sourceRef]);
   const [geometry, setGeometry] = useState<DocumentViewGeometry>();
   const index = useMemo(() => indexItems(items), [items]);
-  const matching = geometry?.revision === revision ? geometry : undefined;
+  // Item paths stay valid across this view's own content Saves.
+  const matching = geometry?.accepts(revision) ? geometry : undefined;
   const scale = Number.isFinite(sourceScale) && sourceScale > 0 ? sourceScale : 1;
   const height = view.height ?? 480;
   const fillHeight = height === "fill";
@@ -62,7 +63,7 @@ export function LinkedDocumentView({ document: view, revision, source, sourceLab
       <DocumentViewSnapshot view={{ ...view, onBlockClick: block => {
         view.onBlockClick?.(block);
         const item = firstItem(JSON.stringify(block.path));
-        if (item && block.revision === revision) onSelect(item.id);
+        if (item && matching && block.revision === matching.revision) onSelect(item.id);
       } }} onGeometry={setGeometry} />
       <LinkedBands host={host} source={sourceViewport} geometry={matching} index={index}
         sourceScale={scale} selectedId={selectedId} onSelect={select} />

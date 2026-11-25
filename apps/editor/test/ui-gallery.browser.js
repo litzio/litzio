@@ -630,6 +630,19 @@ async (page, { expect, screenshots, withBlockHover }) => {
   await page.getByRole('button',{name:'Toggle stale target',exact:true}).click();
   await expect(page.locator('.screen-document-view')).toHaveAttribute('data-state','stale-target');
   await expect(page.getByTestId('document-view-highlight')).toHaveCount(0);
+  // Content editing in the development build and its gallery example: leaving the edited block saves it.
+  await page.getByRole('button',{name:'Edit content',exact:true}).click();
+  const view=page.locator('.screen-document-view');
+  await expect(documentView.locator('.document-editor')).toHaveAttribute('contenteditable','true');
+  await expect(view).toHaveAttribute('data-edit-state','clean');
+  await documentView.locator('.tiptap > p').first().click();
+  await page.keyboard.press('End');await page.keyboard.type(' Edited.');
+  await expect(view).toHaveAttribute('data-edit-state','unsaved');
+  await documentView.locator('.tiptap > p').nth(1).click();
+  await expect(view).toHaveAttribute('data-edit-state','clean');
+  await expect(page.getByText('Saved',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Edit content',exact:true}).click();
+  await expect(documentView.locator('.document-editor')).toHaveAttribute('contenteditable','false');
   if (screenshots) {
     await page.setViewportSize({width:1440,height:1000});
     await page.getByRole('button',{name:'Toggle stale target',exact:true}).click();

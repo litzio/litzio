@@ -1,7 +1,8 @@
 import { Extension, InputRule, markInputRule, type InputRuleFinder } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
 import type { Fragment, MarkType, NodeType } from "@tiptap/pm/model";
-import { TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
+import { TextSelection, type Transaction } from "@tiptap/pm/state";
+import { isStructureLocked } from "./structure-lock.ts";
 import { freshBlockPath } from "./tiptap-document.ts";
 
 // Markdown input shortcuts are Editor-only interaction: each one produces the same engine
@@ -65,11 +66,6 @@ function plainText(content: Fragment): boolean {
   let plain = true;
   content.forEach(child => { if (!child.isText || child.marks.length > 0) plain = false; });
   return plain;
-}
-
-/** A content-only editor's structure guard keeps every top-level block (editor-schema.tsx). */
-function isStructureLocked(state: EditorState): boolean {
-  return state.plugins.some(plugin => plugin.spec.lockStructure === true);
 }
 
 function blockRule(find: RegExp, shortcut: (match: RegExpMatchArray) => BlockShortcut, undoable = true): InputRule {
