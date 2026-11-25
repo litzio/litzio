@@ -186,6 +186,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [2026-11-25 Ollama 비서의 소형 모델 과제 범위](spikes/2026-11-25-ollama-small-model-range.md) | Historical | 스파이크 기록. 결론 미정. 코드는 태그·브랜치에만 있다. |
 | [2026-11-25 플러그인 제작에서 화면 시안 먼저 보여 주기](spikes/2026-11-25-plugin-authoring-prototype-first.md) | Historical | 질문·계획 먼저와 화면 시안 먼저를 합성 과제로 비교한 기록. 결론 미정. |
 | [2026-11-25 비서의 변환 문서 검수와 반영](spikes/2026-11-25-assistant-review-converted-document.md) | Historical | 합성 PDF 대조·수정의 요소별 결과와 정상 요소 손상 측정. 결론 미정. |
+| [2026-11-25 비서의 변환 문서 검수와 낮은 추론 강도](spikes/2026-11-25-assistant-review-low-effort.md) | Historical | 기존과 동일한 합성 문서에서 추론 강도 low의 발견·반영·기존 정답 손상과 시간을 비교했다. 결론 미정. |
 
 ## Verification
 
