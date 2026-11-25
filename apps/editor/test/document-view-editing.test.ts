@@ -6,6 +6,16 @@ import { SaveConflictError } from "../src/document-session.ts";
 import { appliedDocument, toTiptapDocument, type TiptapJSON } from "../src/tiptap-document.ts";
 import { createContentEditSession } from "../src/views/screen-document-view-editing.ts";
 import { loadEditableDocument, nativeSource } from "./helpers/document.ts";
+import { getSchema } from "@tiptap/core";
+import { EditorState, type Transaction } from "@tiptap/pm/state";
+import { history, undoDepth } from "@tiptap/pm/history";
+import { declaredDeletions, editorDocumentJSON, editorExtensions, structureGuardPlugin } from "../src/editor-schema.tsx";
+import { holdInput, isInputHeld, ReadOnlyBoundary } from "../src/read-only-boundary.ts";
+import { isDocumentViewChange, rebaseTopLevel, replaceTopLevel } from "../src/document-view-change.ts";
+import { collectSupportedEdits } from "../src/tiptap-document.ts";
+import { structuralEditKinds } from "../src/editor-save.ts";
+import { convertBlock, documentViewChange, mergeParagraphWithPrevious, parse } from "@litzio/plugin-sdk";
+import { toTiptapBlock } from "../src/tiptap-document.ts";
 
 // The view's Save sequencing (#1976): one Save at a time, revisions continued by its own Saves,
 // conflict and failure handling. The editor is a stand-in with the handle's Save contract;
@@ -132,4 +142,90 @@ test("a Save during composition waits for the composition to end", async () => {
   assert.equal(requests.length, 1);
   assert.equal(requests[0]!.body.paragraphs?.[0]?.content[0]?.kind === "text" && requests[0]!.body.paragraphs[0].content[0].text, "First paragraph. 한글");
   requests[0]!.resolve("r1");
+});
+
+// A change shown before its write (#1995) passes the structure lock and the read-only boundary
+// only as the transaction document-view-change.ts built; the same steps from anywhere else are refused.
+const changeSource = nativeSource("# Title\n\nFirst paragraph.\n\nSecond paragraph.\n\nThird paragraph.\n");
+function lockedState() {
+  const opening = loadEditableDocument(changeSource);
+  const baseline = toTiptapDocument(opening);
+  const schema = getSchema(editorExtensions());
+  const rejected: unknown[] = [];
+  const state = EditorState.create({ schema, doc: schema.nodeFromJSON(baseline),
+    plugins: [history(), structureGuardPlugin(baseline, reason => rejected.push(reason ?? "refused"), [], true)] });
+  return { opening, state, rejected };
+}
+const attrs = { title: null, status: null, headingNumbering: null, referenceTemplates: null };
+const merged = { type: "heading", attrs: { sourcePath: "new:merged", level: 2 }, content: [{ type: "text", text: "First and second" }] };
+
+test("only a document view change replaces locked blocks, outside history", () => {
+  const { state, rejected } = lockedState();
+  const change = replaceTopLevel(state, 1, 2, [merged], attrs);
+  assert.equal(isDocumentViewChange(change.tr), true);
+  const shown = state.apply(change.tr);
+  assert.deepEqual(shown.doc.content.content.map(node => node.textContent), ["Title", "First and second", "Third paragraph."]);
+  assert.deepEqual(change.replaced.map(node => node.content?.[0]?.text), ["First paragraph.", "Second paragraph."]);
+  assert.equal(undoDepth(shown), 0, "the change is not an undo step");
+  // The same steps built anywhere else, or carrying any copy of its metas, stay refused.
+  for (const forge of [
+    (tr: Transaction) => tr,
+    (tr: Transaction) => { for (const name of ["documentViewChange", "documentViewChange$"]) tr.setMeta(name, true); return tr; },
+    (tr: Transaction) => { for (const [name, value] of Object.entries((change.tr as unknown as { meta: Record<string, unknown> }).meta)) tr.setMeta(name, value); return tr; },
+  ]) {
+    const start = state.doc.child(0).nodeSize, end = start + state.doc.child(1).nodeSize + state.doc.child(2).nodeSize;
+    const tr = forge(state.tr.replaceWith(start, end, state.schema.nodeFromJSON(merged)));
+    assert.equal(isDocumentViewChange(tr), false);
+    assert.equal(state.applyTransaction(tr).state.doc.eq(state.doc), true, "refused");
+  }
+  assert.equal(rejected.length, 3);
+  // Read-only views refuse document changes except a document view change; so does held input.
+  const [hold, boundary] = ReadOnlyBoundary.config.addProseMirrorPlugins!.call({ editor: { isEditable: false } } as never);
+  const filter = boundary!.spec.filterTransaction!;
+  assert.equal(filter(change.tr, state), true);
+  assert.equal(filter(state.tr.insertText("x", 2), state), false);
+  const held = EditorState.create({ schema: state.schema, doc: state.doc, plugins: [hold!] });
+  const holding = held.apply(holdInput(held.tr, true));
+  assert.equal(isInputHeld(holding), true);
+  assert.equal(holding.applyTransaction(holding.tr.insertText("x", 2)).state.doc.eq(holding.doc), true, "held input changes nothing");
+  assert.equal(holding.applyTransaction(replaceTopLevel(holding, 1, 2, [merged], attrs).tr).state.doc.childCount, 3);
+  assert.equal(holding.apply(holdInput(holding.tr, false)).applyTransaction(holding.tr.insertText("x", 2)).state.doc.eq(holding.doc), false);
+  // Putting back what it replaced restores the opening blocks.
+  const back = replaceTopLevel(shown, 1, 1, change.replaced, change.attrs);
+  assert.equal(shown.apply(back.tr).doc.eq(state.doc), true);
+});
+
+test("the written file becomes the opening snapshot of later content edits", () => {
+  const { state, rejected } = lockedState();
+  const shown = state.apply(replaceTopLevel(state, 1, 2, [merged], attrs).tr);
+  // The official write produced this file; its read model rebases the editor without replacing the shown block.
+  const written = loadEditableDocument(nativeSource("# Title\n\n## First and second\n\nThird paragraph.\n"));
+  const rebase = rebaseTopLevel(shown, toTiptapDocument(written));
+  assert.equal(rebase.replaced, 0, "blocks already showing the written content are kept");
+  const rebased = shown.apply(rebase.tr);
+  assert.deepEqual(rebased.doc.content.content.map(node => node.attrs.sourcePath), written.blocks.map(block => block.path.join(",")));
+  assert.deepEqual(declaredDeletions(rebased), []);
+  // A content edit after the rebase is collected against the written file's paths.
+  const third = rebased.doc.child(0).nodeSize + rebased.doc.child(1).nodeSize;
+  const edited = rebased.apply(rebased.tr.insertText(" Edited", third + 1 + "Third paragraph.".length));
+  assert.equal(rejected.length, 0);
+  const edits = collectSupportedEdits(written, editorDocumentJSON(edited));
+  assert.deepEqual(edits.paragraphs?.map(edit => edit.path), [written.blocks[2]!.path]);
+  assert.deepEqual(structuralEditKinds(edits), []);
+  // Structure stays locked after the rebase.
+  const split = edited.applyTransaction(edited.tr.split(third + 3));
+  assert.equal(split.state.doc.eq(edited.doc), true);
+  assert.equal(rejected.length, 1);
+});
+
+test("a change from documentViewChange keeps unchanged document fields, so the view redraws only the changed blocks", () => {
+  const { opening, state } = lockedState();
+  const before = parse(changeSource);
+  const change = documentViewChange(before, convertBlock(mergeParagraphWithPrevious(before, [3]), [2], { block: "heading", level: 2 }));
+  assert.deepEqual([change.from, change.removed, change.blocks.length], [1, 2, 1]);
+  assert.equal(opening.blocks.length, 4);
+  const { tr } = replaceTopLevel(state, change.from, change.removed, change.blocks.map(toTiptapBlock), {
+    title: change.document.title, status: change.document.status ?? null,
+    headingNumbering: change.document.headingNumbering, referenceTemplates: change.document.referenceTemplates ?? null });
+  assert.deepEqual(tr.steps.map(step => step.constructor.name), ["ReplaceStep"], JSON.stringify(tr.steps.map(step => step.toJSON())));
 });

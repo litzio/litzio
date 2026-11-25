@@ -2,7 +2,7 @@
 // in-place edits save through the official write path when the edited block is left,
 // structural changes are refused with a notice, saves keep targets and correspondences,
 // outside changes conflict without overwriting, and Korean composition saves once.
-async (page, {expect, screenshots, pluginFixture}) => {
+async (page, {expect, screenshots, pluginFixture, viewChange}) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const initial = await (await page.request.get(origin + '/api/document', {headers: {Connection: 'close'}})).json();
   const root = initial.allowedRoots[0];
@@ -22,18 +22,19 @@ async (page, {expect, screenshots, pluginFixture}) => {
   const code = () => `export default function(React){return function Screen({ui}){
     const config=${JSON.stringify(config)};
     const [reload,setReload]=React.useState(0),[selected,setSelected]=React.useState(),[edit,setEdit]=React.useState(),[target,setTarget]=React.useState(),[editing,setEditing]=React.useState(config.edit);
-    React.useEffect(()=>{globalThis.__viewReload=()=>setReload(value=>value+1);globalThis.__viewTarget=setTarget;globalThis.__viewEditing=setEditing;},[]);
+    const [apply,setApply]=React.useState(),[revision,setRevision]=React.useState(config.revision);
+    React.useEffect(()=>{globalThis.__viewReload=()=>setReload(value=>value+1);globalThis.__viewTarget=setTarget;globalThis.__viewEditing=setEditing;globalThis.__viewApply=setApply;globalThis.__viewRevision=setRevision;},[]);
     const record=name=>value=>{(globalThis[name]??=[]).push({...value,time:performance.now()});};
     const document={path:config.path,editContent:editing,reloadKey:reload,height:480,target,label:'Converted document',
       onStateChange:record('__viewStates'),onEditStateChange:value=>{setEdit(value);record('__editStates')(value);},
-      onSave:record('__saves'),onBlockClick:record('__clicks')};
+      onSave:record('__saves'),onBlockClick:record('__clicks'),apply,onApplyStateChange:record('__applyStates')};
     const labels={clean:'Saved',unsaved:'Unsaved changes',saving:'Saving',failed:'Not saved',conflict:'Changed elsewhere'};
     const tones={clean:'ok',unsaved:'neutral',saving:'progress',failed:'error',conflict:'warning'};
     const status=edit?React.createElement(ui.Status,{variant:'plain',tone:tones[edit.state],label:labels[edit.state]}):null;
     const items=config.paths.map((path,index)=>({id:String(index),label:'Source '+(index+1),path,colorToken:'--id-color-info',boxes:[{left:16,top:16+index*64,width:160,height:48}]}));
     const source=React.createElement('div',{style:{position:'relative',height:32+items.length*64}},items.map(item=>React.createElement(ui.Button,{key:item.id,'data-linked-item':item.id,'aria-pressed':selected===item.id,
       onClick:()=>setSelected(item.id),style:{position:'absolute',...item.boxes[0],justifyContent:'start'}},item.label)));
-    const body=config.linked?React.createElement(ui.LinkedDocumentView,{document,revision:config.revision,source,sourceLabel:'Source pages',items,selectedId:selected,onSelect:setSelected})
+    const body=config.linked?React.createElement(ui.LinkedDocumentView,{document,revision,source,sourceLabel:'Source pages',items,selectedId:selected,onSelect:setSelected})
       :React.createElement(ui.DocumentView,document);
     return React.createElement(ui.ScreenLayout,{description:'Correct the converted document in place.',status,actions:React.createElement(ui.Button,{onClick:()=>setReload(value=>value+1)},'Read again')},body);
   }}`;
@@ -392,6 +393,99 @@ async (page, {expect, screenshots, pluginFixture}) => {
     expect((await read(rejectedPath)).source).toContain('Second paragraph. Rejected edit. Newer text.');
   } finally { await page.unroute(heldStatus); }
 
+  // Screen code's correction shown before its write (#1995): only the changed blocks are replaced,
+  // input and correspondences wait for the write, and the written file continues the same editor.
+  const applyPath = [root, 'content-edit', 'apply.md'].join(separator);
+  const applyOpening = await read(applyPath);
+  config = {path: applyPath, edit: true, linked: true, revision: applyOpening.revision, paths: applyOpening.document.blocks.map(block => block.path)};
+  await open();
+  const applyStates = () => page.evaluate(() => (globalThis.__applyStates ?? []).map(({time, ...value}) => value));
+  const bands = workspace.getByTestId('linked-document-band');
+  await expect.poll(() => bands.count()).toBeGreaterThan(0);
+  // Element references, not attributes: the editor rewrites attributes it did not render.
+  await editor.evaluate(node => { globalThis.__applyEditor = node; });
+  const sameEditor = () => editor.evaluate(node => node === globalThis.__applyEditor);
+  const third = () => paragraph('Third paragraph stays');
+  await third().evaluate(node => { globalThis.__applyKept = node; });
+  const keptBlock = () => third().evaluate(node => node === globalThis.__applyKept);
+  // Join the two halves into one heading, as a document import correction would.
+  const join = viewChange(applyPath, (sdk, document) => sdk.convertBlock(sdk.mergeParagraphWithPrevious(document, [3]), [2], {block: 'heading', level: 2}));
+  expect(join.revision).toBe(applyOpening.revision);
+  await page.evaluate(([revision, change]) => globalThis.__viewApply({request: 1, revision, change}), [join.revision, join.change]);
+  await expect(content.locator('h2').filter({hasText: 'First part of a sentencesecond part of it.'})).toBeVisible();
+  expect(await applyStates()).toEqual([{request: 1, state: 'pending', revision: applyOpening.revision}]);
+  expect((await read(applyPath)).revision).toBe(applyOpening.revision);
+  expect(await sameEditor()).toBe(true);
+  expect(await keptBlock(), 'blocks outside the change are not redrawn').toBe(true);
+  await expect(view).toHaveAttribute('data-applying', 'true');
+  // Input waits for the write without turning the editor read-only (which would redraw every block).
+  await third().click();
+  await page.keyboard.press('End');
+  await page.keyboard.type('x');
+  await page.keyboard.press('Enter');
+  await expect(third()).toHaveText('Third paragraph stays.');
+  await expect(bands).toHaveCount(0);
+  await expect.poll(lastEdit).toMatchObject({state: 'saving', revision: applyOpening.revision});
+  if (screenshots) await captureSizes('apply-pending');
+  // The write ends: the view reads the written file in the background and continues from it.
+  const joined = join.write();
+  await page.evaluate(([revision, change, saved]) => globalThis.__viewApply({request: 1, revision, change, saved}), [join.revision, join.change, joined]);
+  await expect.poll(applyStates).toContainEqual({request: 1, state: 'saved', revision: joined});
+  await expect(view).not.toHaveAttribute('data-applying', 'true');
+  expect(await sameEditor()).toBe(true);
+  await expect.poll(() => page.evaluate(() => globalThis.__viewStates.at(-1))).toMatchObject({state: 'ready', revision: joined});
+  await expect.poll(lastEdit).toMatchObject({state: 'clean', revision: joined});
+  const joinedFile = await read(applyPath);
+  config.paths = joinedFile.document.blocks.map(block => block.path);
+  await page.evaluate(revision => globalThis.__viewRevision(revision), joined);
+  await expect.poll(() => bands.count()).toBeGreaterThan(0);
+  if (screenshots) await captureSizes('apply-saved');
+  // A content edit after the change saves against the written file.
+  await third().click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Edited after.');
+  await paragraph('Closing paragraph').click();
+  await expect.poll(async () => (await saves()).length).toBe(1);
+  const [afterChange] = await saves();
+  expect(afterChange.previousRevision).toBe(joined);
+  expect(afterChange.blocks).toEqual([{path: joinedFile.document.blocks[2].path, nodes: [expect.objectContaining({text: 'Third paragraph stays. Edited after.'})]}]);
+  expect((await read(applyPath)).source).toContain('## First part of a sentencesecond part of it.\n\nThird paragraph stays. Edited after.');
+  // A refused write puts the view back and says why; the file stays as it was.
+  const beforeFailure = await read(applyPath);
+  const convert = viewChange(applyPath, (sdk, document) => sdk.convertBlock(document, [3], {block: 'heading', level: 3}));
+  await page.evaluate(([revision, change]) => globalThis.__viewApply({request: 2, revision, change}), [convert.revision, convert.change]);
+  await expect(content.locator('h3').filter({hasText: 'Edited after.'})).toBeVisible();
+  await page.evaluate(([revision, change]) => globalThis.__viewApply({request: 2, revision, change, failed: 'The file changed before the correction was written.'}), [convert.revision, convert.change]);
+  await expect(workspace.getByTestId('document-view-apply-error')).toContainText('The file changed before the correction was written.');
+  if (screenshots) await captureSizes('apply-failed');
+  await expect(content.locator('h3')).toHaveCount(0);
+  await expect(third()).toHaveText('Third paragraph stays. Edited after.');
+  expect(await sameEditor()).toBe(true);
+  expect((await applyStates()).at(-1)).toEqual({request: 2, state: 'failed', revision: beforeFailure.revision, message: 'The file changed before the correction was written.'});
+  await expect.poll(lastEdit).toMatchObject({state: 'clean', revision: beforeFailure.revision});
+  expect((await read(applyPath)).source).toBe(beforeFailure.source);
+  // Another revision than the view's is refused without showing anything.
+  await page.evaluate(change => globalThis.__viewApply({request: 3, revision: 'f'.repeat(64), change}), convert.change);
+  await expect.poll(async () => (await applyStates()).at(-1)).toMatchObject({request: 3, state: 'refused', revision: beforeFailure.revision});
+  await expect(content.locator('h3')).toHaveCount(0);
+  // A change arriving during an input method composition waits for it to end and keeps the composed text.
+  const ime = await page.context().newCDPSession(page);
+  await paragraph('Closing paragraph').click();
+  await page.keyboard.press('End');
+  await ime.send('Input.imeSetComposition', {text: 'ㄱ', selectionStart: 1, selectionEnd: 1});
+  await page.waitForFunction(() => document.querySelector('.screen-document-view .document-editor').editor.view.composing);
+  const composing = (await applyStates()).length;
+  await page.evaluate(([revision, change]) => globalThis.__viewApply({request: 4, revision, change}), [convert.revision, convert.change]);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect((await applyStates()).length).toBe(composing);
+  await ime.send('Input.imeSetComposition', {text: '가나', selectionStart: 2, selectionEnd: 2});
+  await ime.send('Input.insertText', {text: '가나'});
+  await ime.detach();
+  // After the composition the paragraph holds unsaved text, so the change is refused and nothing is lost.
+  await expect.poll(async () => (await applyStates()).at(-1)).toMatchObject({request: 4, state: 'refused'});
+  await expect(paragraph('Closing paragraph')).toHaveText('Closing paragraph.가나');
+  await expect(content.locator('h3')).toHaveCount(0);
+
   // A document without blocks takes no input: nothing it could hold can be saved.
   config = {path: emptyPath, edit: true, linked: false, revision: '', paths: []};
   await open();
@@ -433,5 +527,32 @@ async (page, {expect, screenshots, pluginFixture}) => {
   };
   const readOnly = await measure(false);
   const editing = await measure(true);
-  return {large: {blocks: 2000, readOnly, editing}};
+  // A correction shown before its write (#1995): merging two early paragraphs moves every later
+  // block, the most a rebase has to relabel. Shown = until the merged block is on screen; settled =
+  // from reporting the written revision until the view continues from that file.
+  const measureApply = async () => {
+    config = {path: largePath, edit: true, linked: false, revision: '', paths: []};
+    await open();
+    await expect(paragraph('Synthetic passage 1999')).toBeAttached({timeout: 60_000});
+    const correction = viewChange(largePath, (sdk, document) => sdk.mergeParagraphWithPrevious(document, [12]));
+    const shownMs = await page.evaluate(([revision, change]) => new Promise(resolve => {
+      const started = performance.now();
+      globalThis.__viewApply({request: 'large', revision, change});
+      const check = () => [...document.querySelectorAll('.screen-document-view p')].some(node => node.textContent === change.blocks[0].text)
+        ? resolve(performance.now() - started) : requestAnimationFrame(check);
+      requestAnimationFrame(check);
+    }), [correction.revision, correction.change]);
+    const writeStarted = Date.now();
+    const written = correction.write();
+    const writeMs = Date.now() - writeStarted;
+    const settleStarted = await page.evaluate(([revision, change, saved]) => {
+      globalThis.__viewApply({request: 'large', revision, change, saved});
+      return performance.now();
+    }, [correction.revision, correction.change, written]);
+    await expect.poll(() => page.evaluate(() => globalThis.__applyStates?.at(-1)?.state), {timeout: 60_000}).toBe('saved');
+    const settledMs = (await page.evaluate(() => globalThis.__applyStates.at(-1).time)) - settleStarted;
+    return {shownMs, writeMs, settledMs};
+  };
+  const apply = [await measureApply(), await measureApply()];
+  return {large: {blocks: 2000, readOnly, editing, apply}};
 }

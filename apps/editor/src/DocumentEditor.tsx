@@ -1,5 +1,6 @@
 import { comparisonLayout, comparisonLayoutKey, type ComparisonLayout } from "./comparison-layout.ts";
-import { ReadOnlyBoundary } from "./read-only-boundary.ts";
+import { holdInput, isInputHeld, ReadOnlyBoundary } from "./read-only-boundary.ts";
+import { rebaseTopLevel, replaceTopLevel, type DocumentViewAttrs } from "./document-view-change.ts";
 import { useHostClient } from "./host-context.tsx";
 import { useTableWrap, setTableWrap } from "./table-wrap.ts";
 import { DocumentSettings, type DocumentSettingsHandle } from "./shell/DocumentSettings.tsx";
@@ -111,6 +112,11 @@ export type DocumentEditorHandle = {
   hasUnsavedChanges(): boolean;
   /** An input method composition is in progress; a Save then defers its cleanup. */
   isComposing(): boolean;
+  /** Plugin document view (#1995): show a change of top-level blocks [from, from + removed) before
+   * its write, outside history. Returns what it replaced, for putting it back. */
+  applyViewChange(from: number, removed: number, nodes: readonly TiptapJSON[], attrs: DocumentViewAttrs): { nodes: TiptapJSON[]; attrs: DocumentViewAttrs };
+  /** Plugin document view (#1995): this read model of the written file becomes the opening and acknowledged snapshot. */
+  rebaseView(document: EditableDocument): void;
   /** Reveal a heading, table or figure in the Visual document view. */
   revealItem(item: OutlineItem): void;
   /** A click below the document places the caret at its end; returns whether it did. */
@@ -137,6 +143,8 @@ type DocumentEditorProps = ReadingCallbacks & {
   /** Edit only the content inside the opening top-level blocks: the structure guard keeps every
    * block, and block, table-shape, property, title and settings authoring is hidden. Fixed for the editor's lifetime. */
   contentOnly?: boolean;
+  /** Input waits (a plugin document view's change before its write, #1995); the editor stays editable. */
+  inputHeld?: boolean;
   /** The top-level block holding the selection changed (index of the block left). */
   onBlockLeave?: (index: number) => void;
   comparison?: ComparisonLayout;
@@ -171,7 +179,7 @@ type DocumentEditorProps = ReadingCallbacks & {
 };
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(function DocumentEditor(
-  { readOnly = false, preview = false, contentOnly = false, onBlockLeave, comparison, showHeadingLevels = !readOnly && !contentOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
+  { readOnly = false, preview = false, contentOnly = false, inputHeld = false, onBlockLeave, comparison, showHeadingLevels = !readOnly && !contentOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
   ref,
 ) {
   useTranslation();
@@ -416,6 +424,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     return () => { current = false; };
   }, [editor, preview, readOnly, document]);
   useDocumentReading(editor, host, { onReadingLayout, onReadingSelection });
+  useLayoutEffect(() => {
+    if (editor && isInputHeld(editor.state) !== inputHeld) editor.view.dispatch(holdInput(editor.state.tr, inputHeld));
+  }, [editor, inputHeld]);
   useLayoutEffect(() => {
     if (!editor || editor.isEditable === !readOnly) return;
     editor.setEditable(!readOnly, false);
@@ -709,6 +720,19 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       },
       hasDocumentChanges,
       isComposing() { return Boolean(editor?.view.composing); },
+      applyViewChange(from, removed, nodes, attrs) {
+        if (!editor) throw new Error("Editor is not ready");
+        const change = replaceTopLevel(editor.state, from, removed, nodes, attrs);
+        editor.view.dispatch(change.tr);
+        return { nodes: change.replaced, attrs: change.attrs };
+      },
+      rebaseView(document) {
+        if (!editor) throw new Error("Editor is not ready");
+        const projected = toTiptapDocument(document);
+        editor.view.dispatch(rebaseTopLevel(editor.state, { ...projected, attrs: { ...projected.attrs, bibliography: editor.state.doc.attrs.bibliography } }).tr);
+        saved.current = editorDocumentJSON(editor.state);
+        onDirtyChangeRef.current?.(false);
+      },
       imageRenameSources() {
         return editor ? [...new Set([...imageRenameKey.getState(editor.state)!.seen.values()].flatMap(urls => [...urls]))] : [];
       },

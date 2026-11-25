@@ -10,6 +10,8 @@ import { execFileSync } from "node:child_process";
 import { brand } from "../../../../brand.ts";
 
 import { citationReport, parse } from "@litzio/core";
+import * as pluginSdk from "@litzio/plugin-sdk";
+import { readDocument, writeDocument } from "@litzio/plugin-sdk/node";
 import { test as base, expect, chromium, type BrowserContext, type ConsoleMessage, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, renameSync, unlinkSync, writeFileSync, rmSync } from "node:fs";
@@ -189,7 +191,7 @@ for (const name of scenarios) {
     if (name === "http-plugins") test.setTimeout(180_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { document: string; directory: string; folder: string; otherFolder: string; otherJobInput: string; editSource(): void; cli(args: string[]): any; corruptSecret(): void; changeInstalledCopy(): void; }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; assertTableToolGeometry: typeof assertTableToolGeometry; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { document: string; directory: string; folder: string; otherFolder: string; otherJobInput: string; editSource(): void; cli(args: string[]): any; corruptSecret(): void; changeInstalledCopy(): void; }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; assertTableToolGeometry: typeof assertTableToolGeometry; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; viewChange(file: string, edit: (sdk: any, document: any) => any): { revision: string; change: unknown; write(): string }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -263,6 +265,12 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       await page.getByTestId("folder").filter({ has: page.getByRole("treeitem", { name: "trash-target", exact: true }) }).waitFor();
     };
     try { result = await scenario(page, { folderAliasRoot, changeFolderContents: () => appendFileSync(path.join(FILE_ACTIONS_ROOT, "trash-target", "inside.md"), "\nExternal folder change.\n"), enableFolderTrash, pluginFixture: { ...pluginFixture }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, waitForExplorerLayout, withBlockHover, assertTableToolGeometry, bibliographyFixture,
+      // Screen code correcting a document (#1995): Core operations in memory, the change shown first, then the official write.
+      viewChange: (file: string, edit: (sdk: typeof pluginSdk, document: pluginSdk.Document) => pluginSdk.Document) => {
+        const { revision, document } = readDocument(file);
+        const after = edit(pluginSdk, document);
+        return { revision, change: pluginSdk.documentViewChange(document, after), write: () => writeDocument(file, after, revision).revision };
+      },
       folderFixture: {
         change: (mode: string) => {
           const dir = path.join(REPOSITORY_ROOT, "tmp/folder-navigation/guides");

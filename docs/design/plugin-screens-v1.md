@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작 계약](plugin-stage1-v1.md).
-- Last verified: 2026-11-26 — 내용 편집 저장의 `onSave` `blocks`(#1995)를 HTTP Host 단위 검사(빠른·전체 경로가 저장본 재해석과 같은 노드)와 production HTTP Host의 document-view-editing 시나리오(Windows persistent Chrome, 빠른 저장의 교정·거부 뒤 `onStateChange` revision 포함)로 확인했다. 실제 문서 가져오기 플러그인에서의 사용·packaged Desktop·소유자 시각 승인은 포함하지 않는다.
+- Last verified: 2026-11-26 — [고친 결과 먼저 보이기](#고친-결과-먼저-보이기)(#1995)를 Editor 단위 검사(구조 잠금·읽기 전용 경계·입력 보류의 우회 경계, 기준 교체 뒤 내용 편집 수집)와 production HTTP Host의 document-view-editing 시나리오(Windows persistent Chrome, 적용·저장 확정·실패 되돌림·거절·입력기 조합, 2,000블록 수동 측정)로, 내용 편집 저장의 `onSave` `blocks`를 HTTP Host 단위 검사와 같은 시나리오로 확인했다. 실제 문서 가져오기 플러그인·실제 PDF 표본·packaged Desktop·소유자 시각 승인은 포함하지 않는다.
 
 ## 연결 수명
 
@@ -90,7 +90,7 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 ## 문서 보기
 
-`ui.DocumentView({path,target?,reloadKey?,scale?,height?,label?,onStateChange?,onVisibleBlockChange?,onBlockClick?,onVisibleBlockLayoutChange?,editContent?,onEditStateChange?,onSave?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 preview로 사용해 그림·수식·표·참조·테마를 표시한다. 기본은 읽기 전용이며 `editContent`를 켜면 [내용 편집](#내용-편집)을 한다. 문서 보기에 focus가 있을 때 Ctrl/Cmd+F는 문서 탭과 같은 [문서에서 찾기](editor-ux-shell-v1.md#find-in-document-1982) 막대를 보기 영역의 오른쪽 위에 연다. 블록 호버 테두리도 읽기 전용 문서 탭과 같이 유지하며, 문서 보기의 본문 여백을 기준으로 블록 영역을 감싼다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 표는 번호·레이블 행을 유지하고 조작 도구용 여백을 예약하지 않는다([표 간격](table-interaction-v1.md#whole-table-tools-793), #1481). 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
+`ui.DocumentView({path,target?,reloadKey?,scale?,height?,label?,onStateChange?,onVisibleBlockChange?,onBlockClick?,onVisibleBlockLayoutChange?,editContent?,onEditStateChange?,onSave?,apply?,onApplyStateChange?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 preview로 사용해 그림·수식·표·참조·테마를 표시한다. 기본은 읽기 전용이며 `editContent`를 켜면 [내용 편집](#내용-편집)을 한다. 화면 코드가 쓰는 고치기는 `apply`로 [먼저 보인다](#고친-결과-먼저-보이기). 문서 보기에 focus가 있을 때 Ctrl/Cmd+F는 문서 탭과 같은 [문서에서 찾기](editor-ux-shell-v1.md#find-in-document-1982) 막대를 보기 영역의 오른쪽 위에 연다. 블록 호버 테두리도 읽기 전용 문서 탭과 같이 유지하며, 문서 보기의 본문 여백을 기준으로 블록 영역을 감싼다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 표는 번호·레이블 행을 유지하고 조작 도구용 여백을 예약하지 않는다([표 간격](table-interaction-v1.md#whole-table-tools-793), #1481). 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
 
 [문서 안 링크](editor-ux-shell-v1.md#open-ordinary-links-725)를 누르면 보기 내부의 대상 블록으로 이동하여 잠시 윤곽을 표시한다. 클릭은 링크 동작으로 처리되며 `onBlockClick`을 호출하지 않는다. 문서 안 링크와 번호 참조에 마우스를 올리면 편집기와 같은 [대상 미리보기](editor-ux-shell-v1.md#in-document-target-previews-1958)가 뜬다.
 
@@ -153,6 +153,29 @@ SDK props에는 엔진·DOM 타입이 없다. 구조 편집·복구 기록·문�
 | 열기(화면 진입부터 마지막 블록 표시까지) | 약 1.6~2.3초 | 약 1.8~2.3초 |
 | 글자 하나 입력이 화면에 반영(다음 frame까지, 10회 중앙값·최대) | — | 약 24ms · 42~43ms |
 | 블록을 벗어난 뒤 저장 승인까지 | — | 약 0.43초 |
+
+### 고친 결과 먼저 보이기
+
+화면 코드가 Node 처리 코드에서 문서를 고치고(SDK Core 연산 뒤 `writeDocument`) 그 결과를 보기에 먼저 보이게 하는 속성이다(#1995). 쓰기는 화면 코드의 공식 쓰기 경로(revision 확인, Core 연산, 파일 교체)가 그대로 맡고, 보기는 결과를 먼저 보이고 쓰기 결과에 따라 확정하거나 되돌리기만 한다. 별도 쓰기 경로나 Core 문서 의미의 재구현은 없다.
+
+- `apply?: {request,revision,change,saved?,failed?}`: `change`는 SDK의 `documentViewChange(before, after)`가 두 Core 문서의 읽기 모델을 비교해 만든 `{from,removed,blocks,document}`다. 처음과 끝에서 내용이 같은 최상위 블록을 빼고 남은 범위 `[from, from+removed)`를 바뀐 문서의 블록 `blocks`로 바꾸고, 문서 제목·검토 상태·제목 번호·참조 문구는 `document` 값으로 둔다. `revision`은 고치기 시작한 저장본, 곧 보기의 최신 revision이다. `request`가 새 값이면 새 고치기다. 쓰기가 끝나면 같은 `request`에 `saved`(쓴 revision) 또는 `failed`(이유)를 넣는다.
+- `onApplyStateChange?({request,state,revision,message?})`: `pending`(보이고 쓰기를 기다림, 직전 revision), `saved`(쓴 파일을 이어받음, 그 revision), `failed`(직전 저장본으로 돌아감, 직전 revision과 이유), `refused`(아무것도 바꾸지 않음과 이유).
+- 보이기: 바뀐 블록만 편집기에 갈아 끼우며 편집기와 나머지 블록은 그대로다. 되돌리기 기록에 넣지 않는다. 내용 편집의 구조 잠금과 읽기 전용 보기의 입력 경계는 이 고치기만 통과시키며, 그 표식은 보기가 만든 트랜잭션 객체 자체여서 입력·붙여 넣기·비서 편집이 흉내 낼 수 없다.
+- 기다리는 동안: 입력을 막되 편집 가능 상태는 바꾸지 않는다(바꾸면 모든 블록을 다시 그린다). `onEditStateChange`는 `saving`이다. 경로가 아직 저장본과 맞지 않으므로 target 이동·강조·클릭과 스크롤 알림을 멈추고, `onVisibleBlockLayoutChange`는 빈 blocks를 알리며 LinkedDocumentView의 연결 띠는 보이지 않는다. 쓰기가 끝나 화면 코드가 새 revision의 대응을 넘길 때까지(큰 PDF에서 약 1~3초) 띠가 멈추는 것을 감수한다. 쓰기 전에 대응의 revision을 미리 계산하면 피할 수 있지만 그만큼 직렬화 비용이 앞으로 오므로 제공하지 않는다.
+- `saved`: 보기는 그 파일을 뒤에서 읽어(기존 document GET) 편집기를 다시 만들지 않고 이어받는다. 이미 같은 내용을 보이는 블록은 경로만 새 저장본의 것으로 바꾸고, 다른 블록이 있으면 그 블록만 읽은 내용으로 바꾼다. 그 뒤 받아들이는 revision은 그 저장본부터 다시 시작하고(`onStateChange`가 그 revision을 알린다) 내용 편집 저장은 그 파일을 기준으로 한다. 읽지 못하면 오류 상태가 된다.
+- `failed`: 보기는 바꿨던 블록을 직전 저장본의 것으로 되돌리고 보기 안 오류 Notice에 이유를 보인다. 파일이 밖에서 바뀌어 쓰기가 충돌한 경우도 이유와 함께 이렇게 알리고, 화면 코드는 필요하면 `reloadKey`로 다시 읽는다. 결과를 알리기 전에 `apply`를 바꾸거나 지우면 같은 방식으로 되돌린다.
+- `refused`: 아직 읽는 중이거나 블록이 없을 때, `revision`이 보기의 최신과 다를 때, 미저장·저장 중인 내용 편집이 있을 때, 앞 고치기를 기다리는 중일 때다. 화면 코드는 쓰기를 마친 뒤 기존처럼 `reloadKey`로 다시 읽는다. 입력기 조합 중에 온 고치기는 조합을 깨지 않도록 조합이 끝난 뒤에 판단한다(조합한 글자는 미저장이므로 보통 `refused`가 된다).
+- 소유: 기다리는 고치기와 되돌릴 블록은 그 문서 보기 하나가 한 번의 읽기 동안 가진다. 다시 읽기·경로 변경·언마운트는 기다리던 고치기를 버린다. 쓰기는 화면 코드의 Node 처리 코드가 하므로 CLI의 기존 문서 명령이 같은 의미를 가진다.
+
+표본(합성 자료, production HTTP Host, persistent Chrome): [쓰기를 기다림 · 1440 밝음](assets/document-view-apply-1995/pending-1440-light.png) · [1440 어두움](assets/document-view-apply-1995/pending-1440-dark.png) · [1920×1080 밝음](assets/document-view-apply-1995/pending-1920-light.png), [쓴 파일을 이어받음 · 1440 밝음](assets/document-view-apply-1995/saved-1440-light.png), [쓰기 실패로 되돌림 · 1440 밝음](assets/document-view-apply-1995/failed-1440-light.png) · [1440 어두움](assets/document-view-apply-1995/failed-1440-dark.png). 기존 오류 Notice와 상태 표시만 쓰며 새 토큰·부품은 없다. 표본의 연결 띠는 시험 화면 코드가 열 때의 대응 목록을 그대로 쓴 것이다.
+
+약 2,000블록 합성 문서(위 표와 같은 파일)에서 앞쪽 두 문단을 합쳐 뒤의 모든 블록 경로가 바뀌는 고치기를 같은 PC에서 두 번 실행해(실행마다 두 번) 잰 값이다(`pnpm browser:test document-view-editing --screenshots`의 수동 측정, CI 판정 없음). 둘째 실행은 PC가 바빠 같은 문서의 열기도 2배 남짓 느렸다. 보장이 아니며 실제 PDF 표본은 플러그인 적용 뒤에 잰다.
+
+| 항목 | 값 |
+| --- | --- |
+| `apply`를 넘긴 뒤 합친 블록이 화면에 보일 때까지 | 약 57~102ms |
+| 쓰기(`writeDocument`, 화면 밖 Node) | 약 0.24~1.39초 |
+| `saved`를 넘긴 뒤 이어받기(뒤에서 읽기와 경로 바꾸기)까지 | 약 0.43~1.35초 |
 
 ## 자료와 문서 블록의 연결 띠
 
