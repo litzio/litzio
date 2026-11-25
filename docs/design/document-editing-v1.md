@@ -246,7 +246,8 @@ A changed document recomputes numbering; source semantics and canonical output a
   popover with a wrapping multiline field; pasted line breaks become spaces and plain Enter
   submits as before. Below the field, a non-empty draft renders as inline math in text
   does, scrolling within the popover; an unrenderable draft shows Equation's preview error
-  and can still be applied (#1998). Both forms use explicit Apply, Cancel and Escape. Outside
+  and can still be applied (#1998;
+  [example](../reviews/assets/1998-inline-math-preview/inline-preview-light-1440.webp)). Both forms use explicit Apply, Cancel and Escape. Outside
   click, blur and selection movement neither apply nor discard drafts. Save/Source and tab
   switching retain them under the [editing-session contract](editing-session-save-v1.md#applied-content-and-drafts).
   Type `$source$`, choose **Inline math** from the slash menu, or press Ctrl/Cmd+Shift+6
