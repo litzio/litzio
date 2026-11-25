@@ -9,6 +9,9 @@ import { resolveFigureSource } from "./editor-schema.tsx";
 import { isRelativeImageLink } from "./image-link.ts";
 import { useOverlayBounds } from "./ui/use-overlay-bounds.ts";
 import { ReferencePreviewContent } from "./ReferencePreviewContent.tsx";
+import { previewTargetBlock, TARGET_REFERENCE_CHIP, TargetPreviewContent } from "./TargetPreviewContent.tsx";
+
+const CHIPS = `.footnote-reference, [data-citation], ${TARGET_REFERENCE_CHIP}`;
 
 /** Reading aid outside ProseMirror content: no transaction, selection or focus transfer. */
 export function ReadingPreview({ editor, host, documentPath }: {
@@ -29,10 +32,13 @@ export function ReadingPreview({ editor, host, documentPath }: {
     let lastPointer: { x: number; y: number } | undefined;
     const close = () => setAnchor(null);
     const input = () => { editing = true; close(); };
+    // Endnotes and citations show their status even when unresolved; links and local references
+    // preview only a target in this document, keeping the existing unresolved display otherwise.
+    const previewable = (candidate: HTMLElement) => candidate.matches(".footnote-reference, [data-citation]") ||
+      candidate.matches("a[href]") && isRelativeImageLink(candidate.getAttribute("href")!) || previewTargetBlock(editor, candidate) !== undefined;
     const targetAnchor = (target: EventTarget | null) => {
-      const candidate = target instanceof Element ? target.closest<HTMLElement>("a[href], .footnote-reference, [data-citation]") : null;
-      return candidate && dom.contains(candidate) &&
-        (candidate.matches(".footnote-reference, [data-citation]") || isRelativeImageLink(candidate.getAttribute("href")!)) &&
+      const candidate = target instanceof Element ? target.closest<HTMLElement>(`a[href], ${CHIPS}`) : null;
+      return candidate && dom.contains(candidate) && previewable(candidate) &&
         !(target instanceof Element && target.closest("button, form")) ? candidate : null;
     };
     const move = (event: PointerEvent) => {
@@ -48,18 +54,18 @@ export function ReadingPreview({ editor, host, documentPath }: {
     const caret = () => {
       const { selection } = editor.state;
       if (editing || !editor.isFocused || editor.view.composing) { close(); return; }
-      const isReference = (node: typeof selection.$from.nodeAfter) => node && ["footnoteReference", "citation"].includes(node.type.name);
+      const isReference = (node: typeof selection.$from.nodeAfter) => node && ["footnoteReference", "citation", "crossReference"].includes(node.type.name);
       const position = selection instanceof NodeSelection && isReference(selection.node) ? selection.from
         : selection instanceof TextSelection && selection.empty ? isReference(selection.$from.nodeAfter) ? selection.from
           : isReference(selection.$from.nodeBefore) ? selection.from - selection.$from.nodeBefore!.nodeSize : undefined : undefined;
       if (position !== undefined) {
         const node = editor.view.nodeDOM(position);
-        const chip = node instanceof Element ? node.querySelector<HTMLElement>(".footnote-reference, [data-citation]") : null;
-        setAnchor(chip); return;
+        const chip = node instanceof Element ? node.querySelector<HTMLElement>(CHIPS) : null;
+        setAnchor(chip && previewable(chip) ? chip : null); return;
       }
       const mark = selection.$from.marks().find(mark => mark.type.name === "link");
       if (!(selection instanceof TextSelection) ||
-          !selection.empty || !mark || !isRelativeImageLink(mark.attrs.href)) { close(); return; }
+          !selection.empty || !mark || !(isRelativeImageLink(mark.attrs.href) || String(mark.attrs.href).startsWith("#"))) { close(); return; }
       const { node } = editor.view.domAtPos(selection.from);
       setAnchor(targetAnchor(node instanceof Element ? node : node.parentElement));
     };
@@ -129,11 +135,15 @@ export function ReadingPreview({ editor, host, documentPath }: {
   }, [anchor, host, visible]);
 
   if (!visible || !anchor) return null;
-  const image = anchor.matches("a[href]");
+  const image = anchor.matches("a[href]") && isRelativeImageLink(anchor.getAttribute("href")!);
   const src = image ? resolveFigureSource(anchor.getAttribute("href")!, documentPath, client) : "";
-  return <div ref={bounds} role="tooltip" contentEditable={false} className={`reading-preview ${image ? "image-link-preview" : "reference-preview"}`} style={style} data-testid={image ? "image-link-preview" : "reference-preview"}>
+  const target = image ? undefined : previewTargetBlock(editor, anchor);
+  if (!image && target === undefined && !anchor.matches(".footnote-reference, [data-citation]")) return null;
+  const kind = image ? "image-link-preview" : target === undefined ? "reference-preview" : "target-preview";
+  return <div ref={bounds} role="tooltip" contentEditable={false} className={`reading-preview ${image ? kind : `reference-preview ${kind}`}`} style={style} data-testid={kind}>
     {image ? <PreviewImage key={src} src={src} label={anchor.textContent ?? ""} />
-      : <ReferencePreviewContent editor={editor} anchor={anchor} />}
+      : target === undefined ? <ReferencePreviewContent editor={editor} anchor={anchor} />
+        : <TargetPreviewContent key={target} editor={editor} index={target} />}
   </div>;
 }
 

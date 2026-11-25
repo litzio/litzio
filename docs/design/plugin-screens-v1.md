@@ -92,7 +92,7 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 `ui.DocumentView({path,target?,reloadKey?,scale?,height?,label?,onStateChange?,onVisibleBlockChange?,onBlockClick?,onVisibleBlockLayoutChange?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 readOnly/preview로 사용해 그림·수식·표·참조·테마를 표시한다. 블록 호버 테두리도 읽기 전용 문서 탭과 같이 유지하며, 문서 보기의 본문 여백을 기준으로 블록 영역을 감싼다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 표는 번호·레이블 행을 유지하고 조작 도구용 여백을 예약하지 않는다([표 간격](table-interaction-v1.md#whole-table-tools-793), #1481). 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
 
-[문서 안 링크](editor-ux-shell-v1.md#open-ordinary-links-725)를 누르면 보기 내부의 대상 블록으로 이동하여 잠시 윤곽을 표시한다. 클릭은 링크 동작으로 처리되며 `onBlockClick`을 호출하지 않는다.
+[문서 안 링크](editor-ux-shell-v1.md#open-ordinary-links-725)를 누르면 보기 내부의 대상 블록으로 이동하여 잠시 윤곽을 표시한다. 클릭은 링크 동작으로 처리되며 `onBlockClick`을 호출하지 않는다. 문서 안 링크와 번호 참조에 마우스를 올리면 편집기와 같은 [대상 미리보기](editor-ux-shell-v1.md#in-document-target-previews-1958)가 뜬다.
 
 - `target?: {revision:string,path:NodePath,highlight?:boolean,top?:number,request?:string|number}`: CLI `inspect --format json` 또는 Host 읽기 출력의 Core NodePath 배열을 그대로 받는다. 저장본 revision과 같을 때만 해당 블록 또는 표 셀에 이동·강조 규칙을 적용한다. 블록은 편집기의 블록 선택 윤곽을, 표 셀은 실제 렌더링 영역에 편집기의 현재 셀 윤곽을 사용한다. 미주 정의 경로는 뒤로 배치된 정의를, 호출이 들어 있는 문단 경로는 그 문단을 가리킨다. 인라인 호출 자체의 별도 경로·글자 범위·중첩 목록 항목 단위 탐색은 제공하지 않는다. 지원하지 않거나 없는 경로는 target-not-found로 알리고 강조하지 않는다.
 - `target.highlight?: boolean`: 기본 true는 대상을 강조하고 보이는 영역을 벗어나면 이동한다. false는 강조 없이 대상 시작을 보기 위쪽에 맞춘다(문서 끝의 스크롤 한도 내에서). 이미 보이는 대상도 정렬하며 레이아웃 변화에도 사용자 스크롤 전까지 정렬을 유지한다.

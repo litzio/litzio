@@ -140,6 +140,20 @@ export function referenceTargets(doc: ProseMirrorNode): ReferenceTarget[] {
   return indexedReferenceTargets(doc).map(({ target }) => target);
 }
 
+const indexedTargetsOf = new WeakMap<ProseMirrorNode, ReturnType<typeof indexedReferenceTargets>>();
+
+/** The top-level block a chip's reference resolves to, by the same targets and label rule as the
+ * chip's display; a section reference names its heading. Computed once per engine document. */
+export function referenceTargetBlock(doc: ProseMirrorNode, role: ReferenceRole, label: string): number | undefined {
+  let indexed = indexedTargetsOf.get(doc);
+  if (!indexed) {
+    indexed = indexedReferenceTargets(doc);
+    indexedTargetsOf.set(doc, indexed);
+  }
+  const target = resolvedTarget(indexed.map(({ target }) => target), role, label);
+  return indexed.find(entry => entry.target === target)?.blockIndex;
+}
+
 /** `referenceTargets` as JSON, computed once per engine document. */
 function referenceTargetsText(doc: ProseMirrorNode): string {
   let text = targetsTextOf.get(doc);
@@ -446,7 +460,7 @@ function CrossReferenceView({ node, editor, getPos, updateAttributes, selected }
       data-label={label}
     >
       {/* A resolved reference goes to its target; one without a target opens the form. */}
-      <span className="cross-reference-chip" title={status} aria-label={status}
+      <span className="cross-reference-chip" title={resolved ? undefined : status} aria-label={status}
         onClick={() => { if (!revealReferenceTarget(editor, role, label) && canEdit) setEditing(true); }}>
         {text}
       </span>

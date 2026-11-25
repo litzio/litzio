@@ -2366,6 +2366,33 @@ ul.list[data-type="taskList"] > li > label > input {
   text-decoration: underline;
   color: var(--id-color-interaction);
 }
+/* A target block at document scale, clipped from its top-left to the reading cap. The bottom
+ * fades like a wide table's edge when more of the target follows. */
+.target-preview {
+  display: flex;
+  flex-direction: column;
+}
+.reference-preview-document {
+  min-height: 0;
+  overflow: hidden;
+}
+.reference-preview-document > :last-child { margin-bottom: 0; }
+.reference-preview-document .table-block { width: max-content; min-width: 100%; }
+.reference-preview-document .table-grid { padding-top: 0; }
+.reference-preview-document :is(.table-scroll, .equation-math) { overflow-x: hidden; }
+/* Size containment would give the table no content width to keep. */
+.reference-preview-document .table-scroll { container-type: normal; }
+.reference-preview-document[data-clipped="bottom"] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--size-overflow-fade)), transparent);
+}
+.reference-preview-document[data-clipped="right"] {
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--size-overflow-fade)), transparent);
+}
+.reference-preview-document[data-clipped="both"] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--size-overflow-fade)), transparent),
+    linear-gradient(to right, #000 calc(100% - var(--size-overflow-fade)), transparent);
+  mask-composite: intersect;
+}
 .image-link-preview img {
   display: block;
   width: 100%;

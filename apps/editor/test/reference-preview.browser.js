@@ -33,6 +33,29 @@ async (page, {openPath, activeDocument, expect, screenshots}) => {
       const phase = await preview.locator('.reference-preview-hint').count() ? 'before' : 'after';
       await page.screenshot({path:`tmp/reference-preview-evidence/${phase}-endnote-${width}-${theme}-${language}.png`});
     }
+    // In-document target previews (#1958).
+    for (const [width, height, language, theme, targets] of [
+      [1440, 900, 'en', 'light', ['tbl-small', 'fig-diagram', 'eq-example', 'sec-method', 'tbl-long']],
+      [1440, 900, 'ko', 'dark', ['fig-diagram', 'tbl-long']],
+      [1920, 1080, 'en', 'light', ['sec-method']]]) {
+      await page.setViewportSize({width,height});
+      await page.evaluate(({language, theme}) => {
+        localStorage.setItem('litzio.uiLanguage', language);
+        localStorage.setItem('litzio.theme', theme);
+      }, {language, theme});
+      await page.reload();
+      await surface.locator('.ProseMirror').waitFor();
+      await page.locator(`html[data-theme="${theme}"]`).waitFor();
+      await page.evaluate(()=>document.fonts.ready);
+      for (const label of targets) {
+        const link = surface.locator(`.ProseMirror a[href="#${label}"]`);
+        await link.evaluate(node=>node.scrollIntoView({block:'center'}));
+        await hover(link); await surface.getByTestId('target-preview').waitFor(); await settle();
+        await page.waitForTimeout(300);
+        await page.screenshot({path:`tmp/target-preview-1958/${label}-${width}-${theme}-${language}.png`});
+      }
+    }
+    await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
     return {manualCaptures:true};
   }
   const bounds = async target => expect.poll(()=>target.evaluate(node=> {
@@ -74,6 +97,76 @@ async (page, {openPath, activeDocument, expect, screenshots}) => {
   for (const target of [notes.nth(1),notes.nth(2),citations.nth(3),citations.nth(4)]) {
     await hover(target); await expect(preview).toBeVisible(); await bounds(preview);
   }
+  // In-document links and local reference chips show their target block, read-only (#1958).
+  const targetPreview = surface.getByTestId('target-preview');
+  const body = targetPreview.locator('.reference-preview-document');
+  const link = href => editor.locator(`a[href="${href}"]`);
+  const chip = label => editor.locator(`.cross-reference[data-label="${label}"]:not(.citation) > .cross-reference-chip`).first();
+  const showTarget = async anchor => {
+    await hover(anchor); await expect(targetPreview).toBeVisible();
+    expect(await state()).toEqual(initial);
+    await expect(targetPreview.locator('button, input, textarea, select, a, [tabindex], [contenteditable=true], [data-testid]')).toHaveCount(0);
+    await bounds(targetPreview);
+    // Copied block rules must not make any part of the card a pointer target over the document.
+    expect(await targetPreview.evaluate(card => [...card.querySelectorAll('*')].every(node => {
+      const box = node.getBoundingClientRect();
+      return !box.width || !box.height || !card.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+    }))).toBe(true);
+  };
+  for (const anchor of [link('#tbl-small'), chip('tbl-small')]) {
+    await showTarget(anchor);
+    await expect(targetPreview.locator('td')).toHaveText(['Alpha','1']);
+    await expect(targetPreview).toContainText('Small results');
+    await expect(body).not.toHaveAttribute('data-clipped');
+  }
+  await expect(chip('tbl-small')).not.toHaveAttribute('title');
+  for (const anchor of [link('#fig-diagram'), chip('fig-diagram')]) {
+    await showTarget(anchor);
+    await expect.poll(()=>targetPreview.locator('img').evaluate(image=>image.complete && image.naturalWidth>0)).toBe(true);
+    await expect(targetPreview.locator('figcaption')).toContainText('Signal flow caption.');
+  }
+  for (const anchor of [link('#eq-example'), chip('eq-example')]) {
+    await showTarget(anchor);
+    await expect(targetPreview.locator('.katex')).toHaveCount(1);
+    await expect(targetPreview).toContainText('(1)');
+  }
+  // A heading shows its section until the next heading.
+  for (const anchor of [link('#sec-method'), chip('sec-method')]) {
+    await showTarget(anchor);
+    await expect(targetPreview.locator('h2')).toHaveText('Method');
+    await expect(targetPreview).toContainText('The method paragraph follows its heading.');
+    await expect(targetPreview).not.toContainText('Results');
+  }
+  // A long, wide target is clipped from its top-left at the reading cap, with a bottom fade.
+  await showTarget(link('#tbl-long'));
+  await expect(body).toHaveAttribute('data-clipped', 'both');
+  expect(await targetPreview.evaluate(card => {
+    const box = card.getBoundingClientRect(), first = card.querySelector('th').getBoundingClientRect();
+    return first.left >= box.left && first.top >= box.top && card.querySelector('.table').getBoundingClientRect().width > box.width;
+  })).toBe(true);
+  // Missing targets keep the unresolved chip display and show no card.
+  for (const anchor of [link('#missing'), chip('missing')]) {
+    await hover(anchor); await settle();
+    await expect(targetPreview).toHaveCount(0); await expect(preview).toHaveCount(0);
+  }
+  await expect(chip('missing')).toHaveAttribute('title', /^Unresolved reference/);
+  // Keyboard reading: a caret inside the link, then beside the chip.
+  await editor.locator('p').filter({hasText:'See the table'}).click({position:{x:2,y:8}});
+  await page.mouse.move(0,0);
+  await page.keyboard.press('Home');
+  for (const character of 'See t') await page.keyboard.press('ArrowRight');
+  await expect(targetPreview).toContainText('Small results');
+  for (const character of 'he table') await page.keyboard.press('ArrowRight');
+  await expect(targetPreview).toHaveCount(0);
+  for (const character of ', ') await page.keyboard.press('ArrowRight');
+  await expect(targetPreview).toContainText('Small results');
+  expect((await state()).json).toEqual(initial.json);
+  await page.keyboard.press('Escape'); await expect(targetPreview).toHaveCount(0);
+  // Read view uses the same preview.
+  await page.getByTestId('view-read').click();
+  await hover(link('#fig-diagram')); await expect(targetPreview.locator('figcaption')).toContainText('Signal flow caption.');
+  await page.getByTestId('view-visual').click();
+  await expect(targetPreview).toHaveCount(0);
   expect((await state()).json).toEqual(initial.json);
   await page.keyboard.press('Escape'); await expect(preview).toHaveCount(0);
   // Clicking an endnote still selects/reveals its read-only definition.

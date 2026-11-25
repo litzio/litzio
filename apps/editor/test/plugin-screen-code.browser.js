@@ -618,6 +618,8 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await preview.getByTestId('cross-reference').click();
   expect(await page.evaluate(()=>window.__viewClicks.length)).toBe(clicksBeforeReference);
   const fragment = preview.getByRole('link',{name:'see the complex equation'});
+  await fragment.hover();
+  await expect(preview.getByTestId('target-preview').locator('.katex').first()).toBeVisible();
   await fragment.click();
   await expect(preview.getByTestId('link-target-outline')).toBeInViewport();
   await expect(preview.locator(`[data-source-path="${complexPath.join(',')}"]`).first()).toBeInViewport();
