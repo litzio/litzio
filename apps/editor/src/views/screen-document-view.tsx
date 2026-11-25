@@ -85,10 +85,13 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
   // The provider's value is a new object on each screen render; the session lives for one read.
   const scopeRef = useRef(scope); scopeRef.current = scope;
   const lastSession = useRef<ReturnType<typeof createContentEditSession>>(undefined);
-  const session = useMemo(() => file && edit ? createContentEditSession({
+  // Reading again a file still at a revision this view saved keeps the same paths, read-only or editing.
+  const inherited = useMemo(() => file && lastSession.current?.path === file.path && lastSession.current.accepts(file.revision)
+    ? lastSession.current.revisions() : undefined, [file]);
+  // A document without blocks takes no input: nothing typed into it could be saved.
+  const session = useMemo(() => file && edit && file.document.blocks.length > 0 ? createContentEditSession({
     snapshot: file,
-    // Reading again a file still at a revision this view saved keeps the same paths.
-    continues: lastSession.current?.path === file.path && lastSession.current.accepts(file.revision) ? lastSession.current.revisions() : undefined,
+    continues: inherited,
     editor: () => editorRef.current,
     requestSave: body => {
       const current = scopeRef.current;
@@ -99,7 +102,7 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
     },
     onChange: editChanged,
     onSave: save => saved.current?.(save),
-  }) : undefined, [file, edit]);
+  }) : undefined, [file, edit, inherited]);
   sessionRef.current = session;
   if (session) lastSession.current = session;
   useEffect(() => {
@@ -119,7 +122,8 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
     void sessionRef.current?.flush().then(ok => { if (ok) editChanged(); });
   });
   const latestRevision = session?.revision ?? file?.revision;
-  const accepts = useCallback((revision: string) => session ? session.accepts(revision) : revision === file?.revision, [session, file]);
+  const accepts = useCallback((revision: string) => session ? session.accepts(revision)
+    : revision === file?.revision || !!inherited?.includes(revision), [session, file, inherited]);
   useEffect(() => {
     const controller = new AbortController();
     setSnapshot(undefined); setProblem(""); setPositions(undefined);

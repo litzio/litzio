@@ -11,6 +11,7 @@ import { applyBlockShortcut, type BlockShortcut } from "../src/markdown-input-ru
 import { addTableColumnRight, addTableRowBelow, BLOCK_COMMANDS, changeAdmonitionVariant, changeHeadingLevel, deleteBlock, headingToParagraph, insertDividerAfter, insertParagraphAfter, insertQuoteAfter, paragraphToHeading, paragraphToHeadingRejection, removeTableColumn, removeTableRow } from "../src/block-commands.ts";
 import { editorDocumentJSON, editorExtensions, LOCKED_STRUCTURE_REJECTION, structureGuardPlugin } from "../src/editor-schema.tsx";
 import { admitContentEdits, structuralEditKinds } from "../src/editor-save.ts";
+import { LOCKED_ENDNOTES_REJECTION } from "../src/structure-lock.ts";
 import { joinRichProse, selectAllTransaction } from "../src/document-interaction.ts";
 import { collectSupportedEdits, toTiptapDocument, type TiptapJSON } from "../src/tiptap-document.ts";
 import { documentRevision, saveDocumentFile } from "../server/document-api.ts";
@@ -409,4 +410,44 @@ test("content editing keeps text, inline math in a cell, list items and captions
   assert.match(saved, /\*   two\n\*   three\n/);
   assert.doesNotMatch(saved, /one/);
   assert.deepEqual(loadEditableDocument(saved).blocks.map(block => block.block), editable.blocks.map(block => block.block));
+});
+
+test("content editing refuses reference changes that Save would complete by removing or moving endnotes", () => {
+  const markdown = nativeSource("First[^a] paragraph.\n\nSecond[^b] paragraph.\n\nThird paragraph.\n\n[^a]: Note A.\n\n[^b]: Note B.\n");
+  const editable = loadEditableDocument(markdown);
+  const baseline = toTiptapDocument(editable);
+  const schema = getSchema(editorExtensions());
+  const reference = (label: string) => schema.nodes.footnoteReference.create({ label });
+  const referencePos = (state: EditorState, label: string) => {
+    let found = -1;
+    state.doc.descendants((node, pos) => { if (node.type.name === "footnoteReference" && node.attrs.label === label && found < 0) found = pos; });
+    return found;
+  };
+  const textEnd = (state: EditorState, index: number) => topPos(state, index) + state.doc.child(index).nodeSize - 1;
+  const changes: [string, (state: EditorState) => Transaction][] = [
+    ["remove the only reference", state => state.tr.delete(referencePos(state, "a"), referencePos(state, "a") + 1)],
+    ["move a reference so the endnote order changes", state => state.tr.delete(referencePos(state, "a"), referencePos(state, "a") + 1)
+      .insert(textEnd(state, 1) - 1, reference("a"))],
+    ["reference a label without a definition", state => state.tr.insert(textEnd(state, 2), reference("c"))],
+  ];
+  for (const [name, change] of changes) {
+    const rejections: unknown[] = [];
+    const state = EditorState.create({ schema, doc: schema.nodeFromJSON(baseline), plugins: [structureGuardPlugin(baseline, reason => rejections.push(reason), [], true)] });
+    assert.ok(state.apply(change(state)).doc.eq(state.doc), name);
+    assert.deepEqual(rejections, [{ key: LOCKED_ENDNOTES_REJECTION }], name);
+    // The same edit as a document tab collects it is a paragraph edit only; Save still refuses it.
+    const open = EditorState.create({ schema, doc: schema.nodeFromJSON(baseline) });
+    const submitted = editorDocumentJSON(open.apply(change(open)));
+    const edits = collectSupportedEdits(editable, submitted);
+    assert.deepEqual(structuralEditKinds(edits), [], name);
+    assert.throws(() => admitContentEdits(edits, editable, submitted), /endnotes/, name);
+  }
+  // A further reference to a defined endnote that keeps the endnote order is content.
+  const rejections: unknown[] = [];
+  const state = EditorState.create({ schema, doc: schema.nodeFromJSON(baseline), plugins: [structureGuardPlugin(baseline, reason => rejections.push(reason), [], true)] });
+  const next = state.apply(state.tr.insert(textEnd(state, 2), reference("b")));
+  assert.deepEqual(rejections, []);
+  const edits = collectSupportedEdits(editable, editorDocumentJSON(next));
+  admitContentEdits(edits, editable, editorDocumentJSON(next));
+  assert.match(saveEdits(markdown, edits).markdown, /Third paragraph\.\[\^b\]/);
 });

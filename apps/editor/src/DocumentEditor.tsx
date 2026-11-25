@@ -720,8 +720,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     [editor, referenceDraft],
   );
 
+  const observeBlockLeave = !!onBlockLeave;
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !observeBlockLeave) return;
     let block = editor.state.selection.$head.index(0);
     const moved = ({ transaction }: { transaction: { docChanged: boolean } }) => {
       const next = editor.state.selection.$head.index(0);
@@ -734,7 +735,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     };
     editor.on("transaction", moved);
     return () => { editor.off("transaction", moved); };
-  }, [editor]);
+  }, [editor, observeBlockLeave]);
 
   useEffect(() => {
     if (!editor) return;

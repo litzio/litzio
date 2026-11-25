@@ -28,6 +28,7 @@ import { Endnotes } from "./endnotes.ts";
 import { FootnoteReference } from "./footnote.tsx";
 import { Citation } from "./citation.tsx";
 import { snapshotBlocksByPath } from "./tiptap-edits.ts";
+import { editorKeepsEndnotes, LOCKED_ENDNOTES_REJECTION } from "./structure-lock.ts";
 import {
   DELETED_PATHS_ATTR,
   isNewBlockPath,
@@ -922,6 +923,11 @@ export function structureGuardPlugin(baseline: TiptapJSON, onReject: (reason?: U
       // Each accepted step keeps the previous structure, so the opening structure is kept.
       if (lockStructure && !keepsTopLevelStructure(transaction.before, transaction.doc)) {
         onReject({ key: LOCKED_STRUCTURE_REJECTION });
+        return false;
+      }
+      // A reference change Save would complete by removing or moving endnote definitions.
+      if (lockStructure && !editorKeepsEndnotes(transaction.before, transaction.doc)) {
+        onReject({ key: LOCKED_ENDNOTES_REJECTION });
         return false;
       }
       try {

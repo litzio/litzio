@@ -181,7 +181,9 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
   "http-host-a/content-edit": { files: [
     { name: "content.md", create: () => nativeSource("# Content editing\n\nTeh first paragraph has a typo.\n\nSecond paragraph stays.\n\n" +
       ":::{table} Measured values\n\n| Item | Formula |\n| --- | --- |\n| Area |  |\n| Mass | m |\n:::\n\n- First item\n- Second item\n\nClosing paragraph.\n") },
-    // About 2,000 top-level blocks: paragraphs with a small table every 20 blocks.
+    { name: "endnote.md", create: () => nativeSource("First paragraph with a note[^a]\n\nSecond paragraph.\n\n[^a]: The note text.\n") },
+    { name: "empty.md", create: () => nativeSource("") },
+    // About 2,000 top-level blocks: paragraphs with a small table every 20 blocks (manual measurement).
     { name: "large.md", create: () => nativeSource(Array.from({ length: 2000 }, (_, index) => index % 20 === 19
       ? `:::{table}\n\n| Item | Value |\n| --- | --- |\n| Row ${index} | ${index} |\n:::\n`
       : `Synthetic passage ${index + 1} for measuring content editing in a long document.\n`).join("\n")) },

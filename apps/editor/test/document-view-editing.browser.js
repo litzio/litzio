@@ -9,6 +9,8 @@ async (page, {expect, screenshots, pluginFixture}) => {
   const separator = root.includes('\\') ? '\\' : '/';
   const documentPath = [root, 'content-edit', 'content.md'].join(separator);
   const largePath = [root, 'content-edit', 'large.md'].join(separator);
+  const endnotePath = [root, 'content-edit', 'endnote.md'].join(separator);
+  const emptyPath = [root, 'content-edit', 'empty.md'].join(separator);
   const read = async file => (await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(file), {headers: {Connection: 'close'}})).json());
   const opening = await read(documentPath);
   let config = {path: documentPath, edit: true, linked: true, revision: opening.revision, paths: opening.document.blocks.map(block => block.path)};
@@ -17,10 +19,10 @@ async (page, {expect, screenshots, pluginFixture}) => {
   // document view with content editing, the edit state in the header and a Read again action.
   const code = () => `export default function(React){return function Screen({ui}){
     const config=${JSON.stringify(config)};
-    const [reload,setReload]=React.useState(0),[selected,setSelected]=React.useState(),[edit,setEdit]=React.useState(),[target,setTarget]=React.useState();
-    React.useEffect(()=>{globalThis.__viewReload=()=>setReload(value=>value+1);globalThis.__viewTarget=setTarget;},[]);
+    const [reload,setReload]=React.useState(0),[selected,setSelected]=React.useState(),[edit,setEdit]=React.useState(),[target,setTarget]=React.useState(),[editing,setEditing]=React.useState(config.edit);
+    React.useEffect(()=>{globalThis.__viewReload=()=>setReload(value=>value+1);globalThis.__viewTarget=setTarget;globalThis.__viewEditing=setEditing;},[]);
     const record=name=>value=>{(globalThis[name]??=[]).push({...value,time:performance.now()});};
-    const document={path:config.path,editContent:config.edit,reloadKey:reload,height:480,target,label:'Converted document',
+    const document={path:config.path,editContent:editing,reloadKey:reload,height:480,target,label:'Converted document',
       onStateChange:record('__viewStates'),onEditStateChange:value=>{setEdit(value);record('__editStates')(value);},
       onSave:record('__saves'),onBlockClick:record('__clicks')};
     const labels={clean:'Saved',unsaved:'Unsaved changes',saving:'Saving',failed:'Not saved',conflict:'Changed elsewhere'};
@@ -246,7 +248,46 @@ async (page, {expect, screenshots, pluginFixture}) => {
     await page.unroute('**/api/document');
   }
 
-  // About 2,000 blocks: opening read-only and with content editing, typing and Save.
+  // Removing the only reference to an endnote would remove its definition block on Save
+  // (Core's endnote lifecycle). Content editing refuses it before it applies.
+  const endnoteOpening = await read(endnotePath);
+  config = {path: endnotePath, edit: true, linked: false, revision: '', paths: []};
+  await open();
+  await expect(paragraph('First paragraph with a note')).toBeVisible();
+  await paragraph('First paragraph with a note').click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Backspace');
+  await expect(notice).toContainText('endnote');
+  await paragraph('Second paragraph').click();
+  await page.keyboard.press('Control+s');
+  await expect.poll(lastEdit).toMatchObject({state: 'clean'});
+  const endnoteSaved = await read(endnotePath);
+  expect(endnoteSaved.document.blocks.map(block => block.block)).toEqual(endnoteOpening.document.blocks.map(block => block.block));
+  expect(endnoteSaved.source).toContain('The note text.');
+  expect(await saves()).toEqual([]);
+
+  // Turning content editing off keeps targets of the revisions this view saved.
+  await page.evaluate(([revision, path]) => globalThis.__viewTarget({revision, path, highlight: true}), [endnoteOpening.revision, endnoteOpening.document.blocks[1].path]);
+  await expect(workspace.getByTestId('document-view-highlight')).toBeVisible();
+  await paragraph('Second paragraph').click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Edited.');
+  await page.evaluate(() => globalThis.__viewEditing(false));
+  await expect.poll(async () => (await saves()).length).toBe(1);
+  await expect(editor).toHaveAttribute('contenteditable', 'false');
+  expect((await read(endnotePath)).source).toContain('Second paragraph. Edited.');
+  await expect(workspace.getByTestId('document-view-highlight')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => globalThis.__viewStates.at(-1).state)).toBe('ready');
+
+  // A document without blocks takes no input: nothing it could hold can be saved.
+  config = {path: emptyPath, edit: true, linked: false, revision: '', paths: []};
+  await open();
+  await expect(view).toHaveAttribute('data-state', 'ready');
+  await expect(editor).toHaveAttribute('contenteditable', 'false');
+
+  // About 2,000 blocks, manual review runs only (no pass/fail on time): opening read-only and
+  // with content editing, typing and Save.
+  if (!screenshots) return;
   const measure = async edit => {
     config = {path: largePath, edit, linked: false, revision: '', paths: []};
     const started = Date.now();

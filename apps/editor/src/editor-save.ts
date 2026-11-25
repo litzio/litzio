@@ -4,7 +4,8 @@ import { SaveContentError } from "../shared/save-error.ts";
 import type { DocumentEditorHandle } from "./DocumentEditor.tsx";
 import { messageOf, SaveConflictError } from "./document-session.ts";
 import { SaveDisplayError } from "./save-error.ts";
-import { collectSupportedEdits, type TiptapJSON } from "./tiptap-document.ts";
+import { collectSupportedEdits, toTiptapDocument, type TiptapJSON } from "./tiptap-document.ts";
+import { endnoteBlocksOf, keepsEndnotes } from "./structure-lock.ts";
 
 export type EditorSaveResult =
   | { kind: "saved"; revision: string; payload: SupportedEdits }
@@ -24,14 +25,14 @@ export async function saveLiveEditor(
   target: { path: string; revision: string; base: SaveRequest["base"] },
   requestSave: (body: SaveRequest) => Promise<SaveResponse>,
   current: () => boolean,
-  admit?: (payload: SupportedEdits) => void,
+  admit?: (payload: SupportedEdits, submitted: TiptapJSON) => void,
 ): Promise<EditorSaveResult> {
   let submitted: TiptapJSON | undefined;
   let payload: SupportedEdits | undefined;
   try {
     submitted = editor.beginSave();
     payload = collectSupportedEdits(snapshot, submitted);
-    admit?.(payload);
+    admit?.(payload, submitted);
     const next = await requestSave({ path: target.path, revision: target.revision, base: target.base, ...payload });
     if (!current()) return { kind: "superseded" };
     target.base.savedEdits = payload;
@@ -63,9 +64,12 @@ export function structuralEditKinds(edits: SupportedEdits): string[] {
   ];
 }
 
-/** Content editing never sends a structural change, even if one got past the editor's guard. */
-export function admitContentEdits(edits: SupportedEdits): void {
-  const kinds = structuralEditKinds(edits);
+/** Content editing never sends a structural change, even if one got past the editor's guard.
+ * With the opening snapshot and the submitted editor document, it also checks that Save keeps
+ * every endnote definition (Core's endnote rules, as the Host applies them on write). */
+export function admitContentEdits(edits: SupportedEdits, opening?: EditableDocument, submitted?: TiptapJSON): void {
+  const kinds = [...structuralEditKinds(edits),
+    ...(opening && submitted && !keepsEndnotes(endnoteBlocksOf(toTiptapDocument(opening)), endnoteBlocksOf(submitted)) ? ["endnotes"] : [])];
   if (kinds.length) {
     throw new SaveContentError(`Content editing does not save structural changes (${kinds.join(", ")}).`, undefined, {
       phase: "collect", action: "Nothing was sent. Read the document again to discard this change.",

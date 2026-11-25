@@ -52,7 +52,7 @@ export function createContentEditSession(options: {
     const previousRevision = latest;
     set("saving");
     const result = await saveLiveEditor(editor, snapshot.document, { path: snapshot.path, revision: latest, base },
-      options.requestSave, () => !disposed, admitContentEdits);
+      options.requestSave, () => !disposed, (payload, submitted) => admitContentEdits(payload, snapshot.document, submitted));
     if (result.kind === "superseded") return false;
     if (result.kind === "failed") {
       failedEdits = edits;
