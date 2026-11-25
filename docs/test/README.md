@@ -440,6 +440,7 @@ Past local execution, required CI and proof artifacts: [Host recovery execution 
 
 - `pnpm --filter @litzio/editor exec tsx --test test/assistant-host.test.ts test/provider-connections.test.ts test/http-host.test.ts`로 공유 HTTP/CLI 설정, 사용 불가 공급자 거부, 대화 보존, Host별 CLI 호출 고정과 공급자 종료를 확인한다. 공급자 대역을 사용한다.
 - `pnpm browser:test assistant assistant-result assistant-question`으로 설정·대화·도구 결과 표시, 문서 변경의 되돌리기와 질문 응답·이력 보존을 확인한다.
+- Copilot CLI가 설치된 환경에서 `pnpm exec tsx --test scripts/assistant-acceptance/ollama-view.ts`로 도구 이미지 전달을 검사한다. 가짜 Ollama가 파일 보기를 요청하고 다음 모델 요청에서 원본 PNG 바이트를 비교한다. 실행 파일을 지정하려면 `LITZIO_TEST_COPILOT_BIN`을 사용한다.
 - `pnpm browser:test assistant-ollama`로 비서 설정의 공급자 세 줄, Ollama 진단의 정상·세 가지 사용 불가 이유·주소 변경, 입력창의 공급자 선택을 합성 Host 응답으로 확인한다. Ollama의 두 연결 분리·기록한 모델로 재개·CLI 업데이트 뒤 연결별 다시 띄우기는 위 단위 검사의 가짜 Copilot과 가짜 Ollama로 확인한다.
 - `pnpm browser:test assistant-cli-update`로 진단의 CLI 새 버전 상태와 업데이트 진행·성공·실패·업데이트할 수 없음 표시를 합성 Host 응답으로 확인한다. 실제 `codex update`·`copilot update`는 CI에서 실행하지 않는다. Host 쪽 실행·시간 제한·동시 실행 거절·진행 중인 턴 보존과 CLI는 위 단위 검사의 가짜 실행 파일로 확인한다.
 - 실제 모델은 [비서 수락 시험](#비서-수락-시험-수동-측정)을 따른다.

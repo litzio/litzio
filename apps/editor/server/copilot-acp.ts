@@ -206,8 +206,8 @@ export class CopilotAcp extends EventEmitter {
 
 export const COPILOT_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
 /** Ollama base address (without /v1) and the one model a Copilot BYOK process serves. */
-export type CopilotOllama = { url: string; model: string };
-export function sameOllama(left?: CopilotOllama, right?: CopilotOllama) { return left?.url === right?.url && left?.model === right?.model; }
+export type CopilotOllama = { url: string; model: string; supportsVision?: boolean };
+export function sameOllama(left?: CopilotOllama, right?: CopilotOllama) { return left?.url === right?.url && left?.model === right?.model && !!left?.supportsVision === !!right?.supportsVision; }
 /**
  * Process environment only; the user's Copilot home and configuration are never written. Model-source variables
  * inherited from the daemon's parent never reach a process: the account connection launches without them and the
@@ -215,7 +215,8 @@ export function sameOllama(left?: CopilotOllama, right?: CopilotOllama) { return
  */
 export function copilotEnvironment(inherited: NodeJS.ProcessEnv, ollama?: CopilotOllama): NodeJS.ProcessEnv {
   const env = Object.fromEntries(Object.entries(inherited).filter(([key]) => !/^COPILOT_(PROVIDER_.*|MODEL)$/i.test(key)));
-  return ollama ? { ...env, COPILOT_PROVIDER_BASE_URL: `${ollama.url}/v1`, COPILOT_PROVIDER_API_KEY: "", COPILOT_PROVIDER_WIRE_API: "responses", COPILOT_MODEL: ollama.model } : env;
+  return ollama ? { ...env, COPILOT_PROVIDER_BASE_URL: `${ollama.url}/v1`, COPILOT_PROVIDER_API_KEY: "", COPILOT_PROVIDER_WIRE_API: "responses", COPILOT_MODEL: ollama.model,
+    ...(ollama.supportsVision ? { COPILOT_PROVIDER_VISION: "true" } : {}) } : env;
 }
 type SelectOption = Extract<SessionConfigOption, { type: "select" }>;
 export function copilotReasoning(session: Pick<NewSessionResponse, "configOptions">) {

@@ -84,7 +84,7 @@ async function fakeOllama(models: string[]) {
         : model === "local-b:latest" ? { values: ["low", "high"], default: "low" }
         : model === "disabled" ? { values: [false], default: false } : undefined;
       res.statusCode = model === "failed" ? 503 : 200;
-      res.end(JSON.stringify({ thinking })); return;
+      res.end(JSON.stringify({ thinking, capabilities: model === "local-b:latest" ? ["vision"] : [] })); return;
     }
     if (req.url !== "/api/tags") { res.statusCode = 404; res.end(); return; }
     res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify({ models: models.map(name => ({ name })) }));
@@ -136,10 +136,11 @@ test("Ollama lists its own models, launches its process with the chosen model an
   assert.ok(lines.some(line => new RegExp(`^assistant turn completed provider=ollama conversation=${conversation.id} elapsedMs=\\d+$`).test(line)));
   assert.equal(ollamaAddress("http://gpu-box.corp.example:11434"), "remote:11434");
   assert.equal(conversation.provider, "ollama");
-  assert.deepEqual(acpLaunches(log).at(-1).byok, { baseUrl: `${ollama.url}/v1`, apiKey: "", wireApi: "responses", model: "local-b:latest", offline: null });
+  assert.deepEqual(acpLaunches(log).at(-1).byok, { baseUrl: `${ollama.url}/v1`, apiKey: "", wireApi: "responses", model: "local-b:latest", vision: "true", offline: null });
   // One Ollama process serves one model; another model relaunches it between turns and reloads the conversation.
   await turnSettled(await conversations.send({ ...input, id: conversation.id, model: "local-a:4b" }, settings));
   assert.equal(acpLaunches(log).at(-1).byok.model, "local-a:4b");
+  assert.equal(acpLaunches(log).at(-1).byok.vision, null);
   assert.equal(conversation.turns.at(-1)!.status, "completed");
   assert.ok(lines.includes(`assistant turn started provider=ollama conversation=${conversation.id} session=resumed model=local-a:4b effort=medium permission=read-only mode=agent`), lines.join("\n"));
   // Reasoning effort is a launch argument too: the chosen value relaunches the process between turns.
