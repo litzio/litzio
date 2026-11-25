@@ -189,6 +189,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [2026-11-25 비서의 변환 문서 검수와 반영](spikes/2026-11-25-assistant-review-converted-document.md) | Historical | 합성 PDF 대조·수정의 요소별 결과와 정상 요소 손상 측정. 결론 미정. |
 | [2026-11-25 비서의 변환 문서 검수와 낮은 추론 강도](spikes/2026-11-25-assistant-review-low-effort.md) | Historical | 기존과 동일한 합성 문서에서 추론 강도 low의 발견·반영·기존 정답 손상과 시간을 비교했다. 결론 미정. |
 | [2026-11-25 정답을 제공한 비서의 변환 문서 수정](spikes/2026-11-25-assistant-review-with-answer.md) | Historical | 고칠 곳 목록과 원본 정답 JSON을 전달한 두 조건의 저장본 점수·기존 정답 손상을 기록한다. 결론 미정. |
+| [2026-11-25 큰 문서의 국소 정규 쓰기](spikes/2026-11-25-local-canonical-write.md) | Historical | 변경 블록과 이웃을 다시 읽는 후보의 동등성, 적격률 및 비용을 비교했다. 결론 미정. |
 
 ## Verification
 
