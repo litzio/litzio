@@ -71,7 +71,7 @@ export type AssistantConversationInput = Pick<AssistantExecutionSettings, "model
   provider?: AiProvider; permissionMode?: AssistantSettings["permissionMode"];
   mode?: string;
   folders: string[]; document?: { path: string }; };
-export type AiModel = { id: string; model: string; displayName: string; description: string;
+export type AiModel = { id: string; model: string; displayName: string; description: string; supportsVision?: boolean;
   supportedReasoningEfforts: { reasoningEffort: string; description: string }[]; defaultReasoningEffort: string };
 export type AiCopilotOptions = { reasoningEfforts?: { reasoningEffort: string; description: string }[]; reasoningEffortSource: "config" | "cli"; modes: { id: string; name: string; description: string }[]; currentMode: string };
 export type AiModels = { provider: AiProvider; models: AiModel[]; updatedAt: number; fullAccessAllowed?: boolean; copilot?: AiCopilotOptions };

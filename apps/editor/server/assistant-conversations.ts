@@ -324,6 +324,7 @@ export class AssistantConversations {
       let effort = info.copilotCliReasoningEffort ?? acp.reasoningEffort;
       if (launch) {
         const model = await ollamaModel(launch.url, launch.model);
+        launch.supportsVision = model.supportsVision;
         if (!model.supportedReasoningEfforts.some(value => value.reasoningEffort === effort)) effort = model.defaultReasoningEffort;
       }
       await this.prepareCopilotLaunch(effort, settings, launch);
@@ -601,7 +602,7 @@ export class AssistantConversations {
     const effort = launchEffort ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.permissionMode === "full-access";
     // An Ollama process serves one model: the selected model is a launch setting.
-    await this.prepareCopilotLaunch(effort, settings, ollama ? { url: ollama, model: input.model } : undefined);
+    await this.prepareCopilotLaunch(effort, settings, ollama ? { url: ollama, model: input.model, supportsVision: selected.supportsVision } : undefined);
     await this.connection.relaunchUpdated(settings.provider, this.busy(settings.provider, this.sendKey(settings.provider)));
     if (conversation && !this.loaded.has(conversation.id)) {
       // A running ACP process already owns the session and its MCP endpoint.
