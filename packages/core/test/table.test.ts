@@ -345,6 +345,24 @@ test("table cell breaks round-trip at the edges, consecutively and within marks"
   }
 });
 
+test("table note whitespace follows paragraph writes and supports field-level authoring reuse", async () => {
+  const raw = nativeTable + "\n&#32;&#9;a. note&#32;\n:::\n";
+  const document = core.parse(raw);
+  const block = core.getEditableDocument(document).blocks[0];
+  assert.ok(block.block === "table" && block.notes);
+  assert.deepEqual(block.notes, [[text(" \ta. note ")]]);
+  const body = core.serialize(core.parse("---\nlitzio: 1\n---\n\n&#32;&#9;a. note&#32;\n"));
+  const canonical = core.serialize(document);
+  assert.match(body, /\na\. note&#x20;\n$/);
+  assert.match(canonical, /\na\. note&#x20;\n:::\n$/);
+  assert.equal(core.serialize(core.parse(canonical)), canonical);
+  const authored = await core.authorDocument({ inputs: [{ key: "table", blocks: [
+    { kind: "table", rows: block.rows.map(row => row.cells.map(cell => cell.content)), notes: block.notes },
+  ] }] });
+  assert.equal(authored.source, canonical);
+  assert.equal(core.serialize(core.updateTableNote(document, [1], 0, block.notes[0])), canonical);
+});
+
 test("table notes round-trip as owned paragraphs and follow whole-table operations", async () => {
   const source = nativeTable.replace("| A |", "| <br>A<br> B <br> |") + "\na. **Nominal** {sub}`x` $y$ [Link](https://example.test) {ref}`next`\n\nb. Limit\\\ncontinued\n:::\n\n(next)=\n\n# Next\n";
   const doc = core.parse(source);

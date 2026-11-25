@@ -126,6 +126,23 @@ async (page, { openPath, expect, screenshots }) => {
   }
   await cell('U').click();
   await page.keyboard.press('End');
+  const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
+  // Exercise the browser event sequence without claiming OS IME behavior.
+  const composing = await editor.evaluate(el => {
+    const view = el.editor.view, dom = view.dom, before = view.state.doc;
+    const composition = (type, data) => dom.dispatchEvent(new CompositionEvent(type, { bubbles: true, data }));
+    composition('compositionstart', '');
+    composition('compositionupdate', '한');
+    const active = view.composing;
+    dom.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter', code: 'Enter', shiftKey: true, isComposing: true, bubbles: true, cancelable: true,
+    }));
+    const unchanged = view.state.doc.eq(before);
+    composition('compositionend', '');
+    return { active, unchanged };
+  });
+  expect(composing).toEqual({ active: true, unchanged: true });
+  await expect.poll(() => editor.evaluate(el => el.editor.view.composing)).toBe(false);
   await page.keyboard.press('Shift+Enter');
   await page.keyboard.type('Line two');
   await expect(table.locator('[data-table-cell]').filter({ hasText: /^U\s*Line two$/ }).locator('br')).toHaveCount(1);

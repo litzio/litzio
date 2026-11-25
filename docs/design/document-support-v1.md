@@ -111,7 +111,7 @@ space (U+0020) and tab (U+0009) before paragraph content, including formatting m
 Whitespace-only bodies retain their existing empty-body/admission rules.
 These are Markdown indentation characters; arbitrary lengths in semantic input
 are removed rather than encoded as `&#x20;`. Paragraphs in lists, quotes,
-admonitions and endnote definitions follow the same rule; container indentation
+admonitions, endnote definitions and table notes follow the same rule; container indentation
 and list markers remain structural. The run stops at any other character, hard
 break or data-bearing inline atom (code, math, link, reference or citation).
 NBSP and other Unicode spaces are excluded from cleanup: they are explicit text,
@@ -137,9 +137,9 @@ strict; parsed documents are not repaired or normalized on admission.
 
 This rule covers paragraph insert/update, split/merge/hard-break and generic text
 edits, quote/admonition bodies, list items at every depth, Figure captions and
-footnote/endnote definitions. If normalization empties the paragraph, its existing
-owner's empty-content rule applies. Table cells and Table captions have a separate
-single-line contract and continue to reject line breaks; headings do too.
+footnote/endnote definitions and table notes. If normalization empties the paragraph,
+its owner's empty-content rule applies. Cells preserve explicit hard breaks, and table
+captions and headings remain single-line.
 Editor Save uses the same Core operations as CLI writes and reflects this Core cleanup in the live editor under the [Save selection/history contract](editing-session-save-v1.md#save-acknowledgement) (#1127). Existing CLI commands
 expose the rule; no new operation or command is needed. Assistant sending supplies
 only the active document path and excludes unsaved body content under the
@@ -478,7 +478,7 @@ Core `documentAuthoringSchema`와 `authorDocument`가 CLI `create --input` 및 �
 - list는 Core ListContent의 `ordered`, `checklist`, `start`, `style`, `delimiter`, `items:[{content,checked?,list?}]`를 받는다. 기존 문자열 items도 유지하며 체크리스트의 문자열 항목은 체크 안 됨이다.
 - target(label)은 heading 앞의 Core target 블록이다. figure·table·equation도 label을 받는다. 참조는 InlineContent의 reference(role,label), 미주 표시는 footnote(label), 정의는 footnote 블록으로 연결한다. 정의는 Core 규칙대로 본문 뒤 첫 참조 순서로 배치하며 입력별 target receipt는 재배치된 경로를 가리킨다.
 
-읽기 출력의 `content`와 목록 `items`를 변환 없이 해당 입력 필드에 넣는다. JSON nodes의 type은 blocks의 kind에, 표 cell 노드의 `content`는 rows에, 표 노드의 `notes`는 그대로 notes에, 별도 그림 caption 노드는 figure.caption에 매핑한다. path·text·editable·파생 번호 등 조회 필드는 입력이 아니다.
+읽기 출력의 `content`(표 칸의 `break` 포함), 목록 `items`, 표 `notes`를 변환 없이 해당 입력 필드에 넣는다. JSON nodes의 type은 blocks의 kind에, 표 cell 노드의 `content`는 rows에, 표 노드의 `notes`는 그대로 notes에, 별도 그림 caption 노드는 figure.caption에 매핑한다. path·text·editable·파생 번호 등 조회 필드는 입력이 아니다.
 
 Core 수정 연산과 native 검증·정규 직렬화 재검증을 재사용한다. 이 완성 문서 작성 입력은 끊긴 미주, 사용되지 않은 정의, 중복 레이블(암시적 heading ID 포함), 없는 참조 대상, 지원하지 않는 중첩을 거부한다. 일반 편집 초안에서 미해결 상호 참조를 허용하는 계약은 유지한다. `DocumentAuthoringError.diagnostics`는 입력 path와 reason을 제공하고 message에도 포함한다.
 

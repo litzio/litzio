@@ -196,7 +196,10 @@ is no caption. Notes use paragraph inline content, including formatting, scripts
 math, links, cross-references and citations. Endnote references are excluded so the
 table’s annotations do not participate in the document’s endnote sequence. An authored
 marker such as `a.` stays literal text. Lists, figures and nested tables are refused
-in the legend. Table numbering still numbers the table as a whole.
+in the legend. Notes follow prose paragraph whitespace rules: canonical writing
+removes leading ASCII indentation, and semantic edits remove blank-line tails.
+A space-only tail follows the ordinary round-trip rule. Table numbering still
+numbers the table as a whole.
 
 ```markdown
 :::{table} Operating limits
