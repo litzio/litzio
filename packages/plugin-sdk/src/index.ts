@@ -15,7 +15,7 @@ export { mergeParagraphWithPrevious, splitParagraph, updateHeadingLevel, machine
   insertAdmonition, updateAdmonitionVariant, updateAdmonitionInlineContent, updateDocumentTitle,
   ADMONITION_VARIANTS, type AdmonitionVariant } from "@litzio/core";
 
-export const SDK_VERSION = "0.13.0";
+export const SDK_VERSION = "0.14.0";
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
 const operation = z.strictObject({ id, version: z.number().int().positive().default(1), effect: z.enum(["read","write"]).default("read"), scope: z.enum(["host","folder"]).default("host"), assistant: z.boolean().default(false), inputSchema: schema.default({}), outputSchema: schema.default({}) });
@@ -129,7 +129,7 @@ export const PLUGIN_ERROR_MESSAGES: Readonly<Record<PluginErrorKind, string>> = 
 export { validatePluginSource } from "./authoring.ts";
 export { SCREEN_UI, SCREEN_UI_GUIDANCE } from "./screen-ui.ts";
 export type { ScreenConfirmInput, ScreenPickPathInput, ScreenPickedPath, ScreenOpenDocumentResult } from "./screen-actions.ts";
-export type { ScreenChartProps, ScreenSelectProps, ScreenSliderProps, ScreenSummaryProps, ScreenDocumentViewProps, ScreenDocumentViewLayout, ScreenDocumentViewState } from "./screen-ui.ts";
+export type { ScreenChartProps, ScreenSelectProps, ScreenSliderProps, ScreenSummaryProps, ScreenDocumentViewProps, ScreenDocumentViewLayout, ScreenDocumentViewState, ScreenDocumentEditState } from "./screen-ui.ts";
 export type { ScreenLinkedDocumentItem, ScreenLinkedDocumentViewProps } from "./screen-ui.ts";
 export type { ScreenItemListItem, ScreenItemListGroup, ScreenItemListProps } from "./screen-ui.ts";
 export type { ScreenLayoutBack } from "./screen-ui.ts";

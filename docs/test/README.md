@@ -308,7 +308,7 @@ pnpm --filter @litzio/cli test:packaged
 
 The archive test installs outside the checkout with no runtime dependencies and runs Node-only CLI/daemon run, real writes, port conflict and shutdown. The separate HTTP browser scenario starts the built Host with two scratch roots and verifies real Save/Reload, New file/folder, images, dirty/draft guards, revision conflict and SVG script blocking. Do not combine it with Vite scenarios. Windows uses the existing persistent browser profile. `pnpm browser:test http-host --screenshots` saves optional wide/narrow/saved-document manual captures under `tmp/http-host-capture/`. CI runs without this option and uploads only browser failure diagnostics from `tmp/browser-results/`; all DOM and Save/Reload assertions remain enabled.
 
-Windows HTTP는 host(`http-host http-plugins`)와 plugins(`plugin-screen-code plugin-screen-connection`) 두 독립 runner에서 실행한다. 각각 package·test:packaged 및 crash recovery를 유지하며 runner별 checkout·fixture·daemon·포트를 공유하지 않는다. Linux는 동일 runner에서 전체 묶음을 실행한다.
+Windows HTTP는 host(`http-host http-plugins`)와 plugins(`plugin-screen-code plugin-screen-connection document-view-editing`) 두 독립 runner에서 실행한다. 각각 package·test:packaged 및 crash recovery를 유지하며 runner별 checkout·fixture·daemon·포트를 공유하지 않는다. Linux는 동일 runner에서 전체 묶음을 실행한다.
 
 HTTP boundary tests are included in `pnpm test`; targeted command: `pnpm --filter @litzio/editor exec tsx --test test/http-host.test.ts`. When the HTTP job is selected, CI requires the archive and HTTP browser paths on Windows and Linux. Windows unit/integration coverage, including `file-identity.test.ts`, belongs to the two Desktop unit partitions (together `pnpm test`); `http ⇒ desktop` path selection prevents a coverage gap. PR path selection and full checks on master pushes follow the [Verification matrix](../../CONTRIBUTING.md#verification-matrix), with [ci.yml](../../.github/workflows/ci.yml) as the path-rule source of truth. See [HTTP contract](../design/http-host-v1.md) for scope and deployment limitations.
 
@@ -501,7 +501,7 @@ Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출�
 
 - `pnpm --filter @litzio/editor exec tsx --test test/plugins.test.ts test/plugin-operation-errors.test.ts`로 신뢰 확인, reload, crash·timeout과 공개 오류의 비밀값 가림을 확인한다.
 - `pnpm browser:test vite-plugins`로 개발 Host에서 플러그인을 켜고 끌 때 화면 진입점이 나타나고 사라지는지 확인한다.
-- [Production HTTP regression](#production-http-regression)의 CLI 빌드 뒤 `pnpm browser:test http-plugins plugin-screen-code plugin-screen-connection`을 실행한다. CLI와 화면의 상태·설정이 일치하고 비밀값이 응답에 나타나지 않아야 한다. 화면 코드와 저장 검사는 아래를 따른다.
+- [Production HTTP regression](#production-http-regression)의 CLI 빌드 뒤 `pnpm browser:test http-plugins plugin-screen-code plugin-screen-connection document-view-editing`을 실행한다. CLI와 화면의 상태·설정이 일치하고 비밀값이 응답에 나타나지 않아야 한다. 화면 코드와 저장 검사는 아래를 따른다.
 - 배포 경계 변경은 [Production HTTP regression](#production-http-regression)의 아카이브 검사(`packages/cli/test/packaged.test.ts`)를 실행한다. 설치된 CLI가 동봉 SDK로 외부 플러그인을 실행하고 두 Root에서 저장해야 한다. Desktop 설치본의 CLI·플러그인 목록 확인은 CI의 `apps/desktop/test/packaged/cli.e2e.ts`에서 실행한다.
 
 ### 플러그인 화면 코드 (#1592)
@@ -509,6 +509,8 @@ Host·공급자는 finally에서 종료한다. 비정상 강제 종료 시 출�
 `pnpm browser:test plugin-screen-code`는 production HTTP에서 blob 화면 렌더·공용 부품·작업 호출·오류 경계와 문서 탭의 생존을 확인한다. 플러그인 Host 단위 검사는 활성 코드 전달·로컬 JSX reload·변환 진단·임의 JSON·React 인스턴스 공유·의존성 없는 bundle 실행을 보호한다. 기존 CLI/Windows packaged 외부 SDK 회귀는 포함된 npm/네이티브 esbuild로 로컬 패키지를 설치·묶고, node_modules를 옮긴 뒤 실행하는 계약도 확인한다. Desktop 패키징은 CI에서만 실행한다.
 
 `pnpm browser:test plugin-screen-connection`은 production HTTP와 Desktop 브리지 대역을 사용한다. 인스턴스 검사를 지원하는 daemon에서 연결 확인이 5초 만에 만료돼도 진행 중인 화면 저장이 실제 영수증을 받고, 같은 주소의 다른 인스턴스가 관측되면 이전 화면이 내려가는지 확인한다. 인스턴스 검사를 지원하지 않는 daemon의 응답을 재현한 뒤에는 연결 확인 만료로 화면이 내려가 같은 주소의 교체 Host에 저장이 전송되지 않는지 확인한다. HTTP 경계 검사는 이전 인스턴스의 저장을 본문 처리 전에 거절하고 파일을 만들지 않는지 확인한다.
+
+`pnpm browser:test document-view-editing`은 production HTTP에서 플러그인 화면의 [문서 보기 내용 편집](../design/plugin-screens-v1.md#내용-편집)을 확인한다. 오타 고치기와 표 칸의 인라인 수식이 블록을 벗어날 때 실제 파일에 저장되고, 저장 뒤에도 강조·연결 띠·스크롤·클릭 알림이 이어지며, Enter·Backspace·여러 문단 붙여넣기·블록 입력 규칙은 문서를 바꾸지 않고 안내만 띄운다. 되돌리기의 저장, CDP 조합 이벤트로 넣은 한국어(문단·표 칸, 조합 중 Ctrl+S), 미저장 상태의 reloadKey 변경, 밖에서 바꾼 파일의 충돌과 다시 읽기를 확인한다. 유일한 미주 참조와 표 캡션의 미주 참조 지우기가 거부되고 저장 요청 없이 파일이 그대로인지, `editContent`를 끈 뒤 이전 target이 유지되는지, 블록 없는 문서가 입력을 받지 않는지도 확인한다. 실제 OS 한국어 입력기는 확인하지 않는다. `--screenshots`는 거부 안내·충돌·저장 중 상태를 `tmp/document-view-editing-*.png`에 남기고, 약 2,000블록 합성 문서의 열기(읽기 전용과 비교)·입력 반영·저장 시간을 scenario-result에 남긴다(판정 없음).
 
 실제 비서 측정은 저장소 밖의 합성 CSV·빌드 복사본·격리 Host 프로필로 실행한다. Codex gpt-6.1-terra high·전체 접근, 초기 생성과 기준선 수정의 연속 두 턴 및 hover·확대 과제의 새 대화를 사용한다. 프롬프트에 방법·도구·라이브러리 이름을 넣지 않고 합계 16턴 이내로 제한한다. 각 턴 뒤 실제 브라우저 화면을 확인하며 UI·회사의 registry/프록시·설치본 수락을 별도로 기록한다.
 

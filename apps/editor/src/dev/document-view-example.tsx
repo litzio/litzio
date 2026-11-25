@@ -4,7 +4,7 @@ import { getEditableDocument, parse } from "@litzio/core";
 import { DocumentViewScope } from "../views/screen-document-view.tsx";
 import { ScreenFrame } from "../components/ui/task-header.tsx";
 import { screenUI as ui } from "../views/screen-ui.ts";
-import type { ScreenDocumentViewState, ScreenDocumentViewProps, ScreenLinkedDocumentItem } from "@litzio/plugin-sdk";
+import type { ScreenDocumentEditState, ScreenDocumentViewState, ScreenDocumentViewProps, ScreenLinkedDocumentItem } from "@litzio/plugin-sdk";
 import type { HostClient } from "../host-client.ts";
 
 const columns = Array.from({length:12}, (_, index) => `Column ${index+1}`);
@@ -17,8 +17,17 @@ export function DocumentViewExample() {
   const {t} = useTranslation();
   const stateLabels = {loading:t("Loading…"),ready:t("Ready"),error:t("Error"),"stale-target":t("The saved document has changed."),"target-not-found":t("Target not found. Check the target address or identifier.")};
   const [reads, setReads] = useState(0), [extraFolder, setExtraFolder] = useState(false);
-  const [client] = useState<HostClient>(() => ({ assertCurrent() {}, url: path => path, crossOrigin: undefined,
-    async request() { setReads(value => value + 1); return Response.json({ kind: "native", path, source, document, revision }); } }));
+  // Content editing: Saves are acknowledged with a fresh synthetic revision and never stored;
+  // reading again returns the original snapshot.
+  const [editing, setEditing] = useState(false), [edit, setEdit] = useState<ScreenDocumentEditState>();
+  const [client] = useState<HostClient>(() => {
+    let saves = 0;
+    return { assertCurrent() {}, url: path => path, crossOrigin: undefined,
+      async request(_url: string, init?: RequestInit) {
+        if (init?.method === "POST") return Response.json({ revision: String(++saves).padStart(64, "c") });
+        setReads(value => value + 1); return Response.json({ kind: "native", path, source, document, revision });
+      } };
+  });
   const [reloadKey, setReload] = useState(0), [stale, setStale] = useState(false), [column, setColumn] = useState(11), [narrow, setNarrow] = useState(false);
   const [fillHeight, setFillHeight] = useState(false);
   const [scale,setScale] = useState(1);
@@ -40,6 +49,8 @@ export function DocumentViewExample() {
         <ui.Button variant="outline" onClick={() => { setFollowing(undefined); setColumn(value => 11-value); }}>Select other cell</ui.Button>
         <ui.Button variant="outline" onClick={() => setNarrow(value => !value)}>Toggle preview width</ui.Button>
         <ui.Button variant="outline" aria-pressed={extraFolder} onClick={() => setExtraFolder(value => !value)}>Toggle unrelated folder</ui.Button>
+        <ui.Button variant="outline" aria-pressed={editing} onClick={() => setEditing(value => !value)}>Edit content</ui.Button>
+        {editing && edit ? <ui.Status variant="plain" tone={edit.state === "clean" ? "ok" : edit.state === "saving" ? "progress" : edit.state === "unsaved" ? "neutral" : "warning"} label={{ clean: "Saved", unsaved: "Unsaved changes", saving: "Saving", failed: "Not saved", conflict: "Changed elsewhere" }[edit.state]} /> : null}
         <span aria-label="Document reads">{reads}</span><ui.Status variant="plain" tone={state?.state === "ready" ? "ok" : state?.state === "loading" ? "progress" : "warning"} label={state ? stateLabels[state.state] : t("Ready")} /></ui.Toolbar>
       <div style={{display:"flex",flexWrap:fillHeight?"nowrap":"wrap",flex:fillHeight?1:undefined,minHeight:0,gap:fillHeight?"var(--space-4)":"var(--space-12)"}}>
       <div ref={list} role="region" aria-label="Source passages" tabIndex={0}
@@ -56,7 +67,7 @@ export function DocumentViewExample() {
           <ui.Button onClick={() => { manualList.current = true; setFollowing({revision,path:block.path,highlight:false}); }}>Source block {index+1}</ui.Button>
         </div>)}
       </div>
-      <div onWheelCapture={() => {manualList.current = false;}} onKeyDownCapture={() => {manualList.current = false;}} onPointerDownCapture={() => {manualList.current = false;}} style={{width:narrow?260:undefined,flex:narrow?"0 1 260px":fillHeight?"1 1 200px":"2 1 320px",minWidth:0,maxWidth:"100%"}}><ui.DocumentView path={path} scale={scale} height={fillHeight ? "fill" : 480} reloadKey={reloadKey} onVisibleBlockChange={followSource} onBlockClick={followSource} target={following ? {...following,revision:stale ? "b".repeat(64) : revision} : { revision: stale ? "b".repeat(64) : revision, path: document.blocks.find(block => block.block === "table")!.rows[1].cells[column].path }} onStateChange={setState} /></div></div>
+      <div onWheelCapture={() => {manualList.current = false;}} onKeyDownCapture={() => {manualList.current = false;}} onPointerDownCapture={() => {manualList.current = false;}} style={{width:narrow?260:undefined,flex:narrow?"0 1 260px":fillHeight?"1 1 200px":"2 1 320px",minWidth:0,maxWidth:"100%"}}><ui.DocumentView path={path} scale={scale} editContent={editing} onEditStateChange={setEdit} height={fillHeight ? "fill" : 480} reloadKey={reloadKey} onVisibleBlockChange={followSource} onBlockClick={followSource} target={following ? {...following,revision:stale ? "b".repeat(64) : revision} : { revision: stale ? "b".repeat(64) : revision, path: document.blocks.find(block => block.block === "table")!.rows[1].cells[column].path }} onStateChange={setState} /></div></div>
     </ui.ScreenLayout></ScreenFrame></div>
   </DocumentViewScope.Provider>;
 }

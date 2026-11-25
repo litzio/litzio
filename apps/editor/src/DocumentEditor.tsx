@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
 import { prepareEditorSnapshot, type EditorSnapshot } from "./editor-snapshot.ts";
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useImperativeHandle, useReducer, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { EditorAuthoring, useEditorVisible } from "./editor-visibility.ts";
+import { EditorAuthoring, EditorContentOnly, useEditorVisible } from "./editor-visibility.ts";
 import { normalizeSaveTails } from "./save-normalization.ts";
 import { closeHistory } from "@tiptap/pm/history";
 import {
@@ -106,6 +106,8 @@ export type DocumentEditorHandle = {
   /** Live applied-content comparison with the acknowledged snapshot; excludes property drafts. */
   hasDocumentChanges(): boolean;
   hasUnsavedChanges(): boolean;
+  /** An input method composition is in progress; a Save then defers its cleanup. */
+  isComposing(): boolean;
   /** Reveal a heading, table or figure in the Visual document view. */
   revealItem(item: OutlineItem): void;
   /** A click below the document places the caret at its end; returns whether it did. */
@@ -125,8 +127,13 @@ function caretRoom(paper: RefObject<HTMLElement | null>, side: number) {
 type DocumentEditorProps = ReadingCallbacks & {
   /** Reuse rendering/navigation while keeping forms and history alive. */
   readOnly?: boolean;
-  /** Isolated read-only preview: replace the displayed model without recreating the editor. Never used by document sessions. */
+  /** Isolated preview outside document sessions. Read-only, it replaces the displayed model without recreating the editor. */
   preview?: boolean;
+  /** Edit only the content inside the opening top-level blocks: the structure guard keeps every
+   * block, and block, table-shape, property, title and settings authoring is hidden. Fixed for the editor's lifetime. */
+  contentOnly?: boolean;
+  /** The top-level block holding the selection changed (index of the block left). */
+  onBlockLeave?: (index: number) => void;
   comparison?: ComparisonLayout;
   showHeadingLevels?: boolean;
   settingsExpanded?: boolean;
@@ -159,7 +166,7 @@ type DocumentEditorProps = ReadingCallbacks & {
 };
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(function DocumentEditor(
-  { readOnly = false, preview = false, comparison, showHeadingLevels = !readOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
+  { readOnly = false, preview = false, contentOnly = false, onBlockLeave, comparison, showHeadingLevels = !readOnly && !contentOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
   ref,
 ) {
   useTranslation();
@@ -196,6 +203,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   onDirtyChangeRef.current = onDirtyChange;
   const onOutlineChangeRef = useRef(onOutlineChange);
   onOutlineChangeRef.current = onOutlineChange;
+  const onBlockLeaveRef = useRef(onBlockLeave);
+  onBlockLeaveRef.current = onBlockLeave;
   // A revealed navigation target stays current until the reader scrolls,
   // even when the document ends before it can reach the top of the view.
   const revealed = useRef<{ index: number; scrollTop: number } | null>(null);
@@ -254,7 +263,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     const extensions = createEditorExtensions(projection, onStructuralReject, reportDraft, () => documentPathRef.current ?? "", validateFigure, onAssetPendingChange, onAssetError,
       sourcePath => sourcePath === undefined ? activeDrafts.current.size > 0
         : [...activeDrafts.current.values()].some(draft => draft.path === sourcePath), chooseImage, initialDeletedPaths, onAssetChange, assetClient,
-      editor => inlineMathKey.current(editor));
+      editor => inlineMathKey.current(editor), contentOnly);
     const restored = initialSnapshot && prepareEditorSnapshot(getSchema(extensions), projection, initialSnapshot);
     if (restored) {
       saved.current = restored.savedDocument;
@@ -425,7 +434,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   }, [editor, draftRevision]);
 
   useEffect(() => {
-    if (!editor || !visible || readOnly) return;
+    if (!editor || !visible || readOnly || contentOnly) return;
     const { view } = editor;
     const dom = view.dom;
     let selectedAtPointer: Selection | null = null;
@@ -684,6 +693,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         return activeDrafts.current.size > 0 || hasDocumentChanges();
       },
       hasDocumentChanges,
+      isComposing() { return Boolean(editor?.view.composing); },
       imageRenameSources() {
         return editor ? [...new Set([...imageRenameKey.getState(editor.state)!.seen.values()].flatMap(urls => [...urls]))] : [];
       },
@@ -709,6 +719,23 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     }),
     [editor, referenceDraft],
   );
+
+  const observeBlockLeave = !!onBlockLeave;
+  useEffect(() => {
+    if (!editor || !observeBlockLeave) return;
+    let block = editor.state.selection.$head.index(0);
+    const moved = ({ transaction }: { transaction: { docChanged: boolean } }) => {
+      const next = editor.state.selection.$head.index(0);
+      if (next === block) return;
+      const left = block;
+      block = next;
+      // Typing that lands before a click's selection is read moves the caret with the
+      // new text; that is entering a block, not leaving one with its edits complete.
+      if (!transaction.docChanged) onBlockLeaveRef.current?.(left);
+    };
+    editor.on("transaction", moved);
+    return () => { editor.off("transaction", moved); };
+  }, [editor, observeBlockLeave]);
 
   useEffect(() => {
     if (!editor) return;
@@ -950,9 +977,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   const slashOpen = slash !== null && slash.from !== slashDismissed && focused;
   const slashItems = slash
     ? [
-      ...(slash.blockCommands ? filterInsertCommands(slash.query) : []),
+      ...(slash.blockCommands && !contentOnly ? filterInsertCommands(slash.query) : []),
       ...(slash.inlineMath && canEditEndnoteAt(editor.state, slash.from) ? inlineMathCommandItems(slash.query) : []),
-      ...(slash.endnote ? endnoteCommandItems(slash.query) : []),
+      ...(slash.endnote && !contentOnly ? endnoteCommandItems(slash.query) : []),
       ...referenceCommandItems(editor.state.doc, slash.query),
       ...citationCommandItems(citationEntries, slash.query),
     ].map(insertMenuItem)
@@ -1030,7 +1057,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   } : undefined;
 
   return (
-    <EditorAuthoring value={!readOnly}><article data-read-only={readOnly}
+    <EditorAuthoring value={!readOnly}><EditorContentOnly value={contentOnly}><article data-read-only={readOnly} data-content-only={contentOnly || undefined}
       onMouseDownCapture={event => {
         if (readOnly && event.button === 0 && event.target instanceof Element && event.target.closest(".document-editor")) {
           editor.view.dom.focus({ preventScroll: true });
@@ -1040,7 +1067,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         // The paper extends below the editor content, including in a brand-new document.
         if (event.button === 0 && event.target === event.currentTarget && focusEnd(event.clientY)) event.preventDefault();
       }}>
-      {settings && !readOnly ? <DocumentSettings ref={documentSettings} {...settings} expanded={settingsExpanded}
+      {settings && !readOnly && !contentOnly ? <DocumentSettings ref={documentSettings} {...settings} expanded={settingsExpanded}
         onExpandedChange={value => onSettingsExpandedChange?.(value)} disabled={settingsDisabled}
         onStatusChange={status => {
           if (!editor.isEditable || settingsDisabled) return;
@@ -1051,7 +1078,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         onToggleHeadingNumbering={toggleHeadingNumbering} onReferenceStyleChange={setReferenceStyle}
         onConnectBibliography={target => bibliographyControls.current?.connect(target)} /> : null}
       {!comparison ? <NumberingNotice editor={editor} onReveal={revealBlock} disabled={settingsDisabled} /> : null}
-      {!preview || editor.state.doc.attrs.title ? <DocumentTitle editor={editor} /> : null}
+      {!preview || editor.state.doc.attrs.title ? <DocumentTitle editor={editor} readOnly={contentOnly} /> : null}
       <DocumentPathContext.Provider value={documentPath}><ImageRenameContext.Provider value={renameImage}>
         <BibliographyContent ref={bibliographyControls} editor={editor} bibliography={bibliography} documentPath={documentPath ?? ""}>
           <EditorContent className={comparison ? "visual-engine-content" : undefined} editor={editor} />
@@ -1059,7 +1086,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         </BibliographyContent>
       </ImageRenameContext.Provider></DocumentPathContext.Provider>
       {visible && !comparison ? <BlockHandles
-        readOnly={readOnly} showHeadingLevels={showHeadingLevels} editor={editor}
+        readOnly={readOnly || contentOnly} showHeadingLevels={showHeadingLevels} editor={editor}
         saveLocations={saveLocations}
         linkTargetPath={linkTarget?.path}
         menuIndex={blockMenu?.index}
@@ -1246,6 +1273,6 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           }}
         />
       ) : null}
-    </article></EditorAuthoring>
+    </article></EditorContentOnly></EditorAuthoring>
   );
 });

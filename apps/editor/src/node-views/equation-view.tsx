@@ -9,7 +9,7 @@ import { i18n } from "../i18n.ts";
 import { PropertyForm } from "../block-properties.tsx";
 import { MetadataLabel, MetadataProperties } from "../metadata-properties.tsx";
 import { NumberField, useNumberDraft } from "../numbering-properties.tsx";
-import { useEditorAuthoring } from "../editor-visibility.ts";
+import { useEditorAuthoring, useEditorContentOnly } from "../editor-visibility.ts";
 import { useBlockNumber, useCaptionNumberText } from "../cross-reference.tsx";
 import { renderEquation } from "../equation-render.ts";
 import { isNewBlockPath } from "../tiptap-document.ts";
@@ -34,6 +34,7 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
   const editable = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable });
   const formId = useId();
   const visible = useEditorAuthoring();
+  const contentOnly = useEditorContentOnly();
   const label = String(node.attrs.label ?? "");
   const number = useBlockNumber(editor, getPos, "equation");
   const numbered = useCaptionNumberText(editor, getPos, "equation");
@@ -82,7 +83,7 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
     setEditing(true);
   }
   function beginProperties() {
-    if (!view.editable || editing || properties) return;
+    if (!view.editable || contentOnly || editing || properties) return;
     setLabelDraft(label); numberDraft.reset(enumerator);
     setError("");
     setProperties(true);
@@ -134,7 +135,7 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
       data-source-path={String(node.attrs.sourcePath ?? "")}
       contentEditable={false}
     >
-      <p ref={anchor} className="block-kind block-metadata"><MetadataLabel kind={kind} label={label} onEdit={editable && !editing && !properties ? beginProperties : undefined} /></p>
+      <p ref={anchor} className="block-kind block-metadata"><MetadataLabel kind={kind} label={label} onEdit={editable && !contentOnly && !editing && !properties ? beginProperties : undefined} /></p>
       {editable && hasUnappliedDraft ? (
         <p className="draft-status" role="status" data-testid="equation-draft-status">{i18n.t(editing
           ? "Unapplied changes are not saved. Apply to include them, or Cancel."
@@ -148,7 +149,7 @@ function EquationView({ node, editor, selected, getPos, view, onDraftChange }: R
             {number === undefined ? null : <span className="equation-number" data-testid="equation-number">({number})</span>}
           </div>
           {view.editable ? <div className="object-tools" data-object-tools="">
-            <ObjectTool icon={blockCommandAppearance("object-properties").icon!} label={i18n.t("Properties")} name={i18n.t("Equation properties")} aria-expanded={properties} onClick={beginProperties} />
+            {contentOnly ? null : <ObjectTool icon={blockCommandAppearance("object-properties").icon!} label={i18n.t("Properties")} name={i18n.t("Equation properties")} aria-expanded={properties} onClick={beginProperties} />}
             <ObjectTool icon={blockCommandAppearance("object-source").icon!} label={i18n.t("Edit source")} data-testid="equation-edit-source" onClick={() => properties ? apply(true) : beginEdit()} />
           </div> : null}
         </>

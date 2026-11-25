@@ -9,7 +9,7 @@ import { canEditEndnoteAt, endnoteAt, endnoteEditorToken, insertEndnote } from "
 import { freshBlockPath } from "./tiptap-document.ts";
 import { Asterisk, Bold, Bookmark, Code, Italic, Link2, Sigma, Strikethrough, Subscript, Superscript } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from "react";
-import { useEditorAuthoring } from "./editor-visibility.ts";
+import { useEditorAuthoring, useEditorContentOnly } from "./editor-visibility.ts";
 import type { DraftListener } from "./node-views/shared.ts";
 import { FieldError } from "./ui/primitives.tsx";
 import { Input } from "@/components/ui/input.tsx";
@@ -39,6 +39,7 @@ export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, o
   onEditReference: () => void;
 }) {
   useTranslation();
+  const contentOnly = useEditorContentOnly();
   const bounds = useOverlayBounds<HTMLDivElement>(true, anchor);
   return (
     <div ref={element => { bounds.current = element; toolbarRef.current = element; }}
@@ -127,13 +128,13 @@ export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, o
       >
         <Bookmark aria-hidden="true" size={16} />
       </Button>
-      <Button variant="ghost" size="icon-sm"
+      {contentOnly ? null : <Button variant="ghost" size="icon-sm"
         aria-label={i18n.t("Endnote")} title={tip(i18n.t("Endnote"))}
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => (endnoteAfterSelection(editor) ? undefined : onReject())}
       >
         <Asterisk aria-hidden="true" size={16} />
-      </Button>
+      </Button>}
     </div>
   );
 }

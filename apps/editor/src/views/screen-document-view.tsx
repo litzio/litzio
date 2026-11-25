@@ -1,19 +1,25 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type CSSProperties } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useCallback, type CSSProperties } from "react";
 import type { ScreenDocumentViewProps, ScreenDocumentViewState } from "@litzio/plugin-sdk";
 import type { DocumentFileResponse } from "../../shared/document-protocol.ts";
 import type { HostClient } from "../host-client.ts";
 import { HostClientContext } from "../host-context.tsx";
 import { createDocumentRequests } from "../document-session.ts";
-import { DocumentEditor } from "../DocumentEditor.tsx";
+import { DocumentEditor, type DocumentEditorHandle } from "../DocumentEditor.tsx";
+import { Button } from "../components/ui/button.tsx";
 import type { ReadingPosition } from "../document-reading.ts";
 import { Notice } from "../ui/primitives.tsx";
 import { MessageArea } from "../shell/MessageArea.tsx";
+import { useNotifications } from "../components/ui/notification-center.tsx";
 import { messageText, type UiMessage } from "../ui-message.ts";
 import { i18n } from "../i18n.ts";
 import "./screen-document-view.css";
 import { useDocumentViewInteractions } from "./screen-document-view-interactions.ts";
 import { useDocumentViewLayout } from "./screen-document-view-layout.ts";
 import { useDocumentViewNavigation } from "./screen-document-view-navigation.ts";
+import { createContentEditSession } from "./screen-document-view-editing.ts";
+
+/** As long as the window's other short notices. */
+const REFUSAL_NOTICE_MS = 5000;
 
 /** App-owned binding, never a plugin-supplied Host or root override. */
 export const DocumentViewScope = createContext<{ client: HostClient; roots: readonly string[] } | undefined>(undefined);
@@ -30,7 +36,10 @@ export type DocumentViewGeometry = {
   viewport: HTMLDivElement;
   paper: HTMLElement;
   actionHost: HTMLDivElement;
+  /** The latest saved revision shown. */
   revision: string;
+  /** Paths of this revision address the view: the one it read or one its own Saves continued. */
+  accepts(revision: string): boolean;
   scale: number;
   positions: ReadingPosition;
 };
@@ -39,15 +48,26 @@ export function DocumentView(props: ScreenDocumentViewProps) {
   return <DocumentViewSnapshot view={props} />;
 }
 
-/** Saved snapshots only. The existing reader owns admission, bibliography and its read timeout. */
+/** A saved snapshot, read-only or with content editing. The existing reader owns admission,
+ * bibliography and its read timeout; content editing saves through the official write path. */
 export function DocumentViewSnapshot({ view, onGeometry }: {
   view: ScreenDocumentViewProps;
   onGeometry?(geometry: DocumentViewGeometry | undefined): void;
 }) {
-  const { path, target, reloadKey, scale = 1, height = 480, label = i18n.t("Document preview"), onStateChange,
-    onVisibleBlockChange, onBlockClick, onVisibleBlockLayoutChange } = view;
+  const { target, scale = 1, height = 480, label = i18n.t("Document preview"), onStateChange,
+    onVisibleBlockChange, onBlockClick, onVisibleBlockLayoutChange, onEditStateChange, onSave } = view;
   const previewScale = Number.isNaN(scale) ? 1 : Math.max(0.4, Math.min(1, scale));
   const scope = useContext(DocumentViewScope);
+  // Unsaved edits hold a new path, reloadKey or mode until they are saved (see the effect below).
+  const wanted = { path: view.path, reloadKey: view.reloadKey, edit: view.editContent === true };
+  const [shown, setShown] = useState(wanted);
+  const [discarded, discardEdits] = useReducer((count: number) => count + 1, 0);
+  const [, editChanged] = useReducer((count: number) => count + 1, 0);
+  const editorRef = useRef<DocumentEditorHandle>(null);
+  const sessionRef = useRef<ReturnType<typeof createContentEditSession>>(undefined);
+  const differs = shown.path !== wanted.path || shown.reloadKey !== wanted.reloadKey || shown.edit !== wanted.edit;
+  const holding = differs && !!sessionRef.current?.pending();
+  const { path, reloadKey, edit } = differs && !holding ? wanted : shown;
   let scopeProblem = "";
   try {
     if (!scope) throw new Error("DocumentView requires a plugin screen's Host and opened folders.");
@@ -59,8 +79,51 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
   const viewport = useRef<HTMLDivElement>(null);
   const actions = useRef<HTMLDivElement>(null);
   const notify = useRef(onStateChange); notify.current = onStateChange;
-  const request = useMemo(() => ({}), [path, reloadKey, scope?.client, scopeProblem]);
+  const request = useMemo(() => ({}), [path, reloadKey, edit, discarded, scope?.client, scopeProblem]);
   const file = snapshot?.request === request ? snapshot.file : undefined;
+  const saved = useRef(onSave); saved.current = onSave;
+  // The provider's value is a new object on each screen render; the session lives for one read.
+  const scopeRef = useRef(scope); scopeRef.current = scope;
+  const lastSession = useRef<ReturnType<typeof createContentEditSession>>(undefined);
+  // Reading again a file still at a revision this view saved keeps the same paths, read-only or editing.
+  const inherited = useMemo(() => file && lastSession.current?.path === file.path && lastSession.current.accepts(file.revision)
+    ? lastSession.current.revisions() : undefined, [file]);
+  // A document without blocks takes no input: nothing typed into it could be saved.
+  const session = useMemo(() => file && edit && file.document.blocks.length > 0 ? createContentEditSession({
+    snapshot: file,
+    continues: inherited,
+    editor: () => editorRef.current,
+    requestSave: body => {
+      const current = scopeRef.current;
+      if (!current) throw new Error("DocumentView requires a plugin screen's Host and opened folders.");
+      current.client.assertCurrent();
+      assertDocumentViewPath(body.path, current.roots);
+      return createDocumentRequests(current.client).requestSave(body);
+    },
+    onChange: editChanged,
+    onSave: save => saved.current?.(save),
+  }) : undefined, [file, edit, inherited]);
+  sessionRef.current = session;
+  if (session) lastSession.current = session;
+  useEffect(() => {
+    session?.activate();
+    return () => session?.dispose();
+  }, [session]);
+  const notifyEdit = useRef(onEditStateChange); notifyEdit.current = onEditStateChange;
+  const editState = session?.state, editRevision = session?.revision, editError = session?.error;
+  useEffect(() => {
+    if (!editState || !editRevision) return;
+    notifyEdit.current?.({ state: editState, revision: editRevision, ...(editError ? { message: editError.message } : {}) });
+  }, [editState, editRevision, editError]);
+  useEffect(() => {
+    if (!differs) return;
+    if (!holding) { setShown(wanted); return; }
+    // Save first; read again only after that Save succeeds. A failure keeps its state and the edits.
+    void sessionRef.current?.flush().then(ok => { if (ok) editChanged(); });
+  });
+  const latestRevision = session?.revision ?? file?.revision;
+  const accepts = useCallback((revision: string) => session ? session.accepts(revision)
+    : revision === file?.revision || !!inherited?.includes(revision), [session, file, inherited]);
   useEffect(() => {
     const controller = new AbortController();
     setSnapshot(undefined); setProblem(""); setPositions(undefined);
@@ -84,11 +147,11 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
   const location = block && (cell ? positions?.cells.find(position => position.table === JSON.stringify(block.path) && position.row === cell.row && position.column === cell.column)
     : positions?.blocks.find(position => position.key === JSON.stringify(block.path)));
   const unsupported = !!file && !!target && !block;
-  const stale = !!file && !!target && target.revision !== file.revision;
+  const stale = !!file && !!target && !accepts(target.revision);
   const message = problem || (stale ? i18n.t("The target revision differs from this saved snapshot. Read again before navigating.")
     : unsupported ? i18n.t("The target is not a supported block or table cell in this snapshot.") : "");
   const state: ScreenDocumentViewState["state"] = problem ? "error" : !file ? "loading" : stale ? "stale-target" : unsupported ? "target-not-found" : "ready";
-  useEffect(() => { notify.current?.({ state, ...(file ? { revision: file.revision } : {}), ...(message ? { message } : {}) }); }, [state, file, message]);
+  useEffect(() => { notify.current?.({ state, ...(latestRevision ? { revision: latestRevision } : {}), ...(message ? { message } : {}) }); }, [state, latestRevision, message]);
   const selected = !stale && location;
   const clip = selected && "clip" in selected ? selected.clip : undefined;
   const highlight = selected && target?.highlight !== false ? <div className="screen-document-view-highlight" data-testid="document-view-highlight" data-target-kind={cell ? "cell" : "block"} aria-hidden="true"
@@ -99,38 +162,68 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
       width: selected.width / previewScale,
       height: selected.height / previewScale,
     }} /> : null;
-  const cancelScroll = useDocumentViewInteractions(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockChange, onBlockClick);
+  const cancelScroll = useDocumentViewInteractions(viewport, request, latestRevision, positions, !!file && !stale && !problem, onVisibleBlockChange, onBlockClick);
   const alignTop = typeof target?.top === "number" && Number.isFinite(target.top) ? target.top : undefined;
   // With top, only revision, path, top and request place the target again; highlight changes only the highlight.
   // Targets without top keep their value rule, including highlight.
   const placement = alignTop === undefined ? [target?.highlight] : [alignTop, target?.request];
-  const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, target?.revision, ...placement, reloadKey]), selected, alignTop === undefined && target?.highlight === false, cancelScroll, previewScale, positions, alignTop);
-  useDocumentViewLayout(viewport, request, file?.revision, positions, !!file && !stale && !problem, onVisibleBlockLayoutChange);
+  // A Save by this view keeps paths and places nothing again; only another target revision does.
+  const targetRevision = target && accepts(target.revision) ? file?.revision : target?.revision;
+  const navigation = useDocumentViewNavigation(viewport, request, JSON.stringify([file?.revision, targetKey, targetRevision, ...placement, reloadKey]), selected, alignTop === undefined && target?.highlight === false, cancelScroll, previewScale, positions, alignTop);
+  useDocumentViewLayout(viewport, request, latestRevision, positions, !!file && !stale && !problem, onVisibleBlockLayoutChange);
   useLayoutEffect(() => {
     if (!onGeometry) return;
     const element = viewport.current;
     const paper = element?.querySelector<HTMLElement>(".document");
-    onGeometry(element && paper && actions.current && positions && file && !stale && !problem
-      ? { viewport: element, paper, actionHost: actions.current, revision: file.revision, scale: previewScale, positions }
+    onGeometry(element && paper && actions.current && positions && file && latestRevision && !stale && !problem
+      ? { viewport: element, paper, actionHost: actions.current, revision: latestRevision, accepts, scale: previewScale, positions }
       : undefined);
-  }, [file, stale, problem, positions, previewScale, onGeometry]);
-  const reject = useCallback(() => setProblem(i18n.t("This document could not be displayed.")), []);
+  }, [file, latestRevision, accepts, stale, problem, positions, previewScale, onGeometry]);
   const fillHeight = height === "fill";
-  const [linkNotice, setLinkNotice] = useState<UiMessage>("");
-  useEffect(() => setLinkNotice(""), [path, file?.revision, reloadKey]);
-  return <section className="screen-document-view" aria-label={label} data-state={state} data-fill-height={fillHeight || undefined}>
-    <MessageArea error="" notice={messageText(linkNotice)} noticeCause={linkNotice} onNoticeExpired={() => setLinkNotice("")} />
+  const [notice, setNotice] = useState<UiMessage>("");
+  // A refused edit or copy leaves the document unchanged. Say so briefly instead of failing the view:
+  // a warning card of the window's notification center, which shows without taking focus.
+  const [refusal, setRefusal] = useState<UiMessage>("");
+  const reject = useCallback((reason?: UiMessage) => setRefusal(reason ?? { key: "This change cannot preserve the supported document structure. Your document is unchanged." }), []);
+  useEffect(() => { setNotice(""); setRefusal(""); }, [path, file?.revision, reloadKey]);
+  useEffect(() => {
+    if (!refusal) return;
+    const timer = setTimeout(() => setRefusal(""), REFUSAL_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [refusal]);
+  const refusalText = refusal ? messageText(refusal) : "";
+  useNotifications(refusalText ? [{ id: `document-view-refused:${refusalText}`, message: refusalText, severity: "warning", testId: "document-view-refused" }] : []);
+  return <section className="screen-document-view" aria-label={label} data-state={state} data-edit-state={session?.state} data-fill-height={fillHeight || undefined}
+    onBlur={event => { if (session && !event.currentTarget.contains(event.relatedTarget as Node | null)) void session.flush(); }}>
+    <MessageArea error="" notice={messageText(notice)} noticeCause={notice} onNoticeExpired={() => setNotice("")} />
     {message ? <Notice tone={problem ? "error" : "warning"}>{message}</Notice> : null}
+    {session?.state === "conflict" ? <Notice tone="warning" className="screen-document-view-notice" data-testid="document-view-conflict">
+      <p>{i18n.t("This document changed outside this view. Your edits are kept here but cannot be saved.")}</p>
+      <Button variant="outline" size="sm" onClick={discardEdits}>{i18n.t("Read again (discard edits)")}</Button>
+    </Notice> : session?.state === "failed" && session.error ? <Notice tone="error" className="screen-document-view-notice" data-testid="document-view-save-error">
+      <p>{session.error.message}</p>
+    </Notice> : null}
     {!file && !problem ? <p role="status">{i18n.t("Loading document…")}</p> : null}
     {file && scope && !problem ? <HostClientContext.Provider value={scope.client}>
       <div className="screen-document-view-scroll" ref={viewport} role="region" aria-label={label + " content"} tabIndex={0} style={fillHeight ? undefined : { height }} {...navigation} onKeyDownCapture={event => {
         navigation.onKeyDownCapture(event);
-        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); event.stopPropagation(); }
-      }}>
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+          event.preventDefault(); event.stopPropagation();
+          void session?.flush(true);
+        }
+      }} onCompositionEnd={() => session?.compositionEnded()}>
         <div className="screen-document-view-content" style={{"--document-view-scale":previewScale} as CSSProperties}>
           {onGeometry && <div className="screen-document-view-actions" ref={actions} />}
-          <DocumentEditor key={JSON.stringify([path, file.revision, reloadKey])} readOnly preview document={file.document} bibliography={file.bibliography}
-            documentPath={file.path} onStructuralReject={reject} onReadingLayout={setPositions} onNotice={setLinkNotice} />
+          <DocumentEditor key={JSON.stringify([path, file.revision, reloadKey, edit])} ref={editorRef} readOnly={!session} preview contentOnly={!!session}
+            document={file.document} bibliography={file.bibliography}
+            documentPath={file.path} onStructuralReject={reject} onReadingLayout={setPositions} onNotice={setNotice}
+            {...session ? {
+              onDirtyChange: (dirty: boolean) => session.dirty(dirty),
+              onAppliedEdit: () => session.edited(),
+              onBlockLeave: () => void session.flush(),
+              // An edit form (equation source, inline math, link) applied or closed.
+              onDraftChange: (active: boolean) => { if (!active) setTimeout(() => void session.flush()); },
+            } : {}} />
           {clip ? <div className="screen-document-view-highlight-clip" style={{top:clip.top,left:clip.left,width:clip.width,height:clip.height}}>{highlight}</div> : highlight}
         </div>
       </div>

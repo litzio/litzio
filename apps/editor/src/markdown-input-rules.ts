@@ -2,6 +2,7 @@ import { Extension, InputRule, markInputRule, type InputRuleFinder } from "@tipt
 import { closeHistory } from "@tiptap/pm/history";
 import type { Fragment, MarkType, NodeType } from "@tiptap/pm/model";
 import { TextSelection, type Transaction } from "@tiptap/pm/state";
+import { isStructureLocked } from "./structure-lock.ts";
 import { freshBlockPath } from "./tiptap-document.ts";
 
 // Markdown input shortcuts are Editor-only interaction: each one produces the same engine
@@ -71,7 +72,8 @@ function blockRule(find: RegExp, shortcut: (match: RegExpMatchArray) => BlockSho
   return new InputRule({
     find,
     undoable,
-    handler: ({ state, range, match }) =>
+    // Where blocks cannot change, the typed text stays text.
+    handler: ({ state, range, match }) => !isStructureLocked(state) &&
       applyBlockShortcut(state.tr, range.from, range.to, shortcut(match)) ? undefined : null,
   });
 }

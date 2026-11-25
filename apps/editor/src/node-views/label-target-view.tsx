@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { NodeViewWrapper, useEditorState, type ReactNodeViewProps } from "@tiptap/react";
+import { useEditorContentOnly } from "../editor-visibility.ts";
 import { labelKey, targetLabelError } from "@litzio/core/label";
 import { FieldError } from "../ui/primitives.tsx";
 import { Input } from "@/components/ui/input.tsx";
@@ -22,7 +23,8 @@ function sectionLabelError(doc: ProseMirrorNode, own: number, label: string): st
 
 export function LabelTargetView({ node, editor, getPos, selected }: ReactNodeViewProps) {
   useTranslation();
-  const editable = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable });
+  const contentOnly = useEditorContentOnly();
+  const editable = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable }) && !contentOnly;
   const formId = useId();
   const label = String(node.attrs.label ?? "");
   const anchor = useRef<HTMLParagraphElement>(null);

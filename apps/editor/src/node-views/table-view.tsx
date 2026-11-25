@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { NodeViewContent, NodeViewWrapper, useEditorState, type ReactNodeViewProps } from "@tiptap/react";
+import { useEditorContentOnly } from "../editor-visibility.ts";
 import { NodeSelection } from "@tiptap/pm/state";
 import { labelError } from "@litzio/core/label";
 import { FieldError } from "../ui/primitives.tsx";
@@ -28,6 +29,7 @@ export function TableCaptionView({ node, editor, getPos }: ReactNodeViewProps) {
 export function TableView({ node, editor, getPos, selected, onDraftChange }: ReactNodeViewProps & { onDraftChange?: DraftListener }) {
   useTranslation();
   const editable = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable });
+  const contentOnly = useEditorContentOnly();
   const formId = useId();
   const grid = useRef<HTMLDivElement>(null);
   const rowLayer = useRef<HTMLDivElement>(null);
@@ -45,7 +47,7 @@ export function TableView({ node, editor, getPos, selected, onDraftChange }: Rea
   const sourcePath = String(node.attrs.sourcePath);
   const dirty = editing && (draft !== label || numberDraft.changedFrom(enumerator));
   useEffect(() => { onDraftChange?.("Table", sourcePath, dirty); return () => onDraftChange?.("Table", sourcePath, false); }, [sourcePath, dirty, onDraftChange]);
-  const begin = () => { if (!editor.isEditable || editing) return; setDraft(label); numberDraft.reset(enumerator); setError(""); setEditing(true); };
+  const begin = () => { if (!editor.isEditable || contentOnly || editing) return; setDraft(label); numberDraft.reset(enumerator); setError(""); setEditing(true); };
   usePropertyEntry(anchor, begin);
   useObjectActions(anchor, { properties: begin });
   const close = (returnCaret = true) => { setEditing(false); if (returnCaret) focusBlock(editor.view, getPos); };
@@ -68,7 +70,7 @@ export function TableView({ node, editor, getPos, selected, onDraftChange }: Rea
       event.preventDefault();
       editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, position)));
       editor.view.focus();
-    }} onDoubleClick={begin}><MetadataLabel kind={kind} label={label} onEdit={editable && !editing ? begin : undefined} /></p>
+    }} onDoubleClick={begin}><MetadataLabel kind={kind} label={label} onEdit={editable && !contentOnly && !editing ? begin : undefined} /></p>
     <div ref={actionLayer} className="object-tools table-action-bar" data-object-tools="" contentEditable={false} />
     <div className="table-scroll"><div ref={grid} className="table-grid">
       <NodeViewContent as="div" className="table" />

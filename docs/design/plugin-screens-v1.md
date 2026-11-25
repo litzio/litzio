@@ -2,7 +2,8 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작 계약](plugin-stage1-v1.md).
-- Last verified: 2026-11-23 — ScreenLayout `back`의 SDK 타입·제작 안내·문서 계약을 대조하고, UI gallery의 합성 화면에서 접근성 이름·Tab 순서·hover/focus 안내·긴 이름 줄임·비활성·narrow 배치·640px 배치와 back이 없는 머리의 변경 전후 픽셀 일치를, plugin-screen-code 시나리오에서 실제 플러그인 화면 머리를 Windows persistent Chrome으로 검증했다. 실제 플러그인의 back 사용·실제 AI 제작·packaged Desktop 수락·소유자 시각 승인은 포함하지 않는다.
+- Last verified: 2026-11-25 — [문서 보기의 내용 편집](#내용-편집)(#1976)을 production HTTP Host의 document-view-editing 시나리오(Windows persistent Chrome)와 Editor 단위 검사로 확인했다. 실제 OS 한국어 입력기·packaged Desktop·실제 문서 가져오기 플러그인에서의 사용·소유자 시각 승인은 포함하지 않는다.
+- Previous verification: 2026-11-23 — ScreenLayout `back`의 SDK 타입·제작 안내·문서 계약을 대조하고, UI gallery의 합성 화면에서 접근성 이름·Tab 순서·hover/focus 안내·긴 이름 줄임·비활성·narrow 배치·640px 배치와 back이 없는 머리의 변경 전후 픽셀 일치를, plugin-screen-code 시나리오에서 실제 플러그인 화면 머리를 Windows persistent Chrome으로 검증했다. 실제 플러그인의 back 사용·실제 AI 제작·packaged Desktop 수락·소유자 시각 승인은 포함하지 않는다.
 
 ## 연결 수명
 
@@ -41,7 +42,7 @@ DataTable의 열 이름은 읽기 전용 값 이름 역할이며 정렬·필터 
 행이 없는 DataTable의 빈 안내는 표와 같은 폭을 쓰며, 한 열의 좁은 표에서도 안내 문구가 줄바꿈된다. 빈 안내의 문구와 status 역할은 유지한다.
 플러그인 내용 영역(screen-layout)의 h2는 type-section-title, h3·h4는 type-item-name과 기존 간격 토큰으로 소제목 위계를 표현한다. 화면 틀 제목과 템플릿 갤러리의 제목 규칙은 유지한다.
 
-제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 읽기 전용 문서에는 DocumentView를, 자료와 문서 블록을 대응해서 볼 때는 [LinkedDocumentView](#자료와-문서-블록의-연결-띠)를 사용한다.
+제작자·비서에게 전달하는 디자인 안내의 단일 출처는 SDK의 SCREEN_UI_GUIDANCE다. authoring skill은 이 문자열을 그대로 포함한다. 제공 부품 사용을 강제하지 않으며 디자인 품질을 자동 보장하지 않는다. 저장된 문서를 보거나 블록 안의 내용을 고칠 때는 DocumentView를, 자료와 문서 블록을 대응해서 볼 때는 [LinkedDocumentView](#자료와-문서-블록의-연결-띠)를 사용한다.
 
 플러그인 부품 갤러리 1440px 수동 비교: Select [밝음 전](assets/plugin-screen-controls-1717/before-select-light.png)·[후](assets/plugin-screen-controls-1717/after-select-light.png), [어두움 전](assets/plugin-screen-controls-1717/before-select-dark.png)·[후](assets/plugin-screen-controls-1717/after-select-dark.png). ContextMenu [밝음](assets/plugin-screen-controls-1717/menu-light.png)·[어두움](assets/plugin-screen-controls-1717/menu-dark.png). 소유자 시각 승인은 포함하지 않는다.
 
@@ -88,9 +89,9 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 직접 스타일과 자유로운 구성은 계속 허용하며 화면 종류·상단 탭·구성 검사나 경고는 제공하지 않는다.
 
-## 읽기 전용 문서 보기
+## 문서 보기
 
-`ui.DocumentView({path,target?,reloadKey?,scale?,height?,label?,onStateChange?,onVisibleBlockChange?,onBlockClick?,onVisibleBlockLayoutChange?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 readOnly/preview로 사용해 그림·수식·표·참조·테마를 표시한다. 블록 호버 테두리도 읽기 전용 문서 탭과 같이 유지하며, 문서 보기의 본문 여백을 기준으로 블록 영역을 감싼다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 표는 번호·레이블 행을 유지하고 조작 도구용 여백을 예약하지 않는다([표 간격](table-interaction-v1.md#whole-table-tools-793), #1481). 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
+`ui.DocumentView({path,target?,reloadKey?,scale?,height?,label?,onStateChange?,onVisibleBlockChange?,onBlockClick?,onVisibleBlockLayoutChange?,editContent?,onEditStateChange?,onSave?})`는 이 화면의 고정 HostClient와 열린 폴더에 묶인다. path는 열린 폴더 안의 Host 절대 경로다. 상대 경로·폴더 밖·점 경로 탈출은 오류다. 파일 읽기는 기존 document GET 및 bibliography 읽기 경로를 쓰며 다른 Host나 로컬 경로로 fallback하지 않는다. 일반 문서 탭과 동일한 DocumentEditor를 preview로 사용해 그림·수식·표·참조·테마를 표시한다. 기본은 읽기 전용이며 `editContent`를 켜면 [내용 편집](#내용-편집)을 한다. 블록 호버 테두리도 읽기 전용 문서 탭과 같이 유지하며, 문서 보기의 본문 여백을 기준으로 블록 영역을 감싼다. 문서가 없거나 지원하지 않는 형식이면 오류 상태를 보여 준다. 표는 번호·레이블 행을 유지하고 조작 도구용 여백을 예약하지 않는다([표 간격](table-interaction-v1.md#whole-table-tools-793), #1481). 화면 reload·언마운트·경로/다시 읽기 변경 시 이전 요청을 취소하고 늦은 응답은 표시하지 않는다.
 
 [문서 안 링크](editor-ux-shell-v1.md#open-ordinary-links-725)를 누르면 보기 내부의 대상 블록으로 이동하여 잠시 윤곽을 표시한다. 클릭은 링크 동작으로 처리되며 `onBlockClick`을 호출하지 않는다. 문서 안 링크와 번호 참조에 마우스를 올리면 편집기와 같은 [대상 미리보기](editor-ux-shell-v1.md#in-document-target-previews-1958)가 뜬다.
 
@@ -104,11 +105,11 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 - `reloadKey?: string|number`: 값을 바꾸면 저장본을 다시 읽는다. target 변경이나 현재 문서를 여전히 포함하는 무관한 폴더 목록 변경은 다시 읽지 않는다. 현재 문서가 열린 폴더 범위에서 빠지면 요청을 취소하고 표시를 지운다. polling·자동 변경 추적·오래된 경로 자동 재대응은 없다. 새 저장본의 revision이 target과 다르면 stale-target으로 알리고 이동·강조하지 않는다.
 - `scale?: number`: 기본 1, 0.4~1 범위로 맞춘다(NaN은 1). 문서 보기 안의 문서에만 CSS zoom을 적용해 글자·그림·표·수식을 함께 줄이고 본문은 폭에 맞춰 다시 흐른다. 그림(Mermaid 포함)과 표는 배율 1의 가용 폭을 기준으로 줄이므로 넓은 그림이 축소 뒤에도 보기 폭을 채우지 않는다. transform 축소는 빈 여백과 레이아웃 크기를 남기므로 쓰지 않고, 글꼴 변수만 줄이는 방식은 그림·수식을 함께 줄이지 못하므로 쓰지 않는다. 강조는 축소 영역 밖에서 실제 CSS px로 그린다. 배율 변경 시 보던 최상위 블록을 유지하고, 다음 target 변경부터 다시 대상 이동을 따른다. 편집기 본체·저장본에는 영향이 없다.
 - `height?: number | "fill"`: 숫자는 내부 스크롤 영역 높이(px)이며 기본은 480이다. `"fill"`은 높이가 정해진 부모를 채우고 내부에서 스크롤한다. `ScreenLayout`의 채우기 모드에서 문서 보기 옆의 칸도 같은 높이로 둘 수 있다. 외부 폭·배치는 플러그인이 정한다. `label?:string`은 접근성 이름(기본 Document preview)이다.
-- `onStateChange?({state,revision?,message?})`: loading/ready/error/stale-target/target-not-found를 전달한다. 저장본을 읽으면 revision을 제공한다. 기존 문서 탭의 미저장 내용이 아닌 저장본 revision이다.
+- `onStateChange?({state,revision?,message?})`: loading/ready/error/stale-target/target-not-found를 전달한다. 저장본을 읽으면 revision을 제공한다. 기존 문서 탭의 미저장 내용이 아닌 저장본 revision이며, 이 보기가 내용 편집을 저장하면 그 새 revision이다.
 
 대상 이동은 처음 측정한 좌표에 고정하지 않는다. 렌더러가 수식·그림·글꼴·셀 배치 및 폭 변화를 관측해 좌표를 다시 보고하면, 대상이 내부 뷰포트에서 벗어났을 때 다시 보이게 한다. 넓은 표의 셀은 기존 표 자체의 가로 스크롤 상자 안에서 이동하고 강조도 그 상자에 맞춰 잘린다. 문서 보기나 플러그인 화면 전체를 가로로 이동시키지 않는다. 대상을 새로 지정하거나 저장본을 읽은 직후에도 강조할 대상이 이미 보이면 현재 스크롤 위치에서 강조만 한다. 사용자가 보기 또는 표 안에서 wheel·가로/세로 스크롤 키·스크롤바로 직접 스크롤하면 같은 대상에 대한 자동 위치 맞춤은 중단하고 강조 좌표만 갱신한다. 경로·revision·reloadKey가 바뀌거나 대상을 해제한 뒤 다시 지정하면 자동 위치 맞춤을 재개한다. 뷰포트보다 큰 대상은 시작 부분을 보여 준다. 임의의 시간 대기나 문서 의미 변경은 없다.
 
-SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편집 세션·검수 상태·대응 저장소·화면 전체 좌표·가로 좌표·셀/중첩 블록 좌표·연결선·PDF·탭 조작은 넣지 않는다. 화면 상호작용이므로 별도 CLI 명령은 만들지 않으며 읽기는 기존 inspect를 사용한다. UI gallery의 Document view는 합성 snapshot을 사용하는 같은 부품의 예제다. 새 색/대화/일반 상호작용 없이 기존 paper·간격·accent·warning Notice를 사용한다.
+SDK props에는 엔진·DOM 타입이 없다. 구조 편집·복구 기록·문서 탭의 편집 세션·검수 상태·대응 저장소·화면 전체 좌표·가로 좌표·셀/중첩 블록 좌표·연결선·PDF·탭 조작은 넣지 않는다. 화면 상호작용이므로 별도 CLI 명령은 만들지 않으며 읽기는 기존 inspect를 사용한다. 내용 편집의 저장은 기존 Core 연산과 공식 저장 경로이므로 CLI의 기존 문서 명령이 같은 의미를 갖는다. UI gallery의 Document view는 합성 snapshot을 사용하는 같은 부품의 예제다. 새 색/대화/일반 상호작용 없이 기존 paper·간격·accent·warning Notice를 사용한다.
 
 넓은 그림·표 축소(합성 자료·1440px 밝음): [1 전](assets/document-view-scale-1728/before-1.png) · [1 후](assets/document-view-scale-1728/after-1.png) · [0.5 전](assets/document-view-scale-1728/before-0.5.png) · [0.5 후](assets/document-view-scale-1728/after-0.5.png).
 
@@ -124,7 +125,34 @@ SDK props에는 엔진·DOM 타입이 없다. 편집·저장·복구·독립 편
 
 12열 표 마지막 셀의 가로 이동·강조 표본: [1440 밝음](assets/plugin-document-view-targets-1592/wide-1440-light.png), [1440 어두움](assets/plugin-document-view-targets-1592/wide-1440-dark.png), [640 밝음](assets/plugin-document-view-targets-1592/wide-640-light.png), [640 어두움](assets/plugin-document-view-targets-1592/wide-640-dark.png). 표 안에서만 가로로 이동하고 바깥 문서 보기는 가로로 넘치지 않는다.
 
-각 DocumentView는 저장본을 따로 읽고 읽기 전용 DocumentEditor/Tiptap 인스턴스를 만든다. 한 화면에 여러 개를 동시에 mount하면 읽기·렌더링·레이아웃과 메모리 비용도 각각 든다. 현재 필요한 보기만 mount하도록 구성하는 것을 권장한다. 407블록의 고정 합성 표본과 단일 보기에서 최초 강조 약 1.45초(화면 코드 변경 감지 포함), 캐시가 있는 일반 재읽기 후 이동 169ms를 관측했다. 이는 성능 보장이나 여러 문서의 비교 측정이 아니다. 메모리·여러 보기 동시 표시의 응답성과 packaged Desktop에서의 동시 표시 동작은 검증하지 않았다.
+각 DocumentView는 저장본을 따로 읽고 자기 DocumentEditor/Tiptap 인스턴스를 만든다. 한 화면에 여러 개를 동시에 mount하면 읽기·렌더링·레이아웃과 메모리 비용도 각각 든다. 현재 필요한 보기만 mount하도록 구성하는 것을 권장한다. 407블록의 고정 합성 표본과 단일 보기에서 최초 강조 약 1.45초(화면 코드 변경 감지 포함), 캐시가 있는 일반 재읽기 후 이동 169ms를 관측했다. 이는 성능 보장이나 여러 문서의 비교 측정이 아니다. 메모리·여러 보기 동시 표시의 응답성과 packaged Desktop에서의 동시 표시 동작은 검증하지 않았다.
+
+### 내용 편집
+
+`editContent: true`이면 보기 안에서 블록 안의 내용을 바로 고친다. 따로 켜는 단추는 없고 화면 코드가 속성으로 켠다. 원본과 변환된 문서를 나란히 두고 블록끼리 잇는 화면에서, 변환이 놓친 표 칸의 수식이나 오타를 그 자리에서 채우는 용도다. 블록의 수·순서·종류가 그대로여서 원본과의 대응이 유지된다.
+
+- 고칠 수 있는 것: 문단·제목·알림 상자·인용의 글자와 인라인 서식·링크·참조·인라인 수식, 표 칸·표 캡션·표 주석, 목록 항목(목록 안에서 더하기·빼기·들여쓰기 포함), 수식 원문(수식 편집 창), 코드 블록, 기존 미주 정의의 글자.
+- 바뀌지 않는 것: 최상위 블록의 수·순서·종류(제목 단계, 알림 상자 종류 포함)와 표의 행·열 수. 편집기의 구조 검사가 각 변경이 이전 구조를 그대로 두는지 확인하고, 아니면 받아들이지 않는다. Enter로 문단 가르기, Backspace·Delete로 앞뒤 블록 합치기, 두 블록에 걸친 입력, 여러 문단 붙여넣기, 블록 지우기, 목록 밖으로 빼기, 제목 단계 바꾸기가 여기에 해당한다. 미주 참조는 더하거나 지우거나 옮길 수 없다: 인라인을 담는 모든 자리(문단·제목·목록 항목·표 칸·캡션·알림 상자·미주 정의 등)마다 그 안의 미주 참조 라벨 나열이 열 때와 같아야 한다. 공식 저장은 참조에서 미주를 완성하므로(마지막 참조를 잃은 정의 지우기, 첫 참조 순서로 정의 배치) 참조가 바뀌면 미주 블록이 지워지거나 옮겨진다. 편집기 구조 검사와 보내기 전 검사가 이 비교를 따로 한다. 참조 둘레의 글자와 미주 정의 본문의 글자는 고칠 수 있다. 블록이 하나도 없는 문서는 입력을 받지 않는다. 막힌 동작은 문서를 바꾸지 않고 짧은 안내만 띄우며 보기는 오류 상태가 되지 않는다. 안내는 창의 공용 알림 센터에 경고 카드로 5초 동안 보인다(focus를 가져가지 않는다). 정보 알림은 카드가 저절로 열리지 않아 누른 키가 왜 무시됐는지 알 수 없기 때문이다. `# `·`- `·`1. ` 같은 블록 입력 규칙은 블록을 바꾸지 않고 입력한 글자로 남는다. 문서 끝으로 가는 동작은 빈 문단을 더하지 않고 마지막 블록 끝으로 간다.
+- 보이지 않는 것: 블록 손잡이와 블록 메뉴, 슬래시 메뉴의 블록 항목과 미주 넣기, 선택 도구 줄의 미주 단추, 표 도구(행·열), 그림 속성, 표·수식·구역 라벨의 속성, 문서 설정. 문서 제목은 읽기 전용 보기처럼 있을 때만 보이며 고칠 수 없다.
+- 저장 시점: 고친 최상위 블록을 벗어날 때(다른 블록으로 커서가 옮겨 갈 때), 보기 밖으로 focus가 나갈 때, 보기 안에서 Ctrl+S를 누를 때, 편집 창(수식·인라인 수식·링크)을 적용하거나 닫은 뒤. 입력이 클릭의 커서 이동보다 먼저 처리돼 커서가 새 블록으로 옮겨 간 경우는 블록을 벗어난 것으로 보지 않는다. 한국어 등 입력기 조합 중에는 조합이 끝난 뒤 저장한다. 문서 탭은 [Ctrl+S로 저장](../adr/0007-editing-session-lifetime.md)하지만 이 보기는 블록을 벗어날 때 저장한다. 탭이 아닌 화면에는 닫기 확인과 복구 기록이 없으므로 잃을 수 있는 범위를 블록 하나로 줄이기 위해서다. 저장은 문서 탭과 같은 공식 저장 경로(revision 확인, 이전에 받아들여진 편집의 재생, Core 연산, 파일 교체)를 쓴다. ADR-0007이 자동 저장에 둔 조건과 같이 별도 쓰기 경로를 만들지 않고, 저장할 수 없으면 미저장으로 남기며, 충돌하면 덮어쓰지 않는다. 보내기 전에 저장 요청에 구조 변경 항목(순서·나누기·합치기·넣기·지우기·제목 단계·표의 행·열·알림 상자 종류)이 있으면 보내지 않는다. Host 쪽 구조 검사는 없다.
+- 차례: 저장은 한 번에 하나씩 차례로 보낸다. 저장 중에 생긴 저장 요청은 앞 저장이 끝난 뒤 한 번으로 묶어 보낸다. 실패한 저장은 Ctrl+S나 새로 고친 뒤에만 다시 보낸다.
+- `onEditStateChange?({state,revision,message?})`: `clean`(저장할 것이 없음)·`unsaved`·`saving`·`failed`·`conflict`. revision은 이 보기가 읽었거나 마지막으로 저장한 revision이고 message는 실패·충돌의 설명이다. 화면 머리의 상태 표시는 화면 코드가 이 알림으로 그린다.
+- `onSave?({previousRevision,revision})`: 이 보기의 저장을 Host가 받아들일 때마다 알린다.
+- revision: 구조가 잠겨 있으므로 저장 뒤에도 NodePath가 같다. 저장할 때 편집기를 다시 만들지 않고 받아들여진 revision만 바꾼다. 이 보기가 읽은 revision과 이 보기의 저장으로 이어진 revision은 모두 `target.revision`과 LinkedDocumentView의 `revision`으로 유효하다. 다시 읽은 파일이 이 보기가 저장한 revision 그대로이면 `editContent`를 끈 읽기 전용 보기에서도 이어진 revision들을 계속 받아들이고, 다른 프로그램이 바꾼 revision을 읽으면 그 revision부터 다시 시작한다. 저장 순간에도 강조·연결 띠·보던 자리·클릭 알림이 끊기지 않는다. 알림(`onStateChange`, `onVisibleBlockChange`, `onBlockClick`, `onVisibleBlockLayoutChange`)은 최신 revision을 싣는다.
+- 보장: 내용 편집 저장은 최상위 구조를 바꾸지 않는다. 대응을 가진 화면 코드는 이를 믿지 말고 저장본을 읽어 블록 수·종류를 확인한다.
+- 충돌: 밖에서 파일이 바뀌어 Host가 저장을 거절(409)하면 고친 내용을 보기에 남긴 채 `conflict`로 바꾸고, 보기 안 경고 Notice에 상태와 [다시 읽기(고친 내용 버림)]를 보인다. 덮어쓰지 않으며 그 뒤의 저장도 보내지 않는다. 다시 읽기를 누르면 고친 내용을 버리고 저장본을 다시 읽는다. 다른 실패는 보기 안 오류 Notice에 이유를 보인다.
+- 다시 읽기: 미저장 상태(저장 중 포함)에서 `reloadKey`·`path`·`editContent`가 바뀌면 먼저 저장한 뒤 다시 읽는다. 저장이 실패하면 다시 읽지 않고 실패 상태를 유지한다. 저장할 것이 없으면 바로 다시 읽는다.
+- 소유: 편집 중 상태의 소유자는 그 문서 보기 하나이며 수명은 마운트(한 번의 읽기)와 같다. 앱의 탭 목록·Host·플러그인에 새 상태를 두지 않는다. 미저장 보기를 닫을 때의 확인과 복구 기록은 없다. 같은 문서가 문서 탭에도 열려 있으면 탭의 기존 외부 변경 감지를 따른다. 문서 탭이나 비서가 같은 문서를 고친 뒤 대응을 이어 붙이는 일은 화면 코드의 몫이다.
+
+내용 편집 표본(합성 자료, production HTTP Host, persistent Chrome): [저장 중 · 1440 밝음](assets/document-view-editing-1976/saving-1440-light.png) · [저장 중 · 1920×1080 밝음](assets/document-view-editing-1976/saving-1920-light.png) · [저장 중 · 1440 어두움](assets/document-view-editing-1976/saving-1440-dark.png), [막힌 동작의 알림과 저장 뒤의 연결 띠 · 1440 밝음](assets/document-view-editing-1976/refused-1440-light.png), [충돌 · 1440 밝음](assets/document-view-editing-1976/conflict-1440-light.png) · [충돌 · 1920×1080 밝음](assets/document-view-editing-1976/conflict-1920-light.png) · [충돌 · 1440 어두움](assets/document-view-editing-1976/conflict-1440-dark.png). 공통 DocumentView·LinkedDocumentView·Notice·sm Button·Status와 공용 알림 센터를 쓰며 새 토큰·부품은 없다.
+
+약 2,000블록 합성 문서(문단과 20블록마다 작은 표)를 같은 PC에서 두 번 실행해 잰 값이다(`pnpm browser:test document-view-editing --screenshots`의 수동 측정, CI 판정 없음). 보장이 아니다.
+
+| 항목 | 읽기 전용 | 내용 편집 |
+| --- | --- | --- |
+| 열기(화면 진입부터 마지막 블록 표시까지) | 약 1.6~2.3초 | 약 1.8~2.3초 |
+| 글자 하나 입력이 화면에 반영(다음 frame까지, 10회 중앙값·최대) | — | 약 24ms · 42~43ms |
+| 블록을 벗어난 뒤 저장 승인까지 | — | 약 0.43초 |
 
 ## 자료와 문서 블록의 연결 띠
 

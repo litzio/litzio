@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
 import { useTableToolGeometry } from "./table-tool-geometry.ts";
-import { useEditorVisible } from "./editor-visibility.ts";
+import { useEditorContentOnly, useEditorVisible } from "./editor-visibility.ts";
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -71,6 +71,7 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
 }) {
   useTranslation();
   const visible = useEditorVisible();
+  const contentOnly = useEditorContentOnly();
   const geometry = useTableToolGeometry(grid, actionLayer, node, visible);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [focused, setFocused] = useState<Menu | null>(null);
@@ -119,7 +120,7 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
     return () => { block.style.removeProperty("--table-action-left"); block.style.removeProperty("--table-action-clearance"); };
   }, [grid, geometry, emphasizedColumn]);
 
-  if (!visible || !editor.isEditable || hidden || !rowLayer.current || !actionLayer.current) return null;
+  if (!visible || !editor.isEditable || contentOnly || hidden || !rowLayer.current || !actionLayer.current) return null;
   const position = getPos();
   if (typeof position !== "number") return null;
   const index = editor.state.doc.resolve(position).index();

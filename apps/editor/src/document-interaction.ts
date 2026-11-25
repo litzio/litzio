@@ -5,6 +5,7 @@ import { splitBlockAs } from "@tiptap/pm/commands";
 import { closeHistory } from "@tiptap/pm/history";
 import { GapCursor } from "@tiptap/pm/gapcursor";
 import { DOMParser as PMDOMParser, DOMSerializer, Fragment, Slice, type Node as PMNode, type DOMOutputSpec, type Schema } from "@tiptap/pm/model";
+import { isStructureLocked } from "./structure-lock.ts";
 import { AllSelection, NodeSelection, Plugin, Selection, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { ASSET_FORMATS } from "../shared/asset-policy.ts";
@@ -225,6 +226,8 @@ function fullCaptionRange(state: EditorState, from: number, to: number): boolean
 /** The caret goes to the end of a final paragraph. After any other final block, it goes to a new empty paragraph. */
 export function documentEnd(state: EditorState): Transaction {
   const end = state.doc.content.size;
+  // A content-only editor adds no block; the caret goes to the end of the last one.
+  if (isStructureLocked(state)) return state.tr.setSelection(Selection.atEnd(state.doc)).scrollIntoView();
   if (state.doc.lastChild?.type.name === "paragraph") return state.tr.setSelection(TextSelection.create(state.doc, end - 1)).scrollIntoView();
   const tr = state.tr.insert(end, state.schema.nodes.paragraph.create({ sourcePath: freshBlockPath() }));
   return tr.setSelection(TextSelection.create(tr.doc, end + 1)).scrollIntoView();
