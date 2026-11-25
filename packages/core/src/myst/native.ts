@@ -170,6 +170,11 @@ export function serializeNativeDocument(document: MystDocument): string {
   return roundTripNativeDocument(document).markdown;
 }
 
+export function serializeNativeDocumentWithReadback(document: MystDocument) {
+  const { markdown, reparsed } = roundTripNativeDocument(document);
+  return { markdown, document: reparsed };
+}
+
 function roundTripNativeDocument(document: MystDocument) {
   assertNativeDocument(document);
   const result = roundTrip(document);

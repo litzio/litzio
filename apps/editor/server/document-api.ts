@@ -35,10 +35,12 @@ import { resolveDocumentPath, resolveEditorPath, resolveMediaPath } from "./docu
 export { resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
 import {
   readModel,
+  prepareReplay,
+  replayEdits,
   SaveContentError,
-  saveEdits,
   validateFigureRequest,
 } from "./document-replay.ts";
+import type { DocumentSaveCache } from "./document-save-cache.ts";
 
 import type {
   SampleAvailability,
@@ -56,7 +58,7 @@ import type {
 import type { SaveFailure } from "../shared/save-error.ts";
 
 /** Internal file helpers may replay directly against a supplied disk snapshot. HTTP always requires a session. */
-type FileSaveRequest = SupportedEdits & { revision?: string; base?: SaveRequest["base"] };
+type FileSaveRequest = SupportedEdits & { path?: string; revision?: string; base?: SaveRequest["base"] };
 
 function errorPayload(error: unknown, access: FileAccess = LOCAL_FILE_ACCESS): DocumentErrorResponse {
   return { error: error instanceof NativeDocumentError ? error.message : fileErrorMessage(error instanceof SaveContentError && error.phase === "file" ? error.cause ?? error : error, access),
@@ -117,14 +119,17 @@ export function saveDocumentFile(
   requestedPath: string | undefined,
   request: FileSaveRequest,
   access: FileAccess = LOCAL_FILE_ACCESS,
+  cache?: DocumentSaveCache,
 ): SaveResponse & { path: string; markdown: string } {
   const filePath = fileStep(() => resolveDocumentPath(requestedPath, access));
-  const saved = commitDocumentSave(
-    () => fileStep(() => decodeUtf8(readFileSync(accessPath(filePath, access)))),
-    (markdown) => fileStep(() => replaceDocumentFile(accessPath(filePath, access), markdown, request.revision)),
-    request,
-  );
-  return { ...saved, path: filePath };
+  const disk = fileStep(() => decodeUtf8(readFileSync(accessPath(filePath, access))));
+  const { saved, snapshot, source } = prepareDocumentSave(disk, request, cache && { path: filePath, cache });
+  fileStep(() => replaceDocumentFile(accessPath(filePath, access), saved.markdown, request.revision));
+  if (cache) {
+    const { path: _path, base: _base, revision: _revision, ...edits } = request;
+    cache.remember(filePath, source, snapshot, edits, saved);
+  }
+  return { markdown: saved.markdown, revision: saved.revision, path: filePath };
 }
 
 /** The shared file commit; a failed write keeps the original. */
@@ -154,9 +159,12 @@ export function previewDocumentFile(requestedPath: string | undefined, request: 
 
 function previewSession(request: FileSaveRequest & { base?: SaveRequest["base"] }): SourceResponse {
   if (!request.base) throw new Error("invalid session source");
-  const previous = request.base.savedEdits
-    ? saveEdits(request.base.source, request.base.savedEdits).markdown : request.base.source;
-  return { markdown: saveCurrentDocument(previous, request).markdown };
+  const { source, savedEdits } = request.base;
+  let snapshot: ReturnType<typeof prepareReplay> | undefined;
+  const opening = () => snapshot ??= prepareReplay(source);
+  const previous = savedEdits ? replayEdits(opening(), savedEdits).markdown : source;
+  verifySaveRevision(previous, request.revision);
+  return { markdown: replayCurrent(opening, request).saved.markdown };
 }
 
 /** Current disk bytes and an independent session dry run. No acknowledgement or file commit. */
@@ -180,29 +188,44 @@ export function saveCurrentDocument(
   source: string,
   request: FileSaveRequest,
 ): { markdown: string; revision: string } {
-  if (request.revision !== documentRevision(source)) {
-    throw new DocumentConflictError();
+  const { saved } = prepareDocumentSave(source, request);
+  return { markdown: saved.markdown, revision: saved.revision };
+}
+
+function verifySaveRevision(source: string, expectedRevision: string | undefined): string {
+  const revision = documentRevision(source);
+  if (expectedRevision !== revision) throw new DocumentConflictError();
+  return revision;
+}
+
+/** Calculate from the disk snapshot without replacing the file or remembering an approval. */
+function prepareDocumentSave(disk: string, request: FileSaveRequest, memo?: { path: string; cache: DocumentSaveCache }) {
+  const revision = verifySaveRevision(disk, request.revision);
+  const { base } = request;
+  if (base !== undefined && (!base || typeof base.source !== "string")) throw new Error("invalid session source");
+  const source = base?.source ?? disk;
+  let snapshot: ReturnType<typeof prepareReplay> | undefined;
+  const opening = () => snapshot ??= memo?.cache.opening(memo.path, source) ?? prepareReplay(source);
+  // A different opening is admissible only if the previously approved edits reproduce
+  // actual disk bytes, from a checked memo or a fresh replay.
+  if (source !== disk) {
+    const edits = base?.savedEdits;
+    if (!edits) throw new DocumentConflictError();
+    const previous = memo?.cache.approved(memo.path, source, edits, { source: disk, revision }) ?? replayEdits(opening(), edits);
+    if (previous.markdown !== disk) throw new DocumentConflictError();
   }
-  const base = sessionSource(source, request);
-  let saved: { markdown: string };
-  try { saved = saveEdits(base, request); }
-  catch (error) {
+  return { source, ...replayCurrent(opening, request) };
+}
+
+function replayCurrent(opening: () => ReturnType<typeof prepareReplay>, edits: SupportedEdits) {
+  try {
+    const snapshot = opening();
+    const result = replayEdits(snapshot, edits);
+    return { snapshot, saved: { ...result, revision: documentRevision(result.markdown) } };
+  } catch (error) {
     if (error instanceof SaveContentError) throw error;
     throw new SaveContentError(error instanceof Error ? error.message : String(error), undefined, { cause: error });
   }
-  return { ...saved, revision: documentRevision(saved.markdown) };
-}
-
-function sessionSource(source: string, request: FileSaveRequest): string {
-  if (request.base === undefined) return source;
-  const base = request.base;
-  if (!base || typeof base.source !== "string") throw new Error("invalid session source");
-  // This is not a raw Markdown replacement API. A different baseline is accepted only
-  // when replaying the previously saved Core operations reproduces the actual file.
-  if (base.source !== source && (!base.savedEdits || saveEdits(base.source, base.savedEdits).markdown !== source)) {
-    throw new DocumentConflictError();
-  }
-  return base.source;
 }
 
 export function commitDocumentSave(
@@ -446,7 +469,7 @@ export async function handleDocumentRequest(
       const requestedPath = query.get("path") ?? undefined;
       if (access && !requestedPath?.trim()) {
         sendJson(res, 200, { start: true, allowedRoots: access.roots, ...sampleAvailability });
-      } else sendJson(res, 200, { ...loadEditorFile(requestedPath, access), ...sampleAvailability });
+      } else sendJson(res, 200, { ...loadEditorFile(requestedPath, access, services?.documentSaveCache), ...sampleAvailability });
       return;
     }
     if (req.method === "PUT") {
@@ -475,7 +498,7 @@ export async function handleDocumentRequest(
       }
       const request = saveRequestOf(body);
       try {
-        const saved = saveDocumentFile(request.path, request, access);
+        const saved = saveDocumentFile(request.path, request, access, services?.documentSaveCache);
         sendJson(res, 200, { revision: saved.revision } satisfies SaveResponse);
       } catch (error) {
         if (error instanceof DocumentConflictError) {

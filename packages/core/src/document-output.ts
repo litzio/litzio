@@ -1,11 +1,15 @@
-import { reconcileEndnotes, validateStructure, serialize, sectionRange, sectionMarker, targetNumbers, blockTargets, headingNumbers, sectionReferenceText, captionNumberText, referenceNumberText, type Document, type EditableDocument, type EditableBlock, type NumberedKind } from "./index.ts";
+import { reconcileEndnotes, validateStructure, serializeWithReadback, sectionRange, sectionMarker, targetNumbers, blockTargets, headingNumbers, sectionReferenceText, captionNumberText, referenceNumberText, type Document, type EditableDocument, type EditableBlock, type NumberedKind } from "./index.ts";
 
 type Change = (document: Document) => Document;
 
 export function serializeChange(document: Document, change: Change): string {
+  return serializeChangeWithReadback(document, change).markdown;
+}
+
+export function serializeChangeWithReadback(document: Document, change: Change): { markdown: string; document: Document } {
   const changed = reconcileEndnotes(document, change(document));
   validateStructure(changed);
-  return serialize(changed);
+  return serializeWithReadback(changed);
 }
 
 type MachineNode = {

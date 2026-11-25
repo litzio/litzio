@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
+import * as core from '@litzio/core';
 import {parse,serialize,validateStructure,insertHardBreak,splitParagraph,mergeParagraphWithPrevious,getEditableDocument, type MystDocument} from './core-internal.ts';
 import {projectInlineContent,inlineContentText,assertInlineContent,inlineContentToNodes,paragraphLeadingSpaceLength} from '../src/inline.ts';
 import { writeIssueOf } from './core-internal.ts';
@@ -8,6 +9,35 @@ import { insertParagraph, updateParagraphInlineContent, insertQuote, updateQuote
   insertAdmonition, updateAdmonitionInlineContent, insertList, updateList, insertFigure, updateFigure,
   insertFootnoteDefinition, updateFootnoteDefinition, replaceText, updateNodeTextAtPath,
   updateTableCell, updateTableCaption, insertTable, insertHeading, type InlineContent } from './core-internal.ts';
+
+test('shared paragraph replay has the same output, first failure and immutability as individual operations', () => {
+  const original = core.parse('---\nlitzio: 1\n---\n\nFirst.\n\nSecond.\n\n# Heading\n');
+  const before = core.serialize(original);
+  const text = (value: string): InlineContent[] => [{ kind: 'text', text: value }];
+  const edits = [
+    { path: [1], content: text('New first.') },
+    { path: [2], content: text('  Second again.') },
+    { path: [1], content: [{ kind: 'strong', children: text('Final first.') }] as InlineContent[] },
+  ];
+  const sequential = (items: typeof edits) => items.reduce(
+    (document, { path, content }) => core.updateParagraphInlineContent(document, path, content), original);
+  const shared = core.updateParagraphsInlineContent(original, edits);
+  assert.equal(core.serialize(shared), core.serialize(sequential(edits)));
+  assert.equal(core.serialize(original), before);
+
+  const invalid = [...edits, { path: [3], content: text('Not a paragraph.') }, { path: [20], content: text('Missing.') }];
+  assert.throws(() => sequential(invalid), expected => {
+    assert.throws(() => core.updateParagraphsInlineContent(original, invalid, (error, path) => {
+      assert.deepEqual(path, [3]);
+      throw error;
+    }), actual => {
+      assert.deepEqual(core.writeIssueOf(actual), core.writeIssueOf(expected));
+      return true;
+    });
+    return true;
+  });
+  assert.equal(core.serialize(original), before);
+});
 
 function stable(d: MystDocument) {
   validateStructure(d);

@@ -28,7 +28,7 @@ import {
   parse,
   removeBlock,
   reconcileEndnotes,
-  serialize,
+  serializeWithReadback,
   splitParagraph,
   mergeParagraphWithPrevious,
   moveBlock,
@@ -60,6 +60,7 @@ import {
   updateReferenceTemplates,
   updateBibliography,
   updateParagraphInlineContent,
+  updateParagraphsInlineContent,
   validateFigure,
   validateStructure,
   type Document as CoreDocument,
@@ -94,39 +95,62 @@ function editAt<T>(target: OrderItem, apply: () => T, cell?: SaveContentError["c
   }
 }
 
+type ReplaySnapshot = Readonly<{ original: CoreDocument; editable: EditableDocument }>;
+
+/** Both replays read this snapshot. Core operations return separate documents. */
+export function prepareReplay(source: string): ReplaySnapshot {
+  const original = parse(source);
+  return { original, editable: getEditableDocument(original) };
+}
+
 /** The read model, canonical writeability and endnote placement of one parsed snapshot. */
-export function readModel(source: string): { document: EditableDocument; endnotesInPlace: boolean; bibliography: { declarations: string[] } } {
-  const document = parse(source);
-  return { document: getEditableDocument(document), endnotesInPlace: endnotesInPlace(document), bibliography: { declarations: citationReport(document).bibliography } };
+export function readModel(source: string | ReplaySnapshot): { document: EditableDocument; endnotesInPlace: boolean; bibliography: { declarations: string[] } } {
+  const { original, editable } = typeof source === "string" ? prepareReplay(source) : source;
+  return { document: editable, endnotesInPlace: endnotesInPlace(original), bibliography: { declarations: citationReport(original).bibliography } };
 }
 
 export function saveEdits(
   source: string,
   edits: SupportedEdits,
+  shareParagraphClone = true,
 ): { markdown: string } {
-  const original = parse(source);
+  return { markdown: replayEdits(prepareReplay(source), edits, shareParagraphClone).markdown };
+}
+
+export function replayEdits(
+  { original, editable }: ReplaySnapshot,
+  edits: SupportedEdits,
+  shareParagraphClone = true,
+): { markdown: string; document: CoreDocument } {
   let document = original;
-  const editable = getEditableDocument(document);
-  /** Simple block edits of one kind, in request order: each checks its block in the opening
-   * snapshot (`editable`), then applies Core operations to the document being changed. Errors
-   * name the edit's top-level block. */
-  const replayBlockEdits = <E extends { path: NodePath }, K extends EditableBlock["block"]>(
+  /** Check each edit's opening snapshot path just before it is applied. */
+  function* checkedBlockEdits<E extends { path: NodePath }, K extends EditableBlock["block"]>(
     list: E[] | undefined,
     kind: K,
     rule: { name: string; denied?: string; editable?: true; topLevel?: true },
-    apply: (current: CoreDocument, edit: E, block: Extract<EditableBlock, { block: K }>) => CoreDocument,
-  ) => {
+  ) {
     for (const edit of list ?? []) {
       const target = { path: [edit.path[0]], part: 0 };
-      editAt(target, () => {
+      const block = editAt(target, () => {
         assertPath(edit.path, rule.name);
         const block = blockAt(editable, edit.path);
         if ((rule.topLevel && edit.path.length !== 1) || block?.block !== kind ||
             (rule.editable && !(block as { editable?: boolean }).editable)) {
           throw new Error(`${rule.denied ?? `${rule.name} edit`} is not allowed at [${edit.path.join(",")}]`);
         }
-        document = editAt(target, () => apply(document, edit, block as Extract<EditableBlock, { block: K }>));
+        return block as Extract<EditableBlock, { block: K }>;
       });
+      yield { target, edit, block };
+    }
+  }
+  const replayBlockEdits = <E extends { path: NodePath }, K extends EditableBlock["block"]>(
+    list: E[] | undefined,
+    kind: K,
+    rule: { name: string; denied?: string; editable?: true; topLevel?: true },
+    apply: (current: CoreDocument, edit: E, block: Extract<EditableBlock, { block: K }>) => CoreDocument,
+  ) => {
+    for (const { target, edit, block } of checkedBlockEdits(list, kind, rule)) {
+      document = editAt(target, () => apply(document, edit, block));
     }
   };
   replayBlockEdits(edits.headings, "heading", { name: "heading", editable: true },
@@ -135,12 +159,24 @@ export function saveEdits(
     if (edit.from !== block.level) throw new Error(`heading level does not match at [${edit.path.join(",")}]`);
     return updateHeadingLevel(current, edit.path, edit.from, edit.to);
   });
-  replayBlockEdits(edits.paragraphs, "paragraph", { name: "paragraph", editable: true }, (current, edit) => {
-    if (inlineText(edit.content).length === 0) {
-      throw new SaveContentError("empty paragraph cannot be saved", undefined, { code: "empty-content", action: "Enter text or delete this block." });
+  function* checkedParagraphs() {
+    for (const { target, edit } of checkedBlockEdits(edits.paragraphs, "paragraph", { name: "paragraph", editable: true })) {
+      editAt(target, () => {
+        if (inlineText(edit.content).length === 0) {
+          throw new SaveContentError("empty paragraph cannot be saved", undefined, { code: "empty-content", action: "Enter text or delete this block." });
+        }
+      });
+      yield { path: edit.path, content: edit.content, target };
     }
-    return updateParagraphInlineContent(current, edit.path, edit.content);
-  });
+  }
+  if (shareParagraphClone) {
+    document = updateParagraphsInlineContent(document, checkedParagraphs(), (error, path) =>
+      editAt({ path: [path[0]], part: 0 }, () => { throw error; }));
+  } else {
+    for (const { target, path, content } of checkedParagraphs()) {
+      document = editAt(target, () => updateParagraphInlineContent(document, path, content));
+    }
+  }
   replayBlockEdits(edits.admonitions, "admonition", { name: "admonition", editable: true }, (current, { path, variant, content }) => {
     if (variant !== undefined) current = updateAdmonitionVariant(current, path, variant);
     if (content !== undefined) current = updateAdmonitionInlineContent(current, path, content);
@@ -499,17 +535,15 @@ export function saveEdits(
   if (edits.bibliography !== undefined && JSON.stringify(edits.bibliography) !== JSON.stringify(citationReport(document).bibliography)) {
     document = updateBibliography(document, edits.bibliography);
   }
-  let markdown: string;
   try {
     document = reconcileEndnotes(original, document);
     validateStructure(document);
-    markdown = serialize(document);
+    return serializeWithReadback(document);
   } catch (error) {
     const issue = writeIssueOf(error);
     const target = issue.path?.length ? locators[issue.path[0]] : undefined;
     throw new SaveContentError(issue.reason, target, { cause: error, phase: "serialize", action: issue.action, line: issue.line });
   }
-  return { markdown };
 }
 
 type Locator = OrderItem;
