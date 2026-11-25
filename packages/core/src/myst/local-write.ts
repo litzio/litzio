@@ -74,6 +74,11 @@ export class LocalWriteBaseline {
     } catch { return undefined; }
   }
 
+  /** The Core document of exactly this source, for read models of an accepted local write. */
+  get model(): Document {
+    return this.document as unknown as Document;
+  }
+
   write(edit: LocalWriteEdit): LocalWriteResult {
     const { source, document, spans } = this;
     const index = edit.path[0];

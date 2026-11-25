@@ -163,7 +163,12 @@ export type SaveRequest = SupportedEdits & {
   /** Session locators address this opening source, including across Save and engine history.
    * The previous accepted edits must reproduce the current disk before new edits can write. */
   base: { source: string; savedEdits?: SupportedEdits };
+  /** Ask for the accepted document's inspect nodes of the top-level blocks this Save changed. */
+  describe?: true;
 };
+
+/** Inspect nodes (`inspect --format json`) of one top-level block of an accepted Save. */
+export type SavedBlock = { path: import("@litzio/core").NodePath; nodes: ReturnType<typeof import("@litzio/core").machineNodes> };
 
 export type SampleDocuments = { ko: string; en: string };
 
@@ -203,7 +208,9 @@ export type TextSaveRequest = { kind: "text"; path: string; revision: string; so
 export type DocumentStartResponse = SampleAvailability & { start: true; allowedRoots?: string[] };
 
 /** Save acknowledges applied edits without replacing the Editor's opening source. */
-export type SaveResponse = Pick<DocumentFileResponse, "revision"> & { pendingLocalWrite?: true };
+export type SaveResponse = Pick<DocumentFileResponse, "revision"> & { pendingLocalWrite?: true;
+  /** With `describe`, when the Save kept the top-level structure: the blocks it changed, in document order. */
+  blocks?: SavedBlock[] };
 
 /** Temporary #1986 verification receipt, scoped to the path and acknowledged revision. */
 export type LocalWriteStatus =
