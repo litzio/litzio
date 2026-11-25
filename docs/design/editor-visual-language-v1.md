@@ -36,6 +36,7 @@ The table lists `--id-color-` roles; selected roles come from the preset tables 
 | `text` | `#20242c` | `#edf0f5` | Main text |
 | `text-muted` / `text-subtle` | `#545c68` / `#606874` | `#c3cad5` / `#b7c0ce` | Secondary labels / metadata |
 | `text-on-accent` | `#ffffff` | `#14171c` | Primary-action text |
+| `content-link` | Alias `accent-blue` | Alias `accent-blue` | Fixed blue for ordinary document links and resolved numbered references |
 | `border` / `border-subtle` / `border-strong` | `#d9dde4` / `#e7eaf0` / `#bbc2cd` | `#737f90` / `#363e4a` / `#8491a3` | Structural separators / quiet edges / stronger rules |
 | `border-control` | `#7b8390` | `#9aa6b7` | Recognizable fields and outlined controls |
 | `paper-border` | Alias `border-subtle` | `#485363` | Independent paper edge |
@@ -105,7 +106,9 @@ Korean prose wraps at eojeol boundaries with `--word-break-document: keep-all`: 
 
 UI prose shares the same existing word-break token with `overflow-wrap: anywhere` at the shell, portal and embedded property-form/notice/helper boundaries (#833). Draft feedback beside the form (`.draft-status` in Equation/image/Mermaid) establishes the same boundary independently; it must not inherit the document root's `normal`. This covers draft messages, property explanations, Settings, dialog descriptions and other shell guidance in both languages. Document text, tables, Source, code, literal recovery comparisons and standalone file/path displays retain their own rules. Buttons, tabs, menu/options and input controls retain their existing wrapping/nowrap/ellipsis; prose defaults do not replace those control rules.
 
-References read like links without box/fill: content-link color, underline on hover, subtle dashed underline when unresolved, with explicit localized unresolved text. Citations use numeric text/selected treatment; unchecked/incomplete/missing/duplicate resources use subtle dashed text, while complete limited IEEE entries have content-link color without underline. [Reference](section-references-v1.md#editor) and [citation](citations-v1.md) contracts own labels/readiness/interaction. Code comments/quotes use `text-subtle`, keywords `info`, strings `warning`, numbers/types `danger` on `surface-muted`.
+Ordinary links and resolved `{numref}`, `{ref}` and `{eq}` chips use `--id-color-content-link` in edit, read, plugin document views and reading previews. The color follows the theme across accent choices and visit states. Ordinary links are underlined, including links in endnote definitions. Reference chips underline on hover and use subtle dashed text with an explicit localized label when unresolved. Complete limited IEEE citation numbers use `interaction` without underline. Unchecked, incomplete, missing or duplicate citations use subtle dashed text. Endnote calls use `interaction`. The [reference](section-references-v1.md#editor) and [citation](citations-v1.md) contracts define labels, readiness and interaction. Code comments and quotes use `text-subtle`, keywords use `info`, strings use `warning` and numbers and types use `danger` on `surface-muted`.
+
+[Light document links](../reviews/assets/content-link-1960/after-light-plum.png) · [Dark document links](../reviews/assets/content-link-1960/after-dark-plum.png) · [Reading preview](../reviews/assets/content-link-1960/after-preview.png)
 
 ## Surfaces and themes
 

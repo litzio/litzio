@@ -49,8 +49,10 @@ function EndnotePreviewBody({ editor, definition }: { editor: Editor; definition
         else span.textContent = `$${value}$`;
         return span;
       },
-      crossReference: node => ["span", { class: "cross-reference-chip" },
-        referenceDisplay(targets, node.attrs.role as ReferenceRole, String(node.attrs.label)).text],
+      crossReference: node => {
+        const { text, resolved } = referenceDisplay(targets, node.attrs.role as ReferenceRole, String(node.attrs.label));
+        return ["span", { class: resolved ? "cross-reference-chip reference-preview-numbered-reference" : "cross-reference-chip" }, text];
+      },
       citation: node => ["span", { class: "cross-reference-chip" }, citationText(node.attrs.keys, citationNumbers(editor.state.doc))],
     }, { ...schema.marks,
       // Display link text with its formatting, without creating a focusable destination

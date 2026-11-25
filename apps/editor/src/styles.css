@@ -2364,7 +2364,7 @@ ul.list[data-type="taskList"] > li > label > input {
 }
 .reference-preview-link {
   text-decoration: underline;
-  color: var(--id-color-interaction);
+  color: var(--id-color-content-link);
 }
 /* A target block at document scale, clipped from its top-left to the reading cap. The bottom
  * fades like a wide table's edge when more of the target follows. */
@@ -2567,6 +2567,11 @@ ul.list[data-type="taskList"] > li > label > input {
   white-space: nowrap;
 }
 
+.cross-reference[data-resolved="true"]:not(.citation, .footnote-reference) > .cross-reference-chip,
+.reference-preview-numbered-reference {
+  color: var(--id-color-content-link);
+}
+
 .cross-reference[data-resolved="false"] .cross-reference-chip {
   color: var(--id-color-text-subtle);
   text-decoration: underline dashed;
@@ -2725,7 +2730,7 @@ ul.list[data-type="taskList"] > li > label > input {
 }
 
 .document-editor a {
-  color: var(--id-color-interaction);
+  color: var(--id-color-content-link);
   text-decoration: underline;
   cursor: text;
 }

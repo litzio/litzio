@@ -259,6 +259,7 @@
    * informational states stay neutral; danger and warning keep their separate meanings. */
   --id-color-accent-blue-paper: #315fd4;
   --id-color-accent-blue: var(--id-color-accent-blue-paper);
+  --id-color-content-link: var(--id-color-accent-blue);
   --id-color-accent-violet-paper: #7041bd;
   --id-color-accent-violet: var(--id-color-accent-violet-paper);
   --id-color-accent-plum-paper: #8a3f85;
