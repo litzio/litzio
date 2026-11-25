@@ -23,15 +23,21 @@ async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
   const dialog = () => page.locator('[data-slot="dialog-content"]');
   const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
   const snapshot = () => editor.evaluate(el => ({ json: JSON.stringify(el.editor.getJSON()), selection: el.editor.state.selection.toJSON(), undo: el.editor.can().undo() }));
-  let documentReads = 0, writes = 0, leaks = 0;
+  let documentReads = 0, leaks = 0;
+  const writes = [];
   page.on('request', request => {
     if (request.url().includes('/api/document?')) documentReads++;
-    // Connection discovery is a Root-scoped read on the shared POST dispatcher.
-    // Every other mutation-shaped request remains forbidden during preview.
-    const connectionRead = request.method() === 'POST' && request.url().split('?')[0] === origin + '/api/reviews'
+    const method = request.method();
+    const route = request.url().split('?')[0];
+    // These two readers use POST. Other mutation-shaped requests remain forbidden during preview.
+    const connectionRead = method === 'POST' && route === origin + '/api/reviews'
       && ['generated-find','workspace-find'].includes(request.postDataJSON()?.action);
+    const screenCatalog = method === 'POST' && route === origin + '/api/plugin-screens'
+      ? request.postDataJSON() : undefined;
+    const screenCatalogRead = screenCatalog?.action === 'screens' && screenCatalog.screenCode === false
+      && Object.keys(screenCatalog).length === 2;
     if (connectionRead) check(request.postDataJSON().root === root, 'Preview connection discovery escaped its opened folder');
-    else if (['PUT','POST','DELETE'].includes(request.method())) writes++;
+    else if (!screenCatalogRead && ['PUT','POST','DELETE'].includes(method)) writes.push(`${method} ${route.startsWith(origin + '/') ? route.slice(origin.length) : '(another origin)'}`);
     if (request.url().includes('preview-leak') || request.url().includes('svg11.dtd')) leaks++;
   });
   for (const name of ['archive.zip', 'README']) {
@@ -63,7 +69,7 @@ async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
     check(await draft.inputValue() === 'section-draft', 'Preview lost the unapplied draft');
     check((await page.getByTestId('status').innerText()).includes('Unsaved'), 'Dirty/draft status was lost');
   }
-  check(documentReads === 0 && writes === 0, 'File preview must never open/save a document or choose/copy an image');
+  check(documentReads === 0 && writes.length === 0, `File preview must never open/save a document or choose/copy an image (document reads: ${documentReads}, mutations: ${writes.join(', ')})`);
   check(leaks === 0 && !(await page.evaluate(() => window.__previewExecuted)), 'SVG executed or requested an external resource');
   const direct = await page.context().newPage();
   try {
