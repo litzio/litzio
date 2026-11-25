@@ -2,10 +2,10 @@ import { getHostClient, type HostClient } from "../host-client.ts";
 import { useCallback, useMemo } from "react";
 import { createDocumentRequests } from "../document-session.ts";
 import { i18n } from "../i18n.ts";
-import { prepareRecovery } from "../recovery-restore.ts";
+import { prepareRecovery, recoverySaveRequest, requestRecoveryPreview } from "../recovery-restore.ts";
 import { recoveryText, type RecoveryRecord } from "../recovery-storage.ts";
-import { collectSupportedEdits, toTiptapDocument } from "../tiptap-document.ts";
-import type { DocumentFileResponse, RecoveryPreviewResponse, SaveRequest } from "../../shared/document-protocol.ts";
+import { toTiptapDocument } from "../tiptap-document.ts";
+import type { DocumentFileResponse, SaveRequest } from "../../shared/document-protocol.ts";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
 async function compare(record: RecoveryRecord, signal: AbortSignal, client: HostClient): Promise<Comparison> {
@@ -15,26 +15,15 @@ async function compare(record: RecoveryRecord, signal: AbortSignal, client: Host
   try {
     const snapshot = prepareRecovery(record);
     if (snapshot.kind === "text") {
-      const response = await client.request(`/api/document-source?recovery=1`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: record.path }), signal,
-      });
-      const result: RecoveryPreviewResponse = await response.json();
-      if (!response.ok || result.disk === undefined) throw new Error(result.error ?? `HTTP ${response.status}`);
+      const result = await requestRecoveryPreview(client, record.path, undefined, signal);
       return { before: result.disk?.source ?? "", after: snapshot.text, fallback: "",
         changed: Boolean(result.disk && result.disk.revision !== snapshot.file.revision), missing: result.disk === null };
     }
     bibliography = snapshot.file.bibliography;
     bibliographyRoot = snapshot.file.bibliographyRoot;
-    save = { path: record.path, revision: snapshot.file.revision,
-      base: { source: snapshot.file.source, savedEdits: snapshot.savedEdits },
-      ...collectSupportedEdits(snapshot.file.document, snapshot.editor.editorDocument) };
+    save = recoverySaveRequest(snapshot);
   } catch (error) { fallback = error instanceof Error ? error.message : String(error); }
-  const response = await client.request(`/api/document-source?recovery=1`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: record.path, save }), signal,
-  });
-  const result: RecoveryPreviewResponse = await response.json();
-  if (!response.ok) throw new Error(result.error ?? `HTTP ${response.status}`);
-  if (result.disk === undefined) throw new Error(result.error ?? `HTTP ${response.status}`);
+  const result = await requestRecoveryPreview(client, record.path, save, signal);
   fallback ||= result.error ?? "";
   let before = result.disk?.source ?? "";
   let after = result.markdown ?? record.recoveryText;

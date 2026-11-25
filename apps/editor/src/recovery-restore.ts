@@ -1,11 +1,27 @@
 import { getSchema } from "@tiptap/core";
 import { createEditorExtensions } from "./editor-schema.tsx";
 import { prepareEditorSnapshot } from "./editor-snapshot.ts";
-import { toTiptapDocument } from "./tiptap-document.ts";
+import { collectSupportedEdits, toTiptapDocument } from "./tiptap-document.ts";
 import { RECOVERY_VERSION, recoveryStorage, type RecoveryRecord } from "./recovery-storage.ts";
 import type { SessionSnapshot } from "./DocumentTab.tsx";
 import type { HostClient } from "./host-client.ts";
 import { readLocalWriteStatus } from "./useLocalWriteVerification.ts";
+import type { RecoveryPreviewResponse, SaveRequest } from "../shared/document-protocol.ts";
+
+export function recoverySaveRequest(snapshot: Exclude<SessionSnapshot, { kind: "text" }>): SaveRequest {
+  const { file, editor, savedEdits } = snapshot;
+  return { path: file.path, revision: file.revision, base: { source: file.source, savedEdits },
+    ...collectSupportedEdits(file.document, editor.editorDocument) };
+}
+
+export async function requestRecoveryPreview(client: HostClient, path: string, save?: SaveRequest, signal?: AbortSignal): Promise<RecoveryPreviewResponse> {
+  const response = await client.request("/api/document-source?recovery=1", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, save }), signal,
+  });
+  const result: RecoveryPreviewResponse = await response.json();
+  if (!response.ok || result.disk === undefined) throw new Error(result.error ?? `HTTP ${response.status}`);
+  return result;
+}
 
 /** Reopening may find a receipt the closed tab could not observe. */
 export async function discardConfirmedRecovery(record: RecoveryRecord, client: HostClient): Promise<boolean> {
@@ -21,7 +37,17 @@ export async function discardConfirmedRecovery(record: RecoveryRecord, client: H
       await new Promise(resolve => setTimeout(resolve, 500));
       result = await read();
     }
-    return (result?.state === "corrected" || (result?.state === "done" && result.verified === true))
+    if (result?.state === "corrected" || (result?.state === "done" && result.verified)) {
+      return await recoveryStorage.discardConfirmed(record);
+    }
+    if (result?.state !== "done") return false;
+
+    // A Host restart can lose the receipt. Replay the recovery work through
+    // the ordinary read-only full preview, then compare its output to disk.
+    const restored = prepareRecovery(record);
+    if (restored.kind === "text") return false;
+    const preview = await requestRecoveryPreview(client, record.path, recoverySaveRequest(restored));
+    return !preview.error && preview.markdown !== undefined && preview.markdown === preview.disk?.source
       ? await recoveryStorage.discardConfirmed(record) : false;
   } catch { return false; }
 }

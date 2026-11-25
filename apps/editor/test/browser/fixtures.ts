@@ -243,7 +243,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     ], scenarios: ["continuous-editing"] },
   "save-session": {
     files: [...technical, { name: "session.md", create: () => nativeSource("# Session\n\nAlpha.\n\nBeta.\n") },
-      ...["local-write", "local-write-rejected", "local-write-closed"].map(name =>
+      ...["local-write", "local-write-rejected", "local-write-closed", "reopen-matched", "reopen-changed", "reopen-refused"].map(name =>
         ({ name: name + ".md", create: () => nativeSource("First paragraph.\n\nSecond paragraph.\n") }))],
     scenarios: ["save-session"],
   },

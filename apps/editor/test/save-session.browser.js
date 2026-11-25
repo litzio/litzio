@@ -690,5 +690,82 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, recovery
       check(closeBeforeReceipt ? 'closedTabRestoresRejectedEdit' : 'liveTabKeepsRejectedAndNewerEdits', true);
     } finally { await page.unroute(receiptURL); }
   }
+
+  for (const outcome of ['matched', 'changed', 'refused']) {
+    const name = 'reopen-' + outcome + '.md';
+    const path = [root, 'tmp', 'save-session', name].join(separator);
+    await open(path);
+    let reopening = false;
+    const receiptURL = '**/api/local-write-status?*';
+    const previewURL = '**/api/document-source?recovery=1';
+    const record = async () => (await recoveryRecords(page)).find(record => record.path === path);
+    const stats = async () => (await page.request.get(origin + '/api/local-write-statistics')).json();
+    await page.route(receiptURL, route => route.fulfill({json:{state:reopening ? 'done' : 'pending'}}));
+    try {
+      await paragraph().click(); await page.keyboard.press('End'); await page.keyboard.type(' Before restarting.');
+      const posted = page.waitForResponse(response => response.url() === origin + '/api/document' && response.request().method() === 'POST');
+      await save();
+      const candidate = await (await posted).json();
+      expect(candidate.pendingLocalWrite).toBe(true);
+      expect((await record()).snapshot.candidateRevision).toBe(candidate.revision);
+      await page.getByRole('button', {name:'Close ' + name, exact:true}).click();
+      await expect(page.getByRole('tab', {name, exact:true})).toHaveCount(0);
+      // Let the actual comparison settle, then substitute the new Host's unknown receipt in the renderer.
+      await expect.poll(async () => (await (await page.request.get(origin + '/api/local-write-status?path=' +
+        encodeURIComponent(path) + '&revision=' + candidate.revision)).json()).verified).toBe(true);
+      const candidateDisk = await read(path);
+      expect(candidateDisk.revision).toBe(candidate.revision);
+      if (outcome === 'changed') {
+        const outside = await page.request.post(origin + '/api/document', {headers:{Origin:origin}, data:{
+          path, revision:candidate.revision, base:{source:candidateDisk.source}, title:null,
+          paragraphs:[{path:[2], content:[{kind:'text', text:'External change.'}]}],
+        }});
+        expect(outside.ok()).toBe(true);
+      }
+      const disk = await read(path);
+      const beforeStats = await stats();
+      if (outcome === 'refused') {
+        // The real full preview rejects an empty paragraph even with the candidate bytes on disk.
+        await page.route(previewURL, async route => {
+          const body = route.request().postDataJSON();
+          const response = await route.fetch({postData:{...body, save:{...body.save, paragraphs:[{path:[1], content:[]}]}}});
+          await route.fulfill({response});
+        });
+      }
+      reopening = true;
+      const previewed = page.waitForResponse(response => response.url() === origin + '/api/document-source?recovery=1');
+      await openDocument(page, path);
+      const response = await previewed;
+      expect(response.ok()).toBe(true);
+      expect(response.request().postDataJSON().save.paragraphs[0].content[0].text).toContain('Before restarting.');
+      const preview = await response.json();
+      expect(preview.disk.source).toBe(disk.source);
+      const prompt = page.getByTestId('recovery-prompt');
+      if (outcome === 'matched') {
+        expect(preview.markdown).toBe(disk.source);
+        await expect.poll(record).toBeUndefined();
+        await expect(prompt).toHaveCount(0);
+        await expect(paragraph()).toHaveText('First paragraph. Before restarting.');
+      } else {
+        if (outcome === 'refused') {
+          expect(preview.error).toContain('empty paragraph cannot be saved');
+          expect(preview.markdown).toBeUndefined();
+          expect(preview.disk.revision).toBe(candidate.revision);
+        } else {
+          expect(preview.markdown).toBe(candidateDisk.source);
+          expect(preview.disk.source).toContain('External change.');
+        }
+        await expect(prompt).toContainText(name);
+        expect((await record()).snapshot.candidateRevision).toBe(candidate.revision);
+        await prompt.getByRole('button', {name:'Not now', exact:true}).click();
+      }
+      expect((await read(path)).revision).toBe(disk.revision);
+      expect(await stats()).toEqual(beforeStats);
+      check('reopenWithoutReceipt-' + outcome, true);
+    } finally {
+      await page.unroute(previewURL);
+      await page.unroute(receiptURL);
+    }
+  }
   return result;
 }
