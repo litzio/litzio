@@ -63,7 +63,10 @@ export function toTiptapBlock(block: EditableBlock): TiptapJSON {
       content: [...block.rows.map((row, rowIndex) => ({ type: "tableRow", content: row.cells.map((cell, column) => ({
         type: "tableCell", attrs: { header: cell.header, ...(cell.align ? { align: cell.align } : {}), [TABLE_CELL_SOURCE_ATTR]: `${rowIndex},${column}` },
         content: paragraphContent(cell.content),
-      })) })), { type: "tableCaption", content: paragraphContent(block.caption ?? []) }],
+      })) })), { type: "tableCaption", content: paragraphContent(block.caption ?? []) },
+        ...(block.notes?.length ? [{ type: "tableNotes", content: block.notes.map(note => ({
+          type: "tableNote", content: paragraphContent(note),
+        })) }] : [])],
     };
     case "target": return { type: "labelTarget", attrs: { ...attrs, label: block.label } };
   }

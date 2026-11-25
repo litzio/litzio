@@ -115,7 +115,7 @@ export type InsertEdit =
   | { block: "divider" }
   | { block: "equation"; latex: string; label?: string; enumerator?: string }
   | ({ block: "figure"; label?: string; enumerated?: boolean; enumerator?: string } & FigureContent)
-  | { block: "table"; rows: InlineContent[][][]; align?: ("left" | "center" | "right" | null)[]; caption?: InlineContent[]; label?: string; enumerated?: boolean; enumerator?: string }
+  | { block: "table"; rows: InlineContent[][][]; align?: ("left" | "center" | "right" | null)[]; caption?: InlineContent[]; notes?: InlineContent[][]; label?: string; enumerated?: boolean; enumerator?: string }
   | { block: "list"; list: ListContent }
   | ({ block: "code" } & CodeBlockContent)
   /** A `(label)=` target, labeling the block after it (a section heading in the Editor). */
@@ -142,6 +142,7 @@ export type SupportedEdits = {
   cells?: TableCellEdit[];
   tables?: TableShapeEdit[];
   tableCaptions?: { path: NodePath; content: InlineContent[] }[];
+  tableNotes?: { path: NodePath; notes: InlineContent[][] }[];
   admonitions?: AdmonitionEdit[];
   quotes?: QuoteEdit[];
   footnotes?: FootnoteEdit[];

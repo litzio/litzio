@@ -439,21 +439,21 @@ captions, target choices, accessible names and menu search follow the same templ
 ## Table cells and captions
 
 Table cells and Figure/Table captions use the supported InlineContent contract. Core updateTableCell/insertTable accept text or inline content (CLI
-update-table-cell --content and insert-table --cells); cells reject line breaks.
+update-table-cell --content and insert-table --cells). A cell can hold an inline hard break.
 Core updateFigure/insertFigure accept text or inline captions (CLI --caption-content).
 Figure content, caption and label may all be absent (a pending Figure). Pending/image
 transitions preserve the container, label and caption; pending Figures participate in the
 same editing state and history. See [Figure authoring](figure-authoring-v1.md) for
 the persistence boundary and insertion behavior.
-A Table caption is a required last child of its Editor table; its authored content may be
+A Table caption is a required child immediately after the rows. Its authored content may be
 empty (Save omits an empty caption). It is edited directly below
 the grid with the shared rich-inline controls. Properties follow the [Table caption and label contract](table-caption-v1.md). The caption
 input surface is always present without an Add caption step; clearing it removes saved
 caption content.
 Rows/cells keep their existing coordinates. ArrowDown from the final row enters the
-caption, ArrowUp returns to the last cell, and Enter leaves the table. Whole-table move,
-delete and history include the caption. Core `updateTableCaption` and canonical MyST stay
-unchanged; see [Table caption and label](table-caption-v1.md).
+caption, ArrowUp returns to the last cell, and Enter leaves the table. Shift+Enter
+adds a hard break in a cell. Table-owned note paragraphs follow the caption. Whole-table
+move, delete and history include both. See [Table caption and label](table-caption-v1.md).
 
 Equation block metadata uses Core's document equation reference template (#676),
 for example `식 (2)`. Without an authored template it combines the UI-language
@@ -564,7 +564,7 @@ a clipboard image file (PNG, JPEG, GIF or WebP) still takes the #59 asset path f
   list whose every item starts with a checkbox, as rendered GFM writes them; an item with
   no text, and a wrapper holding only such items, are kept), single-paragraph
   quotes, `<pre>` code (whitespace kept, a `language-*` class as the language, one
-  trailing newline dropped), dividers, rectangular tables of single-line cells, and
+  trailing newline dropped), dividers, rectangular tables with inline cells and `<br>` breaks, and
   bold/italic/strikethrough, subscript/superscript (`sub`/`sup` tags and
   `vertical-align` styles), inline code and links as the engine's mark rules read
   them. Only http(s), mailto, tel, ftp, relative and `#` targets stay links; a `#`
@@ -628,7 +628,7 @@ with the Core → editor projection that opening uses. No Markdown is read in th
   emphasis and does count; Ctrl+Shift+V keeps it literal.
 - Converted text is read exactly as Open reads it (a soft line break stays in its paragraph,
   `&amp;` is `&`). The slice takes the External clipboard path above: fresh session locators,
-  the same edge rule (only a paragraph edge joins the surrounding text), the one-line place
+  the same edge rule (only a paragraph edge joins the surrounding text), the inline paste
   checks below, the structure guard, endnote label planning (endnote definitions referenced by
   the text are inserted as for Litzio's own clipboard), label duplicate refusal and Core
   validation on Save.
@@ -637,14 +637,11 @@ with the Core → editor projection that opening uses. No Markdown is read in th
   are native text fields whose paste the engine does not handle. Dropped text stays plain text,
   also after a paste the engine skipped during composition: the paste state lives only for the
   paste event that set it.
-- One-line places, for external HTML and Markdown alike: a table cell, table caption, Figure
-  caption or endnote definition accepts the inline content of one textblock. Blocks are refused
-  at paste time ("Only one line of text can be pasted here. Paste blocks into a paragraph.
-  Nothing was pasted; the clipboard and selection are kept."), so the place is never split and
-  the text after the caret never moves into the body. A heading, table cell or table caption
-  also refuses a soft line break (a newline read from Markdown), as it refuses a hard one. An
-  endnote definition refuses another endnote reference ("An endnote cannot contain another
-  endnote. Nothing was pasted; the clipboard and selection are kept.").
+- A table cell, table caption, table note, Figure caption or endnote definition accepts
+  the inline content of one textblock. Pasting blocks leaves the document and selection unchanged.
+  Headings and table captions refuse both hard and soft breaks. Table cells accept hard breaks,
+  including external HTML `<br>`, and refuse literal soft newlines. Endnote definitions and
+  table notes refuse pasted endnote references.
 - History: every paste (Markdown, external HTML or plain text) closes the history group first,
   so one Undo removes the paste and keeps typing done just before it.
 - URLs: the engine's paste rules are all off; they re-read document text after a paste, so they

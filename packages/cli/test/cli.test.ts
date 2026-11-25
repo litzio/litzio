@@ -715,7 +715,7 @@ test("litzio help exits successfully", () => {
       "Edit — insert blocks": ["insert-block", "insert-heading", "insert-admonition", "insert-quote", "insert-divider", "insert-equation", "insert-figure", "insert-list", "insert-code-block"],
       "Edit — text and content": ["insert-hard-break", "replace-text", "update-heading", "update-admonition-variant", "update-quote", "update-figure", "update-media-references", "update-list", "update-list-item-checked", "update-code-block", "update-node-text", "update-equation-latex"],
       "Edit — structure": ["split-paragraph", "merge-paragraph", "update-heading-level", "convert-block", "remove-block", "move-block", "move-section", "remove-section"],
-      "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
+      "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "insert-table-note", "update-table-note", "remove-table-note", "move-table-note", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-status", "update-title"],
       "Format": ["format"],
       "Serve": ["app-reset", "assistant", "daemon", "operation", "plugins"],
@@ -3337,4 +3337,45 @@ test("document status CLI connects inspect, mutation, batch and authoring", () =
     assert.equal(run(["update-status", file, "--remove"]).status, 0);
     assert.equal(inspect().status, null);
   } finally { rmSync(dir, {recursive: true, force: true}); }
+});
+
+test("CLI edits table notes and cell breaks through the shared write path", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-table-notes-"));
+  const file = path.join(dir, "table.md");
+  const before = path.join(dir, "before.md");
+  const source = nativeSource("| Measurement condition |\n| ---- |\n| Calibrated threshold |\n");
+  writeFileSync(file, source);
+  writeFileSync(before, source);
+  try {
+    for (const [command, ...args] of [
+      ["update-table-cell", "--path", "1,1,0", "--text", "Calibrated\nthreshold"],
+      ["insert-table-note", "--path", "1", "--at", "0", "--text", "a. First"],
+      ["insert-table-note", "--path", "1", "--at", "1", "--text", "b. Second"],
+      ["update-table-note", "--path", "1", "--at", "1", "--text", "b. Updated"],
+      ["move-table-note", "--path", "1", "--from", "1", "--to", "0"],
+      ["remove-table-note", "--path", "1", "--at", "1"],
+    ]) {
+      const result = run([command, file, ...args]);
+      assert.equal(result.status, 0, result.stderr);
+    }
+    const inspected = run(["inspect", file, "--format", "json"]);
+    const [table, , cell] = JSON.parse(inspected.stdout).nodes;
+    assert.deepEqual(table.notes, [[{ kind: "text", text: "b. Updated" }]]);
+    assert.deepEqual(cell.content, [{ kind: "text", text: "Calibrated" }, { kind: "break" }, { kind: "text", text: "threshold" }]);
+    const compared = run(["compare", before, file, "--json"]);
+    assert.equal(compared.status, 0, compared.stderr);
+    assert.match(compared.stdout, /notes/);
+    assert.match(compared.stdout, /break/);
+    const saved = readFileSync(file, "utf8");
+    const failed = run(["remove-table-note", file, "--path", "1", "--at", "1", "--dry-run", "--format", "json"]);
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /note index is out of range/);
+    assert.equal(readFileSync(file, "utf8"), saved);
+    writeFileSync(before, saved.replace("b. Updated", "- A list in the note position"));
+    const checked = run(["check", before, "--format", "json"]);
+    assert.equal(checked.status, 1);
+    assert.equal(JSON.parse(checked.stdout).error.code, "native-content");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

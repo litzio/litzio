@@ -51,6 +51,10 @@ import {
   updateCodeBlock,
   updateTableCell,
   updateTableCaption,
+  insertTableNote,
+  updateTableNote,
+  removeTableNote,
+  sameInlineContent,
   updateDocumentTitle,
   updateHeadingNumbering,
   updateReferenceTemplates,
@@ -228,6 +232,24 @@ export function saveEdits(
       document = editAt(target, () => updateTableCaption(document, edit.path, edit.content));
     });
   }
+  for (const edit of edits.tableNotes ?? []) {
+    const target = { path: edit.path, part: 0 };
+    editAt(target, () => {
+      assertPath(edit.path, "table notes");
+      const table = blockAt(editable, edit.path);
+      if (edit.path.length !== 1 || table?.block !== "table" || !Array.isArray(edit.notes) || !edit.notes.every(Array.isArray)) {
+        throw new Error("table notes edit is not allowed");
+      }
+      const before = table.notes ?? [];
+      for (let index = before.length - 1; index >= edit.notes.length; index--) {
+        document = removeTableNote(document, edit.path, index);
+      }
+      for (const [index, content] of edit.notes.entries()) {
+        if (index >= before.length) document = insertTableNote(document, edit.path, index, content);
+        else if (!sameInlineContent(content, before[index])) document = updateTableNote(document, edit.path, index, content);
+      }
+    });
+  }
   for (const edit of edits.enumerators ?? []) {
     const target = { path: edit.path, part: 0 };
     editAt(target, () => {
@@ -303,6 +325,7 @@ export function saveEdits(
     ...(edits.codes ?? []).map(edit => edit.path),
     ...(edits.tables ?? []).map(edit => edit.path),
     ...(edits.tableCaptions ?? []).map(edit => edit.path),
+    ...(edits.tableNotes ?? []).map(edit => edit.path),
     ...labels.map(edit => edit.path),
     ...(edits.enumerators ?? []).map(edit => edit.path),
     ...groups.flatMap(group => group.paths),
@@ -427,7 +450,7 @@ export function saveEdits(
     } else if (item.block === "equation") {
       document = editAt(target, () => insertEquation(document, index, item.latex));
     } else if (item.block === "table") {
-      document = editAt(target, () => insertTable(document, index, item.rows, item.align));
+      document = editAt(target, () => insertTable(document, index, item.rows, item.align, item.notes));
       if (item.caption) document = editAt(target, () => updateTableCaption(document, [index], item.caption!));
     } else if (item.block === "list") {
       document = editAt(target, () => insertList(document, index, item.list));

@@ -199,6 +199,13 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
     enabled: isTable,
     run: addTableColumnRight,
   },
+  {
+    id: "table-note",
+    get label() { return i18n.t("Add table note"); },
+    applies: isTable,
+    enabled: isTable,
+    run: addTableNote,
+  },
   // These act on the caret's cell; the header row stays first.
   {
     id: "table-row-up",
@@ -656,9 +663,24 @@ export function insertTableAfter(state: EditorState, index: number, slash?: Slas
   return tr.setSelection(TextSelection.create(tr.doc, at + 3)).setMeta(BLOCK_COMMAND_META, true).scrollIntoView();
 }
 
-/** Rows exclude the optional caption, retaining the existing row/cell addresses. */
+/** Append a note paragraph and put the caret inside it. */
+function addTableNote(state: EditorState, index: number): Transaction {
+  const table = state.doc.child(index);
+  const { tableNotes, tableNote } = state.schema.nodes;
+  const note = tableNote.create();
+  const end = blockPos(state, index) + table.nodeSize - 1;
+  const hasNotes = table.lastChild?.type === tableNotes;
+  const tr = closeHistory(state.tr);
+  if (hasNotes) tr.insert(end - 1, note);
+  else tr.insert(end, tableNotes.create(null, note));
+  return tr.setSelection(TextSelection.create(tr.doc, hasNotes ? end : end + 2)).scrollIntoView();
+}
+
+/** Rows exclude the caption and notes, retaining the existing row/cell addresses. */
 export function tableRowCount(table: EditorState["doc"]): number {
-  return table.childCount - (table.lastChild?.type.name === "tableCaption" ? 1 : 0);
+  let rows = 0;
+  table.forEach(child => { if (child.type.name === "tableRow") rows++; });
+  return rows;
 }
 
 /** The caret's cell when it is inside the table at `index`. */
@@ -986,7 +1008,7 @@ export function formattableSelection(state: EditorState): { from: number; to: nu
   const { $from, $to } = selection;
   const parent = $from.parent;
   const editableInlineParent = parent.type.name === "paragraph" ||
-    parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "heading" || parent.type.name === "tableCell" || parent.type.name === "figure" || parent.type.name === "tableCaption" || parent.type.name === "admonition";
+    parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "heading" || parent.type.name === "tableCell" || parent.type.name === "figure" || parent.type.name === "tableCaption" || parent.type.name === "tableNote" || parent.type.name === "admonition";
   if (!$from.sameParent($to) || !editableInlineParent) return null;
   return { from: selection.from, to: selection.to };
 }

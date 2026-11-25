@@ -220,7 +220,7 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     await notice.filter({hasText:message}).waitFor({state:'visible'});
   };
   const lineBreaks = place => `A ${place} cannot contain line breaks. Paste into a paragraph to keep them.`;
-  const oneLine = 'Only one line of text can be pasted here. Paste blocks into a paragraph.';
+  const oneLine = 'Only inline content can be pasted here. Paste blocks into a paragraph.';
   // A soft line break and blocks are refused in a cell and a caption, from Markdown and from HTML alike.
   await refusedAt('CellText', 4, () => textPaste('**bold**\nMore'), lineBreaks('table cell'));
   await refusedAt('CaptionText', 4, () => textPaste('**bold**\nMore'), lineBreaks('table caption'));

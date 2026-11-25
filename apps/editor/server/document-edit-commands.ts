@@ -49,6 +49,10 @@ import {
   updateNumberingMode,
   updateTableCell,
   updateTableCaption,
+  insertTableNote,
+  updateTableNote,
+  removeTableNote,
+  moveTableNote,
   updateHeadingNumbering,
   updateDocumentTitle,
   updateDocumentStatus,
@@ -292,8 +296,17 @@ export function changeFor(command: string, flags: string[], deferEndnotes = fals
     case "update-table-caption": {
       return (document) => updateTableCaption(document, pathFlag(flags), textOrContent(flags));
     }
+    case "insert-table-note":
+    case "update-table-note": {
+      const change = command === "insert-table-note" ? insertTableNote : updateTableNote;
+      return document => change(document, pathFlag(flags), intFlag(flags, "--at"), textOrContent(flags));
+    }
+    case "remove-table-note":
+      return document => removeTableNote(document, pathFlag(flags), intFlag(flags, "--at"));
+    case "move-table-note":
+      return document => moveTableNote(document, pathFlag(flags), intFlag(flags, "--from"), intFlag(flags, "--to"));
     case "update-table-cell": {
-      return (document) => updateTableCell(document, pathFlag(flags), textOrContent(flags));
+      return (document) => updateTableCell(document, pathFlag(flags), plainTextOrContent(flags));
     }
     case "insert-target": {
       return (document) => insertTarget(document, insertionIndex(document, flags), flag(flags, "--label"));
@@ -427,6 +440,10 @@ export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "update-title": ["--text", "--remove"],
   "update-reference-templates": ["--figure", "--table", "--equation", "--reset"],
   "update-table-caption": ["--path", "--text", "--content"],
+  "insert-table-note": ["--path", "--at", "--text", "--content"],
+  "update-table-note": ["--path", "--at", "--text", "--content"],
+  "remove-table-note": ["--path", "--at"],
+  "move-table-note": ["--path", "--from", "--to"],
   "update-table-cell": ["--path", "--text", "--content"],
   "remove-block": ["--at"],
   "insert-target": ["--at", "--label"],
@@ -515,10 +532,15 @@ function captionInput(args: string[]): string | InlineContent[] | undefined {
 }
 
 function textOrContent(args: string[]): InlineContent[] {
+  const input = plainTextOrContent(args);
+  return typeof input !== "string" ? input : input ? [{ kind: "text", text: input }] : [];
+}
+
+function plainTextOrContent(args: string[]): string | InlineContent[] {
   const text = optionalFlag(args, "--text");
   const content = optionalFlag(args, "--content");
   if ((text === undefined) === (content === undefined)) throw new Error("exactly one of --text or --content is required");
-  return text !== undefined ? (text ? [{ kind: "text", text }] : []) : jsonFlag<InlineContent[]>(args, "--content");
+  return text ?? jsonFlag<InlineContent[]>(args, "--content");
 }
 
 function variantFlag(args: string[]): AdmonitionVariant {

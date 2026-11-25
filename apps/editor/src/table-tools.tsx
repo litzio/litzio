@@ -80,7 +80,7 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
   useEffect(() => setLayersAttached(true), []);
   const current = useEditorState({ editor, selector: ({ editor: instance }) => {
     const { $from } = instance.state.selection;
-    return $from.depth >= 3 && $from.node(1).type.name === "table" && $from.before(1) === getPos()
+    return $from.depth >= 3 && $from.parent.type.name === "tableCell" && $from.node(1).type.name === "table" && $from.before(1) === getPos()
       ? { row: $from.index(1), column: $from.index(2) } : null;
   } });
   useEffect(() => {

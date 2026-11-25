@@ -1,7 +1,7 @@
 import { DOCUMENT_STATUSES, type DocumentStatus } from "@litzio/core";
 import { allocateBlockPath } from "./block-locators.ts";
 import { SaveContentError } from "../shared/save-error.ts";
-import { inlineContentText as inlineText, sameInlineContent as sameInline, isAdmonitionVariant, type CodeBlockContent, type EditableDocument, type FigureContent, type InlineContent, type ListContent } from "@litzio/core";
+import { inlineContentText as inlineText, sameInlineContent as sameInline, isAdmonitionVariant, paragraphInlineContent, type CodeBlockContent, type EditableDocument, type FigureContent, type InlineContent, type ListContent } from "@litzio/core";
 import { defaultHeadingNumbering, referenceTemplatesError, NUMBERED_KINDS, type ReferenceTemplates } from "@litzio/core/numbering";
 import { figureCaptionContent, figureContentError } from "@litzio/core/figure";
 import { fromTiptapContent, type TiptapJSON } from "./tiptap-inline.ts";
@@ -99,6 +99,7 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
   const cells: TableCellEdit[] = [];
   const tables: TableShapeEdit[] = [];
   const tableCaptions: NonNullable<SupportedEdits["tableCaptions"]> = [];
+  const noteEdits: NonNullable<SupportedEdits["tableNotes"]> = [];
   const admonitions: AdmonitionEdit[] = [];
   const quotes: QuoteEdit[] = [];
   const footnotes: FootnoteEdit[] = [];
@@ -214,6 +215,11 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
         if (label !== (block.label ?? "")) labels.push({ path: block.path, from: block.label ?? "", to: label });
         const caption = tableCaption(node);
         if (!sameInline(caption, block.caption ?? [])) tableCaptions.push({ path: block.path, content: caption });
+        const notes = tableNotes(node);
+        const oldNotes = block.notes ?? [];
+        if (notes.length !== oldNotes.length || notes.some((note, index) => !sameInline(note, oldNotes[index]))) {
+          noteEdits.push({ path: block.path, notes });
+        }
         const next = tableCells(node);
         const shape = tableShape(tableCells(toTiptapBlock(block)), next);
         block.rows.forEach((row, rowIndex) => row.cells.forEach((cell, index) => {
@@ -271,6 +277,7 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
     ...(cells.length ? { cells } : {}),
     ...(tables.length ? { tables } : {}),
     ...(tableCaptions.length ? { tableCaptions } : {}),
+    ...(noteEdits.length ? { tableNotes: noteEdits } : {}),
     ...(admonitions.length ? { admonitions } : {}),
     ...(quotes.length ? { quotes } : {}),
     ...(footnotes.length ? { footnotes } : {}),
@@ -488,9 +495,10 @@ function insertEdit(node: TiptapJSON): InsertEdit {
       throw new SaveContentError("table alignment must be uniform within each column", undefined, { code: "table-shape", phase: "collect", action: "Set alignment for the whole column using the table controls." });
     }
     const caption = tableCaption(node);
+    const notes = tableNotes(node);
     const label = blockLabel(node);
     return { block: "table", rows: grid.map(row => row.map(cell => cell.content)), ...(align.some(Boolean) ? { align } : {}),
-      ...(caption.length ? { caption } : {}), ...(label ? { label } : {}), ...insertEnumerator(node) };
+      ...(caption.length ? { caption } : {}), ...(notes.length ? { notes } : {}), ...(label ? { label } : {}), ...insertEnumerator(node) };
   }
   if (LIST_BLOCKS.has(node.type ?? "")) {
     return { block: "list", list: listContent(node) };
@@ -601,6 +609,7 @@ function assertBlockChange(before: TiptapJSON | undefined, after: TiptapJSON | u
   if (beforeType === "table") {
     blockLabel(after);
     tableCaption(after);
+    tableNotes(after);
     if (normalizeAttr(before.attrs?.sourcePath) !== normalizeAttr(after.attrs?.sourcePath)) {
       throw new Error("table identity cannot change");
     }
@@ -656,9 +665,9 @@ function assertBlockChange(before: TiptapJSON | undefined, after: TiptapJSON | u
  * `text` is a read-only cell's display text; `content` is an editable cell's content. */
 type TableCellShape = { header: boolean; content: InlineContent[]; align: string; source: string };
 
-/** The cell grid of a table node; editable cells hold inline content without line breaks. */
+/** The cell grid of a table node, excluding the caption and notes. */
 function tableCells(node: TiptapJSON): TableCellShape[][] {
-  return (node.content ?? []).filter(row => row.type !== "tableCaption").map((row, rowIndex) => {
+  return (node.content ?? []).filter(row => row.type !== "tableCaption" && row.type !== "tableNotes").map((row, rowIndex) => {
     if (row.type !== "tableRow") throw new Error(`unsupported Tiptap node ${describeType(row)} in table`);
     return (row.content ?? []).map((cell, column) => {
       try {
@@ -667,8 +676,6 @@ function tableCells(node: TiptapJSON): TableCellShape[][] {
         const source = String(cell.attrs?.[TABLE_CELL_SOURCE_ATTR] ?? "");
         if (cell.type !== "tableCell") throw new Error(`unsupported Tiptap node ${describeType(cell)} in table row`);
         const content = paragraphInline(cell);
-        if (hasBreak(content)) throw new SaveContentError("a table cell cannot contain line breaks", undefined, {
-          code: "line-break", phase: "collect", action: "Remove the line breaks from this table cell.", cell: { row: rowIndex, column } });
         return { header, align, content, source };
       } catch (error) {
         throw new SaveContentError(error instanceof Error ? error.message : String(error), undefined, {
@@ -749,10 +756,25 @@ function equationLatex(node: TiptapJSON): string {
 function tableCaption(node: TiptapJSON): InlineContent[] {
   const children = node.content ?? [];
   const captions = children.filter(child => child.type === "tableCaption");
-  if (captions.length > 1 || captions.length && children.at(-1) !== captions[0]) throw new Error("a table caption must follow its rows");
+  const last = children.at(-1)?.type === "tableNotes" ? -2 : -1;
+  if (captions.length > 1 || captions.length && children.at(last) !== captions[0]) throw new Error("a table caption must follow its rows");
   const caption = captions.length ? paragraphInline(captions[0]) : [];
   if (hasBreak(caption)) throw new Error("a table caption cannot contain line breaks");
   return caption;
+}
+
+function tableNotes(node: TiptapJSON): InlineContent[][] {
+  const children = node.content ?? [];
+  const groups = children.filter(child => child.type === "tableNotes");
+  if (!groups.length) return [];
+  const [group] = groups;
+  if (groups.length > 1 || children.at(-1) !== group || !group.content?.length) {
+    throw new Error("one group of table note paragraphs can follow the caption");
+  }
+  return group.content.map(note => {
+    if (note.type !== "tableNote") throw new Error("table notes must be paragraphs");
+    return paragraphInlineContent(paragraphInline(note));
+  }).filter(note => note.length > 0);
 }
 
 /** A section label target always has a label; removing it removes the block. */

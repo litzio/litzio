@@ -192,22 +192,22 @@ test("handle targets reuse commands outside the table, preserving formatted cell
   assert.throws(() => addTableRowBelow(state, TABLE, { row: 99, column: 0 }), /invalid table cell target/);
 });
 
-test("Table is an insert command; row and column commands are offered for tables only", () => {
+test("Table is an insert command and its structure commands are scoped to tables", () => {
   assert.deepEqual(filterInsertCommands("tab").map(command => command.id), ["table"]);
   const { state } = editorState(mixed);
   const listed = (index: number) => BLOCK_COMMANDS.filter(command => command.applies?.(state, index) ?? true).map(command => command.label);
-  for (const label of ["Add row below", "Add column right", "Move row up", "Move row down", "Move column left", "Move column right",
+  for (const label of ["Add row below", "Add column right", "Add table note", "Move row up", "Move row down", "Move column left", "Move column right",
     "Align column left", "Align column center", "Align column right", "Clear column alignment", "Delete row", "Delete column", "Delete"]) {
     assert.ok(listed(TABLE).includes(label), label);
   }
   assert.ok(listed(0).includes("Delete"));
-  assert.ok(!listed(0).some(label => label.includes("row") || label.includes("column")));
+  assert.ok(!listed(0).some(label => label.includes("row") || label.includes("column") || label === "Add table note"));
   // Row and column commands act on the caret's cell; the header row neither moves nor is removed.
   const enabled = (current: EditorState) => BLOCK_COMMANDS.filter(command =>
     (command.id.startsWith("table-") || command.id === "delete") &&
     (command.applies?.(current, TABLE) ?? true) && command.enabled(current, TABLE)).map(command => command.id);
-  assert.deepEqual(enabled(state), ["table-row", "table-column", "delete"]);
-  assert.deepEqual(enabled(caretIn(state, 0, 0)), ["table-row", "table-column", "table-column-right", "table-align-left", "table-align-center",
+  assert.deepEqual(enabled(state), ["table-row", "table-column", "table-note", "delete"]);
+  assert.deepEqual(enabled(caretIn(state, 0, 0)), ["table-row", "table-column", "table-note", "table-column-right", "table-align-left", "table-align-center",
     "table-align-right", "table-column-delete", "delete"]);
   assert.deepEqual(enabled(caretIn(state, 2, 1)).filter(id => id.startsWith("table-row") || id.startsWith("table-column-")),
     ["table-row", "table-row-up", "table-column-left", "table-row-delete", "table-column-delete"]);

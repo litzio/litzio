@@ -10,6 +10,7 @@ export { mergeParagraphWithPrevious, splitParagraph, updateHeadingLevel, machine
   type Document, type NodePath, parse, serialize, getEditableDocument, updateNodeTextAtPath, convertBlock, removeBlock, updateTableCell,
   updateParagraphInlineContent, updateHeadingInlineContent, insertParagraph, insertHeading, insertTable, insertFigure,
   insertList, insertCodeBlock, insertEquation, updateLabel, updateEnumerator, updateEnumeration, updateTableCaption,
+  insertTableNote, updateTableNote, removeTableNote, moveTableNote,
   updateDocumentStatus, DOCUMENT_STATUSES, type DocumentStatus,
   updateList, updateCodeBlock, updateEquationLatex, updateFigure, inlineContentText, bodyEndIndex } from "@litzio/core";
 

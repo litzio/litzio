@@ -7,7 +7,7 @@ import { VFile } from "vfile";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { locateFootnotes } from "./footnote.ts";
 import { retainMermaidOptions } from "./figure.ts";
-import { retainTableSource } from "./table.ts";
+import { readTableBreaks, retainTableSource } from "./table.ts";
 import { type MystDocument } from "./tree.ts";
 import { assertUnicode } from "./unicode.ts";
 
@@ -40,6 +40,7 @@ export function parse(source: string): MystDocument {
   retainMermaidOptions(document, file);
   liftMystDirectivesAndRolesTransform(document);
   containerChildrenTransform(document, new VFile());
+  readTableBreaks(document);
   locateFootnotes(document, text, OPTIONS);
   return document;
 }

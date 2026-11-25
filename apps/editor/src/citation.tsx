@@ -49,8 +49,8 @@ export function citationNumbers(doc: ProseMirrorNode): Map<string, number> {
         found = [];
         const visit = (node: ProseMirrorNode) => { if (node.type.name === "citation") found!.push(...node.attrs.keys); };
         if (block.type.name === "table") {
-          block.lastChild?.type.name === "tableCaption" && block.lastChild.descendants(visit);
-          block.forEach(row => { if (row.type.name === "tableRow") row.descendants(visit); });
+          block.content.content.find(child => child.type.name === "tableCaption")?.descendants(visit);
+          block.forEach(child => { if (child.type.name !== "tableCaption") child.descendants(visit); });
         } else block.descendants(visit);
         keysOf.set(block, found);
       }

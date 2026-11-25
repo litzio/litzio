@@ -485,7 +485,7 @@ function figureNode(documentPath?: string | (() => string), onDraftChange?: Draf
 }
 
 // A Markdown table lives in the single document state: editable cells hold supported
-// inline content without line breaks; native admission rejects other cells. Commands add, remove and
+// inline content including hard breaks; native admission rejects other cells. Commands add, remove and
 // move whole rows (below the header row) and columns, and set column alignment; snapshot cells
 // carry their opening position. The structure guard rejects any other change to the grid.
 const headerAttr: Attribute = { default: false, rendered: false, parseHTML: (element) => element.tagName === "TH" };
@@ -494,7 +494,7 @@ const Table = Node.create({
   name: "table",
   allowGapCursor: false,
   group: "block",
-  content: "tableRow+ tableCaption",
+  content: "tableRow+ tableCaption tableNotes?",
   isolating: true,
   selectable: true,
   draggable: false,
@@ -524,6 +524,26 @@ const TableCaption = Node.create({
   },
 });
 
+const TableNotes = Node.create({
+  name: "tableNotes",
+  content: "tableNote+",
+  parseHTML() {
+    return [{ tag: "tfoot[data-table-notes]", contentElement: "td" }];
+  },
+  renderHTML() {
+    return ["tfoot", { "data-table-notes": "", "aria-label": i18n.t("Table notes") }, ["tr", ["td", 0]]];
+  },
+});
+
+const TableNote = Node.create({
+  name: "tableNote",
+  content: "(text | hardBreak | inlineMath | crossReference | citation)*",
+  isolating: true,
+  selectable: false,
+  parseHTML() { return [{ tag: "p[data-table-note]" }]; },
+  renderHTML() { return ["p", { "data-table-note": "", "aria-label": i18n.t("Table note") }, 0]; },
+});
+
 function tableNode(onDraftChange?: DraftListener) {
   return Table.extend({
     addNodeView() { return ReactNodeViewRenderer(props => <TableView {...props} onDraftChange={onDraftChange} />, { contentDOMElementTag: "table" }); },
@@ -546,10 +566,10 @@ const TableRow = Node.create({
   },
 });
 
-// A cell holds inline content without line breaks, like a heading.
+// Cells hold inline content, including hard breaks.
 const TableCell = Node.create({
   name: "tableCell",
-  content: "(text | inlineMath | crossReference | footnoteReference | citation)*",
+  content: "(text | hardBreak | inlineMath | crossReference | footnoteReference | citation)*",
   isolating: true,
   addAttributes() {
     return { header: headerAttr, align: hiddenAttr(""), [TABLE_CELL_SOURCE_ATTR]: { default: "", rendered: false } };
@@ -618,11 +638,13 @@ const ParagraphHardBreak = Extension.create({
   name: "paragraphHardBreak",
   priority: 110,
   addKeyboardShortcuts() {
-    const insert = () => {
+    const insert = (shift: boolean) => () => {
       const { state } = this.editor;
+      if (!this.editor.isEditable || this.editor.view.composing) return false;
       const parent = state.selection.$from.parent;
       const editableInlineParent = parent.type.name === "paragraph" ||
-        parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "admonition";
+        parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "admonition" ||
+        (shift && (parent.type.name === "tableCell" || parent.type.name === "tableNote"));
       // A selected inline math node is not replaced by a break.
       if (!editableInlineParent || state.selection instanceof NodeSelection) return true;
       // A break ends inline code; code is text only.
@@ -632,7 +654,7 @@ const ParagraphHardBreak = Extension.create({
         .command(({ tr }) => { tr.ensureMarks(marks); return true; })
         .run();
     };
-    return { "Shift-Enter": insert, "Mod-Enter": insert };
+    return { "Shift-Enter": insert(true), "Mod-Enter": insert(false) };
   },
 });
 
@@ -776,6 +798,8 @@ export function editorExtensions(
     tableNode(onDraftChange),
     TableRow,
     TableCaption,
+    TableNotes,
+    TableNote,
     TableCell,
     LabelTarget.configure({ onDraftChange }),
     InlineMath.configure({ onDraftChange }),

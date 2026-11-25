@@ -160,7 +160,7 @@ test('paragraph owners share tail normalization and retain their existing empty 
   assert.deepEqual(stable(updateAdmonitionInlineContent(admonition, [1], empty)).children[1].children, []);
   assert.throws(() => updateFootnoteDefinition(note, [1], empty), /non-empty/);
   const table = insertTable(base, 1, [['Header'], ['Cell']]);
-  assert.throws(() => updateTableCell(table, [1,1,0], input), /line breaks/);
+  assert.throws(() => updateTableCell(table, [1,1,0], input), /whitespace/);
   assert.throws(() => updateTableCaption(table, [1], input), /line breaks/);
   assert.throws(() => insertHeading(base, 1, 2, input), /line breaks/);
 });

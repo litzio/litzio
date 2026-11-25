@@ -17,7 +17,7 @@
 - CLI insertion verification: 2026-10-15 (#280 caption/label in one write, label-only table, invalid/duplicate label refusal and rich batch caption; Core/CLI tests).
 - Last verified: 2026-11-16 — #1658: 표 도구·속성·번호 경고·번호 숨김을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
 - Previous verification: 2026-10-11 (contract compared with current code and regression coverage; caption inline math and reference display, #165).
-- Scope: Core table caption/label operations and their Editor/CLI interfaces; [Table interaction](table-interaction-v1.md).
+- Scope: Core table format, captions, notes, labels and their Editor/CLI interfaces. See [Table interaction](table-interaction-v1.md).
 
 Ctrl/Cmd+A in the inline caption first selects only its content, excluding the
 computed number; a consecutive second press selects the document. Empty captions
@@ -36,7 +36,7 @@ Plain GFM input remains supported and is normalized
 on any official write. Canonical writing uses the existing Markdown writer for the caption
 and GFM grid, then verifies the complete semantic round-trip. The fingerprint treats only
 the plain top-level table and its empty directive wrapper as equivalent; grid content,
-rows/columns, alignment, caption, Label and other fields remain checked. Cell paths remain
+rows/columns, alignment, caption, notes, Label and other fields remain checked. Cell paths remain
 logical `[block,row,column]` regardless of the directive wrapper. No migration or alternate table kind is introduced.
 
 Editor uses the existing single document state. Captions are edited directly below the
@@ -69,7 +69,7 @@ Table properties expose Number after Label (#720), following the
 [shared fixed-number Editor contract](heading-numbering-v1.md#fixed-numbers-720). Number-only drafts participate in unsaved-work protection.
 Completion changes label and number in one engine transaction and Save replays Core
 `updateEnumerator`. Escape keeps the applied value. Numbering warnings follow that shared contract.
-The Editor schema requires exactly one caption after the rows. Native parsing and
+The Editor schema requires exactly one caption after the rows, followed by the optional group of note paragraphs. Native parsing and
 replacement therefore retain the surface even when a range deletion removes everything
 after the final cell while keeping the table. No repair transaction or Undo step is added.
 Recovery requires that caption child in both checkpoints. The owner ended pre-#577
@@ -126,7 +126,7 @@ The Editor caption uses the existing single-line InlineContent contract. Its ref
 and citation NodeViews are the same ones used in the body, including computed numbers,
 readiness, editing and navigation. MyST reads caption citations/endnotes before grid
 cells even though the caption is visually below them; numbering follows that Core order.
-No generated display text enters Markdown. Merged cells, additional legends and directive
+No generated display text enters Markdown. Merged cells and extra directive
 options other than Label (`name` / `label`), fixed number (`enumerator`) and numbering visibility
 (`enumerated` / `numbered`) reject native admission. Visibility semantics follow the shared number contract. Only plain GFM and
 the exact `{table}` directive are accepted; `{csv-table}`, `{list-table}` and other
@@ -178,6 +178,50 @@ whitespace checks pass. Prose/caption output remains byte-identical in its regre
 The existing Host file-save regression also replaces its former pipe refusal with
 an actual file write, native reopen and byte-identical second save, retaining all
 malformed-input refusals. Editor 316/316, Editor typecheck and production build pass.
+
+## Cell breaks and table notes (#1973)
+
+A GFM cell uses literal `<br>` for an inline hard break. The spellings `<BR>`,
+`<br/>`, `<br />` and tags with attributes are refused in native source. The writer
+adds no space around a break. Adjacent authored spaces are content, subject to the
+existing cell padding rule and the canonical round-trip check. Leading, trailing and
+consecutive breaks are retained. Plain-string cell input maps LF, CRLF and CR to hard
+breaks. Structured input uses `{"kind":"break"}` and keeps a physical newline out
+of a text node. The caption remains a single line.
+
+The paragraphs after the grid inside `{table}` are the table legend. Each paragraph
+is a note and a blank source line separates adjacent notes. A directive-line caption
+is optional. A paragraph that follows the grid belongs to the notes even when there
+is no caption. Notes use paragraph inline content, including formatting, scripts,
+math, links, cross-references and citations. Endnote references are excluded so the
+table’s annotations do not participate in the document’s endnote sequence. An authored
+marker such as `a.` stays literal text. Lists, figures and nested tables are refused
+in the legend. Table numbering still numbers the table as a whole.
+
+```markdown
+:::{table} Operating limits
+
+| Setting | Value             |
+| ------- | ----------------- |
+| Output  | Nominal<br>Limit  |
+
+a. Nominal value.
+
+b. Measured at full load.
+:::
+```
+
+Core owns `insertTableNote`, `updateTableNote`, `removeTableNote` and
+`moveTableNote`. The operations take the table path `[block]` and zero-based note
+indices. CLI and `apply-batch` use `insert-table-note` and `update-table-note`
+with `--path`, `--at` and `--text` or `--content`. `remove-table-note` takes
+`--path` and `--at`. `move-table-note` takes `--path`, `--from` and `--to`.
+`inspect --format json` returns `notes` on the table as an array of `InlineContent`
+arrays. The same `notes` value is valid in structured document authoring. Row and
+column edits preserve the notes. Moving, deleting or copying the table includes them.
+The grid, caption and notes share one comparison block.
+
+See [ADR-0023](../adr/0023-table-inline-breaks-and-notes.md) for the format decision.
 
 ## Shared caption gap (#721)
 
