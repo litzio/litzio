@@ -83,8 +83,17 @@ async (page, {openPath, activeDocument, expect, screenshots}) => {
   await expect(preview.locator('.katex')).toHaveCount(1);
   await expect(preview.locator('.cross-reference-chip')).toHaveText(['(1)','[1]']);
   await expect(preview.locator('.reference-preview-link')).toHaveText('local diagram');
+  const contentLinkColor = await preview.locator('.reference-preview-link').evaluate(link => getComputedStyle(link).color);
+  for (const chip of await preview.locator('.cross-reference-chip').all()) {
+    await expect(chip).toHaveCSS('color', contentLinkColor);
+  }
+  await expect(notes.first().locator('sup')).toHaveCSS('color', contentLinkColor);
+  await expect(citations.first().locator('.cross-reference-chip')).toHaveCSS('color', contentLinkColor);
   // The preview uses the same formatted bibliography parts and statuses as References.
   await hover(citations.first());
+  for (const number of await preview.locator('.bibliography-number').all()) {
+    await expect(number).toHaveCSS('color', contentLinkColor);
+  }
   for (const key of ['article','standard']) {
     const reference=surface.locator(`.bibliography-list [data-key="${key}"]`);
     await expect(preview).toContainText((await reference.textContent()).replace(/^\[\d+\]/,''));

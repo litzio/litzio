@@ -1999,6 +1999,11 @@ ul.list[data-type="taskList"] > li > label > input {
   line-height: 0;
 }
 
+.footnote-reference[data-resolved="true"] sup,
+.footnote-number[data-resolved="true"] {
+  color: var(--id-color-content-link);
+}
+
 .footnote-number {
   margin-right: var(--space-1);
   cursor: pointer;
@@ -2364,7 +2369,7 @@ ul.list[data-type="taskList"] > li > label > input {
 }
 .reference-preview-link {
   text-decoration: underline;
-  color: var(--id-color-interaction);
+  color: var(--id-color-content-link);
 }
 /* A target block at document scale, clipped from its top-left to the reading cap. The bottom
  * fades like a wide table's edge when more of the target follows. */
@@ -2567,6 +2572,11 @@ ul.list[data-type="taskList"] > li > label > input {
   white-space: nowrap;
 }
 
+.cross-reference[data-resolved="true"]:not(.citation, .footnote-reference) > .cross-reference-chip,
+.reference-preview-numbered-reference {
+  color: var(--id-color-content-link);
+}
+
 .cross-reference[data-resolved="false"] .cross-reference-chip {
   color: var(--id-color-text-subtle);
   text-decoration: underline dashed;
@@ -2725,7 +2735,7 @@ ul.list[data-type="taskList"] > li > label > input {
 }
 
 .document-editor a {
-  color: var(--id-color-interaction);
+  color: var(--id-color-content-link);
   text-decoration: underline;
   cursor: text;
 }
@@ -3168,7 +3178,12 @@ h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-
 .bibliography-list > li > div { min-width: 0; }
 .bibliography-number { flex-shrink: 0; }
 .bibliography-resources { padding-left: var(--space-4); }
-.citation[data-readiness="complete"] .cross-reference-chip { color: var(--id-color-interaction); text-decoration: none; }
+.citation[data-readiness="complete"] .cross-reference-chip,
+.reference-preview-citation[data-readiness="complete"],
+.reference-preview-entry[data-readiness="complete"] .bibliography-number {
+  color: var(--id-color-content-link);
+  text-decoration: none;
+}
 
 /* Read-only folder preview uses the shared modal surface and existing spacing/type roles. */
 .file-preview[data-slot="dialog-content"] { width: min(var(--layout-file-preview-width), calc(100% - 2rem)); max-width: calc(100% - 2rem); }
