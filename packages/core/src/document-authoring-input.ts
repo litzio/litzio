@@ -4,7 +4,7 @@ import { ADMONITION_VARIANTS } from "./myst/admonition.ts";
 import type { InlineContent } from "./inline.ts";
 import { LIST_STYLES, type ListContent, type ListItemContent } from "./list.ts";
 
-export const DOCUMENT_AUTHORING_LIMITS = { bytes: 4 * 1024 * 1024, inputs: 5000, blocks: 5000, string: 16384, tableRows: 100, tableColumns: 32 } as const;
+export const DOCUMENT_AUTHORING_LIMITS = { bytes: 4 * 1024 * 1024, inputs: 5000, blocks: 5000, string: 16384, tableRows: 500, tableColumns: 32, tableCells: 8000 } as const;
 /** Canonical authoring/serialization semantics used by portable derived snapshots. */
 export const DOCUMENT_AUTHORING_CONTRACT = "core-authoring-1";
 const text = z.string().max(DOCUMENT_AUTHORING_LIMITS.string).refine(value => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value));
@@ -42,6 +42,8 @@ const block = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("equation"), latex: text, label: text.optional(), enumerator: text.optional() }),
   z.strictObject({ kind: z.literal("divider") }),
 ]).superRefine((value, ctx) => {
+  if (value.kind === "table" && value.rows.reduce((sum, row) => sum + row.length, 0) > DOCUMENT_AUTHORING_LIMITS.tableCells)
+    ctx.addIssue({ code: "custom", message: `Table exceeds ${DOCUMENT_AUTHORING_LIMITS.tableCells} cells` });
   if ((value.kind === "paragraph" || value.kind === "heading" || value.kind === "quote" || value.kind === "admonition" || value.kind === "footnote") && (value.text === undefined) === (value.content === undefined))
     ctx.addIssue({ code: "custom", message: "Expected exactly one of text or content" });
 });
