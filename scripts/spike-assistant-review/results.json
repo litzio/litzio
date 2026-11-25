@@ -1,0 +1,1837 @@
+{
+  "baseline": {
+    "section_header": {
+      "correct": 15,
+      "wrong": 1,
+      "missing": 0
+    },
+    "paragraph": {
+      "correct": 41,
+      "wrong": 0,
+      "missing": 0
+    },
+    "footnote": {
+      "correct": 10,
+      "wrong": 2,
+      "missing": 0
+    },
+    "list_item": {
+      "correct": 0,
+      "wrong": 18,
+      "missing": 0
+    },
+    "caption": {
+      "correct": 9,
+      "wrong": 1,
+      "missing": 0
+    },
+    "table": {
+      "correct": 4,
+      "wrong": 4,
+      "missing": 0
+    },
+    "formula": {
+      "correct": 0,
+      "wrong": 3,
+      "missing": 0
+    },
+    "picture": {
+      "correct": 1,
+      "wrong": 1,
+      "missing": 0
+    },
+    "document_title": {
+      "correct": 0,
+      "wrong": 1,
+      "missing": 0
+    }
+  },
+  "baselineTotal": 111,
+  "baselineWrong": 31,
+  "baselineExtras": [
+    {
+      "path": [
+        63
+      ],
+      "type": "paragraph",
+      "text": "Fill ratio (p.u.)"
+    },
+    {
+      "path": [
+        64
+      ],
+      "type": "paragraph",
+      "text": "1.20"
+    },
+    {
+      "path": [
+        66
+      ],
+      "type": "paragraph",
+      "text": "0.80"
+    },
+    {
+      "path": [
+        67
+      ],
+      "type": "paragraph",
+      "text": "0.40"
+    },
+    {
+      "path": [
+        68
+      ],
+      "type": "paragraph",
+      "text": "0.00"
+    }
+  ],
+  "baselineValidation": {
+    "originalTextTables": 6,
+    "projectedGrids": 6,
+    "projectedNonMathCellsCorrect": 127,
+    "originalFormulaImages": 3
+  },
+  "runs": {
+    "sol-1": {
+      "detection": {
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3",
+          "annex-M-title"
+        ],
+        "missed": [
+          "participants-heading"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "outside": [
+          "excluded-first-page",
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table",
+          "running-furniture",
+          "editable-figure-graph",
+          "style-bold",
+          "sponsor-line-break"
+        ]
+      },
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 10,
+          "wrong": 2,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 1,
+          "wrong": 0,
+          "missing": 0
+        }
+      },
+      "correct": 105,
+      "newlyCorrect": [
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b",
+        "std-record-title"
+      ],
+      "damaged": [
+        "std-page-note-18",
+        "std-page-note-19"
+      ],
+      "stillWrong": 4,
+      "fullFixes": [
+        "roster",
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3",
+        "annex-M-title"
+      ],
+      "fullFixesOfFound": [
+        "roster",
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3",
+        "annex-M-title"
+      ],
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4,
+        "numberDisplay": "native"
+      },
+      "rosterInSourceOrder": true,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "stale": true,
+      "originalPdfUnchanged": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsMissingOrOverwritten": [],
+      "originalAssetsNoLongerReferenced": [
+        "figure-001.png",
+        "figure-002.png",
+        "figure-004.png",
+        "figure-005.png",
+        "table-006.png"
+      ],
+      "newAssets": [
+        "figure-k2-complete.png"
+      ],
+      "brokenLinks": 0,
+      "nativeFigures": 2,
+      "extraBlockCount": 5,
+      "calls": [
+        {
+          "seconds": 85,
+          "contextTokens": 60269,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 1
+        },
+        {
+          "seconds": 143,
+          "contextTokens": 79077,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell",
+            "patch",
+            "shell (failed)",
+            "shell",
+            "shell",
+            "shell (failed)",
+            "shell",
+            "shell"
+          ],
+          "cli": 6
+        }
+      ]
+    },
+    "sol-2": {
+      "detection": {
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3",
+          "annex-M-title"
+        ],
+        "missed": [
+          "participants-heading"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "outside": [
+          "excluded-first-page",
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table",
+          "running-furniture",
+          "sponsor-line-break"
+        ]
+      },
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 40,
+          "wrong": 1,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 4,
+          "wrong": 4,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 1,
+          "wrong": 0,
+          "missing": 0
+        }
+      },
+      "correct": 87,
+      "newlyCorrect": [
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b",
+        "std-record-title"
+      ],
+      "damaged": [
+        "std-matrix",
+        "std-record-sponsor"
+      ],
+      "stillWrong": 22,
+      "fullFixes": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3",
+        "annex-M-title"
+      ],
+      "fullFixesOfFound": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3",
+        "annex-M-title"
+      ],
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4,
+        "numberDisplay": "native"
+      },
+      "rosterInSourceOrder": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "stale": true,
+      "originalPdfUnchanged": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsMissingOrOverwritten": [],
+      "originalAssetsNoLongerReferenced": [
+        "figure-001.png",
+        "figure-002.png",
+        "figure-004.png",
+        "figure-005.png",
+        "table-006.png"
+      ],
+      "newAssets": [
+        "figure-K.2-complete.png"
+      ],
+      "brokenLinks": 0,
+      "nativeFigures": 2,
+      "extraBlockCount": 19,
+      "calls": [
+        {
+          "seconds": 85,
+          "contextTokens": 51701,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 1
+        },
+        {
+          "seconds": 136,
+          "contextTokens": 69475,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "patch",
+            "shell (failed)",
+            "shell",
+            "shell (failed)",
+            "shell (failed)"
+          ],
+          "cli": 8
+        }
+      ]
+    },
+    "sol-3": {
+      "detection": {
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3",
+          "annex-M-title"
+        ],
+        "missed": [
+          "participants-heading"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table",
+          "annex-M-page-break"
+        ],
+        "outside": [
+          "excluded-first-page",
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table",
+          "running-furniture",
+          "sponsor-line-break",
+          "annex-M-page-break"
+        ]
+      },
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 40,
+          "wrong": 1,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 11,
+          "wrong": 1,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 1,
+          "wrong": 0,
+          "missing": 0
+        }
+      },
+      "correct": 87,
+      "newlyCorrect": [
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b",
+        "std-record-title"
+      ],
+      "damaged": [
+        "std-settings-note-a",
+        "std-record-sponsor"
+      ],
+      "stillWrong": 22,
+      "fullFixes": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3",
+        "annex-M-title"
+      ],
+      "fullFixesOfFound": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3",
+        "annex-M-title"
+      ],
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4,
+        "numberDisplay": "native"
+      },
+      "rosterInSourceOrder": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "stale": true,
+      "originalPdfUnchanged": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsMissingOrOverwritten": [],
+      "originalAssetsNoLongerReferenced": [
+        "figure-001.png",
+        "figure-002.png",
+        "figure-004.png",
+        "figure-005.png",
+        "table-006.png"
+      ],
+      "newAssets": [
+        "figure-K.2-restored.png"
+      ],
+      "brokenLinks": 0,
+      "nativeFigures": 2,
+      "extraBlockCount": 11,
+      "calls": [
+        {
+          "seconds": 74,
+          "contextTokens": 49745,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 1
+        },
+        {
+          "seconds": 165,
+          "contextTokens": 74273,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell (failed)",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell (failed)",
+            "shell (failed)",
+            "patch",
+            "shell"
+          ],
+          "cli": 8
+        }
+      ]
+    },
+    "terra-1": {
+      "detection": {
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "falseClaims": [],
+        "ambiguous": [
+          "possible-implied-missing-body-call"
+        ],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19"
+        ],
+        "outside": [
+          "excluded-first-page",
+          "flattened-table",
+          "page-note-18",
+          "page-note-19"
+        ]
+      },
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "correct": 88,
+      "newlyCorrect": [
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [],
+      "stillWrong": 23,
+      "fullFixes": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "fullFixesOfFound": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4,
+        "numberDisplay": "duplicate rendered"
+      },
+      "rosterInSourceOrder": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [
+          "numbering-missing",
+          "numbering-missing",
+          "numbering-missing"
+        ],
+        "missingImages": []
+      },
+      "stale": true,
+      "originalPdfUnchanged": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsMissingOrOverwritten": [],
+      "originalAssetsNoLongerReferenced": [
+        "figure-001.png",
+        "figure-002.png",
+        "figure-004.png",
+        "figure-005.png",
+        "table-006.png"
+      ],
+      "newAssets": [
+        "figure-004-complete.png"
+      ],
+      "brokenLinks": 0,
+      "nativeFigures": 2,
+      "extraBlockCount": 2,
+      "calls": [
+        {
+          "seconds": 51,
+          "contextTokens": 47527,
+          "approvals": 0,
+          "order": [
+            "document",
+            "shell",
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 0
+        },
+        {
+          "seconds": 72,
+          "contextTokens": 58394,
+          "approvals": 0,
+          "order": [
+            "document",
+            "shell",
+            "shell",
+            "shell",
+            "patch",
+            "shell",
+            "shell"
+          ],
+          "cli": 2
+        }
+      ]
+    },
+    "terra-2": {
+      "detection": {
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19"
+        ],
+        "outside": [
+          "excluded-first-page",
+          "flattened-table",
+          "page-note-18",
+          "page-note-19"
+        ]
+      },
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 12,
+          "wrong": 0,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 1,
+          "wrong": 1,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "correct": 87,
+      "newlyCorrect": [
+        "std-equation-1",
+        "std-equation-2",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [],
+      "stillWrong": 24,
+      "fullFixes": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "fullFixesOfFound": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4,
+        "numberDisplay": "duplicate rendered"
+      },
+      "rosterInSourceOrder": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [
+          "numbering-missing",
+          "numbering-missing",
+          "numbering-missing"
+        ],
+        "missingImages": []
+      },
+      "stale": true,
+      "originalPdfUnchanged": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsMissingOrOverwritten": [],
+      "originalAssetsNoLongerReferenced": [
+        "figure-001.png",
+        "figure-002.png",
+        "figure-005.png",
+        "table-006.png"
+      ],
+      "newAssets": [],
+      "brokenLinks": 0,
+      "nativeFigures": 2,
+      "extraBlockCount": 21,
+      "calls": [
+        {
+          "seconds": 55,
+          "contextTokens": 45710,
+          "approvals": 0,
+          "order": [
+            "document",
+            "shell",
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 0
+        },
+        {
+          "seconds": 57,
+          "contextTokens": 58872,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "patch",
+            "shell",
+            "patch",
+            "shell"
+          ],
+          "cli": 3
+        }
+      ]
+    },
+    "terra-3": {
+      "detection": {
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "falseClaims": [
+          "missing-source-call-for-page-notes-18-and-19"
+        ],
+        "ambiguous": [],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19"
+        ],
+        "outside": [
+          "excluded-first-page",
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "editable-figure-graph"
+        ]
+      },
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 11,
+          "wrong": 1,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 7,
+          "wrong": 1,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 0,
+          "wrong": 3,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "correct": 104,
+      "newlyCorrect": [
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-chart",
+        "std-conditional-table",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [
+        "std-settings-note-a"
+      ],
+      "stillWrong": 6,
+      "fullFixes": [
+        "roster",
+        "table-L1",
+        "chart-K2",
+        "table-L2",
+        "table-L3",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "fullFixesOfFound": [
+        "roster",
+        "table-L1",
+        "chart-K2",
+        "table-L2",
+        "table-L3",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "mathMeaning": {
+        "standalone": 0,
+        "cells": 2,
+        "numberDisplay": "original raster"
+      },
+      "rosterInSourceOrder": true,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "stale": true,
+      "originalPdfUnchanged": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsMissingOrOverwritten": [],
+      "originalAssetsNoLongerReferenced": [
+        "figure-004.png",
+        "table-006.png"
+      ],
+      "newAssets": [
+        "figure-k2-source.png",
+        "table-2-source.png"
+      ],
+      "brokenLinks": 0,
+      "nativeFigures": 6,
+      "extraBlockCount": 5,
+      "calls": [
+        {
+          "seconds": 57,
+          "contextTokens": 45752,
+          "approvals": 0,
+          "order": [
+            "document",
+            "shell",
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 0
+        },
+        {
+          "seconds": 70,
+          "contextTokens": 65816,
+          "approvals": 0,
+          "order": [
+            "document",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 2
+        }
+      ]
+    },
+    "astra-1": {
+      "detection": {
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "unsupported": [
+          "flattened-table",
+          "table-1-note-a-b",
+          "other-table-notes",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "outside": [
+          "excluded-first-page",
+          "flattened-table",
+          "table-1-note-a-b",
+          "other-table-notes",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ]
+      },
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 3,
+          "wrong": 9,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 18,
+          "wrong": 0,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 7,
+          "wrong": 1,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "correct": 99,
+      "newlyCorrect": [
+        "std-name-0-0",
+        "std-name-0-1",
+        "std-name-0-2",
+        "std-name-0-3",
+        "std-name-0-4",
+        "std-name-0-5",
+        "std-name-1-0",
+        "std-name-1-1",
+        "std-name-1-2",
+        "std-name-1-3",
+        "std-name-1-4",
+        "std-name-1-5",
+        "std-name-2-0",
+        "std-name-2-1",
+        "std-name-2-2",
+        "std-name-2-3",
+        "std-name-2-4",
+        "std-name-2-5",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-table-a",
+        "std-local-table-b"
+      ],
+      "damaged": [
+        "std-matrix-note-a",
+        "std-matrix-note-b",
+        "std-page-note-18",
+        "std-settings-note-a",
+        "std-page-note-19",
+        "std-bands-note-a",
+        "std-bands-note-b"
+      ],
+      "stillWrong": 5,
+      "fullFixes": [
+        "roster",
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "table-L2",
+        "table-L3",
+        "caption-L3"
+      ],
+      "fullFixesOfFound": [
+        "roster",
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "table-L2",
+        "table-L3",
+        "caption-L3"
+      ],
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4,
+        "numberDisplay": "native"
+      },
+      "rosterInSourceOrder": true,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "stale": true,
+      "originalPdfUnchanged": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsMissingOrOverwritten": [],
+      "originalAssetsNoLongerReferenced": [
+        "figure-001.png",
+        "figure-002.png",
+        "figure-004.png",
+        "figure-005.png",
+        "table-006.png"
+      ],
+      "newAssets": [
+        "graph-K2-complete.png",
+        "table-1-layout.png",
+        "table-2-layout.png"
+      ],
+      "brokenLinks": 0,
+      "nativeFigures": 2,
+      "extraBlockCount": 7,
+      "calls": [
+        {
+          "seconds": 52,
+          "contextTokens": 41506,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 0
+        },
+        {
+          "seconds": 147,
+          "contextTokens": 54971,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell (failed)",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 6
+        }
+      ]
+    },
+    "astra-2": {
+      "detection": {
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "outside": [
+          "excluded-first-page",
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ]
+      },
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 7,
+          "wrong": 5,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 6,
+          "wrong": 2,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "correct": 84,
+      "newlyCorrect": [
+        "std-settings",
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [
+        "std-matrix-note-a",
+        "std-matrix-note-b",
+        "std-page-note-18",
+        "std-settings-note-a",
+        "std-page-note-19"
+      ],
+      "stillWrong": 22,
+      "fullFixes": [
+        "table-2",
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "fullFixesOfFound": [
+        "table-2",
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4,
+        "numberDisplay": "native"
+      },
+      "rosterInSourceOrder": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "stale": true,
+      "originalPdfUnchanged": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsMissingOrOverwritten": [],
+      "originalAssetsNoLongerReferenced": [
+        "figure-001.png",
+        "figure-002.png",
+        "figure-004.png",
+        "figure-005.png",
+        "table-006.png"
+      ],
+      "newAssets": [
+        "figure-K2-full.png",
+        "participants.png",
+        "table-1-layout.png",
+        "table-2-layout.png"
+      ],
+      "brokenLinks": 0,
+      "nativeFigures": 5,
+      "extraBlockCount": 20,
+      "calls": [
+        {
+          "seconds": 57,
+          "contextTokens": 42537,
+          "approvals": 0,
+          "order": [
+            "shell (failed)",
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 0
+        },
+        {
+          "seconds": 120,
+          "contextTokens": 53052,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "patch",
+            "shell",
+            "shell (failed)",
+            "shell",
+            "shell",
+            "shell",
+            "patch",
+            "shell"
+          ],
+          "cli": 6
+        }
+      ]
+    },
+    "astra-3": {
+      "detection": {
+        "found": [
+          "roster",
+          "table-2",
+          "table-L1",
+          "equation-1",
+          "equation-2",
+          "equation-3",
+          "chart-K2",
+          "table-L2",
+          "table-L3",
+          "caption-L3",
+          "note-L2",
+          "note-L3"
+        ],
+        "missed": [
+          "participants-heading",
+          "annex-M-title"
+        ],
+        "falseClaims": [],
+        "ambiguous": [],
+        "unsupported": [
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ],
+        "outside": [
+          "excluded-first-page",
+          "flattened-table",
+          "page-note-18",
+          "page-note-19",
+          "continued-table"
+        ]
+      },
+      "scored": {
+        "section_header": {
+          "correct": 15,
+          "wrong": 1,
+          "missing": 0
+        },
+        "paragraph": {
+          "correct": 41,
+          "wrong": 0,
+          "missing": 0
+        },
+        "footnote": {
+          "correct": 10,
+          "wrong": 2,
+          "missing": 0
+        },
+        "list_item": {
+          "correct": 0,
+          "wrong": 18,
+          "missing": 0
+        },
+        "caption": {
+          "correct": 10,
+          "wrong": 0,
+          "missing": 0
+        },
+        "table": {
+          "correct": 5,
+          "wrong": 3,
+          "missing": 0
+        },
+        "formula": {
+          "correct": 3,
+          "wrong": 0,
+          "missing": 0
+        },
+        "picture": {
+          "correct": 2,
+          "wrong": 0,
+          "missing": 0
+        },
+        "document_title": {
+          "correct": 0,
+          "wrong": 1,
+          "missing": 0
+        }
+      },
+      "correct": 86,
+      "newlyCorrect": [
+        "std-equation-1",
+        "std-equation-2",
+        "std-chart",
+        "std-conditional-table",
+        "std-equation-3",
+        "std-local-cap-b",
+        "std-local-note-a",
+        "std-local-note-b"
+      ],
+      "damaged": [
+        "std-page-note-18",
+        "std-page-note-19"
+      ],
+      "stillWrong": 23,
+      "fullFixes": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "fullFixesOfFound": [
+        "table-L1",
+        "equation-1",
+        "equation-2",
+        "equation-3",
+        "chart-K2",
+        "caption-L3",
+        "note-L2",
+        "note-L3"
+      ],
+      "mathMeaning": {
+        "standalone": 3,
+        "cells": 4,
+        "numberDisplay": "native"
+      },
+      "rosterInSourceOrder": false,
+      "check": {
+        "valid": true,
+        "writable": true,
+        "unresolved": [],
+        "numberWarnings": [],
+        "missingImages": []
+      },
+      "stale": true,
+      "originalPdfUnchanged": true,
+      "reviewDidNotEdit": true,
+      "hostExited": true,
+      "originalAssetsMissingOrOverwritten": [],
+      "originalAssetsNoLongerReferenced": [
+        "figure-001.png",
+        "figure-002.png",
+        "figure-004.png",
+        "figure-005.png",
+        "table-006.png"
+      ],
+      "newAssets": [
+        "graph-K2.png",
+        "participants.png",
+        "table-1-layout.png",
+        "table-2-layout.png"
+      ],
+      "brokenLinks": 0,
+      "nativeFigures": 2,
+      "extraBlockCount": 20,
+      "calls": [
+        {
+          "seconds": 46,
+          "contextTokens": 40659,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell"
+          ],
+          "cli": 0
+        },
+        {
+          "seconds": 94,
+          "contextTokens": 53547,
+          "approvals": 0,
+          "order": [
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "shell",
+            "patch",
+            "shell",
+            "shell"
+          ],
+          "cli": 4
+        }
+      ]
+    }
+  }
+}

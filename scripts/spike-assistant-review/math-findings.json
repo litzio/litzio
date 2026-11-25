@@ -1,0 +1,11 @@
+{
+  "sol-1": { "standalone": 3, "cells": 4, "numberDisplay": "native" },
+  "sol-2": { "standalone": 3, "cells": 4, "numberDisplay": "native" },
+  "sol-3": { "standalone": 3, "cells": 4, "numberDisplay": "native" },
+  "terra-1": { "standalone": 3, "cells": 4, "numberDisplay": "duplicate rendered" },
+  "terra-2": { "standalone": 3, "cells": 4, "numberDisplay": "duplicate rendered" },
+  "terra-3": { "standalone": 0, "cells": 2, "numberDisplay": "original raster" },
+  "astra-1": { "standalone": 3, "cells": 4, "numberDisplay": "native" },
+  "astra-2": { "standalone": 3, "cells": 4, "numberDisplay": "native" },
+  "astra-3": { "standalone": 3, "cells": 4, "numberDisplay": "native" }
+}

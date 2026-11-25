@@ -1,0 +1,30 @@
+{
+  "groups": {
+    "participants-heading": ["std-participants-label"],
+    "roster": ["std-name-0-0", "std-name-0-1", "std-name-0-2", "std-name-0-3", "std-name-0-4", "std-name-0-5", "std-name-1-0", "std-name-1-1", "std-name-1-2", "std-name-1-3", "std-name-1-4", "std-name-1-5", "std-name-2-0", "std-name-2-1", "std-name-2-2", "std-name-2-3", "std-name-2-4", "std-name-2-5"],
+    "table-2": ["std-settings"],
+    "table-L1": ["std-conditional-table"],
+    "equation-1": ["std-equation-1"],
+    "equation-2": ["std-equation-2"],
+    "equation-3": ["std-equation-3"],
+    "chart-K2": ["std-chart"],
+    "table-L2": ["std-local-table-a"],
+    "table-L3": ["std-local-table-b"],
+    "caption-L3": ["std-local-cap-b"],
+    "note-L2": ["std-local-note-a"],
+    "note-L3": ["std-local-note-b"],
+    "annex-M-title": ["std-record-title"]
+  },
+  "identifiedByAll": ["roster", "table-2", "table-L1", "equation-1", "equation-2", "equation-3", "chart-K2", "table-L2", "table-L3", "caption-L3", "note-L2", "note-L3"],
+  "runs": {
+    "sol-1": {"additional": ["annex-M-title"], "outside": ["excluded-first-page", "flattened-table", "page-note-18", "page-note-19", "continued-table", "running-furniture", "editable-figure-graph", "style-bold", "sponsor-line-break"], "unsupported": ["flattened-table", "page-note-18", "page-note-19", "continued-table"], "falseClaims": [], "ambiguous": []},
+    "sol-2": {"additional": ["annex-M-title"], "outside": ["excluded-first-page", "flattened-table", "page-note-18", "page-note-19", "continued-table", "running-furniture", "sponsor-line-break"], "unsupported": ["flattened-table", "page-note-18", "page-note-19", "continued-table"], "falseClaims": [], "ambiguous": []},
+    "sol-3": {"additional": ["annex-M-title"], "outside": ["excluded-first-page", "flattened-table", "page-note-18", "page-note-19", "continued-table", "running-furniture", "sponsor-line-break", "annex-M-page-break"], "unsupported": ["flattened-table", "page-note-18", "page-note-19", "continued-table", "annex-M-page-break"], "falseClaims": [], "ambiguous": []},
+    "terra-1": {"additional": [], "outside": ["excluded-first-page", "flattened-table", "page-note-18", "page-note-19"], "unsupported": ["flattened-table", "page-note-18", "page-note-19"], "falseClaims": [], "ambiguous": ["possible-implied-missing-body-call"]},
+    "terra-2": {"additional": [], "outside": ["excluded-first-page", "flattened-table", "page-note-18", "page-note-19"], "unsupported": ["flattened-table", "page-note-18", "page-note-19"], "falseClaims": [], "ambiguous": []},
+    "terra-3": {"additional": [], "outside": ["excluded-first-page", "flattened-table", "page-note-18", "page-note-19", "editable-figure-graph"], "unsupported": ["flattened-table", "page-note-18", "page-note-19"], "falseClaims": ["missing-source-call-for-page-notes-18-and-19"], "ambiguous": []},
+    "astra-1": {"additional": [], "outside": ["excluded-first-page", "flattened-table", "table-1-note-a-b", "other-table-notes", "page-note-18", "page-note-19", "continued-table"], "unsupported": ["flattened-table", "table-1-note-a-b", "other-table-notes", "page-note-18", "page-note-19", "continued-table"], "falseClaims": [], "ambiguous": []},
+    "astra-2": {"additional": [], "outside": ["excluded-first-page", "flattened-table", "page-note-18", "page-note-19", "continued-table"], "unsupported": ["flattened-table", "page-note-18", "page-note-19", "continued-table"], "falseClaims": [], "ambiguous": []},
+    "astra-3": {"additional": [], "outside": ["excluded-first-page", "flattened-table", "page-note-18", "page-note-19", "continued-table"], "unsupported": ["flattened-table", "page-note-18", "page-note-19", "continued-table"], "falseClaims": [], "ambiguous": []}
+  }
+}
