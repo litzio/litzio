@@ -89,7 +89,6 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
         <MessageSquare /><span className="assistant-trigger-label">{i18n.t("Assistant")}</span>
         {assistantStatus ? <span className="assistant-status agent-dot" aria-hidden="true" /> : null}
       </TooltipTrigger><TooltipContent>{assistantLabel} ({ASSISTANT_SHORTCUT.label})</TooltipContent></Tooltip> : null}
-      <span className="notification-slot" aria-hidden="true" />
     </header>
   );
 }

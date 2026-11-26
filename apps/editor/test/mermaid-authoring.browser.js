@@ -592,9 +592,9 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
         const rect = el.getBoundingClientRect();
         return el.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
       })).toBe(true);
-      const documentTop = await active.evaluate(el => el.getBoundingClientRect().top);
+      const documentLeft = await page.locator('.app-main').evaluate(el => el.getBoundingClientRect().left);
       const bellRect = await bell.boundingBox();
-      expect(bellRect.y + bellRect.height).toBeLessThanOrEqual(documentTop);
+      expect(bellRect.x + bellRect.width).toBeLessThanOrEqual(documentLeft);
       const before = await apply.boundingBox();
       const captionBefore = await figure.getByTestId('figure-caption-content').boundingBox();
       await page.mouse.move(before.x+before.width/2,before.y+before.height/2);

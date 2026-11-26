@@ -54,7 +54,7 @@ import { UnsavedChangesDialog } from "./shell/UnsavedChangesDialog.tsx";
 import type { FileActionHandler } from "./shell/FileActionDialog.tsx";
 import type { ImageRenamer } from "./image-rename.ts";
 import { Sidebar } from "./shell/Sidebar.tsx";
-import { ActivityBar, type ActivityItem } from "./shell/ActivityBar.tsx";
+import { ActivityBar, moveActivityFocus, type ActivityItem } from "./shell/ActivityBar.tsx";
 import { folderChain, knownFolders, useFolderTrees } from "./shell/folder-tree.ts";
 import { childPath, documentLocation, splitDocumentPath, unquotePath } from "./shell/document-path.ts";
 import { DocumentActions } from "./shell/DocumentActions.tsx";
@@ -102,7 +102,7 @@ function EditorApp() {
     assistantOpen, setAssistantOpen, assistantOverlay, assistantSize, setAssistantSize, assistantReturn, closeAssistant, toggleAssistant,
     sidebarSize, setSidebarSize, sidebarOverlay, sidebarOpen, chooseSidebarOpen, closeSidebar, sidebarToggle, sidebarFocus,
     documentPanelSize, setDocumentPanelSize, panelOverlay, panelOpen, choosePanelOpen, toggleOutline, outlineToggle,
-    shell, header, main, titlebar, notifications, shellReturnFocus,
+    shell, header, main, titlebar, notifications, notificationSlot, shellReturnFocus,
   } = useShellLayout({ fileOperationPending });
   const [assistantStatus, setAssistantStatus] = useState<AssistantButtonStatus>();
   const newFileButton = useRef<HTMLElement | null>(null);
@@ -1190,6 +1190,7 @@ function EditorApp() {
         theme={theme} onThemeChange={changeTheme}
         settingsDisabled={settingsDisabled}
         updateVersion={unseenUpdate}
+        notificationSlot={notificationSlot}
         onSettings={(returnFocus) => {
           settingsReturnFocus.current = returnFocus;
           setSettingsCategory(unseenUpdate ? "about" : "appearance");
@@ -1526,7 +1527,7 @@ function EditorApp() {
       <OpenRefusalDialog openRefusal={openRefusal} setOpenRefusal={setOpenRefusal} openRefusalReturnFocus={openRefusalReturnFocus} document={document} />
       <ReloadChangesDialog reloadDialog={reloadDialog} switching={switching} setReloadDialog={setReloadDialog} fileActionsToggle={fileActionsToggle} reloadFromDisk={reloadFromDisk} />
     </div>
-    <ShellNotificationCenter ref={notifications} sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
+    <ShellNotificationCenter ref={notifications} onKeyDown={moveActivityFocus} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
       : documentPanelOpen ? "var(--document-panel-effective-width)" : "0px"} />
   </>);

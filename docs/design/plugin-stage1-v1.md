@@ -10,7 +10,7 @@
 
 SDK 0.10.0은 Core의 `updateDocumentStatus`, `DocumentStatus`, `DOCUMENT_STATUSES`와 선택 `DocumentAuthoringInput.status`를 제공한다. 상태 의미와 검증은 [native 문서 계약](document-support-v1.md#문서-검토-상태)을 따른다. SDK 0.11.0은 화면 부품 `ui.ItemList`와 그 타입을 더한다([화면 계약](plugin-screens-v1.md#공용-정보-부품)). SDK 0.12.0은 `ui.ScreenLayout`의 `back`과 그 타입 `ScreenLayoutBack`을 더한다([화면 계약](plugin-screens-v1.md#머리-구역과-작업-흐름)).
 
-SDK 0.13.0은 `insertAdmonition`, `updateAdmonitionVariant`, `updateAdmonitionInlineContent`, `ADMONITION_VARIANTS`, `AdmonitionVariant`, `updateDocumentTitle`을 제공한다. SDK 0.14.0은 `ui.DocumentView`의 `editContent`·`onEditStateChange`·`onSave`와 타입 `ScreenDocumentEditState`를 더한다([내용 편집](plugin-screens-v1.md#내용-편집)).
+SDK 0.13.0은 `insertAdmonition`, `updateAdmonitionVariant`, `updateAdmonitionInlineContent`, `ADMONITION_VARIANTS`, `AdmonitionVariant`, `updateDocumentTitle`을 제공한다. SDK 0.14.0은 `ui.DocumentView`의 `editContent`·`onEditStateChange`·`onSave`와 타입 `ScreenDocumentEditState`를 더한다([내용 편집](plugin-screens-v1.md#내용-편집)). SDK 0.16.0은 Core의 표 주석 연산 `insertTableNote`, `updateTableNote`, `removeTableNote`, `moveTableNote`를 재수출한다. 표 경로와 주석 위치로 표에 딸린 문단을 넣고 고치고 빼고 옮기며, 의미와 검증은 Core와 CLI `insert-table-note` 등이 공유한다.
 
 ## 신분증
 
