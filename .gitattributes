@@ -3,6 +3,8 @@ patches/*.patch text eol=lf -whitespace
 
 # Samples must already match Core canonical LF output on every checkout.
 apps/editor/samples/** text eol=lf
+# Browser scenarios compare saved canonical LF bytes with this fixture's source.
+apps/editor/test/browser/fixtures/complex-table.md text eol=lf
 
 # Preserve reference bytes and SHA-256 sums across checkouts.
 community-plugins/docling/sample/lsr-1.1/** -text

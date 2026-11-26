@@ -272,7 +272,8 @@ leaves the table, Backspace or Delete at a block boundary joins nothing, Tab mov
 cells, and a change that would add, join or remove a cell block or list item, or change a span,
 is refused as other unsupported changes are. A complex table has no row or column handles, and
 Tab in its last cell leaves the table instead of adding a row, also when that cell starts with a
-list. A simple table cannot gain merged cells or cell blocks in the Editor. Litzio's own clipboard
+list; in a content-only view (the plugin document view) with nothing after the table, Tab follows
+the browser's focus order instead of adding a paragraph. A simple table cannot gain merged cells or cell blocks in the Editor. Litzio's own clipboard
 copies, cuts and pastes a whole complex table with its grid, caption, notes and number, and Save
 inserts it as complex table input; merged cells in external HTML are still refused. Quick Save
 leaves complex tables to the full Save.

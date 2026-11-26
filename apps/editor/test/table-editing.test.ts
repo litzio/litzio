@@ -262,6 +262,9 @@ test("a complex table keeps its spans, header rows and cell blocks, and only the
   const tab = tableTab(state, false, true)!;
   assert.equal(tab.selection.$from.depth, 1);
   assert.equal(tab.doc.child(0).firstChild!.childCount, 4);
+  // A content-only view (a plugin document view) adds no paragraph: Tab is left to the browser.
+  const locked = EditorState.create({ schema, doc, selection: state.selection, plugins: [structureGuardPlugin(projection, () => {}, [], true)] });
+  assert.equal(tableTab(locked, false, true), null);
   // Shift+Tab from that cell reaches the previous cell's first textblock.
   assert.equal(tableTab(state, true, true)!.selection.$from.parent.textContent, "230 V");
   for (const id of ["table-row", "table-column", "table-row-delete", "table-align-right"]) {
