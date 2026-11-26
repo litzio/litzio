@@ -64,7 +64,7 @@ async (page, { openPath, screenshots }) => {
     await page.keyboard.press('Tab'); // Tab close, then category navigation.
     await page.keyboard.press('Tab');
     check(await screen.getByRole('button',{name:'Appearance & language',exact:true}).evaluate(n => n === document.activeElement), 'Tab does not lead to category navigation');
-    await page.keyboard.press('Tab'); await page.keyboard.press('Enter');
+    await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Enter'); // Past Highlight sets.
     check(await screen.getByRole('heading',{name:'Local recovery',exact:true}).isVisible(), 'Keyboard cannot select recovery');
     await screen.getByRole('button',{name:'Appearance & language',exact:true}).click();
     for(const [name,help] of [
