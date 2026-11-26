@@ -21,7 +21,7 @@ import { ImageRenames } from "./image-rename.ts";
 import { MarkdownInputRules } from "./markdown-input-rules.ts";
 import StarterKit from "@tiptap/starter-kit";
 import { headingNumbers, type HeadingNumbering } from "@litzio/core/numbering";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Decoration, DecorationSet, type ViewMutationRecord } from "@tiptap/pm/view";
 import { applyNumberColumns, numberColumnsKey, numberFont, onFontsLoaded, type NumberedHeading } from "./heading-number-columns.ts";
 import { CrossReference } from "./cross-reference.tsx";
 import { Endnotes } from "./endnotes.ts";
@@ -530,6 +530,14 @@ const TableGrid = Node.create({
   draggable: false,
   parseHTML() { return [{ tag: "table" }]; },
   renderHTML() { return ["table", 0]; },
+  // As prosemirror-tables' TableView: attributes of the grid's own <table> (an inline width or
+  // style) are view state, so changing them neither rereads nor redraws the grid.
+  addNodeView() {
+    return () => {
+      const dom = document.createElement("table");
+      return { dom, contentDOM: dom, ignoreMutation: (mutation: ViewMutationRecord) => mutation.type === "attributes" && mutation.target === dom };
+    };
+  },
 });
 
 // The caption follows the grid; table caption layout keeps it below the grid, at the grid's width.
