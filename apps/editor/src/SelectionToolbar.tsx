@@ -17,6 +17,8 @@ import { externalLinkUrl, fragmentTarget, openExternalLink, unresolvedLink } fro
 import { hasSectionLabel, insertSectionLabel, newSectionLabel } from "./cross-reference.tsx";
 import { LinkTargetPicker, resolveLinkTargetChoice, sectionLinkMatchesHeading } from "./LinkTargetPicker.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { HighlightWordButton } from "./HighlightWordButton.tsx";
+import { inToolbarLayer } from "./selection-toolbar-layer.ts";
 import { useOverlayBounds, type OverlayAnchor } from "./ui/use-overlay-bounds.ts";
 
 /** Icon buttons name their action, and its shortcut when one exists, in a tooltip. */
@@ -27,8 +29,10 @@ const tip = (label: string, shortcut?: { label: string }) => (shortcut ? `${labe
  * Tab from the selection enters it; Escape, or Shift+Tab from its first button, returns to the
  * editor and its selection.
  */
-export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, onReject, onEditLink, onEditReference }: {
+export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, onReject, onEditLink, onEditReference, highlightPath }: {
   editor: Editor;
+  /** The document whose highlight set takes the selected word (#2020). */
+  highlightPath?: string;
   style: CSSProperties;
   anchor: OverlayAnchor;
   toolbarRef: RefObject<HTMLDivElement | null>;
@@ -52,7 +56,7 @@ export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, o
       }}
       onBlur={(event) => {
         const next = event.relatedTarget as Node | null;
-        if (!event.currentTarget.contains(next) && !editor.view.dom.contains(next)) onLeave();
+        if (!event.currentTarget.contains(next) && !editor.view.dom.contains(next) && !inToolbarLayer(next)) onLeave();
       }}
     >
       <Button variant="ghost" size="icon-sm"
@@ -135,6 +139,7 @@ export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, o
       >
         <Asterisk aria-hidden="true" size={16} />
       </Button>}
+      {highlightPath ? <HighlightWordButton editor={editor} path={highlightPath} toolbarRef={toolbarRef} onLeave={onLeave} /> : null}
     </div>
   );
 }

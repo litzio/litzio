@@ -5,7 +5,7 @@ import { history, undoDepth } from "@tiptap/pm/history";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { editorExtensions } from "../src/editor-schema.tsx";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { highlightKey, highlightPlugin, highlightRanges, highlightRedraw, highlightSet } from "../src/highlight-decorations.ts";
+import { highlightKey, highlightPlugin, highlightRanges, highlightRedraw, highlightSet, highlightWordAt } from "../src/highlight-decorations.ts";
 import type { HighlightWord } from "../src/highlight-sets.ts";
 import { toTiptapDocument } from "../src/tiptap-document.ts";
 import { loadEditableDocument, nativeSource } from "./helpers/document.ts";
@@ -53,6 +53,12 @@ test("English words match whole and in any case; Korean and phrases match letter
   assert.deepEqual(texts.filter(text => text.startsWith("확인")), ["확인 필요:amber", "확인:gray"], "the longer phrase wins where both match");
   assert.deepEqual(texts.filter(text => /api/i.test(text)), ["API Key:violet"], "a phrase keeps its case");
   assert.ok(!texts.some(text => text.startsWith("sha$") || text === "sha"), "inline math interrupts a match");
+  // The block menu names the set's word under the caret, as the set spells it.
+  const state = editorState();
+  let at = -1;
+  state.doc.descendants((node, pos) => { if (at < 0 && node.isText && node.text!.includes("SHALL")) at = pos + node.text!.indexOf("SHALL"); });
+  assert.equal(highlightWordAt(state, at + 2), "shall");
+  assert.equal(highlightWordAt(state, at - 3), undefined);
 });
 
 test("the per-node decoration tree is the one DecorationSet.create builds", () => {

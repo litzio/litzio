@@ -10,7 +10,8 @@ async (page, { openPath, expect, screenshots }) => {
   const root = initial.path.split(sep).slice(0, -4).join(sep);
   const file = name => [root, 'tmp', 'highlight-sets', name].join(sep);
   const check = (ok, message) => { if (!ok) throw Error(message); };
-  const shot = async name => { if (!screenshots) return; await page.mouse.move(4, 500); await page.screenshot({path: `tmp/highlight-sets-captures/${name}.png`}); };
+  // The comparison's header names the file's full local path; captures hide it.
+  const shot = async (name, mask = []) => { if (!screenshots) return; await page.mouse.move(4, 500); await page.screenshot({path: `tmp/highlight-sets-captures/${name}.png`, mask, maskColor: '#ffffff'}); };
   const configure = async (language, theme) => {
     await page.getByRole('button', {name:/^(Settings|설정)$/}).click();
     await page.getByTestId('ui-language').selectOption(language);
@@ -148,6 +149,61 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(words()).toHaveCount(29);
   await clean();
 
+  // The selection toolbar adds a selected word to the current set; its Popover keeps the selection.
+  const select = text => editor().evaluate((el, text) => {
+    let at;
+    el.editor.state.doc.descendants((node, pos) => { if (at === undefined && node.isText && node.text.includes(text)) at = pos + node.text.indexOf(text); });
+    el.editor.commands.setTextSelection({ from: at, to: at + text.length });
+    el.editor.view.focus();
+  }, text);
+  await select('confirm');
+  await page.getByTestId('highlight-word-button').click();
+  const popover = page.getByTestId('highlight-word-popover');
+  await expect(popover).toContainText('confirm');
+  await popover.getByRole('radio', {name:'Teal'}).check();
+  await expect.poll(async () => (await shown()).filter(item => item.startsWith('confirm'))).toEqual(['confirm:teal']);
+  await expect(page.getByTestId('selection-toolbar')).toBeVisible();
+  check(await editor().evaluate(el => el.editor.state.doc.textBetween(el.editor.state.selection.from, el.editor.state.selection.to)) === 'confirm', 'Highlighting moved the selection');
+  await shot('toolbar-1440-light');
+  await popover.getByRole('button', {name:'Remove highlight'}).click();
+  await expect.poll(async () => (await shown()).some(item => item.startsWith('confirm'))).toBe(false);
+  await popover.getByRole('radio', {name:'Teal'}).check();
+  await page.keyboard.press('Escape');
+  await clean();
+
+  // A highlighted word's context menu changes its color or removes it; Shift+F10 reaches the same group.
+  const blockMenu = page.getByRole('menu', {name:'Block actions'});
+  await words().filter({hasText:/^must$/}).first().click({button:'right'});
+  await expect(blockMenu.getByRole('menuitem').first()).toHaveAccessibleName('Change color of “must”');
+  await shot('word-menu-1440-light');
+  await blockMenu.getByRole('menuitem', {name:'Change color of “must”'}).click();
+  const colors = page.getByRole('menu', {name:'Highlight color'});
+  await expect(colors.getByRole('menuitemradio', {name:'Green'})).toHaveAttribute('aria-checked', 'true');
+  await colors.getByRole('menuitemradio', {name:'Red'}).click();
+  await expect.poll(async () => [...new Set((await shown()).filter(item => item.startsWith('must')))]).toEqual(['must:red']);
+  await words().filter({hasText:/^must$/}).first().click({button:'right'});
+  await blockMenu.getByRole('menuitem', {name:'Remove “must” from highlights'}).click();
+  await expect(words().filter({hasText:/^must$/})).toHaveCount(0);
+  await select('shall');
+  await editor().evaluate(el => el.editor.commands.setTextSelection(el.editor.state.selection.from + 2));
+  await page.keyboard.press('Shift+F10');
+  await expect(blockMenu.getByRole('menuitem', {name:'Change color of “shall”'})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await clean();
+
+  // The comparison before saving shows the same highlights.
+  await select('every fault');
+  await page.keyboard.type('every recorded fault');
+  await page.locator('section[data-focused="true"]').getByRole('button', {name:'File actions', exact:true}).click();
+  await page.getByRole('menuitem', {name:'Changes before saving', exact:true}).click();
+  const comparison = page.getByTestId('save-comparison');
+  await expect(comparison.locator('.highlight-word').first()).toBeVisible();
+  await shot('compare-1440-light', [comparison.getByText(/requirements\.md$/)]);
+  await page.keyboard.press('Escape');
+  await comparison.waitFor({state:'detached'});
+  await editor().evaluate(el => { el.editor.commands.undo(); });
+  await clean();
+
   // Dark, the main 1920 screen and the 640 minimum: the button never covers Save or the file actions.
   const fits = () => page.evaluate(() => {
     const row = document.querySelector('section[data-focused="true"] .top-bar-actions');
@@ -195,5 +251,17 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(words()).toHaveCount(0);
   await expect(button()).toHaveAccessibleName('Highlights: off');
   await clean();
+
+  // A plugin screen's document view (gallery example of ui.LinkedDocumentView) shows its path's set.
+  await page.evaluate(() => localStorage.setItem('litzio.highlightSets.v1', JSON.stringify({
+    sets: [{ id: 'procedure', name: 'Procedure', words: [{ text: 'valve', color: 'blue' }, { text: 'pump', color: 'red' }, { text: 'flow rate', color: 'green' }] }],
+    documents: { '/example/procedure.md': 'procedure' }, folders: {},
+  })));
+  await page.goto(`${origin}/ui-gallery`);
+  await page.getByRole('navigation', {name: 'Gallery elements'}).getByRole('button', {name: 'Linked document view', exact: true}).click();
+  const preview = page.getByRole('region', {name: 'Document preview content', exact: true});
+  await expect(preview.locator('.highlight-word[data-highlight="blue"]').first()).toHaveText('valve');
+  await expect(preview.locator('.highlight-word[data-highlight="green"]').first()).toHaveText('flow rate');
+  await shot('plugin-view-1440-light');
   return { highlighted: 29 };
 }

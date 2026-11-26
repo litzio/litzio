@@ -1408,6 +1408,12 @@ export const en = {
   "Amber": "Amber",
   "Red": "Red",
   "Gray": "Gray",
+  "Highlight": "Highlight",
+  "Turn on a highlight set first": "Turn on a highlight set first",
+  "Select one line of text": "Select one line of text",
+  "Remove highlight": "Remove highlight",
+  "Change color of “{{word}}”": "Change color of “{{word}}”",
+  "Remove “{{word}}” from highlights": "Remove “{{word}}” from highlights",
 } as const;
 export const ko: Record<keyof typeof en, string> = {
   "Update failed": "업데이트 실패",
@@ -2816,4 +2822,10 @@ export const ko: Record<keyof typeof en, string> = {
   "Amber": "황토",
   "Red": "빨강",
   "Gray": "회색",
+  "Highlight": "강조",
+  "Turn on a highlight set first": "먼저 강조 세트를 켜세요",
+  "Select one line of text": "한 줄 안의 글자를 선택하세요",
+  "Remove highlight": "강조에서 빼기",
+  "Change color of “{{word}}”": "“{{word}}” 색 바꾸기",
+  "Remove “{{word}}” from highlights": "“{{word}}” 강조에서 빼기",
 };
