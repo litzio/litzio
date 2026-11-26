@@ -5,7 +5,7 @@ import { history, undoDepth } from "@tiptap/pm/history";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { editorExtensions } from "../src/editor-schema.tsx";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { highlightKey, highlightPlugin, highlightRanges, highlightRedraw, highlightSet } from "../src/highlight-decorations.ts";
+import { highlightKey, highlightPlugin, highlightRanges, highlightRedraw, highlightSet, highlightWordAt } from "../src/highlight-decorations.ts";
 import type { HighlightWord } from "../src/highlight-sets.ts";
 import { toTiptapDocument } from "../src/tiptap-document.ts";
 import { loadEditableDocument, nativeSource } from "./helpers/document.ts";
@@ -35,10 +35,10 @@ const words: HighlightWord[] = [
   { text: "기한", color: "amber" }, { text: "확인 필요", color: "amber" }, { text: "확인", color: "gray" }, { text: "API Key", color: "violet" },
 ];
 
-function editorState(getWords: () => readonly HighlightWord[] | null = () => words) {
+function editorState(getWords: () => readonly HighlightWord[] | null = () => words, text = source) {
   const extensions = editorExtensions();
   const schema = getSchema(extensions);
-  const doc = schema.nodeFromJSON(toTiptapDocument(loadEditableDocument(source)));
+  const doc = schema.nodeFromJSON(toTiptapDocument(loadEditableDocument(text)));
   return EditorState.create({ schema, doc, plugins: [highlightPlugin(getWords), history()] });
 }
 const shown = (state: EditorState) => highlightKey.getState(state)!.decorations.find()
@@ -53,6 +53,26 @@ test("English words match whole and in any case; Korean and phrases match letter
   assert.deepEqual(texts.filter(text => text.startsWith("확인")), ["확인 필요:amber", "확인:gray"], "the longer phrase wins where both match");
   assert.deepEqual(texts.filter(text => /api/i.test(text)), ["API Key:violet"], "a phrase keeps its case");
   assert.ok(!texts.some(text => text.startsWith("sha$") || text === "sha"), "inline math interrupts a match");
+  // The block menu names the set's word under the caret, as the set spells it.
+  const state = editorState();
+  let at = -1;
+  state.doc.descendants((node, pos) => { if (at < 0 && node.isText && node.text!.includes("SHALL")) at = pos + node.text!.indexOf("SHALL"); });
+  assert.equal(highlightWordAt(state, at + 2), "shall");
+  assert.equal(highlightWordAt(state, at - 3), undefined);
+  // Touching words: the word starting at a position wins, so the menu acts on the word under the pointer or caret.
+  const touching = editorState(() => [{ text: "입력", color: "blue" }, { text: "전압", color: "red" }, { text: "must", color: "green" }, { text: "shall", color: "teal" }],
+    nativeSource("입력전압을 재고 must-shall, shall.must 순서로 적는다.\n"));
+  const textAt = (text: string) => {
+    let found = -1;
+    touching.doc.descendants((node, pos) => { if (found < 0 && node.isText && node.text!.includes(text)) found = pos + node.text!.indexOf(text); });
+    return found;
+  };
+  const voltage = textAt("전압");
+  assert.deepEqual([highlightWordAt(touching, voltage - 1), highlightWordAt(touching, voltage), highlightWordAt(touching, voltage + 2)],
+    ["입력", "전압", "전압"], "inside 입력, at the start of 전압, and a caret just after 전압");
+  const hyphen = textAt("must-shall"), period = textAt("shall.must");
+  assert.deepEqual([highlightWordAt(touching, hyphen + 4), highlightWordAt(touching, hyphen + 5)], ["must", "shall"], "a hyphen between English words");
+  assert.deepEqual([highlightWordAt(touching, period + 5), highlightWordAt(touching, period + 6)], ["shall", "must"], "a period between English words");
 });
 
 test("the per-node decoration tree is the one DecorationSet.create builds", () => {

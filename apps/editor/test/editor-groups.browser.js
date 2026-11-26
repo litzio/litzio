@@ -102,7 +102,8 @@ async (page, { openPath, openDocument, waitForActivePath, activeDocument, expect
     await expect(toolbarButtons.nth(index)).toBeFocused();
     if (index+1<await toolbarButtons.count()) await page.keyboard.press('Tab');
   }
-  await page.keyboard.press('Shift+Tab');
+  // Back past Highlight and Endnote, the last two buttons.
+  await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Shift+Tab');
   await expect(toolbar.getByRole('button',{name:'Cross-reference',exact:true})).toBeFocused();
   await page.keyboard.press('Enter');
   await overlayBounds(surface(bid).getByTestId('reference-form'),'Keyboard reference form',true);

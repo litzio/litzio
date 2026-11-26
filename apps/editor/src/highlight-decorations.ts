@@ -1,6 +1,6 @@
 import { Extension } from "@tiptap/core";
 import type { Node as PmNode } from "@tiptap/pm/model";
-import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
+import { Plugin, PluginKey, type EditorState, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { isEnglishWord, type HighlightColor, type HighlightWord } from "./highlight-sets.ts";
 
@@ -63,7 +63,7 @@ export function highlightRanges(doc: PmNode, words: readonly HighlightWord[] | n
 }
 
 const decoration = (range: HighlightRange, shift = 0) => Decoration.inline(range.from + shift, range.to + shift,
-  { class: "highlight-word", "data-highlight": range.color, "data-highlight-word": range.text });
+  { class: "highlight-word", "data-highlight": range.color, "data-highlight-word": range.text }, { highlightWord: range.text });
 
 // DecorationSet's tree constructor: top-level local decorations and [from, to, subtree] triples.
 type DecorationTree = new (local: Decoration[], children: (number | DecorationSet)[]) => DecorationSet;
@@ -139,4 +139,16 @@ export const highlightExtension = (getWords: () => readonly HighlightWord[] | nu
 /** Reread the active set without a history entry. */
 export function highlightRedraw(tr: Transaction): Transaction {
   return tr.setMeta(highlightKey, true).setMeta("addToHistory", false);
+}
+
+/**
+ * The set's word highlighted at a document position, as the set spells it. A word starting at the
+ * position wins over the one ending there (two words can touch, as 입력 and 전압 in 입력전압); a caret
+ * just after a word still finds it.
+ */
+export function highlightWordAt(state: EditorState, pos: number): string | undefined {
+  const found = (highlightKey.getState(state)?.decorations.find(pos, pos) ?? [])
+    .filter(item => (item.spec as { highlightWord?: string }).highlightWord !== undefined);
+  const at = found.find(item => item.from <= pos && pos < item.to) ?? found.find(item => item.to === pos);
+  return at ? (at.spec as { highlightWord: string }).highlightWord : undefined;
 }

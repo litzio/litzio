@@ -12,8 +12,9 @@ import { fragmentTarget, handleLinkActivation, handleLinkClick, handleLinkMouseD
 import type { EditorView } from "@tiptap/pm/view";
 import { ReadingPreview } from "./ReadingPreview.tsx";
 import { DocumentFind } from "./document-find.ts";
-import { highlightExtension, highlightRedraw } from "./highlight-decorations.ts";
-import { activeHighlightSet, subscribeHighlightSets } from "./highlight-sets.ts";
+import { X } from "lucide-react";
+import { highlightExtension, highlightRedraw, highlightWordAt } from "./highlight-decorations.ts";
+import { activeHighlightSet, HIGHLIGHT_COLOR_LABELS, HIGHLIGHT_COLORS, highlightWordIn, setHighlightWord, subscribeHighlightSets, type HighlightColor } from "./highlight-sets.ts";
 import { DocumentFindBar, type DocumentFindHandle } from "./DocumentFindBar.tsx";
 import { ImageRenameContext, imageRenameKey, renameSnapshot, type ImageRenamer } from "./image-rename.ts";
 import type { MediaReplacement } from "../shared/file-operations.ts";
@@ -55,6 +56,7 @@ import { InlineMathProperties } from "./node-views/inline-math-view.tsx";
 import { insertReference, referenceCommandItems, referenceOfCommand, ReferenceForm, referencesBrokenByDeletion, referenceTargets, isResolved, type ReferenceTarget } from "./cross-reference.tsx";
 import { ENDNOTE_COMMAND, ENDNOTE_DRAFT_CLOSED, canEditEndnoteAt, endnoteAt, endnoteCommandItems, endnoteEditingKey, endnoteEditorToken, insertEndnote, setEndnoteEditing } from "./endnotes.ts";
 import { LinkForm, linkDraftOf, makeInlineMath, SelectionToolbar, type LinkDraft } from "./SelectionToolbar.tsx";
+import { inToolbarLayer } from "./selection-toolbar-layer.ts";
 import { Extension, getSchema, type Editor } from "@tiptap/core";
 import { EditorContent, useEditor, useEditorState, type UseEditorOptions } from "@tiptap/react";
 import { Placeholder } from "@tiptap/extensions/placeholder";
@@ -80,7 +82,8 @@ import type { Mark } from "@tiptap/pm/model";
 import type { SaveErrorLocation } from "./save-error.ts";
 import { forEachTableRow } from "./table-structure.ts";
 
-type BlockMenu = { kind: "insert" | "block" | "list-format"; index: number; top: number; left?: number; context?: boolean };
+/** `highlight` is the set's word under a context menu (#2020). */
+type BlockMenu = { kind: "insert" | "block" | "list-format" | "highlight-color"; index: number; top: number; left?: number; context?: boolean; highlight?: string };
 type InlineMathDraft = { pos: number; path: string; marks: readonly Mark[]; deleted: boolean };
 
 /** An insert command or reference item as the insert menu shows it: grouped, with its icon. */
@@ -510,7 +513,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     const open = (index: number, x: number, y: number) => {
       const rect = host.current?.getBoundingClientRect();
       if (!rect || !editor.state.doc.maybeChild(index)) return false;
-      setBlockMenu({ kind: "block", index, left: x - rect.left, top: y - rect.top, context: true });
+      const highlight = highlightsRef.current ? highlightWordAt(editor.state, editor.state.selection.from) : undefined;
+      setBlockMenu({ kind: "block", index, left: x - rect.left, top: y - rect.top, context: true, highlight });
       return true;
     };
     const context = (event: MouseEvent) => {
@@ -881,7 +885,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     if (!editor) return;
     const focus = () => setFocused(true);
     // Focus moving into the formatting toolbar keeps it for the selection.
-    const blur = ({ event }: { event: FocusEvent }) => setFocused(toolbar.current?.contains(event.relatedTarget as Node | null) ?? false);
+    const blur = ({ event }: { event: FocusEvent }) => setFocused(toolbar.current?.contains(event.relatedTarget as Node | null) || inToolbarLayer(event.relatedTarget));
     editor.on("focus", focus);
     editor.on("blur", blur);
     return () => {
@@ -967,6 +971,20 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     }
     editor.view.dispatch(command.run(editor.state, index));
     editor.view.focus();
+  };
+  const highlightColorOf = (word: string) => {
+    const active = activeHighlightSet(documentPath ?? "");
+    return active ? highlightWordIn(active.set, word)?.color : undefined;
+  };
+  // A highlighted word's own actions lead the menu opened on it (#2020).
+  const highlightMenuItems = (word: string | undefined): CommandMenuItem[] => {
+    const color = word ? highlightColorOf(word) : undefined;
+    if (!word || !color) return [];
+    const group = i18n.t("Highlight");
+    return [
+      { id: "highlight-color", label: i18n.t("Change color of “{{word}}”", { word }), group, marker: <span className="highlight-swatch" data-highlight={color} /> },
+      { id: "highlight-remove", label: i18n.t("Remove “{{word}}” from highlights", { word }), group, icon: X },
+    ];
   };
   // A document object's own entry points lead its block menu, under the names its tool row uses.
   const objectMenuItems = (index: number): CommandMenuItem[] => {
@@ -1230,6 +1248,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           anchor={caretAnchor(formatting!.from, formatting!.to, "top", true)}
           onReject={onStructuralReject}
           toolbarRef={toolbar}
+          highlightPath={highlights ? documentPath : undefined}
           onLeave={() => setFocused(false)}
           // The form takes focus; opened from the toolbar by keyboard, the editor had none.
           onEditLink={editLink}
@@ -1276,7 +1295,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         <CommandMenu
           key={`block-${blockMenu.index}`}
           label={i18n.t("Block actions")}
-          items={[...objectMenuItems(blockMenu.index), ...(editor.state.doc.child(blockMenu.index).type.name === "orderedList"
+          items={[...highlightMenuItems(blockMenu.highlight), ...objectMenuItems(blockMenu.index), ...(editor.state.doc.child(blockMenu.index).type.name === "orderedList"
             ? [{ id: "list-format", label: i18n.t("List format"), group: i18n.t("Lists"), icon: insertCommandIcon("numbered-list") }] : []),
             ...blockMenuItems(blockMenu.index), ...(editor.state.doc.child(blockMenu.index).type.name === "table" ? [{
             id: "table-wrap", label: i18n.t("This document’s tables: wrap long text"),
@@ -1286,11 +1305,35 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           onReturnFocus={blockMenu.context ? () => editor.view.focus() : undefined}
           style={blockMenuStyle}
           onSelect={id => {
-            if (id === "table-wrap") {
+            if (id === "highlight-color") setBlockMenu(menu => menu ? { ...menu, kind: "highlight-color" } : null);
+            else if (id === "highlight-remove") {
+              const active = activeHighlightSet(documentPath ?? "");
+              if (active && blockMenu.highlight) setHighlightWord(active.set.id, blockMenu.highlight, null);
+              closeBlockMenu(); editor.view.focus();
+            } else if (id === "table-wrap") {
               setTableWrap(documentPath ?? "", !tableWrap);
               closeBlockMenu(); editor.view.focus();
             } else if (id.startsWith("object-")) runObjectAction(id, blockMenu.index);
             else runBlockCommand(id, blockMenu.index);
+          }}
+          onClose={closeBlockMenu}
+        />
+      ) : null}
+      {blockMenu?.kind === "highlight-color" && blockMenu.highlight && blockMenuStyle ? (
+        <CommandMenu
+          key={`highlight-color-${blockMenu.index}`}
+          label={i18n.t("Highlight color")}
+          items={HIGHLIGHT_COLORS.map(color => ({ id: color, label: i18n.t(HIGHLIGHT_COLOR_LABELS[color]),
+            checked: highlightColorOf(blockMenu.highlight!) === color,
+            marker: <span className="highlight-swatch" data-highlight={color} /> }))}
+          focusOnOpen
+          onReturnFocus={() => editor.view.focus()}
+          style={blockMenuStyle}
+          onSelect={id => {
+            const active = activeHighlightSet(documentPath ?? "");
+            if (active) setHighlightWord(active.set.id, blockMenu.highlight!, id as HighlightColor);
+            setBlockMenu(null);
+            editor.view.focus();
           }}
           onClose={closeBlockMenu}
         />
