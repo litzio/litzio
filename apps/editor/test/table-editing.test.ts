@@ -13,6 +13,7 @@ import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { editorExtensions, structureGuardPlugin } from "../src/editor-schema.tsx";
 import { BLOCK_COMMANDS } from "../src/block-commands.ts";
+import { highlightRanges } from "../src/highlight-decorations.ts";
 import { tableTab } from "../src/document-interaction.ts";
 import { isComplexTable, tableCellOf } from "../src/table-structure.ts";
 import {
@@ -208,6 +209,8 @@ test("a complex table keeps its spans, header rows and cell blocks, and its cell
   const cells: string[] = [];
   table.firstChild!.descendants(node => { if (node.type.name === "tableCell") cells.push(`${node.attrs.sourceCell} ${node.attrs.rowspan}x${node.attrs.colspan} ${node.content.content.map(child => child.type.name).join("+")}`); return node.type.name !== "tableCell"; });
   assert.deepEqual(cells, ["0,0 1x2 paragraph", "1,0 1x1 paragraph", "1,1 1x1 paragraph", "2,0 2x1 paragraph+paragraph", "2,1 1x1 paragraph", "3,1 1x1 orderedList"]);
+  // Highlight sets mark words in a cell's paragraphs and list items as in any textblock.
+  assert.deepEqual(highlightRanges(doc, [{ text: "rated", color: "blue" }, { text: "Mean", color: "green" }]).map(range => doc.textBetween(range.from, range.to)), ["rated", "Mean"]);
   assert.equal(collectSupportedEdits(document, projection).cells, undefined);
   // The caption is the table's own and stays editable; the cells are read-only in this version.
   const captioned = structuredClone(projection);
