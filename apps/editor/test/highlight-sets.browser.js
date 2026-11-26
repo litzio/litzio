@@ -56,6 +56,28 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(section('Requirements').getByRole('button', {name:'Color of shall: Blue'})).toBeVisible();
   await addSet('Contract');
   await addWord('Contract', '위약금', 'Red');
+
+  // Two tabs save in turn: neither loses the other's sets, and each shows the other's change.
+  const other = await page.context().newPage();
+  try {
+    await other.goto(page.url());
+    await other.getByRole('button', {name:/^Settings$/}).click();
+    await other.getByRole('button', {name:'Highlight sets'}).click();
+    const otherSettings = other.getByTestId('highlight-set-settings');
+    await expect(otherSettings.getByRole('region', {name:'Contract'})).toBeVisible();
+    await otherSettings.getByRole('textbox', {name:'New set name'}).fill('Review');
+    await otherSettings.getByRole('button', {name:'New set'}).click();
+    await expect(section('Review')).toBeVisible();
+    await addWord('Contract', '해지', 'Amber');
+    await other.reload();
+    await other.getByRole('button', {name:/^Settings$/}).click();
+    await other.getByRole('button', {name:'Highlight sets'}).click();
+    for (const name of ['Requirements', 'Contract', 'Review']) await expect(otherSettings.getByRole('region', {name})).toBeVisible();
+    await expect(otherSettings.getByRole('region', {name:'Contract'}).getByTestId('highlight-word')).toHaveCount(2);
+  } finally { await other.close(); }
+  await section('Review').getByRole('button', {name:'Delete set'}).click();
+  await page.getByRole('dialog').getByRole('button', {name:'Delete set'}).click();
+  await expect(section('Review')).toHaveCount(0);
   await shot('settings-1440-light');
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
 

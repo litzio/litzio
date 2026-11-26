@@ -1274,7 +1274,8 @@ and are dropped with a deleted set; a renamed folder's default stays with the ol
 creates, renames and deletes (with confirmation) sets and adds words with a color, changes a word's color through
 a swatch Popover, and removes words. Sets live in this device's preference storage (`litzio.highlightSets.v1`,
 [preferences](editor-visual-language-v1.md#adjustable-values-and-preferences)); a failed write keeps the change
-for the page and Settings shows an alert. Like [UI display language](#ui-display-language-256) and
+for the page and Settings shows an alert. Each change is applied to the latest saved sets, so windows and tabs of the
+same origin never drop each other's changes, and each shows another's saved change on its `storage` event. Like [UI display language](#ui-display-language-256) and
 [document table display](#document-table-display-902) this is a local display preference: no Core operation or
 CLI command, and no shared or team-wide sets.
 

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { readHighlightSets, writeHighlightSets } from "./preferences.ts";
+import { HIGHLIGHT_SETS_KEY, readHighlightSets, writeHighlightSets } from "./preferences.ts";
 import { splitDocumentPath } from "./shell/document-path.ts";
 
 /**
@@ -51,7 +51,8 @@ export function parseHighlightState(value: unknown): HighlightState {
     if (typeof id !== "string" || !id || typeof name !== "string" || sets.some(set => set.id === id)) continue;
     const kept = new Map<string, HighlightWord>();
     for (const word of Array.isArray(words) ? words : []) {
-      const text = word && typeof word === "object" ? highlightWordText(String((word as Record<string, unknown>).text ?? "")) : null;
+      const raw = word && typeof word === "object" ? (word as Record<string, unknown>).text : null;
+      const text = typeof raw === "string" ? highlightWordText(raw) : null;
       const color = word && typeof word === "object" ? (word as Record<string, unknown>).color : null;
       if (text && isColor(color)) kept.set(highlightWordKey(text), { text, color });
     }
@@ -63,6 +64,15 @@ export function parseHighlightState(value: unknown): HighlightState {
   return { sets, documents, folders };
 }
 
+/** Unchanged sets keep their objects, so open editors rescan only when their own set changed. */
+function keepUnchanged(next: HighlightState, previous: HighlightState): HighlightState {
+  const sets = next.sets.map(set => {
+    const old = previous.sets.find(item => item.id === set.id);
+    return old && JSON.stringify(old) === JSON.stringify(set) ? old : set;
+  });
+  return { ...next, sets };
+}
+
 let state = parseHighlightState(readHighlightSets());
 let saveProblem = false;
 const listeners = new Set<() => void>();
@@ -70,12 +80,27 @@ export function subscribeHighlightSets(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 }
-function publish(next: HighlightState): boolean {
-  state = next;
+function notify(): void { for (const listener of listeners) listener(); }
+/**
+ * Applies one change to the latest saved state, not this page's copy: another window or tab may have
+ * saved since. Without readable storage the page's own state is the latest.
+ */
+function publish(change: (latest: HighlightState) => HighlightState): boolean {
+  const stored = readHighlightSets();
+  const latest = stored === null ? state : keepUnchanged(parseHighlightState(stored), state);
+  state = change(latest);
   saveProblem = !writeHighlightSets(state);
-  for (const listener of listeners) listener();
+  notify();
   return !saveProblem;
 }
+/** Another window or tab of this origin saved: show its sets and choices here too. */
+export function reloadHighlightSets(): void {
+  state = keepUnchanged(parseHighlightState(readHighlightSets()), state);
+  notify();
+}
+globalThis.addEventListener?.("storage", event => {
+  if (event.key === HIGHLIGHT_SETS_KEY || event.key === null) reloadHighlightSets();
+});
 export function highlightState(): HighlightState { return state; }
 export function useHighlightState(): HighlightState { return useSyncExternalStore(subscribeHighlightSets, highlightState); }
 /** The last change could not be remembered; it still applies until the page closes. */
@@ -96,41 +121,44 @@ export function activeHighlightSet(path: string, from: HighlightState = state): 
 }
 
 export function chooseHighlightSet(path: string, id: string): boolean {
-  if (!path || id !== "off" && !state.sets.some(set => set.id === id)) return false;
-  return publish({ ...state, documents: { ...state.documents, [path]: id } });
+  if (!path) return false;
+  return publish(latest => (id !== "off" && !latest.sets.some(set => set.id === id) ? latest
+    : { ...latest, documents: { ...latest.documents, [path]: id } }));
 }
 /** Makes the set the default of the document's folder, or clears it. */
 export function setHighlightFolderDefault(path: string, id: string | null): boolean {
   if (!path) return false;
-  const folders = { ...state.folders };
-  if (id && state.sets.some(set => set.id === id)) folders[folderOf(path)] = id;
-  else delete folders[folderOf(path)];
-  return publish({ ...state, folders });
+  return publish(latest => {
+    const folders = { ...latest.folders };
+    if (id && latest.sets.some(set => set.id === id)) folders[folderOf(path)] = id;
+    else delete folders[folderOf(path)];
+    return { ...latest, folders };
+  });
 }
 const newId = () => globalThis.crypto?.randomUUID?.() ?? `set-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 export function createHighlightSet(name: string): string | null {
   const value = name.trim().slice(0, HIGHLIGHT_NAME_MAX);
   if (!value) return null;
   const id = newId();
-  publish({ ...state, sets: [...state.sets, { id, name: value, words: [] }] });
+  publish(latest => ({ ...latest, sets: [...latest.sets, { id, name: value, words: [] }] }));
   return id;
 }
 export function renameHighlightSet(id: string, name: string): boolean {
   const value = name.trim().slice(0, HIGHLIGHT_NAME_MAX);
   if (!value) return false;
-  return publish({ ...state, sets: state.sets.map(set => (set.id === id ? { ...set, name: value } : set)) });
+  return publish(latest => ({ ...latest, sets: latest.sets.map(set => (set.id === id ? { ...set, name: value } : set)) }));
 }
 /** Choices and folder defaults naming the set go with it. */
 export function deleteHighlightSet(id: string): boolean {
   const keep = (entries: Readonly<Record<string, string>>) => Object.fromEntries(Object.entries(entries).filter(([, value]) => value !== id));
-  return publish({ sets: state.sets.filter(set => set.id !== id), documents: keep(state.documents), folders: keep(state.folders) });
+  return publish(latest => ({ sets: latest.sets.filter(set => set.id !== id), documents: keep(latest.documents), folders: keep(latest.folders) }));
 }
 /** Adds the word, changes its color, or (null) removes it. */
 export function setHighlightWord(setId: string, text: string, color: HighlightColor | null): boolean {
   const value = highlightWordText(text);
   if (!value) return false;
   const key = highlightWordKey(value);
-  return publish({ ...state, sets: state.sets.map(set => {
+  return publish(latest => ({ ...latest, sets: latest.sets.map(set => {
     if (set.id !== setId) return set;
     const index = set.words.findIndex(word => highlightWordKey(word.text) === key);
     if (!color) return index < 0 ? set : { ...set, words: set.words.filter((_, at) => at !== index) };
@@ -138,7 +166,7 @@ export function setHighlightWord(setId: string, text: string, color: HighlightCo
     if (index < 0) words.push({ text: value, color });
     else words[index] = { text: words[index]!.text, color };
     return { ...set, words };
-  }) });
+  }) }));
 }
 export function highlightWordIn(set: HighlightSet, text: string): HighlightWord | undefined {
   const key = highlightWordKey(text.trim());
@@ -146,11 +174,13 @@ export function highlightWordIn(set: HighlightSet, text: string): HighlightWord 
 }
 /** A renamed document keeps its choice. */
 export function relocateHighlightChoice(previous: string, next: string): void {
-  const choice = state.documents[previous];
-  if (choice === undefined && state.documents[next] === undefined) return;
-  const documents = { ...state.documents };
-  delete documents[previous];
-  delete documents[next];
-  if (choice !== undefined) documents[next] = choice;
-  publish({ ...state, documents });
+  if (state.documents[previous] === undefined && state.documents[next] === undefined) return;
+  publish(latest => {
+    const choice = latest.documents[previous];
+    const documents = { ...latest.documents };
+    delete documents[previous];
+    delete documents[next];
+    if (choice !== undefined) documents[next] = choice;
+    return { ...latest, documents };
+  });
 }

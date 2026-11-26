@@ -139,3 +139,25 @@ test("the store resolves a document's own choice before its folder default and f
   assert.equal(store.activeHighlightSet("/docs/three.md")?.set.id, a, "and still applies");
   refuse = false;
 });
+
+test("a change from another window is kept by the next change here and shown on its storage event", () => {
+  const key = "litzio.highlightSets.v1";
+  const here = store.createHighlightSet("Here")!;
+  // Another window then saves its own set; this page's copy does not have it yet.
+  const theirs = JSON.parse(memory.get(key)!);
+  theirs.sets.push({ id: "there", name: "There", words: [{ text: "shall", color: "red" }] });
+  memory.set(key, JSON.stringify(theirs));
+  store.setHighlightWord(here, "must", "green");
+  const saved = store.parseHighlightState(JSON.parse(memory.get(key)!));
+  assert.deepEqual(saved.sets.filter(set => ["here", "there"].includes(set.name.toLowerCase())).map(set => [set.name, set.words.map(word => word.text)]),
+    [["Here", ["must"]], ["There", ["shall"]]], "neither window's set is lost");
+
+  const unchanged = store.highlightState().sets.find(set => set.id === here)!;
+  theirs.sets = saved.sets.map(set => (set.id === "there" ? { ...set, name: "Renamed there" } : set));
+  memory.set(key, JSON.stringify(theirs));
+  store.reloadHighlightSets();
+  assert.equal(store.highlightState().sets.find(set => set.id === "there")!.name, "Renamed there");
+  assert.equal(store.highlightState().sets.find(set => set.id === here), unchanged, "an unchanged set keeps its object, so editors do not rescan");
+  // A malformed saved word is skipped rather than failing the page.
+  assert.deepEqual(store.parseHighlightState({ sets: [{ id: "x", name: "X", words: [{ text: { toString: null }, color: "red" }] }] }).sets[0]!.words, []);
+});
