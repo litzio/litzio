@@ -3,7 +3,7 @@ import { createAssetHost } from "./image-assets.ts";
 import type { UiMessage } from "./ui-message.ts";
 import { i18n } from "./i18n.ts";
 import { allocateBlockPath } from "./block-locators.ts";
-import { Extension, Node, type Attribute, type Editor, type Extensions, type NodeViewRenderer } from "@tiptap/core";
+import { Extension, Node, type Attribute, type Editor, type Extensions, type KeyboardShortcutCommand, type NodeViewRenderer } from "@tiptap/core";
 import { EDITOR_SHORTCUTS } from "./shortcuts.ts";
 import { BulletList, ListItem, ListKeymap, OrderedList, TaskItem, TaskList } from "@tiptap/extension-list";
 import { Code } from "@tiptap/extension-code";
@@ -191,8 +191,25 @@ const SourcedOrderedList = OrderedList.extend({
   },
 }).configure({ HTMLAttributes: listHTML });
 
+// In a table cell, Tab moves between cells or leaves the table, and a list keeps its nesting
+// (ADR-0024): the list Tab shortcuts pass there, as they would where no handler takes the key.
+function outsideTableCell(shortcut: KeyboardShortcutCommand | undefined): KeyboardShortcutCommand {
+  return props => !inTableCell(props.editor.state.selection.$from) && !!shortcut?.(props);
+}
+
 const SimpleListItem = ListItem.extend({
   content: `paragraph ${NESTED_LISTS}`,
+  addKeyboardShortcuts() {
+    const shortcuts = this.parent?.() ?? {};
+    return { ...shortcuts, Tab: outsideTableCell(shortcuts.Tab), "Shift-Tab": outsideTableCell(shortcuts["Shift-Tab"]) };
+  },
+});
+
+const CellAwareListKeymap = ListKeymap.extend({
+  addKeyboardShortcuts() {
+    const shortcuts = this.parent?.() ?? {};
+    return { ...shortcuts, Tab: outsideTableCell(shortcuts.Tab) };
+  },
 });
 
 const SourcedTaskList = TaskList.extend({
@@ -825,7 +842,7 @@ export function editorExtensions(
     SourcedTaskList,
     SimpleTaskItem,
     ChecklistToggle,
-    ListKeymap,
+    CellAwareListKeymap,
     Admonition,
     Quote,
     FootnoteDefinition,

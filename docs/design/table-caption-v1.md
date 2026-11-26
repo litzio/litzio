@@ -269,7 +269,7 @@ plugin document view edit the text of a cell's paragraphs and list items in plac
 math, references and Shift+Enter line breaks included, and save each changed cell as its blocks
 through the full Save. The grid and each cell's paragraphs and lists stay as they are: Enter
 leaves the table, Backspace or Delete at a block boundary joins nothing, Tab moves between
-cells, and a change that would add, join or remove a cell block or list item, or change a span,
+cells (also from a list item, whose Tab and Shift+Tab nesting does not apply in a cell), and a change that would add, join or remove a cell block or list item, or change a span,
 is refused as other unsupported changes are. A complex table has no row or column handles, and
 Tab in its last cell leaves the table instead of adding a row, also when that cell starts with a
 list; in a content-only view (the plugin document view) with nothing after the table, Tab follows

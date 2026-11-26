@@ -520,6 +520,18 @@ async (page, {expect, screenshots, pluginFixture, viewChange}) => {
   await expect.poll(lastEdit).toMatchObject({state: 'clean'});
   expect((await read(complexPath)).source).toBe(complexBefore.replace('<li>Peak</li>', '<li>Peak value</li>').replace('<p>230 V</p>', '<p>230 V AC</p>'));
   if (screenshots) await captureSizes('complex-table');
+  // The table is the last block and its last cell is a list: the view adds no paragraph and keeps the
+  // list's nesting, so Tab there leaves the editor by the browser's focus order without a notice.
+  const lastPath = [root, 'content-edit', 'complex-table-last.md'].join(separator);
+  const lastBefore = (await read(lastPath)).source;
+  config = {path: lastPath, edit: true, linked: false, revision: '', paths: []};
+  await open();
+  await content.locator('td > ol > li', {hasText: /^Mean$/}).click();
+  await expect.poll(() => editor.evaluate(node => node.editor.view.hasFocus() && node.editor.state.selection.$from.parent.textContent === 'Mean')).toBe(true);
+  await page.keyboard.press('Tab');
+  await expect.poll(() => editor.evaluate(node => node.contains(document.activeElement))).toBe(false);
+  await expect(notice).toHaveCount(0);
+  expect((await read(lastPath)).source).toBe(lastBefore);
 
   // About 2,000 blocks, manual review runs only (no pass/fail on time): opening read-only and
   // with content editing, typing and Save.
