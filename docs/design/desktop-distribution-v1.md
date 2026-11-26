@@ -5,7 +5,7 @@
 AI는 daemon 공식 기능이며 [비서 계약](main-agent-v1.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
-- Last verified: 2026-11-26 — 공개 Stable/Beta와 게시 대기 후보, 업데이트 harness 버전 및 공개 Stable의 화면 요소를 대조했다. 실제 GitHub 설치·업데이트는 미실행·미검증이다.
+- Last verified: 2026-11-26 — 공개 Stable/Beta, 업데이트 harness 버전 및 공개 Stable의 화면 요소를 대조했다. 실제 GitHub 설치·업데이트는 미실행·미검증이다.
 - Log-folder access: 2026-10-29 (#712; [Host-only diagnostics](#log-folder-and-process-diagnostics-712)).
 - Authority: [ADR-0004](../adr/0004-desktop-host-distribution.md); document semantics and Save remain owned by [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md), [Filesystem Host](filesystem-host-boundary-v1.md) and [Editing session](editing-session-save-v1.md).
 - Scope: Windows x64 per-user Electron/NSIS app, Stable/Beta updates and local/CI packaging. Publication requires an owner-authorized release and manual workflow dispatch from master; no separate environment approval is required after validation succeeds.
@@ -517,11 +517,11 @@ logging. No alternate userData location or speculative filesystem repair is intr
 
 ## Channels and versions
 
-The current source is `0.0.4-beta.3`, [pending publication](../releases/v0.0.4-beta.3.md). The latest public Beta is [`0.0.4-beta.2`](../releases/v0.0.4-beta.2.md), and the latest public Stable/Latest is [`0.0.3`](../releases/v0.0.3.md). Actual GitHub installation/update and SmartScreen behavior remain unverified.
+The current source and latest public Beta are [`0.0.4-beta.3`](../releases/v0.0.4-beta.3.md). The previous Beta is [`0.0.4-beta.2`](../releases/v0.0.4-beta.2.md), and the latest public Stable/Latest is [`0.0.3`](../releases/v0.0.3.md). Actual GitHub installation/update and SmartScreen behavior remain unverified.
 
 The preceding public distribution is `0.0.2-beta.10`; its [release record](../releases/v0.0.2-beta.10.md) is preserved. Earlier evidence is preserved in the [beta.9 record](../releases/v0.0.2-beta.9.md), [beta.8 record](../releases/v0.0.2-beta.8.md), [beta.7 record](../releases/v0.0.2-beta.7.md), [beta.6 record](../releases/v0.0.2-beta.6.md) and [beta.5 record](../releases/v0.0.2-beta.5.md). The public beta.4 was shipped as IeumDoc. The IeumDoc → Litzio rename changes app ID, installation and data paths: IeumDoc beta.4 cannot automatically update to Litzio. A fresh installation is required; old data, settings and recovery records are not migrated, per the [branding guide](../guides/branding.md).
 
-The opt-in real GitHub harness targets the same-brand Litzio `0.0.3 → 0.0.4-beta.3` pair. It selects the Beta channel on the public Stable installation and requires the candidate to be public. Actual GitHub installation/update remains **not run and unverified**. CI local-feed results cover the fixture updates.
+The opt-in real GitHub harness targets the same-brand Litzio `0.0.3 → 0.0.4-beta.3` pair. Both versions are public. The harness selects the Beta channel on the public Stable installation. Actual GitHub installation/update remains **not run and unverified**. CI local-feed results cover the fixture updates.
 
 An earlier public distribution was `0.0.2-beta.4`; Stable publication was deferred at that time. The 2026-11-12 owner decision permits unsigned Stable publication; version preparation, tagging and publication are separate work. See the [#758 release record](../releases/v0.0.2-beta.4.md) for the successful first release-workflow attempt, public assets and Korean Release body. Actual GitHub `0.0.2-beta.3 → 0.0.2-beta.4` installation/update is **not run and unverified** because this PC’s installed state must remain unchanged. Local-feed CI is separate evidence.
 

@@ -358,7 +358,7 @@ CI의 Windows Desktop job이 선택되면 clean package·release 자산 검증·
 
 ## Real GitHub Beta update
 
-현재 소스 `0.0.4-beta.3`은 [게시 대기](../releases/v0.0.4-beta.3.md) 중이다. 최신 공개 Beta는 [`0.0.4-beta.2`](../releases/v0.0.4-beta.2.md), 최신 공개 Stable/Latest는 [`0.0.3`](../releases/v0.0.3.md)이다. opt-in 대상은 Beta 채널의 `0.0.3 → 0.0.4-beta.3`이며 후보 공개 후 실행할 수 있다. 실제 GitHub 설치·업데이트는 **미실행·미검증**이다. IeumDoc beta.4는 Litzio로 자동 업데이트되지 않으며 새 설치가 필요하고 데이터·설정·복구 기록은 이전되지 않는다.
+현재 소스와 최신 공개 Beta는 [`0.0.4-beta.3`](../releases/v0.0.4-beta.3.md), 직전 Beta는 [`0.0.4-beta.2`](../releases/v0.0.4-beta.2.md), 최신 공개 Stable/Latest는 [`0.0.3`](../releases/v0.0.3.md)이다. opt-in 대상은 Beta 채널의 `0.0.3 → 0.0.4-beta.3`이며 두 버전 모두 공개됐다. 실제 GitHub 설치·업데이트는 **미실행·미검증**이다. IeumDoc beta.4는 Litzio로 자동 업데이트되지 않으며 새 설치가 필요하고 데이터·설정·복구 기록은 이전되지 않는다.
 
 CI local-feed의 같은 소스 fixture는 Stable `0.0.1 → 0.0.2`, Beta `0.1.0-beta.1 → 0.1.0-beta.2`이다. 릴리스 전 공개 설치본 회귀에서는 공개 `0.0.3` Stable을 설치하고 설정의 릴리스 채널에서 Beta를 선택한다. 선택이 반영되면 로컬에서 빌드한 `0.0.4-beta.3` 후보로 업데이트해 Beta daemon·`beta.yml`, NSIS 설치와 시작, 저장한 채널과 사용자 데이터 보존을 검증한다.
 
