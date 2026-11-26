@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import { TABLE_CELL_SOURCE_ATTR } from "./tiptap-projection.ts";
+import { forEachTableRow } from "./table-structure.ts";
 
 /** Snapshot locators and geometry only; engine types stay inside the Editor. */
 type ReadingRect = { top: number; left: number; width: number; height: number };
@@ -42,10 +43,9 @@ export function useDocumentReading(editor: Editor | null, host: RefObject<HTMLEl
         const scale = scroller && scrollRect ? scrollRect.width / scroller.offsetWidth : 1;
         const clip = scroller && scrollRect ? { left: scrollRect.left + scroller.clientLeft * scale, top: scrollRect.top + scroller.clientTop * scale,
           width: scroller.clientWidth * scale, height: scroller.clientHeight * scale } : undefined;
-        if (clip) node.forEach((row, rowOffset) => {
-          if (row.type.name !== "tableRow") return;
+        if (clip) forEachTableRow(node, offset, (row, rowPos) => {
           row.forEach((cell, cellOffset) => {
-            const cellDom = editor.view.nodeDOM(offset + 2 + rowOffset + cellOffset);
+            const cellDom = editor.view.nodeDOM(rowPos + 1 + cellOffset);
             const source = String(cell.attrs[TABLE_CELL_SOURCE_ATTR] ?? "");
             if (!(cellDom instanceof HTMLElement) || !/^\d+,\d+$/.test(source)) return;
             const [rowIndex, column] = source.split(",").map(Number);

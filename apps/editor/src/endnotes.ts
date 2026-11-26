@@ -9,6 +9,7 @@ import { endnoteOrder, footnoteNumbers, nextFootnoteLabel, planEndnoteLifecycle,
 import { endnoteRemovalEmptiesParagraph } from "@litzio/core";
 import { LABEL_PROPERTIES_META } from "./label-rename.ts";
 import { fromTiptapContent } from "./tiptap-inline.ts";
+import { tableRows } from "./table-structure.ts";
 
 /**
  * The Editor's endnotes. MyST footnotes keep their syntax and node names (`footnoteReference`,
@@ -36,7 +37,7 @@ function blockReferences(block: ProseMirrorNode): readonly string[] {
     const visit = (node: ProseMirrorNode) => { if (node.type.name === "footnoteReference") found.push(String(node.attrs.label)); };
     if (block.type.name === "table") {
       block.content.content.find(child => child.type.name === "tableCaption")?.descendants(visit);
-      block.forEach(row => { if (row.type.name === "tableRow") row.descendants(visit); });
+      for (const row of tableRows(block)) row.descendants(visit);
     } else block.descendants(visit);
     referencesOf.set(block, labels = found);
   }

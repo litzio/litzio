@@ -14,6 +14,7 @@ import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { BLOCK_COMMANDS, blockCommandGroup, type TableCellAddress } from "./block-commands.ts";
 import { CommandMenu, type CommandMenuItem } from "./CommandMenu.tsx";
 import { blockCommandAppearance } from "./command-icons.ts";
+import { forEachTableRow, tableCellOf, tableRows } from "./table-structure.ts";
 
 type MenuTarget = { position: number; kind: "row" | "column"; target: TableCellAddress };
 const menuTargetKey = new PluginKey<MenuTarget | null>("tableMenuTarget");
@@ -36,11 +37,10 @@ export const TableCellFocus = Extension.create({
         }
         const menu = menuTargetKey.getState(state);
         const table = menu && state.doc.nodeAt(menu.position);
-        if (menu && table?.type.name === "table") table.forEach((row, rowOffset, r) => {
-          if (row.type.name !== "tableRow") return;
+        if (menu && table?.type.name === "table") forEachTableRow(table, menu.position, (row, rowPos, r) => {
           row.forEach((cell, cellOffset, c) => {
             if (menu.kind === "row" ? r === menu.target.row : c === menu.target.column) {
-              const at = menu.position + 2 + rowOffset + cellOffset;
+              const at = rowPos + 1 + cellOffset;
               decorations.push(Decoration.node(at, at + cell.nodeSize, { "data-table-menu-target": "true" }));
             }
           });
@@ -81,8 +81,8 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
   useEffect(() => setLayersAttached(true), []);
   const current = useEditorState({ editor, selector: ({ editor: instance }) => {
     const { $from } = instance.state.selection;
-    return $from.depth >= 3 && $from.parent.type.name === "tableCell" && $from.node(1).type.name === "table" && $from.before(1) === getPos()
-      ? { row: $from.index(1), column: $from.index(2) } : null;
+    const cell = tableCellOf($from);
+    return cell && $from.before(1) === getPos() ? cell : null;
   } });
   useEffect(() => {
     const closeOnEdit = ({ transaction }: { transaction: { docChanged: boolean } }) => { if (transaction.docChanged) setMenu(null); };
@@ -155,10 +155,9 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
   const blur = () => setFocused(null);
   // A table far from view is not measured yet, but keeps its native Tab stops. Focus scrolls it near, which measures it.
   const unmeasured = { opacity: 0 };
-  let rowCount = 0;
-  node.forEach(child => { if (child.type.name === "tableRow") rowCount++; });
-  const columnCells = geometry?.columns ?? Array.from({ length: node.firstChild?.childCount ?? 0 }, () => undefined);
-  const rowCells = geometry?.rows ?? Array.from({ length: rowCount }, () => undefined);
+  const rows = tableRows(node);
+  const columnCells = geometry?.columns ?? Array.from({ length: rows[0]?.childCount ?? 0 }, () => undefined);
+  const rowCells = geometry?.rows ?? Array.from({ length: rows.length }, () => undefined);
   return <div className="table-tools" data-active={active ? "true" : "false"} data-menu-open={menu ? "true" : "false"} contentEditable={false}>
     {createPortal(<div className="table-tools" data-active={active ? "true" : "false"} data-menu-open={menu ? "true" : "false"} contentEditable={false}>
       {columnCells.map((cell, i) => <Button variant="table-handle" size="sm" key={i} type="button" className="table-column-handle"

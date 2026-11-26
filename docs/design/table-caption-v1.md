@@ -15,7 +15,7 @@
 - Direct-editing verification: 2026-10-26 (#555 and the approved table-caption portion of #557; scope and evidence below).
 - Caption-label verification: 2026-10-26 (#462 Core template rule, CLI inspect, cross-reference browser immediate update, Undo/Redo, Source and Save → Reload).
 - CLI insertion verification: 2026-10-15 (#280 caption/label in one write, label-only table, invalid/duplicate label refusal and rich batch caption; Core/CLI tests).
-- Last verified: 2026-11-16 — #1658: 표 도구·속성·번호 경고·번호 숨김을 구현과 기존 테스트에 정적으로 대조했다. 제품·브라우저·Desktop 실행 재검증 없음.
+- Last verified: 2026-11-26 — #2013: 편집기 표 블록의 격자·캡션·주석 구조와 클립보드 HTML을 Editor 단위 검사, 로컬 `table-caption`·`table-cell-editing`·`table-authoring`·`recovery-structure`·`markdown-paste`·`document-view-editing` 실행과 1440·640px 전후 캡처로 확인했다. Desktop 실행 재검증 없음.
 - Previous verification: 2026-10-11 (contract compared with current code and regression coverage; caption inline math and reference display, #165).
 - Scope: Core table format, captions, notes, labels and their Editor/CLI interfaces. See [Table interaction](table-interaction-v1.md).
 
@@ -69,7 +69,15 @@ Table properties expose Number after Label (#720), following the
 [shared fixed-number Editor contract](heading-numbering-v1.md#fixed-numbers-720). Number-only drafts participate in unsaved-work protection.
 Completion changes label and number in one engine transaction and Save replays Core
 `updateEnumerator`. Escape keeps the applied value. Numbering warnings follow that shared contract.
-The Editor schema requires exactly one caption after the rows, followed by the optional group of note paragraphs. Native parsing and
+The Editor table block holds a grid of rows, then exactly one caption, then the optional group of note paragraphs.
+The block is the document block (path, label, number, block tools, move and delete). The grid holds only rows and
+cells in the prosemirror-tables roles, so its TableMap reads it; the Editor does not install that library's editing
+plugin (cell selection, grid repair, its Tab and paste handling), and every cell spans one row and one column.
+The caption and notes are the grid's siblings and display below it at the grid's width
+(before/after samples with identical pixels: [1440 light](assets/table-structure-2013/1440-light-tables.png) ·
+[1440 dark](assets/table-structure-2013/1440-dark-tables.png) · [1440 scrolled wide table](assets/table-structure-2013/1440-light-wide-scrolled.png) ·
+[640 table tools](assets/table-structure-2013/640-light-tools.png) · [640 scrolled wide table](assets/table-structure-2013/640-light-wide-scrolled.png) ·
+[plugin document view](assets/table-structure-2013/document-view-saved-1440-light.png)). Native parsing and
 replacement therefore retain the surface even when a range deletion removes everything
 after the final cell while keeping the table. No repair transaction or Undo step is added.
 Recovery requires that caption child in both checkpoints. The owner ended pre-#577
@@ -77,8 +85,10 @@ snapshot supplementation on 2026-10-29 (#705), following AGENTS.md's exclusion o
 historical-data compatibility. Unsupported records follow the common refusal and
 stored plaintext-copy path in [Editing session and Save](editing-session-save-v1.md).
 
-Whole-table clipboard output retains the empty structural `<caption>` element in HTML
-and the existing trailing block separator (`\n\n`) in plain text. The input hint and
+Whole-table clipboard output retains the empty structural caption element in HTML, a `div` after the
+grid's `<table>` inside the table block, and the existing trailing block separator (`\n\n`) in plain text.
+Other programs that read this HTML show the caption and notes as paragraphs after the table, not as an
+HTML table caption. The input hint and
 generated number are never copied; canonical Save still omits empty caption content.
 Changing `setEditable(false)` at runtime removes the hint; reenabling editing restores it,
 when the selection is outside, without changing document content, dirty state or Undo history.
@@ -372,7 +382,7 @@ Editor typecheck/build and docs/whitespace checks.
 Independent review reproduced a range-deletion hole at `f0e80d2`: after selecting from
 the last cell to trailing prose and Backspace, the table remained but its caption count
 was **0**. The regression checks the surface and unchanged cells immediately after
-deletion, Undo and Redo. The schema now requires `tableRow+ tableCaption`, so native
+deletion, Undo and Redo. The schema requires the caption after the grid (`tableGrid tableCaption tableNotes?`), so native
 ProseMirror replacement owns that invariant. The earlier paste-only filler is removed;
 DOM/clipboard parsing fills required children. Older captionless snapshots retain their
 lossless compatibility preparation in both checkpoints before schema validation.

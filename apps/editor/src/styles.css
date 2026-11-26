@@ -1812,7 +1812,6 @@ ul.list[data-type="taskList"] > li > label > input {
   padding-top: var(--space-document-caption);
   overflow-wrap: anywhere;
 }
-.table [data-table-notes] :is(tr, td) { display: block; }
 .table [data-table-note] { margin: 0; }
 .table [data-table-note] + [data-table-note] { margin-top: var(--space-1); }
 
@@ -3275,9 +3274,11 @@ h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-
 .recovery-eof { font-family: var(--font-family-sans); color: var(--id-color-text-muted); }
 
 
-/* The engine table owns its caption; native caption layout keeps it below the grid. */
-.table > table { width: 100%; border-collapse: collapse; }
-.table-caption { caption-side: bottom; text-align: left; padding-top: var(--space-document-caption); }
+/* The table block's content lays out as one table: the grid, then its caption and notes as table
+ * captions below it, at the grid's width, as a native caption inside the grid would. */
+.table > [data-node-view-content-react] { display: table; width: 100%; border-collapse: collapse; }
+.table table { width: 100%; border-collapse: collapse; }
+.table-caption { display: table-caption; caption-side: bottom; text-align: left; padding-top: var(--space-document-caption); }
 /* Native caption padding owns the shared gap; its inner Figure-style caption adds none. */
 .table-caption .caption { margin-top: 0; }
 .caption[data-number] [data-empty-caption], .caption [data-empty-caption] { display: inline-block; min-width: 8em; }

@@ -388,7 +388,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
       (!handle || handle.bottom <= row.top || row.bottom <= handle.top || handle.right <= row.left);
   });
   await initial.locator('th').first().click();
-  await page.waitForFunction(()=>{const s=document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;return s.$from.parent.type.name==='tableCell'&&s.$from.index(1)===0;});
+  await page.waitForFunction(()=>{const s=document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;return s.$from.parent.type.name==='tableCell'&&s.$from.index(2)===0;});
   const menuCaret = await initial.evaluate(b=>JSON.stringify(b.closest('.document-editor').editor.state.selection.toJSON()));
   await initial.getByRole('button', {name:'Row 2 actions', exact:true}).focus();
   await page.keyboard.press('Enter');
@@ -398,7 +398,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   result.handleTargetsRow = JSON.stringify(await grid(initial)) === JSON.stringify([['#Name', '#Value'], ['U', 'AC'], ['', '']]);
   result.rowMenuReturnsFocus = (await grid(initial)).length === 3 && await page.evaluate(() => {
     const editor = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
-    return editor.view.hasFocus() && editor.state.selection.$from.index(1) === 2;
+    return editor.view.hasFocus() && editor.state.selection.$from.index(2) === 2;
   });
   const addColumnAtEnd = async () => {
     const handle = initial.locator('.table-column-handle').last();
@@ -410,7 +410,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await addColumnAtEnd();
   result.columnMenuReturnsFocus = (await grid(initial))[0].length === 3 && await page.evaluate(() => {
     const editor = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
-    return editor.view.hasFocus() && editor.state.selection.$from.index(2) === 2;
+    return editor.view.hasFocus() && editor.state.selection.$from.index(3) === 2;
   });
   await page.keyboard.press('Control+z');
   result.additionsUndo = (await grid(initial))[0].length === 2 && (await grid(initial)).length === 3;
@@ -848,7 +848,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   // Vertical arrows keep the column between rows; Chromium's native caret reached the side cell (#1813).
   const cellAt = () => page.evaluate(() => {
     const {$from} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
-    return `${$from.parent.type.name} ${$from.index(1)},${$from.index(2)} ${$from.parent.textContent}`;
+    return `${$from.parent.type.name} ${$from.index(2)},${$from.index(3)} ${$from.parent.textContent}`;
   });
   await tables.last().locator('td', {hasText:/^U$/}).click();
   await caretIn('U');
@@ -891,8 +891,8 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await tables.last().locator('td').last().click();
   await page.waitForFunction(() => {
     const {$from} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
-    return $from.parent.type.name === 'tableCell' && $from.index(1) === $from.node(1).childCount - ($from.node(1).lastChild.type.name === "tableCaption" ? 2 : 1) &&
-      $from.index(2) === $from.node(2).childCount - 1;
+    return $from.parent.type.name === 'tableCell' && $from.index(2) === $from.node(2).childCount - 1 &&
+      $from.index(3) === $from.node(3).childCount - 1;
   });
   await page.keyboard.press('Tab');
   result.lastTabAddsRow = (await grid(tables.last())).length === beforeTab.length + 1;
@@ -901,7 +901,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     const {view, state} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
     const {$from} = state.selection;
     return view.hasFocus() && $from.parent.type.name === 'tableCell' &&
-      $from.index(1) === $from.node(1).childCount - ($from.node(1).lastChild.type.name === "tableCaption" ? 2 : 1) && $from.index(2) === 0;
+      $from.index(2) === $from.node(2).childCount - 1 && $from.index(3) === 0;
   });
   await page.keyboard.type('Tab row');
   result.lastTabTyping = JSON.stringify((await grid(tables.last())).at(-1)) === JSON.stringify(['Tab row', '', '']);

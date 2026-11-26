@@ -74,7 +74,7 @@ HTML `caption`, `tfoot`, `colgroup`, 이미지, 중첩 표, 자유 HTML, CSS·�
 
 ## 편집기 전환
 
-현재 `table` 노드의 끝에는 캡션과 주석이 들어 있다. [ProseMirror TableMap](https://github.com/ProseMirror/prosemirror-tables)은 표 노드의 직접 자식을 행으로 다룬다. [Tiptap 표 확장](https://tiptap.dev/docs/editor/extensions/nodes/table)을 쓰려면 같은 문서 상태 안에서 표 블록을 바깥 노드로 두고, 그 안에 행만 가진 Tiptap 격자와 기존 캡션·주석을 형제로 둔다. 바깥 노드는 문서 블록의 경로, 라벨, 번호, 블록 도구와 이동·삭제의 단위다. Tiptap 격자는 행·칸, span, selection과 Tab 이동을 맡는다. Core에 전달하는 값은 격자와 칸 블록의 의미다.
+현재 `table` 노드의 끝에는 캡션과 주석이 들어 있다. [ProseMirror TableMap](https://github.com/ProseMirror/prosemirror-tables)은 표 노드의 직접 자식을 행으로 다룬다. [Tiptap 표 확장](https://tiptap.dev/docs/editor/extensions/nodes/table)을 쓰려면 같은 문서 상태 안에서 표 블록을 바깥 노드로 두고, 그 안에 행만 가진 Tiptap 격자와 기존 캡션·주석을 형제로 둔다. 바깥 노드는 문서 블록의 경로, 라벨, 번호, 블록 도구와 이동·삭제의 단위다. Tiptap 격자는 행·칸, span, selection과 Tab 이동을 맡는다. Core에 전달하는 값은 격자와 칸 블록의 의미다. 2번 조각은 이 구조를 prosemirror-tables의 tableRole과 TableMap 호환까지만 바꾸고, `tableEditing`·칸 선택과 Tiptap 표 확장 채택 여부는 span이 실제로 생기는 3·4번 조각에서 정한다.
 
 기존 표를 이 구조로 먼저 전환한다. 칸 안 문단이 생기면 caret의 부모 타입만 확인하던 키 처리, 복구 검증, 클립보드, 표 도구 위치, `tiptap-projection` 및 Save replay의 칸 위치 계산이 모두 영향을 받는다. Tiptap의 자동 격자 복구와 기본 Tab·붙여넣기 동작이 기존 구조 가드를 우회하거나 span을 정리해 버리지 않도록 점검한다. 행·열 도구는 화면에서 계속 현재 대상을 가리키고 영속 변경은 Core가 검증한다.
 
