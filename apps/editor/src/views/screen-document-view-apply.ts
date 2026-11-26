@@ -64,9 +64,17 @@ export function useDocumentViewApply(options: {
 
     const current = pending.current;
     if (current) {
-      if (!apply || apply.request !== current.request) {
+      if (!apply) {
         putBack(current, i18n.t("The change was withdrawn before its write finished."));
         retry();
+        return;
+      }
+      // One change at a time: a newer one is refused, and the shown one still waits for its outcome.
+      if (apply.request !== current.request) {
+        if (!decided.current.has(apply.request)) {
+          decided.current.add(apply.request);
+          report(apply.request, "refused", current.revision, i18n.t("Another change is still waiting for its write."));
+        }
         return;
       }
       if (apply.failed !== undefined) { putBack(current, apply.failed || i18n.t("The change could not be saved.")); return; }
@@ -110,12 +118,12 @@ export function useDocumentViewApply(options: {
         return { ...node, attrs: { ...node.attrs, sourcePath: freshBlockPath() } };
       });
       const { document } = change;
-      const replaced = editor.applyViewChange(change.from, change.removed, nodes, {
+      const { inserted, ...replaced } = editor.applyViewChange(change.from, change.removed, nodes, {
         title: document.title ?? null, status: document.status ?? null,
         headingNumbering: document.headingNumbering ?? null, referenceTemplates: document.referenceTemplates ?? null,
       });
       decided.current.add(apply.request);
-      pending.current = { request: apply.request, revision, from: change.from, count: nodes.length, ...replaced };
+      pending.current = { request: apply.request, revision, from: change.from, count: inserted, ...replaced };
       session?.hold(true);
       setApplying(true);
       setFailure("");

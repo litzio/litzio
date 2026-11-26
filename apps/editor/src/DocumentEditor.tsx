@@ -113,8 +113,8 @@ export type DocumentEditorHandle = {
   /** An input method composition is in progress; a Save then defers its cleanup. */
   isComposing(): boolean;
   /** Plugin document view (#1995): show a change of top-level blocks [from, from + removed) before
-   * its write, outside history. Returns what it replaced, for putting it back. */
-  applyViewChange(from: number, removed: number, nodes: readonly TiptapJSON[], attrs: DocumentViewAttrs): { nodes: TiptapJSON[]; attrs: DocumentViewAttrs };
+   * its write, outside history. Returns what it replaced and how many blocks stand in its place. */
+  applyViewChange(from: number, removed: number, nodes: readonly TiptapJSON[], attrs: DocumentViewAttrs): { nodes: TiptapJSON[]; inserted: number; attrs: DocumentViewAttrs };
   /** Plugin document view (#1995): this read model of the written file becomes the opening and acknowledged snapshot. */
   rebaseView(document: EditableDocument): void;
   /** Reveal a heading, table or figure in the Visual document view. */
@@ -724,7 +724,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         if (!editor) throw new Error("Editor is not ready");
         const change = replaceTopLevel(editor.state, from, removed, nodes, attrs);
         editor.view.dispatch(change.tr);
-        return { nodes: change.replaced, attrs: change.attrs };
+        return { nodes: change.replaced, inserted: change.inserted, attrs: change.attrs };
       },
       rebaseView(document) {
         if (!editor) throw new Error("Editor is not ready");

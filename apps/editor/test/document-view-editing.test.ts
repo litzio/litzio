@@ -147,8 +147,8 @@ test("a Save during composition waits for the composition to end", async () => {
 // A change shown before its write (#1995) passes the structure lock and the read-only boundary
 // only as the transaction document-view-change.ts built; the same steps from anywhere else are refused.
 const changeSource = nativeSource("# Title\n\nFirst paragraph.\n\nSecond paragraph.\n\nThird paragraph.\n");
-function lockedState() {
-  const opening = loadEditableDocument(changeSource);
+function lockedState(source = changeSource) {
+  const opening = loadEditableDocument(source);
   const baseline = toTiptapDocument(opening);
   const schema = getSchema(editorExtensions());
   const rejected: unknown[] = [];
@@ -228,4 +228,19 @@ test("a change from documentViewChange keeps unchanged document fields, so the v
     title: change.document.title, status: change.document.status ?? null,
     headingNumbering: change.document.headingNumbering, referenceTemplates: change.document.referenceTemplates ?? null });
   assert.deepEqual(tr.steps.map(step => step.constructor.name), ["ReplaceStep"], JSON.stringify(tr.steps.map(step => step.toJSON())));
+});
+
+test("putting back a change that removed every block restores the document exactly", () => {
+  // Removing the last block leaves the empty paragraph the schema requires; putting the change
+  // back replaces that paragraph too, so no block the document never had remains to type into.
+  const { state } = lockedState(nativeSource("Only paragraph.\n"));
+  const change = replaceTopLevel(state, 0, 1, [], attrs);
+  const shown = state.apply(change.tr);
+  assert.equal(shown.doc.childCount, 1);
+  assert.equal(shown.doc.child(0).textContent, "");
+  assert.equal(change.inserted, 1);
+  const back = shown.apply(replaceTopLevel(shown, 0, change.inserted, change.replaced, change.attrs).tr);
+  assert.equal(back.doc.eq(state.doc), true);
+  // An ordinary change counts the blocks it put in place.
+  assert.equal(replaceTopLevel(state, 0, 1, [merged, merged], attrs).inserted, 2);
 });

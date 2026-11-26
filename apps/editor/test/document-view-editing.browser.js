@@ -427,6 +427,14 @@ async (page, {expect, screenshots, pluginFixture, viewChange}) => {
   await expect(bands).toHaveCount(0);
   await expect.poll(lastEdit).toMatchObject({state: 'saving', revision: applyOpening.revision});
   if (screenshots) await captureSizes('apply-pending');
+  // A second correction pressed while the first waits for its write is refused; the first stays shown.
+  const second = viewChange(applyPath, (sdk, document) => sdk.convertBlock(document, [4], {block: 'heading', level: 3}));
+  await page.evaluate(([revision, change]) => globalThis.__viewApply({request: 'second', revision, change}), [second.revision, second.change]);
+  await expect.poll(async () => (await applyStates()).at(-1)).toMatchObject({request: 'second', state: 'refused', revision: applyOpening.revision});
+  expect((await applyStates()).filter(value => value.request === 1)).toEqual([{request: 1, state: 'pending', revision: applyOpening.revision}]);
+  await expect(content.locator('h2').filter({hasText: 'First part of a sentencesecond part of it.'})).toBeVisible();
+  await expect(content.locator('h3')).toHaveCount(0);
+  await expect(view).toHaveAttribute('data-applying', 'true');
   // The write ends: the view reads the written file in the background and continues from it.
   const joined = join.write();
   await page.evaluate(([revision, change, saved]) => globalThis.__viewApply({request: 1, revision, change, saved}), [join.revision, join.change, joined]);

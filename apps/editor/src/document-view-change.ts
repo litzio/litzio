@@ -31,8 +31,10 @@ function attrsOf(doc: ProseMirrorNode): DocumentViewAttrs {
 }
 
 /** Replace top-level blocks [from, from + removed) with `nodes` and set the document attributes.
- * Returns the transaction and what it replaced, for putting it back. Throws on a range or node
- * the schema does not accept, before anything is applied. */
+ * Returns the transaction, what it replaced and how many top-level blocks now stand in its place,
+ * for putting it back. That count can exceed `nodes`: removing every block leaves the empty
+ * paragraph the schema requires. Throws on a range or node the schema does not accept, before
+ * anything is applied. */
 export function replaceTopLevel(state: EditorState, from: number, removed: number, nodes: readonly TiptapJSON[], attrs: DocumentViewAttrs) {
   const { doc, schema } = state;
   if (!Number.isInteger(from) || !Number.isInteger(removed) || from < 0 || removed < 0 || from + removed > doc.childCount) {
@@ -53,11 +55,10 @@ export function replaceTopLevel(state: EditorState, from: number, removed: numbe
   });
   const tr = state.tr.replaceWith(start, end, content);
   for (const name of ATTRS) if (differs(doc.attrs[name], attrs[name])) tr.setDocAttribute(name, attrs[name] ?? null);
-  if (tr.doc.childCount === 0) throw new Error("The change leaves no blocks.");
   tr.doc.check();
   tr.setMeta("addToHistory", false);
   changes.set(tr, {});
-  return { tr, replaced, attrs: attrsOf(doc) };
+  return { tr, replaced, inserted: tr.doc.childCount - (doc.childCount - removed), attrs: attrsOf(doc) };
 }
 
 /**
