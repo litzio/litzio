@@ -174,7 +174,8 @@ async (page, { expect }) => {
     await page.getByTestId('equation-editor').waitFor();
     await expect(page.getByTestId('equation-latex')).toBeFocused();
     const afterCancel = await page.locator('[data-document-tab][data-active=true] [data-block="equation"]').count();
-    const noEmptyParagraphAfterSlash = await page.locator('[data-document-tab][data-active=true] [data-block="paragraph"]').count() === baselineParagraphCount;
+    // Top-level paragraphs only: table cells and list items hold paragraphs too.
+    const noEmptyParagraphAfterSlash = await page.locator('[data-document-tab][data-active=true] .document-editor > [data-block="paragraph"]').count() === baselineParagraphCount;
     await page.getByTestId('equation-latex').fill('Unapplied');
     await page.getByTestId('save').click();
     await page.locator('[data-testid="status"][data-operation^="saved"]').waitFor({state:'attached'});
