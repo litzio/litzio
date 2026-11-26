@@ -28,6 +28,25 @@ SDK 0.13.0은 `insertAdmonition`, `updateAdmonitionVariant`, `updateAdmonitionIn
 
 아이콘은 제공된 이름 또는 artifact 내부 SVG/PNG다(확장자 대소문자 무관, 최대 64 KiB·가로/세로 1–256px). WebP 등 다른 형식은 거부한다. SDK의 공통 형식 정의를 manifest 검증과 Host 로더가 함께 사용한다. host/screen/icon의 절대 경로·URL·상위 탈출을 거부하며 파일은 artifact 안에서 해석한다. 화면 소스와 SDK handler 검증은 설치 시 실행 전에 수행한다. 스키마의 외부 참조·중복 작업/secret/skill ID를 거부한다. SDK는 Editor/React 엔진에 의존하지 않는다.
 
+### 파일 동작 (#2018)
+
+SDK 0.19.0의 선택 필드 `fileActions`는 신분증 최상위에 선언한다. 생략하면 빈 배열이며 SDK는 `contributes.fileActions`로 정규화한다.
+
+```json
+{
+  "fileActions": [
+    { "id": "convert", "label": "문서 변환", "icon": "FileText", "extensions": [".pdf", ".docx"], "screenId": "main", "openByDefault": true }
+  ]
+}
+```
+
+- `id`는 기존 ID 형식을 따르고 플러그인 안에서 유일하다. `label`은 양끝 공백을 제거한 뒤 비어 있지 않은 한 줄 문자열이다.
+- `icon`은 SDK의 `SCREEN_ICONS` 이름이며 기본값은 `FileText`다. `screenId`는 같은 신분증의 화면을 가리키며, 현재 형식의 유일한 화면이자 기본값인 `main`을 사용한다.
+- `extensions`는 점으로 시작하는 소문자 ASCII 영숫자 확장자를 하나 이상 담는다. 중복 값과 알 수 없는 필드는 검증에서 거절한다. 파일명에 붙은 마지막 확장자를 대소문자 구분 없이 비교한다.
+- `openByDefault`는 기본값이 `false`다. `true`를 지정하면 리치오의 기본 열기·이미지 미리보기가 없는 파일의 기본 열기 후보가 된다. 한 플러그인은 확장자마다 후보를 하나만 선언할 수 있다. [탐색기와 탭의 파일 동작](editor-ux-shell-v1.md#plugin-file-actions-2018)을 따른다.
+
+`litzio plugins file-actions <path> --host <origin> --json`은 지정한 Host의 읽기 작업 `plugins.file-actions` v1을 호출한다. 결과는 `{target,fileActions,receipt}`이며 각 항목은 선언 필드에 `plugin`, `screenTitle`, 준비 중일 때의 `activation`을 더한다. 일치 항목이 없으면 빈 배열과 성공 receipt를, 유효하지 않은 입력에는 거부 receipt를 반환한다. 조회는 화면 목록의 기여와 같은 규칙을 쓰며 경로의 파일명만 검사한다. 비서는 결과의 플러그인 ID와 공개 작업 스키마로 기존 `operation invoke`를 사용한다. 화면으로 전달하는 값은 [화면 계약](plugin-screens-v1.md#파일-동작으로-열기-2018)을 따른다.
+
 ## Node 처리 코드의 공식 CLI
 
 `PluginContext.cli?: Readonly<{bin:string;args:readonly string[]}>`는 이 Host와 같은 배포물/소스 버전의 공식 CLI 실행 정보다. `bin`을 실행 파일로 쓰고 고정 `args` 뒤에 명령 인자를 붙여 Node child_process의 execFile/spawn으로 실행한다. shell·PATH 검색이나 설치 경로 추측은 필요 없다. 플러그인 child의 환경을 상속한다(Desktop의 Electron Node 모드 포함). 실행 파일·CLI entry가 없거나 Host 구성을 식별할 수 없으면 cli는 없다. 이때 플러그인은 status에 원인을 알리고 필요한 작업을 unavailable로 실패시킨다. 다른 설치나 사용자 설정으로 조용히 fallback하지 않는다.

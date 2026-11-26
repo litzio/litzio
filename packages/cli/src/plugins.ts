@@ -5,7 +5,7 @@ type PluginRequest = Record<string, unknown>;
 /** Returns the Host request for `tokens`, or undefined when the arguments match no accepted form. */
 type ActionParser = (tokens: string[]) => PluginRequest | undefined;
 
-const PLUGINS_USAGE = "plugins list|install <directory-or-id>|install <github-url> [--track release|branch]|source-plugins <github-url>|scaffold [directory] --id <id> [--template greet|screen|chart]|validate <directory>|register <directory-or-github-url>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|check-updates [id]|update <id>|settings <id> --file <json-file> --host <origin> --json";
+const PLUGINS_USAGE = "plugins list|file-actions <path>|install <directory-or-id>|install <github-url> [--track release|branch]|source-plugins <github-url>|scaffold [directory] --id <id> [--template greet|screen|chart]|validate <directory>|register <directory-or-github-url>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|check-updates [id]|update <id>|settings <id> --file <json-file> --host <origin> --json";
 const readJson = (file: string): unknown => JSON.parse(readFileSync(file, "utf8"));
 
 function parseOperationInvoke(tokens: string[]): PluginRequest {
@@ -59,6 +59,7 @@ const consentRequest: ActionParser = tokens => {
 
 const pluginActions: Record<string, ActionParser> = {
   list: tokens => tokens.length === 2 ? { action: "list" } : undefined,
+  "file-actions": ([, action, path, ...rest]) => path !== undefined && !rest.length ? { action, path } : undefined,
   install: tokens => githubRequest(tokens) ?? installRequest(tokens),
   register: tokens => githubRequest(tokens) ?? directoryRequest(tokens),
   "source-plugins": tokens => tokens.length === 3 ? githubRequest(tokens) : undefined,
@@ -108,7 +109,8 @@ export async function pluginCli(args: string[]): Promise<number> {
     dispatched = true;
     const waitsForActivation = ["invoke", "enable"].includes(String(body.action));
     const timeout = body.source || ["update", "reload"].includes(String(body.action)) ? 600_000 : 30_000;
-    const response = await fetch(new URL("/api/plugins", origin), { method: "POST", headers: { "Content-Type": "application/json", Origin: origin.origin }, body: JSON.stringify(body), redirect: "error", signal: waitsForActivation ? undefined : AbortSignal.timeout(timeout) });
+    const endpoint = body.action === "file-actions" ? "/api/plugin-screens" : "/api/plugins";
+    const response = await fetch(new URL(endpoint, origin), { method: "POST", headers: { "Content-Type": "application/json", Origin: origin.origin }, body: JSON.stringify(body), redirect: "error", signal: waitsForActivation ? undefined : AbortSignal.timeout(timeout) });
     const value = await response.json();
     process.stdout.write((args.includes("--json") || command !== "operation" || !value.error ? JSON.stringify({ target: origin.origin, ...value }) : `${value.code ? value.code + ": " : ""}${value.message ?? value.error}`) + "\n");
     return response.ok && (!value.receipt || value.receipt.outcome === "success") ? 0 : 1;

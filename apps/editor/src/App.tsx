@@ -5,8 +5,11 @@ import { ScreenBoundary } from "./views/PluginScreenCode.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
 import { viewScreenIcon } from "./views/view-screen-icon.ts";
+import { viewFileActions, type OpenPluginFile } from "./views/view-file-actions.ts";
+import { matchesFileAction } from "../shared/plugin-file-actions.ts";
 import { ViewWorkspace } from "./views/ViewWorkspace.tsx";
 import type { ViewScreen } from "./views/view-api.ts";
+import type { ScreenFileOpen } from "@litzio/plugin-sdk";
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
 import type { ViewTab } from "./views/view-page.ts";
 import { useHostTabRestore, useTabNavigationMemory } from "./host-tab-restore.ts";
@@ -57,7 +60,7 @@ import { Sidebar } from "./shell/Sidebar.tsx";
 import { ActivityBar, moveActivityFocus, type ActivityItem } from "./shell/ActivityBar.tsx";
 import { folderChain, knownFolders, useFolderTrees } from "./shell/folder-tree.ts";
 import { childPath, documentLocation, splitDocumentPath, unquotePath } from "./shell/document-path.ts";
-import { DocumentActions } from "./shell/DocumentActions.tsx";
+import { DocumentActions, TabFileMenu } from "./shell/DocumentActions.tsx";
 import { TopBar } from "./shell/TopBar.tsx";
 import appIcon from "@brand-icon";
 import darkIcon from "@brand-dark-icon";
@@ -159,24 +162,53 @@ function EditorApp() {
   const [assistantProviderRevision, setAssistantProviderRevision] = useState(0);
   const [navigation, navigate] = useReducer(editorGroups, initialEditorGroups);
   const [viewTabs, setViewTabs] = useState<ViewTab[]>([]);
-  const screens = useViewScreens();
+  const screenCatalog = useViewScreens();
+  const screens = screenCatalog?.screens ?? [];
+  const screenClient = hostConnection.getScreenClient();
+  const nextFileOpen = useRef(0);
+  useEffect(() => {
+    setViewTabs(previous => {
+      const next = previous.map(tab => {
+        if (!tab.fileOpen) return tab;
+        const { actionId, path } = tab.fileOpen;
+        const stillDeclared = screenCatalog?.screens.some(screen =>
+          screen.plugin === tab.screen?.plugin && screen.id === tab.screen.id &&
+          screen.fileActions?.some(action => action.id === actionId && matchesFileAction(action, path)));
+        return tab.client !== screenClient || (screenCatalog && !stillDeclared) ? { ...tab, fileOpen: undefined } : tab;
+      });
+      return next.some((tab, index) => tab !== previous[index]) ? next : previous;
+    });
+  }, [screenCatalog, screenClient]);
   useEffect(() => {
     const open = (event: Event) => { const screen = (event as CustomEvent<ViewScreen>).detail; openScreen(screen); };
     window.addEventListener("open-plugin-screen", open); return () => window.removeEventListener("open-plugin-screen", open);
   });
-  function openScreen(screen: ViewScreen) {
+  function openScreen(screen: ViewScreen, fileOpen?: ScreenFileOpen) {
     const client = hostConnection.getScreenClient();
-    if (!client) return;
-    if (sidebarOverlay) closeSidebar();
+    if (!client) return false;
     const id = `screen-${screen.plugin}-${screen.id}`;
-    const next = {id,client,root:openedFolderPaths[0]??"",screen,label:screen.title};
+    const group = fileOpen ? navigation.groups.find(group => group.tabs.includes(id)) : undefined;
+    if (group?.active && group.active !== id && sessions.current.get(group.active)?.busyRef.current) return false;
+    const next: ViewTab = { id, client, screen, fileOpen, root: openedFolderPaths[0] ?? "", label: screen.title };
     setViewTabs(previous => {
       const existing = previous.find(tab => tab.id === id);
       if (!existing) return [...previous, next];
-      return existing.client === client ? previous : previous.map(tab => tab === existing ? next : tab);
+      if (existing.client === client && !fileOpen) return previous;
+      return previous.map(tab => tab === existing ? (tab.client === client ? { ...tab, fileOpen } : next) : tab);
     });
-    placeTab(id);
+    if (sidebarOverlay) closeSidebar();
+    if (group) activateTab(id);
+    else placeTab(id);
+    if (fileOpen) requestAnimationFrame(() => globalThis.document.getElementById(`tab-${id}`)?.focus({ preventScroll: true }));
+    return true;
   }
+
+  const openPluginFile: OpenPluginFile = (entry, path) => {
+    if (busy || operationRef.current || continuation || !screenCatalog ||
+        hostConnection.get().state !== "connected" || hostConnection.getScreenClient() !== screenCatalog.client) return false;
+    const current = viewFileActions(screens, path).find(candidate => candidate.key === entry.key && candidate.screen.id === entry.screen.id);
+    return current ? openScreen(current.screen, { request: ++nextFileOpen.current, actionId: current.action.id, path }) : false;
+  };
 
   const focusedGroup = navigation.groups.find(group => group.id === navigation.focused)!;
   const activeId = focusedGroup.active;
@@ -1200,6 +1232,7 @@ function EditorApp() {
         }} />
       <Sidebar onCopyPath={path => void copyPath(path)}
         onAddToChat={assistantAvailable ? addToChat : undefined}
+        pluginScreens={screens} onOpenPluginFile={openPluginFile}
         onFileAction={(action, root, entry, name, identity, client) => fileAction(action, root, entry, name, undefined, undefined, client, identity)} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => tab.path === path); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}
@@ -1262,6 +1295,10 @@ function EditorApp() {
           <div className="editor-group-headers">
           {navigation.groups.map((group, index) => {
             const owner = group.active ? sessions.current.get(group.active) : undefined;
+            const fileTab = tabs.find(tab => tab.id === group.active);
+            const pdfTab = viewTabs.find(tab => tab.id === group.active && tab.pdf);
+            const path = owner?.openedPath ?? pdfTab?.pdf;
+            const pluginActions = path && (fileTab?.client ?? pdfTab?.client) === getHostClient() ? viewFileActions(screens, path) : [];
             const groupBusy = Boolean(operation || fileOperationPending || owner?.busy || continuationPending);
             return <section key={group.id} data-editor-group={group.id} data-focused={group.id === navigation.focused}
               aria-label={i18n.t("Editor group {{number}}", { number: index + 1 })}
@@ -1270,9 +1307,10 @@ function EditorApp() {
           <DocumentTabs allTabs={allTabs} tabs={group.tabs.flatMap(id => allTabs.filter(tab => tab.id === id)).map(tab => ({ ...tab,
             dirty: Boolean(sessions.current.get(tab.id)?.documentDirty || sessions.current.get(tab.id)?.draftActive),
           }))} active={group.active} disabled={groupBusy || Boolean(continuation)} onActivate={activateTab} onClose={closeTab} onCloseMany={closeTabs}
-            onOpenRight={id => moveTab(id, true)} onMove={id => moveTab(id)} openRightDisabled={!canSplit || groupBusy} moveDisabled={!split || groupBusy} actions={tabs.some(tab => tab.id === group.active) ?
+            onOpenRight={id => moveTab(id, true)} onMove={id => moveTab(id)} openRightDisabled={!canSplit || groupBusy} moveDisabled={!split || groupBusy} actions={fileTab ?
             <DocumentActions
               documentPath={owner?.openedPath ?? ""}
+              pluginActions={pluginActions} onOpenPluginFile={openPluginFile}
               wide={documentWidth === "wide"}
               onToggleWide={owner?.kind === "text" ? undefined : toggleDocumentWidth}
               compact={split}
@@ -1299,7 +1337,10 @@ function EditorApp() {
               outline={panelOpen && !assistantOpen}
               onToggleOutline={owner?.kind === "text" ? undefined : toggleOutline}
               outlineToggleRef={group.id === navigation.focused ? outlineToggle : undefined}
-            /> : null
+            /> : pdfTab?.pdf && pluginActions.length ? <div className="top-bar-actions">
+              <TabFileMenu documentPath={pdfTab.pdf} pluginActions={pluginActions} onOpenPluginFile={openPluginFile}
+                disabled={groupBusy || Boolean(continuation)} fileActionsRef={group.id === navigation.focused ? fileActionsToggle : undefined} />
+            </div> : null
           } />
           </section>;
           })}
@@ -1351,7 +1392,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={tab.client} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace client={tab.client} roots={openedFolderPaths} key={`${tab.id}:local`} id={tab.id} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onOpenDocument={(path, signal) => openViewDocument(path, tab.client, signal)} /> : null}
+              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={tab.client} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace client={tab.client} roots={openedFolderPaths} key={`${tab.id}:local`} id={tab.id} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} fileOpen={tab.fileOpen} onOpenDocument={(path, signal) => openViewDocument(path, tab.client, signal)} /> : null}
 
             </div>;
           })}
