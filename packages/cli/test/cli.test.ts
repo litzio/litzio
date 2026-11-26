@@ -2037,6 +2037,46 @@ test("insert-target and update-label label a section that {ref} references name"
 });
 
 // Tests in this file run serially; capture only during the synchronous invocation.
+// ADR-0024: a complex grid goes in with --grid, comes out of inspect as the same grid, takes cell
+// blocks at a start-column path, and refuses rectangular commands without writing.
+test("CLI writes, inspects and edits a complex table grid and refuses row commands without writing", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-cli-complex-table-"));
+  const file = path.join(dir, "table.md");
+  writeFileSync(file, nativeSource("Intro.\n"));
+  const paragraph = (text: string) => ({ kind: "paragraph", content: [{ kind: "text", text }] });
+  try {
+    const grid = { headerRows: 1, rows: [
+      { cells: [{ colspan: 2, blocks: [paragraph("Range")] }] },
+      { cells: [{ rowspan: 2, blocks: [paragraph("Output"), paragraph("rated")] }, { blocks: [paragraph("230 V")] }] },
+      { cells: [{ column: 1, blocks: [{ kind: "list", list: { ordered: false, items: [{ content: [{ kind: "text", text: "Peak" }] }] } }] }] },
+    ] };
+    const inserted = run(["insert-table", file, "--at", "end", "--grid", JSON.stringify(grid), "--caption", "Limits"]);
+    assert.equal(inserted.status, 0, inserted.stderr);
+    assert.match(readFileSync(file, "utf8"), /\n<th colspan="2"><p>Range<\/p><\/th>\n[\s\S]*\n<td rowspan="2"><p>Output<\/p><p>rated<\/p><\/td>\n/);
+    const inspected = JSON.parse(run(["inspect", file, "--format", "json"]).stdout);
+    const table = inspected.nodes.find((node: { type: string }) => node.type === "table");
+    assert.deepEqual([table.grid, table.headerRows], ["complex", 1]);
+    const cells = inspected.nodes.filter((node: { type: string }) => node.type === "cell");
+    assert.deepEqual(cells.map((cell: { path: number[]; rowspan: number; colspan: number }) => [cell.path.join(","), cell.rowspan, cell.colspan]),
+      [["2,0,0", 1, 2], ["2,1,0", 2, 1], ["2,1,1", 1, 1], ["2,2,1", 1, 1]]);
+    assert.match(run(["inspect", file]).stdout, /\n2 table grid=complex headerRows=1 numbers=table:1\n {2}2,0,0 cell header=true rowspan=1 colspan=2 /);
+
+    const edited = run(["update-table-cell", file, "--path", "2,2,1", "--blocks", JSON.stringify([paragraph("Peak"), paragraph("Mean")])]);
+    assert.equal(edited.status, 0, edited.stderr);
+    assert.match(readFileSync(file, "utf8"), /\n<td><p>Peak<\/p><p>Mean<\/p><\/td>\n/);
+    const before = readFileSync(file);
+    for (const args of [["update-table-cell", file, "--path", "2,2,0", "--text", "x"], ["update-table-cell", file, "--path", "2,1,0", "--text", "x"],
+      ["insert-table-row", file, "--path", "2", "--at", "1"], ["update-table-alignment", file, "--path", "2", "--column", "0", "--align", "right"]]) {
+      const refused = run(args);
+      assert.equal(refused.status, 1, args.join(" "));
+      assert.match(refused.stderr, /not where a cell starts|replace its blocks|merged cells, header rows or cell blocks/, args.join(" "));
+      assert.deepEqual(readFileSync(file), before, args.join(" "));
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 function run(args: string[]) {
   const stdoutWrite = process.stdout.write;
   const stderrWrite = process.stderr.write;

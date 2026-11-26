@@ -17,7 +17,8 @@ import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
 import { fromTiptapContent, toTiptapContent } from "./tiptap-inline.ts";
-import { forEachTableRow, inTableCell, tableCellOf, tableCellRange } from "./table-structure.ts";
+import { inTableCell, isComplexTable, tableCellOf, tableCellRange } from "./table-structure.ts";
+import { TableMap } from "@tiptap/pm/tables";
 
 const FOOTNOTES_ATTR = "data-litzio-footnotes";
 
@@ -132,7 +133,9 @@ function internalPasteError(html: string, schema: Schema): UiMessage | undefined
     if (checkboxes.has(element)) continue;
     if ((!typed && (!allowed.has(element.tagName) || element.hasAttribute("style"))) ||
         (typed && !TYPES.has(typed)) || misplaced(element, typed ?? (element.tagName === "BR" ? "hardBreak" : "")) ||
-        (["TABLE", "THEAD", "TBODY", "TR", "TD", "TH"].includes(element.tagName) && !element.closest('[data-litzio-type="table"]')) || element.hasAttribute("colspan") || element.hasAttribute("rowspan")) {
+        (["TABLE", "THEAD", "TBODY", "TR", "TD", "TH"].includes(element.tagName) && !element.closest('[data-litzio-type="table"]')) ||
+        // Only a typed cell of a typed table keeps its spans: a complex table moved or copied in Litzio (ADR-0024).
+        ((element.hasAttribute("colspan") || element.hasAttribute("rowspan")) && !(typed === "tableCell" && element.closest('[data-litzio-type="table"]')))) {
       return { key: "This clipboard content includes unsupported structure or formatting. Nothing was pasted; the clipboard and your selection are kept. Paste plain text explicitly or use supported content." };
     }
   }
@@ -218,6 +221,17 @@ function selectedPreview(state: EditorState): boolean {
     ["equation", "figure", "footnoteDefinition"].includes(state.selection.node.type.name);
 }
 
+/** A whole complex table selected as a block (ADR-0024). Typing must not replace its grid,
+ * caption and notes with the typed text; Delete, cut and paste still act on the block. */
+function selectedComplexTable(state: EditorState): boolean {
+  return state.selection instanceof NodeSelection && state.selection.node.type.name === "table" && isComplexTable(state.selection.node);
+}
+
+/** A selection without a native text caret: typing and composition must not replace it. */
+function readOnlySelection(state: EditorState): boolean {
+  return selectedPreview(state) || selectedComplexTable(state);
+}
+
 function fullCaptionRange(state: EditorState, from: number, to: number): boolean {
   const $from = state.doc.resolve(from), $to = state.doc.resolve(to);
   return $from.sameParent($to) && ["figure", "tableCaption"].includes($from.parent.type.name) &&
@@ -244,22 +258,29 @@ function atNestedDocumentEnd(view: EditorView): boolean {
   return lastLine && view.endOfTextblock("down");
 }
 
-function tableTab(state: EditorState, backward: boolean, editable: boolean): Transaction | null {
+export function tableTab(state: EditorState, backward: boolean, editable: boolean): Transaction | null {
   const { $from } = state.selection;
   const cell = tableCellOf($from);
   if (!cell) return null;
-  const cells: number[] = [];
+  // Every cell in document order, the cells that start with a list included; a cell's text
+  // starts in its first textblock.
+  const cells: { node: PMNode; pos: number }[] = [];
   const start = $from.before(1);
-  // A cell's text starts in its first textblock.
-  $from.node(1).descendants((node, pos, parent) => { if (node.isTextblock && parent?.type.name === "tableCell" && parent.firstChild === node) cells.push(start + pos + 2); });
-  // Past the cell's opening token and its first textblock's.
-  const index = cells.indexOf(tableCellRange($from)!.from + 2);
+  $from.node(1).descendants((node, pos) => {
+    if (node.type.name !== "tableCell") return true;
+    cells.push({ node, pos: start + 1 + pos });
+    return false;
+  });
+  const index = cells.findIndex(item => item.pos === tableCellRange($from)!.from);
   const target = cells[index + (backward ? -1 : 1)];
-  if (target !== undefined) return state.tr.setSelection(TextSelection.create(state.doc, target)).scrollIntoView();
-  if (!backward && editable) return addTableRowBelow(state, $from.index(0), { row: cell.row, column: 0 });
+  if (target) return state.tr.setSelection(TextSelection.create(state.doc, cellTextblock(target.node, target.pos, false).from)).scrollIntoView();
+  // A complex table gains no row: Tab leaves it, as in a read-only table.
+  if (!backward && editable && !isComplexTable($from.node(1))) return addTableRowBelow(state, $from.index(0), { row: cell.row, column: 0 });
   const edge = backward ? $from.before(1) : $from.after(1);
   const selection = TextSelection.findFrom(state.doc.resolve(edge), backward ? -1 : 1, true);
-  return selection ? state.tr.setSelection(selection).scrollIntoView() : paragraphBeside(state, !backward);
+  if (selection) return state.tr.setSelection(selection).scrollIntoView();
+  // A content-only view adds no paragraph: with nowhere to go, Tab is left to the browser's focus order.
+  return isStructureLocked(state) ? null : paragraphBeside(state, !backward);
 }
 
 /** The content range of the first (or last) textblock of the cell node at `cellPos`. */
@@ -303,24 +324,25 @@ function tableVertical(view: EditorView, down: boolean): Transaction | null {
     }
     return state.tr.setSelection(TextSelection.create(doc, caret)).scrollIntoView();
   };
-  const tablePos = $cell.before(1), table = $cell.node(1), target = $cell.index(-1) + (down ? 1 : -1);
+  // Rows and columns of the grid, as TableMap lays out merged cells: the target is the cell at the
+  // current cell's first column, in the row below its last row or above its first.
+  const tablePos = $cell.before(1), table = $cell.node(1), grid = $cell.node(2), gridStart = $cell.start(2);
+  const map = TableMap.get(grid), rect = map.findCell($cell.pos - gridStart);
+  const target = down ? rect.bottom : rect.top - 1;
   if (target < 0) {
     const $table = doc.resolve(tablePos), before = Selection.findFrom($table, -1);
     if (!before) return state.tr.setSelection(new GapCursor($table)).scrollIntoView();
     if (!(before instanceof TextSelection)) return state.tr.setSelection(before).scrollIntoView();
     return caretIn(before.$head.start(), before.$head.end());
   }
-  let pos = -1, row: PMNode | undefined;
-  forEachTableRow(table, tablePos, (node, at, index) => { if (index === target) { pos = at; row = node; } });
-  if (!row) {
+  if (target >= map.height) {
+    let pos = -1;
     table.forEach((child, offset) => { if (child.type.name === "tableCaption") pos = tablePos + 1 + offset; });
     return state.tr.setSelection(TextSelection.create(doc, pos + 1)).scrollIntoView();
   }
-  const column = Math.min($cell.index(), row.childCount - 1);
-  pos += 1;
-  for (let index = 0; index < column; index++) pos += row.child(index).nodeSize;
+  const offset = map.map[target * map.width + rect.left];
   // The target cell's first (down) or last (up) textblock.
-  const { from, to } = cellTextblock(row.child(column), pos, !down);
+  const { from, to } = cellTextblock(grid.nodeAt(offset)!, gridStart + offset, !down);
   return caretIn(from, to);
 }
 
@@ -571,10 +593,10 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
       // A selected block has no native text caret. Keep the DOM read-only for that
       // selection, while the engine remains editable for explicit keymaps/clipboard.
       const syncPreviewInput = (view: EditorView) => {
-        view.dom.contentEditable = String(view.editable && !selectedPreview(view.state));
+        view.dom.contentEditable = String(view.editable && !readOnlySelection(view.state));
       };
       const rejectPreviewComposition = (view: EditorView) => {
-        if (!selectedPreview(view.state)) return false;
+        if (!readOnlySelection(view.state)) return false;
         syncPreviewInput(view);
         return true;
       };
@@ -643,7 +665,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
             return false;
           },
           beforeinput: (view, event) => {
-            if (selectedPreview(view.state) && /^(insert|delete)/.test(event.inputType)) {
+            if (readOnlySelection(view.state) && /^(insert|delete)/.test(event.inputType)) {
               syncPreviewInput(view);
               if (event.cancelable) event.preventDefault();
               return true;
@@ -792,7 +814,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
         // Consume ordinary text on selected previews without replacing content or adding space.
         // Text carets and explicit property inputs retain their existing input paths.
         handleTextInput(view, _from, _to, text) {
-          return !!text && selectedPreview(view.state);
+          return !!text && readOnlySelection(view.state);
         },
         handlePaste: (view, event, slice) => {
           const notes = pastedFootnotes;

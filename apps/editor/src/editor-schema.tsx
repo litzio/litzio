@@ -3,7 +3,7 @@ import { createAssetHost } from "./image-assets.ts";
 import type { UiMessage } from "./ui-message.ts";
 import { i18n } from "./i18n.ts";
 import { allocateBlockPath } from "./block-locators.ts";
-import { Extension, Node, type Attribute, type Editor, type Extensions, type NodeViewRenderer } from "@tiptap/core";
+import { Extension, Node, type Attribute, type Editor, type Extensions, type KeyboardShortcutCommand, type NodeViewRenderer } from "@tiptap/core";
 import { EDITOR_SHORTCUTS } from "./shortcuts.ts";
 import { BulletList, ListItem, ListKeymap, OrderedList, TaskItem, TaskList } from "@tiptap/extension-list";
 import { Code } from "@tiptap/extension-code";
@@ -191,8 +191,25 @@ const SourcedOrderedList = OrderedList.extend({
   },
 }).configure({ HTMLAttributes: listHTML });
 
+// In a table cell, Tab moves between cells or leaves the table, and a list keeps its nesting
+// (ADR-0024): the list Tab shortcuts pass there, as they would where no handler takes the key.
+function outsideTableCell(shortcut: KeyboardShortcutCommand | undefined): KeyboardShortcutCommand {
+  return props => !inTableCell(props.editor.state.selection.$from) && !!shortcut?.(props);
+}
+
 const SimpleListItem = ListItem.extend({
   content: `paragraph ${NESTED_LISTS}`,
+  addKeyboardShortcuts() {
+    const shortcuts = this.parent?.() ?? {};
+    return { ...shortcuts, Tab: outsideTableCell(shortcuts.Tab), "Shift-Tab": outsideTableCell(shortcuts["Shift-Tab"]) };
+  },
+});
+
+const CellAwareListKeymap = ListKeymap.extend({
+  addKeyboardShortcuts() {
+    const shortcuts = this.parent?.() ?? {};
+    return { ...shortcuts, Tab: outsideTableCell(shortcuts.Tab) };
+  },
 });
 
 const SourcedTaskList = TaskList.extend({
@@ -586,7 +603,8 @@ function cellAlignmentStyle(node: ProseMirrorNode): string {
 const TableRow = Node.create({
   name: "tableRow",
   allowGapCursor: false,
-  content: "tableCell+",
+  // A complex grid's row can be covered entirely by cells that start above it.
+  content: "tableCell*",
   parseHTML() {
     return [{ tag: "tr" }];
   },
@@ -595,12 +613,12 @@ const TableRow = Node.create({
   },
 });
 
-// A cell holds its content as blocks: one paragraph of inline content, including hard breaks.
-// Every cell spans one row and one column; the span attributes exist for TableMap and are never
-// read from pasted HTML.
+// A cell holds its content as blocks: one paragraph of inline content, including hard breaks, or in
+// a complex table (ADR-0024) paragraphs and lists. A complex table's cell spans rows and columns;
+// TableMap reads the spans, and they are never read from pasted HTML.
 const TableCell = Node.create({
   name: "tableCell",
-  content: "paragraph",
+  content: "(paragraph | bulletList | orderedList)+",
   isolating: true,
   addAttributes() {
     return { header: headerAttr, align: hiddenAttr(""), [TABLE_CELL_SOURCE_ATTR]: { default: "", rendered: false },
@@ -611,7 +629,8 @@ const TableCell = Node.create({
     return [{ tag: "th[data-table-cell]" }, { tag: "td[data-table-cell]" }];
   },
   renderHTML({ node }) {
-    return [node.attrs.header ? "th" : "td", { "data-table-cell": "", style: cellAlignmentStyle(node) }, 0];
+    const span = (name: "colspan" | "rowspan") => Number(node.attrs[name]) > 1 ? { [name]: String(node.attrs[name]) } : {};
+    return [node.attrs.header ? "th" : "td", { "data-table-cell": "", ...span("rowspan"), ...span("colspan"), style: cellAlignmentStyle(node) }, 0];
   },
 });
 
@@ -823,7 +842,7 @@ export function editorExtensions(
     SourcedTaskList,
     SimpleTaskItem,
     ChecklistToggle,
-    ListKeymap,
+    CellAwareListKeymap,
     Admonition,
     Quote,
     FootnoteDefinition,

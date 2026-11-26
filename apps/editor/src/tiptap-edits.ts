@@ -1,4 +1,4 @@
-import { DOCUMENT_STATUSES, type DocumentStatus } from "@litzio/core";
+import { DOCUMENT_STATUSES, type ComplexTableInput, type DocumentStatus, type NodePath, type TableCellBlock } from "@litzio/core";
 import { allocateBlockPath } from "./block-locators.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 import { inlineContentText as inlineText, sameInlineContent as sameInline, isAdmonitionVariant, paragraphInlineContent, type CodeBlockContent, type EditableDocument, type FigureContent, type InlineContent, type ListContent } from "@litzio/core";
@@ -220,6 +220,10 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
         const oldNotes = block.notes ?? [];
         if (notes.length !== oldNotes.length || notes.some((note, index) => !sameInline(note, oldNotes[index]))) {
           noteEdits.push({ path: block.path, notes });
+        }
+        if (block.grid === "complex") {
+          cells.push(...complexTableCellEdits(toTiptapBlock(block), node, block.path));
+          return;
         }
         const next = tableCells(node);
         const shape = tableShape(tableCells(toTiptapBlock(block)), next);
@@ -487,6 +491,7 @@ function insertEdit(node: TiptapJSON): InsertEdit {
     return { block: "figure", ...figureContent(node), ...(label ? { label } : {}), ...insertEnumerator(node) };
   }
   if (node.type === "table") {
+    if (isComplexTableJSON(node)) return { ...complexTableInput(node), ...tableExtras(node) };
     const grid = tableCells(node);
     if (grid.some((row, index) => row.some(cell => cell.header !== (index === 0)))) {
       throw new Error("a new table holds editable cells, with header cells only in its first row");
@@ -495,11 +500,7 @@ function insertEdit(node: TiptapJSON): InsertEdit {
     if (grid.some(row => row.some((cell, column) => (cell.align || null) !== align[column]))) {
       throw new SaveContentError("table alignment must be uniform within each column", undefined, { code: "table-shape", phase: "collect", action: "Set alignment for the whole column using the table controls." });
     }
-    const caption = tableCaption(node);
-    const notes = tableNotes(node);
-    const label = blockLabel(node);
-    return { block: "table", rows: grid.map(row => row.map(cell => cell.content)), ...(align.some(Boolean) ? { align } : {}),
-      ...(caption.length ? { caption } : {}), ...(notes.length ? { notes } : {}), ...(label ? { label } : {}), ...insertEnumerator(node) };
+    return { block: "table", rows: grid.map(row => row.map(cell => cell.content)), ...(align.some(Boolean) ? { align } : {}), ...tableExtras(node) };
   }
   if (LIST_BLOCKS.has(node.type ?? "")) {
     return { block: "list", list: listContent(node) };
@@ -614,6 +615,11 @@ function assertBlockChange(before: TiptapJSON | undefined, after: TiptapJSON | u
     if (normalizeAttr(before.attrs?.sourcePath) !== normalizeAttr(after.attrs?.sourcePath)) {
       throw new Error("table identity cannot change");
     }
+    if (isComplexTableJSON(before) || isComplexTableJSON(after)) {
+      if (!isComplexTableJSON(before)) throw new Error("a table cannot gain merged cells, header rows after the first or cell blocks");
+      complexTableCellEdits(before, after, []);
+      return;
+    }
     tableShape(tableCells(before), tableCells(after));
     return;
   }
@@ -690,6 +696,76 @@ function tableCells(node: TiptapJSON): TableCellShape[][] {
       }
     });
   });
+}
+
+/** True when a table's grid is complex (ADR-0024): a merged cell, a header row after the first, a
+ * row that only covered cells fill, or a cell that does not hold exactly one paragraph. This is
+ * when Core keeps the grid as HTML rather than as a pipe grid. */
+export function isComplexTableJSON(node: TiptapJSON): boolean {
+  return tableRowsJSON(node).some((row, rowIndex) => !row.content?.length || row.content.some(cell =>
+    Number(cell.attrs?.colspan ?? 1) !== 1 || Number(cell.attrs?.rowspan ?? 1) !== 1 || (rowIndex > 0 && cell.attrs?.header === true) ||
+    cell.content?.length !== 1 || cell.content[0].type !== "paragraph"));
+}
+
+/** A complex table's cells: each start cell's snapshot position, kind, alignment, spans and blocks. */
+function complexTableCells(node: TiptapJSON) {
+  return tableRowsJSON(node).map((row, rowIndex) => (row.content ?? []).map((cell, index) => {
+    try {
+      if (cell.type !== "tableCell" || !cell.content?.length) throw new Error(`unsupported Tiptap node ${describeType(cell)} in table row`);
+      return {
+        source: String(cell.attrs?.[TABLE_CELL_SOURCE_ATTR] ?? ""), header: cell.attrs?.header === true, align: String(cell.attrs?.align ?? ""),
+        rowspan: Number(cell.attrs?.rowspan ?? 1), colspan: Number(cell.attrs?.colspan ?? 1),
+        blocks: cell.content.map((child): TableCellBlock => child.type === "paragraph"
+          ? { kind: "paragraph", content: paragraphInline(child) } : { kind: "list", list: listContent(child) }),
+      };
+    } catch (error) {
+      throw new SaveContentError(error instanceof Error ? error.message : String(error), undefined, {
+        cause: error, phase: "collect", cell: { row: rowIndex, column: index },
+        ...(error instanceof SaveContentError ? { action: error.action } : {}),
+      });
+    }
+  }));
+}
+
+/** The caption, notes, label and fixed number of a new table block. */
+function tableExtras(node: TiptapJSON) {
+  const caption = tableCaption(node);
+  const notes = tableNotes(node);
+  const label = blockLabel(node);
+  return { ...(caption.length ? { caption } : {}), ...(notes.length ? { notes } : {}), ...(label ? { label } : {}), ...insertEnumerator(node) };
+}
+
+/** A complex table that Litzio's own clipboard moved or copied is Core complex table input: its
+ * header rows are those its header cells span, and each row lists the cells that start in it. */
+function complexTableInput(node: TiptapJSON): { block: "table"; grid: "complex"; headerRows: number; rows: ComplexTableInput["rows"] } {
+  const cells = complexTableCells(node);
+  const headerRows = Math.max(0, ...cells.flatMap((row, rowIndex) => row.filter(cell => cell.header).map(cell => rowIndex + cell.rowspan)));
+  if (cells.some((row, rowIndex) => row.some(cell => cell.header !== rowIndex < headerRows))) {
+    throw new Error("a table's header cells fill its first rows");
+  }
+  return { block: "table", grid: "complex", headerRows, rows: cells.map(row => ({ cells: row.map(cell => ({
+    rowspan: cell.rowspan, colspan: cell.colspan, ...(["left", "center", "right"].includes(cell.align) ? { align: cell.align as "left" | "center" | "right" } : {}), blocks: cell.blocks,
+  })) })) };
+}
+
+/** What a complex table cell keeps while its text changes: its place, kind, alignment, spans and
+ * the kind of each block, with each list's numbering, items and nesting. */
+function cellSkeleton(cell: ReturnType<typeof complexTableCells>[number][number]): string {
+  const list = (content: ListContent): unknown => ({ ordered: content.ordered, start: content.start, style: content.style, delimiter: content.delimiter,
+    checklist: content.checklist, items: content.items.map(item => item.list ? list(item.list) : null) });
+  return JSON.stringify({ ...cell, blocks: cell.blocks.map(block => block.kind === "paragraph" ? "paragraph" : list(block.list)) });
+}
+
+/** A complex table keeps its grid and every cell's paragraphs and lists (ADR-0024); only their text
+ * changes. Each changed cell becomes a block edit at [table, row, start column]. */
+function complexTableCellEdits(before: TiptapJSON, after: TiptapJSON, path: NodePath): TableCellEdit[] {
+  const was = complexTableCells(before), is = complexTableCells(after);
+  if (was.length !== is.length || was.some((row, rowIndex) => row.length !== is[rowIndex].length ||
+      row.some((cell, index) => cellSkeleton(cell) !== cellSkeleton(is[rowIndex][index])))) {
+    throw new Error("a table with merged cells, header rows or cell blocks keeps its grid and each cell's paragraphs and lists; only their text changes");
+  }
+  return is.flatMap((row, rowIndex) => row.flatMap((cell, index) => JSON.stringify(cell.blocks) === JSON.stringify(was[rowIndex][index].blocks) ? []
+    : [{ path: [...path, ...cell.source.split(",").map(Number)], blocks: cell.blocks }]));
 }
 
 type TableShape = Pick<TableShapeEdit, "rows" | "columns" | "align">;

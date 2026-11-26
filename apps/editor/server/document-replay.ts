@@ -4,6 +4,7 @@ import {
   endnotesInPlace,
   citationReport,
   getEditableDocument,
+  tableCellAtPath,
   inspectDocument,
   isAdmonitionVariant,
   inlineContentLength,
@@ -50,6 +51,7 @@ import {
   updateList,
   updateCodeBlock,
   updateTableCell,
+  updateTableCellBlocks,
   updateTableCaption,
   insertTableNote,
   updateTableNote,
@@ -204,11 +206,15 @@ export function replayEdits(
     const target = { path: edit.path, part: 0 };
     editAt(target, () => {
       assertPath(edit.path, "table cell");
-      const [table, row, index] = edit.path;
-      const block = blockAt(editable, [table]);
-      const cell = edit.path.length === 3 && block?.block === "table" ? block.rows[row]?.cells[index] : undefined;
+      // A complex table's cell path names the column where the cell starts (ADR-0024).
+      const cell = tableCellAtPath(blockAt(editable, [edit.path[0]]), edit.path);
       if (!cell?.editable) {
         throw new Error(`table cell edit is not allowed at [${edit.path.join(",")}]`);
+      }
+      if ("blocks" in edit) {
+        if (!Array.isArray(edit.blocks)) throw new Error(`table cell blocks must be an array at [${edit.path.join(",")}]`);
+        document = editAt(target, () => updateTableCellBlocks(document, edit.path, edit.blocks));
+        return;
       }
       if (!Array.isArray(edit.content)) {
         throw new Error(`table cell content must be InlineContent at [${edit.path.join(",")}]`);
@@ -225,7 +231,8 @@ export function replayEdits(
       assertPath(edit.path, "table");
       const block = blockAt(editable, edit.path);
       const width = block?.block === "table" ? block.rows[0]?.cells.length ?? 0 : 0;
-      if (edit.path.length !== 1 || block?.block !== "table" || edit.rows[0] !== 0 ||
+      // Rows and columns move whole only in a rectangular grid; Core refuses the others too.
+      if (edit.path.length !== 1 || block?.block !== "table" || block.grid === "complex" || edit.rows[0] !== 0 ||
           !isTableAxis(edit.rows, block.rows.length) || !isTableAxis(edit.columns, width) || !Array.isArray(edit.cells) ||
           (edit.align !== undefined && (!Array.isArray(edit.align) || edit.align.length !== edit.columns.length ||
             edit.align.some(align => align !== null && !["left", "center", "right"].includes(align))))) {
@@ -486,7 +493,9 @@ export function replayEdits(
     } else if (item.block === "equation") {
       document = editAt(target, () => insertEquation(document, index, item.latex));
     } else if (item.block === "table") {
-      document = editAt(target, () => insertTable(document, index, item.rows, item.align, item.notes));
+      document = editAt(target, () => item.grid === "complex"
+        ? insertTable(document, index, { grid: "complex", headerRows: item.headerRows, rows: item.rows }, undefined, item.notes)
+        : insertTable(document, index, item.rows, item.align, item.notes));
       if (item.caption) document = editAt(target, () => updateTableCaption(document, [index], item.caption!));
     } else if (item.block === "list") {
       document = editAt(target, () => insertList(document, index, item.list));

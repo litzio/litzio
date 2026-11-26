@@ -14,7 +14,7 @@ import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { BLOCK_COMMANDS, blockCommandGroup, type TableCellAddress } from "./block-commands.ts";
 import { CommandMenu, type CommandMenuItem } from "./CommandMenu.tsx";
 import { blockCommandAppearance } from "./command-icons.ts";
-import { forEachTableRow, tableCellOf, tableCellRange, tableRows } from "./table-structure.ts";
+import { forEachTableRow, isComplexTable, tableCellOf, tableCellRange, tableRows } from "./table-structure.ts";
 
 type MenuTarget = { position: number; kind: "row" | "column"; target: TableCellAddress };
 const menuTargetKey = new PluginKey<MenuTarget | null>("tableMenuTarget");
@@ -157,8 +157,10 @@ export function TableTools({ editor, node, getPos, grid, rowLayer, actionLayer, 
   // A table far from view is not measured yet, but keeps its native Tab stops. Focus scrolls it near, which measures it.
   const unmeasured = { opacity: 0 };
   const rows = tableRows(node);
-  const columnCells = geometry?.columns ?? Array.from({ length: rows[0]?.childCount ?? 0 }, () => undefined);
-  const rowCells = geometry?.rows ?? Array.from({ length: rows.length }, () => undefined);
+  // A complex table has no row or column commands (ADR-0024), so it shows no row or column handles.
+  const complex = isComplexTable(node);
+  const columnCells = complex ? [] : geometry?.columns ?? Array.from({ length: rows[0]?.childCount ?? 0 }, () => undefined);
+  const rowCells = complex ? [] : geometry?.rows ?? Array.from({ length: rows.length }, () => undefined);
   return <div className="table-tools" data-active={active ? "true" : "false"} data-menu-open={menu ? "true" : "false"} contentEditable={false}>
     {createPortal(<div className="table-tools" data-active={active ? "true" : "false"} data-menu-open={menu ? "true" : "false"} contentEditable={false}>
       {columnCells.map((cell, i) => <Button variant="table-handle" size="sm" key={i} type="button" className="table-column-handle"

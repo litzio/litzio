@@ -83,6 +83,25 @@ function machineBlock(block: EditableBlock): MachineNode[] {
   if (block.block === "equation") {
     return [{ ...base, label: block.label, latex: block.latex }];
   }
+  if (block.block === "table" && block.grid === "complex") {
+    // The same grid as complex table input: start cells with spans and blocks (ADR-0024).
+    return [
+      { ...base, grid: block.grid, headerRows: block.headerRows, ...(block.label ? { label: block.label } : {}), ...(block.caption ? { caption: block.caption } : {}), ...(block.notes ? { notes: block.notes } : {}) },
+      ...block.rows.flatMap(row => row.cells.map(cell => ({
+        path: [...cell.path],
+        type: "cell",
+        header: cell.header,
+        editable: cell.editable,
+        text: cell.text,
+        ...(cell.content ? { content: cell.content } : {}),
+        column: cell.column,
+        rowspan: cell.rowspan,
+        colspan: cell.colspan,
+        ...(cell.align ? { align: cell.align } : {}),
+        blocks: cell.blocks,
+      }))),
+    ];
+  }
   if (block.block === "table") {
     return [
       { ...base, ...(block.label ? { label: block.label } : {}), ...(block.caption ? { caption: block.caption } : {}), ...(block.notes ? { notes: block.notes } : {}) },

@@ -1,8 +1,9 @@
-import { assertInlineContent, hasAdjacentMatchingLinks, projectInlineContent, type InlineContent } from "../inline.ts";
+import { assertInlineContent, hasAdjacentMatchingLinks, inlineContentToNodes, projectInlineContent, type InlineContent } from "../inline.ts";
 import { MAX_LIST_START, type ListContent } from "../list.ts";
 import { DOCUMENT_AUTHORING_LIMITS } from "../document-authoring-input.ts";
 import { DocumentWriteError, writeIssueOf } from "../write-error.ts";
-import { supportedListContent } from "./list.ts";
+import { createListNode, supportedListContent } from "./list.ts";
+import type { TableCellBlock } from "../table.ts";
 import type { MystNode } from "./tree.ts";
 
 export function tableGridError(reason: string, path: number[], line?: number): never {
@@ -46,6 +47,44 @@ export function tableList(node: MystNode, path: number[]): ListContent {
   if (!list) tableGridError("Unsupported table cell list", path);
   validate(list);
   return list;
+}
+
+/** A table grid in its complex form: it records its header rows and each cell's start column and spans. */
+export function isComplexGrid(table: MystNode | undefined): boolean {
+  return table?.type === "table" && table.headerRows !== undefined;
+}
+
+/** The blocks of a table cell: its paragraphs and lists, or a pipe cell's inline content as one paragraph. */
+export function tableCellBlocks(cell: MystNode | undefined): TableCellBlock[] | undefined {
+  if (cell?.type !== "tableCell") return undefined;
+  const children = cell.children ?? [];
+  if (!children.some(block => block.type === "paragraph" || block.type === "list")) {
+    const content = projectInlineContent(cell);
+    return content ? [{ kind: "paragraph", content }] : undefined;
+  }
+  const blocks: TableCellBlock[] = [];
+  for (const block of children) {
+    const content = block.type === "paragraph" && onlyFields(block, []) ? projectInlineContent(block) : undefined;
+    const list = block.type === "list" ? supportedListContent(block, true) : undefined;
+    if (content) blocks.push({ kind: "paragraph", content });
+    else if (list) blocks.push({ kind: "list", list });
+    else return undefined;
+  }
+  return blocks;
+}
+
+/** Cell children for blocks, as the HTML grid reader produces them. */
+export function tableCellBlockNodes(blocks: TableCellBlock[]): MystNode[] {
+  return blocks.map(block => block.kind === "paragraph"
+    ? { type: "paragraph", children: inlineContentToNodes(block.content) }
+    : createListNode(block.list));
+}
+
+/** After a change to a table's cells, put the grid in the form its canonical write uses: a pipe
+ * grid when it fits one, otherwise the complex form with start columns and spans. */
+export function settleTableGrid(table: MystNode, path: number[]): void {
+  locateTableCells(table, path);
+  usePipeGrid(table, path);
 }
 
 export function needsComplexGrid(table: MystNode): boolean {

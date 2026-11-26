@@ -1484,8 +1484,13 @@ ol.list[data-list-delimiter=")"][data-list-style="lower-roman"] > li::marker { c
 ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { content: counter(list-item, upper-roman) ") "; }
 
 .list .paragraph,
-.table [data-table-cell] > .paragraph {
+.table [data-table-cell] > :is(.paragraph, .list) {
   margin: 0;
+}
+
+/* A complex table cell's paragraphs and lists (ADR-0024) are as far apart as the cell padding. */
+.table [data-table-cell] > :is(.paragraph, .list) + :is(.paragraph, .list) {
+  margin-top: var(--space-document-table-cell-block);
 }
 
 /* A checklist keeps the list indent; its checkbox stands where a bullet would, on the first line.

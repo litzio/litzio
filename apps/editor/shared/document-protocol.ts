@@ -8,7 +8,7 @@ import type {
   ListContent,
   NodePath,
 } from "@litzio/core";
-import type { NativeDocumentErrorCode, WriteIssue } from "@litzio/core";
+import type { ComplexTableInput, NativeDocumentErrorCode, TableCellBlock, WriteIssue } from "@litzio/core";
 import type { SaveFailure } from "./save-error.ts";
 
 /** Read-only recovery mode of document-source; disk is null only for an absent file. */
@@ -57,11 +57,11 @@ export type AdmonitionEdit = {
   content?: InlineContent[];
 };
 
-/** The new inline content of an editable table cell; empty clears it. */
-export type TableCellEdit = {
-  path: NodePath;
-  content: InlineContent[];
-};
+/** The new inline content of an editable table cell (empty clears it), or the new blocks of a
+ * complex table's cell (ADR-0024), whose path names the column where the cell starts. */
+export type TableCellEdit =
+  | { path: NodePath; content: InlineContent[] }
+  | { path: NodePath; blocks: TableCellBlock[] };
 
 /** A table's new grid: each row and column is its snapshot index, or null when added. Snapshot
  * rows and columns that are absent were removed; the order of the others is their new order. */
@@ -115,7 +115,9 @@ export type InsertEdit =
   | { block: "divider" }
   | { block: "equation"; latex: string; label?: string; enumerator?: string }
   | ({ block: "figure"; label?: string; enumerated?: boolean; enumerator?: string } & FigureContent)
-  | { block: "table"; rows: InlineContent[][][]; align?: ("left" | "center" | "right" | null)[]; caption?: InlineContent[]; notes?: InlineContent[][]; label?: string; enumerated?: boolean; enumerator?: string }
+  | { block: "table"; grid?: undefined; rows: InlineContent[][][]; align?: ("left" | "center" | "right" | null)[]; caption?: InlineContent[]; notes?: InlineContent[][]; label?: string; enumerated?: boolean; enumerator?: string }
+  /** A complex table moved or copied through Litzio's own clipboard (ADR-0024). */
+  | { block: "table"; grid: "complex"; headerRows: number; rows: ComplexTableInput["rows"]; caption?: InlineContent[]; notes?: InlineContent[][]; label?: string; enumerated?: boolean; enumerator?: string }
   | { block: "list"; list: ListContent }
   | ({ block: "code" } & CodeBlockContent)
   /** A `(label)=` target, labeling the block after it (a section heading in the Editor). */

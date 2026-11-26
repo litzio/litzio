@@ -8,6 +8,8 @@ import { getHeadingNumbering } from "./myst/heading-numbering.ts";
 import type { HeadingNumbering, ReferenceTemplates } from "./numbering.ts";
 import { getReferenceTemplates } from "./myst/reference-templates.ts";
 import { tableCellContent, tableOf, tableCaptionParagraph, tableNoteParagraphs, tableNoteContent } from "./myst/table.ts";
+import { isComplexGrid, tableCellBlocks } from "./myst/table-grid.ts";
+import { tableCellBlocksText, type TableCellBlock } from "./table.ts";
 import { inlineContentText, projectInlineContent, type InlineContent } from "./inline.ts";
 import { supportedAdmonitionContent } from "./myst/admonition.ts";
 import type { ListContent } from "./list.ts";
@@ -41,6 +43,37 @@ export type EditableTableCell = {
 
 export type EditableTableRow = {
   cells: EditableTableCell[];
+};
+
+/** A cell of a complex table (ADR-0024). Rows hold only the cells that start in them. */
+export type EditableComplexTableCell = {
+  /** [table, row, column]: `column` is the grid column where the cell starts. */
+  path: NodePath;
+  /** Display text: one line per paragraph and list item. */
+  text: string;
+  header: boolean;
+  editable: true;
+  align?: "left" | "center" | "right";
+  column: number;
+  rowspan: number;
+  colspan: number;
+  blocks: TableCellBlock[];
+  /** The inline content of a cell that holds one paragraph; inline input replaces it. */
+  content?: InlineContent[];
+};
+
+export type EditableComplexTableRow = {
+  cells: EditableComplexTableCell[];
+};
+
+type EditableTableFields = {
+  block: "table";
+  enumerator?: string;
+  enumerated?: boolean;
+  path: NodePath;
+  label?: string;
+  caption?: InlineContent[];
+  notes?: InlineContent[][];
 };
 
 export type EditableBlock =
@@ -109,16 +142,9 @@ export type EditableBlock =
       /** True when Core Figure operations can update supported properties without flattening content. */
       editable: true;
     }
-  | {
-      block: "table";
-      enumerator?: string;
-      enumerated?: boolean;
-      path: NodePath;
-      rows: EditableTableRow[];
-      label?: string;
-      caption?: InlineContent[];
-      notes?: InlineContent[][];
-    }
+  | (EditableTableFields & { grid?: undefined; rows: EditableTableRow[] })
+  /** A table with merged cells, several header rows or cell blocks. */
+  | (EditableTableFields & { grid: "complex"; headerRows: number; rows: EditableComplexTableRow[] })
   | ({
       /** A List v1 structure. */
       block: "list";
@@ -264,8 +290,49 @@ function figureBlock(node: MystNode, path: NodePath): EditableBlock {
   };
 }
 
+/** The cell of a table block at a cell path [table, row, column]; a complex table's column is the
+ * column where its cell starts, so a covered position has no cell. */
+export function tableCellAtPath(block: EditableBlock | undefined, path: NodePath): EditableTableCell | EditableComplexTableCell | undefined {
+  if (block?.block !== "table" || path.length !== 3) return undefined;
+  const cells: (EditableTableCell | EditableComplexTableCell)[] = block.rows[path[1]]?.cells ?? [];
+  return cells.find(cell => cell.path[2] === path[2]);
+}
+
 function tableBlock(node: MystNode, path: NodePath): EditableBlock {
-  const rows = (tableOf(node)!.children ?? []).map((row, rowIndex) => ({
+  const table = tableOf(node)!;
+  const notes = tableNoteParagraphs(node).map(note => requireContent(tableNoteContent(note)));
+  const fields = {
+    block: "table" as const,
+    ...(node.enumerator !== undefined ? { enumerator: node.enumerator as string } : {}),
+    ...(node.enumerated !== undefined ? { enumerated: node.enumerated as boolean } : {}),
+    path,
+  };
+  const details = {
+    ...(notes.length ? { notes } : {}),
+    ...(nodeLabel(node) ? { label: nodeLabel(node) } : {}),
+    ...(tableCaptionParagraph(node) ? { caption: projectInlineContent(tableCaptionParagraph(node)!)! } : {}),
+  };
+  if (isComplexGrid(table)) {
+    const rows = (table.children ?? []).map((row, rowIndex) => ({
+      cells: (row.children ?? []).map(cell => {
+        const blocks = tableCellBlocks(cell);
+        if (!blocks) throw new Error("Unsupported native table cell content");
+        const column = cell.column as number;
+        return {
+          path: [...path, rowIndex, column] as NodePath,
+          text: tableCellBlocksText(blocks, inlineContentText),
+          header: cell.header === true,
+          editable: true as const,
+          ...(["left", "center", "right"].includes(String(cell.align)) ? { align: cell.align as "left" | "center" | "right" } : {}),
+          column, rowspan: cell.rowspan as number, colspan: cell.colspan as number,
+          blocks,
+          ...(blocks.length === 1 && blocks[0].kind === "paragraph" ? { content: blocks[0].content } : {}),
+        };
+      }),
+    }));
+    return { ...fields, grid: "complex", headerRows: table.headerRows as number, rows, ...details };
+  }
+  const rows = (table.children ?? []).map((row, rowIndex) => ({
     cells: (row.children ?? []).map((cell, cellIndex) => {
       const content = requireContent(tableCellContent(cell));
       const inline = inlineContentText(content);
@@ -280,17 +347,7 @@ function tableBlock(node: MystNode, path: NodePath): EditableBlock {
       };
     }),
   }));
-  const notes = tableNoteParagraphs(node).map(note => requireContent(tableNoteContent(note)));
-  return {
-    block: "table",
-    ...(node.enumerator !== undefined ? { enumerator: node.enumerator as string } : {}),
-    ...(node.enumerated !== undefined ? { enumerated: node.enumerated as boolean } : {}),
-    path,
-    rows,
-    ...(notes.length ? { notes } : {}),
-    ...(nodeLabel(node) ? { label: nodeLabel(node) } : {}),
-    ...(tableCaptionParagraph(node) ? { caption: projectInlineContent(tableCaptionParagraph(node)!)! } : {}),
-  };
+  return { ...fields, rows, ...details };
 }
 
 function requireContent(content: InlineContent[] | undefined): InlineContent[] {

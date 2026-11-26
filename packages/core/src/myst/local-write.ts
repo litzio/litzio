@@ -6,6 +6,7 @@ import { assertNativeDocument } from "./native.ts";
 import { parse, sourcePosition } from "./parse.ts";
 import { plainRoundTrip } from "./serialize.ts";
 import { tableOf } from "./table.ts";
+import { isComplexGrid } from "./table-grid.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
 
 type Span = { start: number; end: number };
@@ -94,6 +95,8 @@ export class LocalWriteBaseline {
     // or relocate definitions well beyond the window.
     if (document.children[first].type === "list" || document.children[index + 1]?.type === "list") return { reason: "list-neighbour" };
     if (hasFootnote(current)) return { reason: "footnote-dependency" };
+    // ADR-0024: a complex table's cells have start columns and blocks; it takes the full Save.
+    if (isComplexGrid(tableOf(current))) return { reason: "complex-table" };
     const prose = edit.kind === "paragraph";
     const before = inlineBlock(current, edit);
     if (!before || !singleLineInline(before, prose) || (prose && source.slice(span.start, span.end).includes("\n"))) {

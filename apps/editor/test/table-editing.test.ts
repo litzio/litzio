@@ -12,6 +12,10 @@ import { splitBlock } from "@tiptap/pm/commands";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { editorExtensions, structureGuardPlugin } from "../src/editor-schema.tsx";
+import { BLOCK_COMMANDS } from "../src/block-commands.ts";
+import { highlightRanges } from "../src/highlight-decorations.ts";
+import { tableTab } from "../src/document-interaction.ts";
+import { isComplexTable, tableCellOf } from "../src/table-structure.ts";
 import {
   assertSupportedDocumentChange,
   collectSupportedEdits,
@@ -186,3 +190,88 @@ function cellPosition(doc: ProseMirrorNode, row: number, cell: number): number {
 function cellText(doc: ProseMirrorNode, row: number, cell: number): string {
   return doc.nodeAt(cellPosition(doc, row, cell))?.textContent ?? "";
 }
+
+// ADR-0024: a complex grid with merged cells, two header rows and cell blocks.
+const complex = nativeSource([":::{table} Limits", "", "<table>", "<thead>", "<tr>", '<th colspan="2"><p>Range</p></th>', "</tr>",
+  "<tr>", "<th><p>Item</p></th>", "<th><p>Value</p></th>", "</tr>", "</thead>", "<tbody>", "<tr>",
+  '<td rowspan="2"><p>Output</p><p>rated</p></td>', "<td><p>230 V</p></td>", "</tr>", "<tr>",
+  "<td><ol><li>Peak</li><li>Mean</li></ol></td>", "</tr>", "</tbody>", "</table>", ":::", ""].join("\n"));
+
+test("a complex table keeps its spans, header rows and cell blocks, and only their text changes", () => {
+  const document = loadEditableDocument(complex);
+  const projection = toTiptapDocument(document);
+  const schema = getSchema(editorExtensions());
+  const doc = schema.nodeFromJSON(projection);
+  const table = doc.child(0);
+  assert.ok(isComplexTable(table));
+  const map = TableMap.get(table.firstChild!);
+  assert.deepEqual([map.width, map.height, map.problems], [2, 4, null]);
+  const cells: string[] = [];
+  table.firstChild!.descendants(node => { if (node.type.name === "tableCell") cells.push(`${node.attrs.sourceCell} ${node.attrs.rowspan}x${node.attrs.colspan} ${node.content.content.map(child => child.type.name).join("+")}`); return node.type.name !== "tableCell"; });
+  assert.deepEqual(cells, ["0,0 1x2 paragraph", "1,0 1x1 paragraph", "1,1 1x1 paragraph", "2,0 2x1 paragraph+paragraph", "2,1 1x1 paragraph", "3,1 1x1 orderedList"]);
+  // Highlight sets mark words in a cell's paragraphs and list items as in any textblock.
+  assert.deepEqual(highlightRanges(doc, [{ text: "rated", color: "blue" }, { text: "Mean", color: "green" }]).map(range => doc.textBetween(range.from, range.to)), ["rated", "Mean"]);
+  assert.equal(collectSupportedEdits(document, projection).cells, undefined);
+  const captioned = structuredClone(projection);
+  tableOf(captioned).content![1].content = [{ type: "text", text: "Output limits" }];
+  assert.deepEqual(collectSupportedEdits(document, captioned).tableCaptions, [{ path: [1], content: [{ kind: "text", text: "Output limits" }] }]);
+  // Text in a paragraph and in a list item of merged-grid cells becomes block edits at the start column.
+  const typed = structuredClone(projection);
+  gridOf(tableOf(typed)).content![2].content![0].content![1].content = [{ type: "text", text: "rated load" }];
+  gridOf(tableOf(typed)).content![3].content![0].content![0].content![1].content![0].content = [{ type: "text", text: "Mean", marks: [{ type: "bold" }] }];
+  const edits = collectSupportedEdits(document, typed);
+  assert.deepEqual(edits.cells?.map(edit => [edit.path.join(","), "blocks" in edit]), [["1,2,0", true], ["1,3,1", true]]);
+  const saved = saveEdits(complex, edits).markdown;
+  assert.equal(saved, complex.replace("<p>rated</p>", "<p>rated load</p>").replace("<li>Mean</li>", "<li><strong>Mean</strong></li>"));
+  const reloaded = toTiptapDocument(loadEditableDocument(saved));
+  assert.equal(collectSupportedEdits(loadEditableDocument(saved), reloaded).cells, undefined);
+  // The grid and each cell's paragraphs and lists stay: spans, a new paragraph or list item are refused.
+  for (const [name, change] of [
+    ["span", (grid: TiptapJSON) => { grid.content![0].content![0].attrs!.colspan = 1; }],
+    ["paragraph", (grid: TiptapJSON) => { grid.content![2].content![1].content!.push({ type: "paragraph", content: [] }); }],
+    ["list item", (grid: TiptapJSON) => { const list = grid.content![3].content![0].content![0]; list.content!.push(structuredClone(list.content![0])); }],
+    ["list kind", (grid: TiptapJSON) => { grid.content![3].content![0].content![0].type = "bulletList"; }],
+  ] as const) {
+    const next = structuredClone(projection);
+    change(gridOf(tableOf(next)));
+    assert.throws(() => assertSupportedDocumentChange(projection, next), /keeps its grid/, name);
+  }
+  // A simple table cannot gain blocks or spans, nor a new table come with them.
+  const simple = toTiptapDocument(loadEditableDocument(mixed));
+  const listed = structuredClone(simple);
+  gridOf(tableOf(listed)).content![1].content![1].content = [{ type: "paragraph", content: [] }, { type: "paragraph", content: [] }];
+  assert.throws(() => assertSupportedDocumentChange(simple, listed), /cannot gain/);
+
+  // Litzio's own clipboard moves a complex table (cut, then paste after a paragraph): it is deleted at
+  // its place and inserted as complex table input, so the grid, caption and notes move as they are.
+  const movable = complex + "\nAfter.\n";
+  const opened = loadEditableDocument(movable);
+  const [moving, after] = toTiptapDocument(opened).content!;
+  const moved = { ...toTiptapDocument(opened), content: [after, { ...moving, attrs: { ...moving.attrs, sourcePath: "new:paste:1" } }] };
+  // The cut declares the table's deletion, as the structure guard records it.
+  moved.attrs = { ...moved.attrs, deletedPaths: [String(moving.attrs!.sourcePath)] };
+  const movedSave = saveEdits(movable, collectSupportedEdits(opened, moved)).markdown;
+  const grid = (markdown: string) => markdown.slice(markdown.indexOf(":::{table}"), markdown.indexOf("</table>"));
+  assert.ok(movedSave.indexOf("After.") < movedSave.indexOf(":::{table}"));
+  assert.equal(grid(movedSave), grid(movable));
+
+  // Row and column commands do not apply; the last cell's Tab leaves the table instead of adding a row.
+  let state = EditorState.create({ schema, doc, plugins: [history(), structureGuardPlugin(projection, () => {})] });
+  let last = -1;
+  doc.descendants((node, pos) => { if (node.type.name === "paragraph" && node.textContent === "Mean") last = pos + 1; });
+  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, last)));
+  assert.deepEqual(tableCellOf(state.selection.$from), { row: 3, column: 1 });
+  // Its last cell starts with a list: Tab leaves the table (here into a new paragraph after it) and adds no row.
+  const tab = tableTab(state, false, true)!;
+  assert.equal(tab.selection.$from.depth, 1);
+  assert.equal(tab.doc.child(0).firstChild!.childCount, 4);
+  // A content-only view (a plugin document view) adds no paragraph: Tab is left to the browser.
+  const locked = EditorState.create({ schema, doc, selection: state.selection, plugins: [structureGuardPlugin(projection, () => {}, [], true)] });
+  assert.equal(tableTab(locked, false, true), null);
+  // Shift+Tab from that cell reaches the previous cell's first textblock.
+  assert.equal(tableTab(state, true, true)!.selection.$from.parent.textContent, "230 V");
+  for (const id of ["table-row", "table-column", "table-row-delete", "table-align-right"]) {
+    assert.equal(BLOCK_COMMANDS.find(command => command.id === id)!.enabled(state, 0), false, id);
+  }
+  assert.equal(BLOCK_COMMANDS.find(command => command.id === "table-note")!.enabled(state, 0), true);
+});

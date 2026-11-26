@@ -20,6 +20,8 @@ export function localEdit(opening: EditableDocument, bibliography: string[], pre
     for (const [kind, editsOfKind] of [["paragraph", edits.paragraphs], ["cell", edits.cells]] as const) {
       if (editsOfKind !== undefined && !Array.isArray(editsOfKind)) return undefined;
       for (const item of editsOfKind ?? []) {
+        // A complex table cell's block edit takes the full Save.
+        if (!item || !("content" in item)) return undefined;
         if (!Array.isArray(item?.path) || item.path.length !== (kind === "paragraph" ? 1 : 3) ||
             item.path.some(part => !Number.isInteger(part) || part < 0) || !Array.isArray(item.content)) return undefined;
         const key = item.path.join(",");
@@ -40,6 +42,8 @@ export function localEdit(opening: EditableDocument, bibliography: string[], pre
     const locator = current ?? old!;
     const [index, row, column] = locator.path;
     const block = opening.blocks.find(item => item.path.length === 1 && item.path[0] === index);
+    // ADR-0024: a complex table's cells take the full Save.
+    if (block?.block === "table" && block.grid === "complex") return { reason: "complex-table" };
     const original = locator.kind === "paragraph" && block?.block === "paragraph" ? block
       : locator.kind === "cell" && block?.block === "table" ? block.rows[row]?.cells[column] : undefined;
     if (!original?.editable) return { reason: "opening-locator" };

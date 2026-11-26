@@ -220,6 +220,9 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     // A caption reference read before the cell's: removing it would reorder the definitions.
     { name: "endnote-table.md", create: () => nativeSource("Intro paragraph.\n\n:::{table} Caption note[^b]\n\n| Item | Note |\n| --- | --- |\n| A | cell[^a] |\n:::\n\nAfter the table[^b].\n\n[^a]: Note A.\n\n[^b]: Note B.\n") },
     { name: "empty.md", create: () => nativeSource("") },
+    // A table with merged cells, two header rows and cell blocks (ADR-0024), also as the last block.
+    fixture("complex-table.md"),
+    { name: "complex-table-last.md", create: () => readFileSync(path.join(FIXTURE_DIR, "complex-table.md"), "utf8").replace(/\r?\n\r?\nClosing paragraph\.\r?\n$/, "\n") },
     // About 2,000 top-level blocks: paragraphs with a small table every 20 blocks (manual measurement).
     { name: "large.md", create: () => nativeSource(Array.from({ length: 2000 }, (_, index) => index % 20 === 19
       ? `:::{table}\n\n| Item | Value |\n| --- | --- |\n| Row ${index} | ${index} |\n:::\n`
@@ -347,7 +350,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
       nativeSource("# Pending Figures\n\nIntro.\n\nThe controller structure is shown in [Figure](#fig-pfc-control).\n\nStored reference: {numref}`fig-pfc-control`.\n\nAfter.\n") }],
     scenarios: ["pending-figure"],
   },
-  "table-cell-editing": { files: [...technical, fixture("mixed-table.md")], scenarios: ["table-cell-editing"] },
+  "table-cell-editing": { files: [...technical, fixture("mixed-table.md"), fixture("complex-table.md")], scenarios: ["table-cell-editing"] },
   "link-authoring": { files: [fixture("links.md")], scenarios: ["link-authoring"] },
   "reference-preview": { files: [fixture("reference-preview.md"), { name: "refs.bib", create: bibliography }, document("diagram.svg")], scenarios: ["reference-preview"] },
   "image-link-preview": { files: [
