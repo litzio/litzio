@@ -15,6 +15,11 @@ if (!root) {
   throw new Error("missing #root");
 }
 
+// Spike #2016: development-only switch between task header drafts (?taskHeader=a|b|c).
+if (import.meta.env.DEV) {
+  const draft = new URLSearchParams(window.location.search).get("taskHeader");
+  if (draft) document.documentElement.dataset.taskHeader = draft;
+}
 void connectDesktop();
 void connectHost();
 void themeReady.then(async () => {

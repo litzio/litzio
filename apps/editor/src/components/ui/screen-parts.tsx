@@ -22,11 +22,11 @@ function ScreenBack({ label, onBack, disabled = false }: ScreenLayoutBack) {
     <ArrowLeft aria-hidden="true" /><span className="screen-back-label">{label}</span>
   </TooltipTrigger><TooltipContent side="bottom" align="start">{name}</TooltipContent></HintTooltip>;
 }
-export function ScreenLayout({ description, status, actions, back, width = "full", fillHeight = false, children }: { title?: string; description?: string; status?: ReactNode; actions?: ReactNode; back?: ScreenLayoutBack; width?: "full" | "narrow"; fillHeight?: boolean; children: ReactNode }) {
+export function ScreenLayout({ description, meta, status, actions, back, width = "full", fillHeight = false, children }: { title?: string; description?: string; meta?: ReactNode; status?: ReactNode; actions?: ReactNode; back?: ScreenLayoutBack; width?: "full" | "narrow"; fillHeight?: boolean; children: ReactNode }) {
   const slots = useContext(TaskHeaderSlots);
   const descriptionNode = description && <p className="screen-description">{description}</p>;
   const backNode = back && <ScreenBack {...back} />;
-  return <>{slots?.back && backNode && createPortal(backNode, slots.back)}{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}<section className="screen-layout" data-width={width} data-fill-height={fillHeight || undefined}>{!slots && <>{backNode}{descriptionNode}{status}{actions}</>}{children}</section></>;
+  return <>{slots?.back && backNode && createPortal(backNode, slots.back)}{slots?.description && createPortal(descriptionNode, slots.description)}{slots?.trailing && createPortal(<>{status}{actions}</>, slots.trailing)}{slots?.meta && meta && createPortal(<span className="task-header-meta-text">{meta}</span>, slots.meta)}<section className="screen-layout" data-width={width} data-fill-height={fillHeight || undefined}>{!slots && <>{backNode}{descriptionNode}{status}{actions}</>}{children}</section></>;
 }
 export { Status } from "./status.tsx";
 export function Steps({steps, current}: {steps: string[]; current: number}) {

@@ -187,6 +187,10 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     document("diagram.svg"),
     { name: "unsafe.svg", create: () => '<svg xmlns="http://www.w3.org/2000/svg"><script>window.__litzioSVG = true; fetch("/api/folder-places");</script><text y="20">Untrusted media</text></svg>' },
   ], scenarios: ["http-host"] },
+  // Spike #2016: synthetic document for the compact task header captures.
+  "http-host-a/spike-2016": { files: [{ name: "inspection.md", create: () => nativeSource("# 설비 점검 절차서\n\n" +
+    Array.from({ length: 12 }, (_, i) => `## ${i + 1}. 점검 항목 ${i + 1}\n\n점검자는 설비의 전원을 차단하고 표시등이 꺼진 것을 확인한 뒤 덮개를 연다. 측정값은 기준 범위와 비교해 기록한다.\n\n` +
+      (i % 3 === 1 ? ":::{table} 측정 기준\n\n| 항목 | 기준 | 단위 |\n| --- | --- | --- |\n| 절연 저항 | 100 이상 | MΩ |\n| 접지 저항 | 10 이하 | Ω |\n:::\n\n" : "")).join("")) }], scenarios: ["spike-compact-header"] },
   "http-host-b/fixture": { files: [{ name: "b.md", create: () => nativeSource("# HTTP B\n\nBeta.\n") }], scenarios: ["http-host"] },
   // Content editing in a plugin document view (#1976), inside the HTTP Host's first root.
   "http-host-a/content-edit": { files: [

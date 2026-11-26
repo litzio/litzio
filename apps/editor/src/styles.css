@@ -3455,6 +3455,26 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .task-header-back { display: flex; min-width: 0; contain: inline-size; margin-bottom: var(--space-2); }
 .task-header-trailing { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-width: 0; }
 @media (max-width: 640px) { .task-header-heading { flex-basis: 100%; } }
+/* Spike #2016: compact task header drafts, switched by the development-only ?taskHeader=a|b|c. Without it the header keeps its current shape. */
+.task-header-meta, .task-header-info { display: none; }
+:root[data-task-header] .task-header { padding-block: var(--space-3); }
+:root[data-task-header] .task-header-heading { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+:root[data-task-header] .task-header-back { margin: 0; contain: none; flex: none; }
+:root[data-task-header] .task-header .screen-back { width: var(--size-control-compact); padding: 0; justify-content: center; }
+:root[data-task-header] .task-header .screen-back-label { display: none; }
+:root[data-task-header] .task-header .task-surface-title { font-size: var(--font-size-md); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
+:root[data-task-header] .task-header-meta:not(:empty) { display: block; min-width: 0; flex: 0 1 auto; font-size: var(--font-size-xs); color: var(--id-color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root[data-task-header] .task-header-trailing { flex-wrap: nowrap; }
+:root[data-task-header="a"] .task-header-info, :root[data-task-header="c"] .task-header-info { display: inline-flex; flex: none; }
+:root[data-task-header="a"] .task-header-description, :root[data-task-header="c"] .task-header-description { display: none; }
+:root[data-task-header="b"] .task-header { align-items: flex-start; }
+:root[data-task-header="b"] .task-header-heading { flex-wrap: wrap; row-gap: 0; }
+:root[data-task-header="b"] .task-header-description { flex-basis: 100%; margin: 0; font-size: var(--font-size-xs); color: var(--id-color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:root[data-task-header="b"] .task-header-description .screen-description { margin: 0; overflow: hidden; text-overflow: ellipsis; }
+:root[data-task-header="b"] .task-header-heading:has(.task-header-back:not(:empty)) .task-header-description { padding-inline-start: calc(var(--size-control-compact) + var(--space-2)); }
+/* C: the tab name already carries the title; one 40px row keeps it for assistive technology only. */
+:root[data-task-header="c"] .task-header { min-height: var(--layout-header-row); padding-block: calc((var(--layout-header-row) - var(--size-control) - var(--border-width)) / 2); }
+:root[data-task-header="c"] .task-header .task-surface-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Shared controls; document blocks and handles remain immediate. */
 :where([data-slot="button"]:not(.document-editor *), .sidebar-folder-header,
