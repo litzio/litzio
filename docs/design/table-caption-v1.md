@@ -264,11 +264,13 @@ Host Save; table notes, caption, label and numbering keep working.
 The document tab, the plugin document view and the comparison view show spans, paragraphs,
 lists and numbers with the same renderer. A cell holds paragraphs and bullet or numbered lists;
 paragraphs and lists in one cell are the cell's block padding apart. In this version a complex
-table's cells are read-only in the Editor: a change to them is refused as other unsupported
-changes are, and the caption and notes stay editable. A complex table has no row or column
-handles, and Tab in its last cell leaves the table instead of adding a row. A simple table
-cannot gain merged cells or cell blocks in the Editor, and a copied complex table is not pasted
-as a new table. Quick Save leaves complex tables to the full Save.
+table's cells are read-only in the Editor: its grid takes no input, and the caption and notes
+stay editable. A complex table has no row or column handles, and Tab in its last cell leaves the
+table instead of adding a row, also when that cell starts with a list. A simple table cannot gain
+merged cells or cell blocks in the Editor. Litzio's own clipboard copies, cuts and pastes a whole
+complex table with its grid, caption, notes and number, and Save inserts it as complex table
+input; merged cells in external HTML are still refused. Quick Save leaves complex tables to the
+full Save.
 Samples: [1440 light](assets/complex-tables-2015/1440-light-tables.png) · [1440 dark](assets/complex-tables-2015/1440-dark-tables.png) ·
 [640](assets/complex-tables-2015/640-light-tables.png) · [caret in a cell](assets/complex-tables-2015/1440-light-caret.png) ·
 [changes before saving](assets/complex-tables-2015/1440-light-comparison.png).
