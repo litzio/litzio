@@ -191,7 +191,7 @@ for (const name of scenarios) {
     if (name === "http-plugins") test.setTimeout(180_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { document: string; directory: string; folder: string; otherFolder: string; otherJobInput: string; editSource(): void; cli(args: string[]): any; corruptSecret(): void; changeInstalledCopy(): void; }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; assertTableToolGeometry: typeof assertTableToolGeometry; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; viewChange(file: string, edit: (sdk: any, document: any) => any): { revision: string; change: unknown; write(): string }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; enableFolderTrash(): Promise<void>; changeFolderContents(): void; folderAliasRoot: string; pluginFixture: { fileActions: { folder: string; plugins: { id: string; name: string; directory: string }[] }; document: string; directory: string; folder: string; otherFolder: string; otherJobInput: string; editSource(): void; cli(args: string[]): any; corruptSecret(): void; changeInstalledCopy(): void; }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; waitForExplorerLayout: typeof waitForExplorerLayout; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; assertTableToolGeometry: typeof assertTableToolGeometry; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; viewChange(file: string, edit: (sdk: any, document: any) => any): { revision: string; change: unknown; write(): string }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -205,6 +205,24 @@ for (const name of scenarios) {
     const pluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "fixture");
     const otherPluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-b", "fixture");
     const otherJobInput = path.join(REPOSITORY_ROOT, "tmp", "other-root-request.json");
+    const fileActionFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "file-actions");
+    const fileActionPlugins = [
+      { id: "fixture.convert", name: "Document tools", label: "Convert document", extensions: [".docx", ".eml", ".pdf", ".md"] },
+      { id: "fixture.mail", name: "Mail tools", label: "Inspect message", extensions: [".eml"] },
+    ].map(plugin => ({ ...plugin, directory: path.join(REPOSITORY_ROOT, "tmp", "http-host-a", plugin.id) }));
+    if (name === "plugin-file-actions") {
+      for (const { id, name, label, extensions, directory } of fileActionPlugins) {
+        mkdirSync(directory, { recursive: true });
+        writeFileSync(path.join(directory, "host.mjs"), 'export function activate(){return {operations:{},status:()=>({available:true,message:"Ready"}),dispose(){}}}');
+        writeFileSync(path.join(directory, "screen.jsx"), `export default function Screen({ React, ui, fileOpen }) {
+          const [count, setCount] = React.useState(0);
+          return <><ui.Button onClick={() => setCount(value => value + 1)}>Count: {count}</ui.Button>
+            <output title={fileOpen?.path} data-request={fileOpen?.request}>{fileOpen?.path?.split(/[/\\\\]/).at(-1) ?? "No file"}</output></>;
+        }`);
+        writeCodePluginManifest(directory, { id, name, entry: "host.mjs", screen: "screen.jsx",
+          fileActions: [{ id: "open", label, extensions, openByDefault: true }] });
+      }
+    }
     if (name === "vite-plugins") {
       mkdirSync(pluginDirectory, { recursive: true });
       writeFileSync(path.join(pluginDirectory, "screen.jsx"), `export default function Screen({React, ui}) {
@@ -228,6 +246,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     if (name === "http-plugins") writeDriveScreen("Runtime fixture");
     const pluginFixture = { document: path.join(pluginFolder, "a.md"), directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput,
       // An outside edit of a content-editing fixture (#1976), as another program would write it.
+      fileActions: { folder: fileActionFolder, plugins: fileActionPlugins },
       writeContentEditDocument(name: string, source: string) {
         if (name.includes("/") || name.includes("\\")) throw new Error("Content edit fixture names are file names");
         writeFileSync(path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "content-edit", name), source);

@@ -6,11 +6,13 @@ import { hostConnection, type HostClient } from "../host-client.ts";
 import { viewRequest, type ViewScreen, type ViewResult } from "./view-api.ts";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
-import type { ScreenOpenDocumentResult } from "@litzio/plugin-sdk";
+import type { ScreenFileOpen, ScreenOpenDocumentResult } from "@litzio/plugin-sdk";
+import { matchesFileAction } from "../../shared/plugin-file-actions.ts";
 
 /** Plugin manifest screens; definitions are supplied by the active plugin, never saved view files. */
-export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocument, client }: {
+export function ViewWorkspace({ roots = [], id, root, owner, screen, fileOpen, onOpenDocument, client }: {
   roots?: string[]; client: HostClient; id: string; root: string; owner: string; screen: ViewScreen;
+  fileOpen?: ScreenFileOpen;
   onOpenDocument?(path: string, signal: AbortSignal): Promise<ScreenOpenDocumentResult>;
 }) {
   useSyncExternalStore(hostConnection.subscribe, hostConnection.snapshot, hostConnection.snapshot);
@@ -55,10 +57,12 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, onOpenDocum
   const keepOnProbeFailure = desktopConnection.get().version?.screenInstanceGuard === true;
   const active = current && !!contribution && (canReadCatalog || keepOnProbeFailure);
   const loading = current && canReadCatalog && Boolean(contribution?.activation ?? (!catalogClient && !problem && screen.activation));
+  const selection = fileOpen && contribution?.fileActions?.some(action =>
+    action.id === fileOpen.actionId && matchesFileAction(action, fileOpen.path)) ? fileOpen : undefined;
   return <div className="view-workspace task-surface" data-testid="view-workspace">
     <ScreenFrame title={screen.title}>
     {loading ? <Notice role="status">{i18n.t("Loading")}</Notice> : !active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
-    <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`local:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} onOpen={onOpenDocument} /> : null}</ScreenBoundary>
+    <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`local:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} fileOpen={selection} onOpen={onOpenDocument} /> : null}</ScreenBoundary>
   </ScreenFrame></div>;
 }

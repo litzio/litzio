@@ -21,6 +21,22 @@ test('settings save incrementally and health checks must be host reads accepting
  assert.throws(()=>validateManifest({...card,healthCheck:'check',operations:[{id:'check',effect:'write'}]}));
  assert.equal(validateManifest({...card,healthCheck:'check',operations:[{id:'check'}]}).contributes.healthCheck,'check');
 });
+test('file actions validate the screen and unambiguous default opens', () => {
+ const action = { id: 'convert', label: ' Convert ', extensions: ['.pdf', '.docx'] };
+ assert.deepEqual(validateManifest(card).contributes.fileActions, []);
+ assert.deepEqual(validateManifest({...card, fileActions: [action]}).contributes.fileActions, [
+   {...action, label: 'Convert', icon: 'FileText', screenId: 'main', openByDefault: false},
+ ]);
+ for (const change of [
+   {extensions: []}, {extensions: ['docx']}, {extensions: ['.PDF']}, {extensions: ['.pdf', '.pdf']},
+   {screenId: 'missing'}, {label: ' '}, {icon: 'icon.svg'}, {condition: '*.pdf'},
+ ]) assert.throws(() => validateManifest({...card, fileActions: [{...action, ...change}]}));
+ assert.throws(() => validateManifest({...card, fileActions: [action, action]}), /Duplicate identity/);
+ const primary = {...action, openByDefault: true};
+ const other = {...primary, id: 'inspect', extensions: ['.pdf']};
+ assert.throws(() => validateManifest({...card, fileActions: [primary, other]}), /one default file action/);
+ assert.equal(validateManifest({...card, fileActions: [primary, {...other, openByDefault: false}]}).contributes.fileActions.length, 2);
+});
 test('public input validation preserves schema and reports constraints without coercion',()=>{
  const schema={type:'object',properties:{count:{type:'integer',minimum:1}},required:['count'],additionalProperties:false};const before=structuredClone(schema);const check=compileOperationInputSchema(schema);assert.equal(check({count:2}),true);assert.equal(check({count:'2'}),false);assert.equal(check({count:0}),false);assert.deepEqual(schema,before);
 });
