@@ -64,7 +64,7 @@ async (page, { openPath, screenshots }) => {
     await page.keyboard.press('Tab'); // Tab close, then category navigation.
     await page.keyboard.press('Tab');
     check(await screen.getByRole('button',{name:'Appearance & language',exact:true}).evaluate(n => n === document.activeElement), 'Tab does not lead to category navigation');
-    await page.keyboard.press('Tab'); await page.keyboard.press('Enter');
+    await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Enter'); // Past Highlight sets.
     check(await screen.getByRole('heading',{name:'Local recovery',exact:true}).isVisible(), 'Keyboard cannot select recovery');
     await screen.getByRole('button',{name:'Appearance & language',exact:true}).click();
     for(const [name,help] of [
@@ -121,7 +121,7 @@ async (page, { openPath, screenshots }) => {
     check(!await picker.evaluate(n => n.contains(document.activeElement)), 'Radio group must occupy one Tab stop');
     for (const theme of ['light','dark']) {
     await themePicker.selectOption(theme);
-    const swatches = await picker.locator('.settings-accent-swatch').evaluateAll(nodes => nodes.map(n => getComputedStyle(n).backgroundColor));
+    const swatches = await picker.locator('.color-swatch-fill').evaluateAll(nodes => nodes.map(n => getComputedStyle(n).backgroundColor));
     check(new Set(swatches).size === presets.length, `${theme}: unselected swatches must show distinct colors`);
     for (const width of [1440,640]) {
       await page.setViewportSize({width,height:900});
@@ -149,10 +149,10 @@ async (page, { openPath, screenshots }) => {
           const value = getComputedStyle(probe).color; probe.remove(); return value;
         };
         const editor = document.querySelector(`[data-document-tab="${documentTabId}"] .document-editor`);
-        const picker = document.querySelector('[data-testid="accent-color"] input:checked + .settings-accent-face');
+        const picker = document.querySelector('[data-testid="accent-color"] input:checked + .color-swatch-face');
         const selection = getComputedStyle(editor.querySelector('.paragraph'), '::selection');
         return { theme: root.dataset.theme, preset: root.dataset.accent, interaction: resolve('interaction'), contentLink: resolve('content-link'), selected: resolve('text-selected'),
-          selectedSurface: resolve('surface-selected'), ring: getComputedStyle(picker.querySelector('.settings-accent-swatch')).outlineColor, swatch: getComputedStyle(picker.querySelector('.settings-accent-swatch')).backgroundColor,
+          selectedSurface: resolve('surface-selected'), ring: getComputedStyle(picker.querySelector('.color-swatch-fill')).outlineColor, swatch: getComputedStyle(picker.querySelector('.color-swatch-fill')).backgroundColor,
 
           selectionText: selection.color, selectionBackground: selection.backgroundColor,
           link: getComputedStyle(editor.querySelector('a')).color,
@@ -169,7 +169,7 @@ async (page, { openPath, screenshots }) => {
       check(!!name && await radio.locator('..').getAttribute('title') === name &&
         await screen.locator('.settings-accent-name').innerText() === name,
         'Each swatch must retain its accessible name and tooltip; only the selected name appears beside the row');
-      check(await picker.locator('.settings-accent-swatch').evaluateAll(nodes => nodes.every(n => {
+      check(await picker.locator('.color-swatch-fill').evaluateAll(nodes => nodes.every(n => {
         const style = getComputedStyle(n);
         return n.closest('label').querySelector('input').checked
           ? style.outlineStyle === 'solid' && parseFloat(style.outlineWidth) >= 2 && parseFloat(style.outlineOffset) >= 2
