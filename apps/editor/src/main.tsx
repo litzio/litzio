@@ -15,6 +15,11 @@ if (!root) {
   throw new Error("missing #root");
 }
 
+// Spike #2020: development-only switch between highlight set entry drafts (?highlight=a|b).
+if (import.meta.env.DEV) {
+  const draft = new URLSearchParams(window.location.search).get("highlight");
+  if (draft) document.documentElement.dataset.highlightDraft = draft;
+}
 void connectDesktop();
 void connectHost();
 void themeReady.then(async () => {

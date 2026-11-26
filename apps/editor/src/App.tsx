@@ -677,6 +677,12 @@ function EditorApp() {
     setContinuation(remainingCloseRequests.current.shift() ?? null);
   }
   const [desktopInfo, setDesktopInfo] = useState<DesktopInfo | null>(null);
+  // Spike #2020: "Manage sets…" opens Settings at the highlight sets.
+  useEffect(() => {
+    const open = () => { setSettingsCategory("highlight"); openSettingsTab(); };
+    globalThis.addEventListener("litzio-spike-highlight-settings", open);
+    return () => globalThis.removeEventListener("litzio-spike-highlight-settings", open);
+  });
   const settingsFocusRequested = useRef(false);
   const settingsReturnTab = useRef<string | null>(null);
   function openSettingsTab(): void {

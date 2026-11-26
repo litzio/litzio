@@ -8,7 +8,7 @@ import { useEditorState } from "@tiptap/react";
 import { canEditEndnoteAt, endnoteAt, endnoteEditorToken, insertEndnote } from "./endnotes.ts";
 import { freshBlockPath } from "./tiptap-document.ts";
 import { Asterisk, Bold, Bookmark, Code, Italic, Link2, Sigma, Strikethrough, Subscript, Superscript } from "lucide-react";
-import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { useEditorAuthoring, useEditorContentOnly } from "./editor-visibility.ts";
 import type { DraftListener } from "./node-views/shared.ts";
 import { FieldError } from "./ui/primitives.tsx";
@@ -27,8 +27,10 @@ const tip = (label: string, shortcut?: { label: string }) => (shortcut ? `${labe
  * Tab from the selection enters it; Escape, or Shift+Tab from its first button, returns to the
  * editor and its selection.
  */
-export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, onReject, onEditLink, onEditReference }: {
+export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, onReject, onEditLink, onEditReference, extra }: {
   editor: Editor;
+  /** Spike #2020: the highlight button. */
+  extra?: ReactNode;
   style: CSSProperties;
   anchor: OverlayAnchor;
   toolbarRef: RefObject<HTMLDivElement | null>;
@@ -135,6 +137,7 @@ export function SelectionToolbar({ editor, style, anchor, toolbarRef, onLeave, o
       >
         <Asterisk aria-hidden="true" size={16} />
       </Button>}
+      {extra}
     </div>
   );
 }

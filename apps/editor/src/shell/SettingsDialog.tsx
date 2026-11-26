@@ -11,7 +11,8 @@ import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { FileText, Info, Palette, History, Server } from "lucide-react";
+import { FileText, Highlighter, Info, Palette, History, Server } from "lucide-react";
+import { HighlightSetSettings } from "../spike-highlight-sets.tsx";
 import { SettingsRow, SettingsSelect, SettingsProgress } from "@/components/ui/settings.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
@@ -81,7 +82,7 @@ function updateStatusLabel(state: UpdateState): string | undefined {
   }
 }
 
-export type SettingsCategory = "plugins" | "appearance" | "recovery" | "assistant" | "about";
+export type SettingsCategory = "plugins" | "appearance" | "highlight" | "recovery" | "assistant" | "about";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -171,6 +172,8 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
   };
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
+    // Spike #2020: highlight set management.
+    { id: "highlight", label: i18n.resolvedLanguage?.startsWith("ko") ? "강조 세트" : "Highlight sets", icon: Highlighter },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
     { id: "plugins", label: i18n.t("Plugins"), icon: Server },
     { id: "assistant", label: i18n.t("Assistant"), icon: FileText },
@@ -193,6 +196,7 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
             <div className="settings-content-inner">
               <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
               {category === "plugins" ? <PluginSettings desktop={desktop} /> : null}
+              {category === "highlight" ? <HighlightSetSettings /> : null}
               {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} providerReadRevision={assistantProviderRevision} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} testId="theme"

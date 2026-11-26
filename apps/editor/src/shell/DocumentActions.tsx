@@ -6,9 +6,10 @@ import { useEffect, useState, type Ref } from "react";
 import { ArrowLeftRight, Check, Circle, Copy, Ellipsis, FileDiff, FilePenLine, LoaderCircle, PanelRight, PanelRightOpen, RotateCcw, StretchHorizontal, TriangleAlert } from "lucide-react";
 import { ChoiceGroup } from "@/components/ui/choice-group.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import type { DocumentView } from "./TopBar.tsx";
+import { HighlightSetButton, HighlightStatus, HighlightSubmenu, highlightDraft, useHighlightStore } from "../spike-highlight-sets.tsx";
 
 type DocumentActionsProps = {
   documentPath: string;
@@ -52,6 +53,9 @@ export function DocumentActions({
   outline, onToggleOutline, outlineToggleRef, compact: groupCompact = false, onOpenRight, onMove, openRightDisabled, moveDisabled,
 }: DocumentActionsProps) {
   useTranslation();
+  useHighlightStore();
+  // Spike #2020: draft A puts a highlight button in the row, draft B a ⋯ submenu and a status.
+  const spikeDraft = !textMode && documentPath ? highlightDraft() : null;
   // Outline stays directly reachable, including the overlay's Escape/focus-return path.
   const [narrow, setNarrow] = useState(() => globalThis.matchMedia?.("(max-width: 64rem)").matches ?? false);
   const compact = groupCompact || narrow;
@@ -96,6 +100,8 @@ export function DocumentActions({
         ) : null}
       </div> : null}
       <div className="top-bar-group" role="group" aria-label={i18n.t("File actions")}>
+        {spikeDraft === "a" ? <HighlightSetButton path={documentPath} compact={compact} /> : null}
+        {spikeDraft === "b" ? <HighlightStatus path={documentPath} /> : null}
         <p className="document-status status" data-testid="status" data-operation={status} role="status" title={displayStatus || undefined}>
           {displayStatus ? <><StatusIcon aria-hidden="true" className={unsaved && idle ? "document-status-dirty" : undefined} /><span className="sr-only">{displayStatus}</span></> : null}
         </p>
@@ -120,6 +126,7 @@ export function DocumentActions({
             <DropdownMenuContent align="end">
               {compact && onToggleWide ? <DropdownMenuItem role="menuitemcheckbox" aria-checked={wide} onClick={onToggleWide}>
                 <StretchHorizontal aria-hidden="true" />{i18n.t("Wide document")}</DropdownMenuItem> : null}
+              {spikeDraft === "b" ? <><HighlightSubmenu path={documentPath} /><DropdownMenuSeparator /></> : null}
               {onOpenRight ? <DropdownMenuItem onClick={onOpenRight} disabled={openRightDisabled}>
                 <PanelRightOpen aria-hidden="true" />{i18n.t("Open to the right")}</DropdownMenuItem> : null}
               {onMove ? <DropdownMenuItem onClick={onMove} disabled={moveDisabled}>

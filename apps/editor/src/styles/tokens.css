@@ -287,6 +287,17 @@
   --id-color-info: var(--id-color-text-muted);
   --id-color-warning-paper: #875717;
   --id-color-warning: var(--id-color-warning-paper);
+  /* Spike #2020: highlight set palette. Adjustable values reuse the validated accent and
+   * status colors (no new raw values), so the dark theme follows their dark overrides. */
+  --id-color-highlight-blue: var(--id-color-accent-blue);
+  --id-color-highlight-green: var(--id-color-accent-green);
+  --id-color-highlight-teal: var(--id-color-accent-teal);
+  --id-color-highlight-violet: var(--id-color-accent-violet);
+  --id-color-highlight-plum: var(--id-color-accent-plum);
+  --id-color-highlight-amber: var(--id-color-warning);
+  --id-color-highlight-red: var(--id-color-danger);
+  --id-color-highlight-gray: var(--id-color-accent-graphite);
+  --font-weight-highlight: 650;
 
   --font-family-sans: "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
   --font-family-mono: Consolas, "Courier New", monospace;

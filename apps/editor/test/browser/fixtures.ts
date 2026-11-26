@@ -187,6 +187,11 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     document("diagram.svg"),
     { name: "unsafe.svg", create: () => '<svg xmlns="http://www.w3.org/2000/svg"><script>window.__litzioSVG = true; fetch("/api/folder-places");</script><text y="20">Untrusted media</text></svg>' },
   ], scenarios: ["http-host"] },
+  // Spike #2020: synthetic requirements document for the highlight set captures.
+  "http-host-a/spike-2020": { files: [
+    { name: "power-requirements.md", create: () => nativeSource("# 장비 전원 관리 요구사항\n\n## 1. 범위\n\n이 문서는 현장 장비의 전원 관리 요구사항을 정한다. 각 항목의 shall은 필수, should는 권장, may는 선택을 뜻한다.\n\n## 2. 전원 차단\n\n**REQ-001** 장비는 전원이 꺼지면 운영자 화면에 경고를 표시해야 한다(shall).\n\n**REQ-002** The device shall record the time of every power loss and must keep the last 100 records.\n\n**REQ-003** 장비는 정전 뒤 30초 안에 안전 상태로 전환해야 한다. 전환 시간은 TBD이며 확인 필요 항목이다.\n\n## 3. 전원 복구\n\n**REQ-004** The device should restore the previous operating mode after power returns. 운영자는 복구 전에 상태를 확인할 수 있다.\n\n**REQ-005** The operator may skip the self-test only in maintenance mode. 자가 시험을 건너뛸 때는 사유를 남기는 것을 권장한다.\n\n:::{table} 전원 상태별 동작\n\n| 상태 | 동작 | 수준 |\n| --- | --- | --- |\n| 전원 꺼짐 | 경고를 표시해야 한다 | shall |\n| 전원 복구 | 이전 모드로 돌아간다 | should |\n| 정비 모드 | 자가 시험을 건너뛸 수 있다 | may |\n:::\n\n## 4. 기록\n\n**REQ-006** 기록은 장비 안에 90일 동안 보관해야 한다. Mayday 같은 다른 낱말 속 may와 Shallow 속 shall은 강조하지 않는다.\n\n**REQ-007** The log should be exported in a plain text format, and the export must not change the stored records.\n") },
+    { name: "notes.md", create: () => nativeSource("# 회의 메모\n\n다음 회의 전에 전원 시험 일정을 확인 필요.\n") },
+  ], scenarios: ["spike-highlight-sets"] },
   "http-host-b/fixture": { files: [{ name: "b.md", create: () => nativeSource("# HTTP B\n\nBeta.\n") }], scenarios: ["http-host"] },
   // Content editing in a plugin document view (#1976), inside the HTTP Host's first root.
   "http-host-a/content-edit": { files: [

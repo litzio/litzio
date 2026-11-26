@@ -12,6 +12,7 @@ import { fragmentTarget, handleLinkActivation, handleLinkClick, handleLinkMouseD
 import type { EditorView } from "@tiptap/pm/view";
 import { ReadingPreview } from "./ReadingPreview.tsx";
 import { DocumentFind } from "./document-find.ts";
+import { HighlightToolbarButton, HighlightWordMenu, spikeHighlightExtension, useHighlightRedraw } from "./spike-highlight-sets.tsx";
 import { DocumentFindBar, type DocumentFindHandle } from "./DocumentFindBar.tsx";
 import { ImageRenameContext, imageRenameKey, renameSnapshot, type ImageRenamer } from "./image-rename.ts";
 import type { MediaReplacement } from "../shared/file-operations.ts";
@@ -251,6 +252,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   const citationEntries = useBibliographyEntries(bibliography);
   const documentSettings = useRef<DocumentSettingsHandle>(null);
   const findBar = useRef<DocumentFindHandle>(null);
+  const [spikeWordMenu, setSpikeWordMenu] = useState<{ word: string; x: number; y: number } | null>(null);
+  const closeSpikeWordMenu = useCallback(() => setSpikeWordMenu(null), []);
   const bibliographyControls = useRef<BibliographyHandle>(null);
   const linkKey = useRef<(event: KeyboardEvent) => boolean>(() => false);
   const slashKeys = useRef<(event: KeyboardEvent) => boolean>(() => false);
@@ -291,6 +294,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       extensions: [
         ...extensions,
         ...(comparison ? [comparisonLayout(comparison)] : [DocumentFind]),
+        // Spike #2020: highlight set decorations.
+        spikeHighlightExtension(() => documentPathRef.current ?? ""),
         // editable:false stops native input. Explicit keymaps, commands and async form
         // completions also dispatch transactions, so reject every content change here.
         ReadOnlyBoundary,
@@ -405,6 +410,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     };
   });
   const editor = useEditor(editorOptions);
+  useHighlightRedraw(editor);
   // A gallery owns one disposable reading state, with no drafts, saving or history to retain.
   // Replace state directly rather than authoring a transaction through the document write guard.
   useEffect(() => { if (editor && comparison) editor.view.dispatch(editor.state.tr.setMeta(comparisonLayoutKey, comparison)); }, [editor, comparison]);
@@ -500,6 +506,14 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       return true;
     };
     const context = (event: MouseEvent) => {
+      // Spike #2020: a highlighted word's own menu, in Read and Edit.
+      const highlighted = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-spike-word]") : null;
+      if (highlighted && !(event.target instanceof Element && event.target.closest(".spike-hl-word-menu"))) {
+        event.preventDefault();
+        selectedAtPointer = null;
+        setSpikeWordMenu({ word: highlighted.dataset.spikeWord ?? "", x: event.clientX, y: event.clientY });
+        return;
+      }
       const retained = selectedAtPointer;
       selectedAtPointer = null;
       const nativeKey = nativeKeyboardMenu;
@@ -1219,6 +1233,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           onLeave={() => setFocused(false)}
           // The form takes focus; opened from the toolbar by keyboard, the editor had none.
           onEditLink={editLink}
+          extra={<HighlightToolbarButton editor={editor} path={documentPath ?? ""} />}
           onEditReference={() => {
             if (referenceDraft) {
               host.current?.querySelector<HTMLElement>('[data-testid="reference-target"], [data-testid="reference-cancel"]')?.focus();
@@ -1311,6 +1326,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           }}
         />
       ) : null}
+      {spikeWordMenu ? <HighlightWordMenu menu={spikeWordMenu} path={documentPath ?? ""} onClose={closeSpikeWordMenu} /> : null}
     </article></EditorContentOnly></EditorAuthoring>
   );
 });
