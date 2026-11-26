@@ -1,4 +1,4 @@
-import { DOCUMENT_STATUSES, type DocumentStatus, type TableCellBlock } from "@litzio/core";
+import { DOCUMENT_STATUSES, type DocumentStatus, type NodePath, type TableCellBlock } from "@litzio/core";
 import { allocateBlockPath } from "./block-locators.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 import { inlineContentText as inlineText, sameInlineContent as sameInline, isAdmonitionVariant, paragraphInlineContent, type CodeBlockContent, type EditableDocument, type FigureContent, type InlineContent, type ListContent } from "@litzio/core";
@@ -222,7 +222,7 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
           noteEdits.push({ path: block.path, notes });
         }
         if (block.grid === "complex") {
-          complexTableCellEdits(toTiptapBlock(block), node);
+          cells.push(...complexTableCellEdits(toTiptapBlock(block), node, block.path));
           return;
         }
         const next = tableCells(node);
@@ -621,7 +621,7 @@ function assertBlockChange(before: TiptapJSON | undefined, after: TiptapJSON | u
     }
     if (isComplexTableJSON(before) || isComplexTableJSON(after)) {
       if (!isComplexTableJSON(before)) throw new Error("a table cannot gain merged cells, header rows after the first or cell blocks");
-      complexTableCellEdits(before, after);
+      complexTableCellEdits(before, after, []);
       return;
     }
     tableShape(tableCells(before), tableCells(after));
@@ -731,11 +731,24 @@ function complexTableCells(node: TiptapJSON) {
   }));
 }
 
-/** A complex table keeps its grid and every cell's blocks; its cells are read-only in this version. */
-function complexTableCellEdits(before: TiptapJSON, after: TiptapJSON): void {
-  if (JSON.stringify(complexTableCells(before)) !== JSON.stringify(complexTableCells(after))) {
-    throw new Error("cells of a table with merged cells, header rows or cell blocks are read-only");
+/** What a complex table cell keeps while its text changes: its place, kind, alignment, spans and
+ * the kind of each block, with each list's numbering, items and nesting. */
+function cellSkeleton(cell: ReturnType<typeof complexTableCells>[number][number]): string {
+  const list = (content: ListContent): unknown => ({ ordered: content.ordered, start: content.start, style: content.style, delimiter: content.delimiter,
+    checklist: content.checklist, items: content.items.map(item => item.list ? list(item.list) : null) });
+  return JSON.stringify({ ...cell, blocks: cell.blocks.map(block => block.kind === "paragraph" ? "paragraph" : list(block.list)) });
+}
+
+/** A complex table keeps its grid and every cell's paragraphs and lists (ADR-0024); only their text
+ * changes. Each changed cell becomes a block edit at [table, row, start column]. */
+function complexTableCellEdits(before: TiptapJSON, after: TiptapJSON, path: NodePath): TableCellEdit[] {
+  const was = complexTableCells(before), is = complexTableCells(after);
+  if (was.length !== is.length || was.some((row, rowIndex) => row.length !== is[rowIndex].length ||
+      row.some((cell, index) => cellSkeleton(cell) !== cellSkeleton(is[rowIndex][index])))) {
+    throw new Error("a table with merged cells, header rows or cell blocks keeps its grid and each cell's paragraphs and lists; only their text changes");
   }
+  return is.flatMap((row, rowIndex) => row.flatMap((cell, index) => JSON.stringify(cell.blocks) === JSON.stringify(was[rowIndex][index].blocks) ? []
+    : [{ path: [...path, ...cell.source.split(",").map(Number)], blocks: cell.blocks }]));
 }
 
 type TableShape = Pick<TableShapeEdit, "rows" | "columns" | "align">;

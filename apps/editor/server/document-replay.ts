@@ -51,6 +51,7 @@ import {
   updateList,
   updateCodeBlock,
   updateTableCell,
+  updateTableCellBlocks,
   updateTableCaption,
   insertTableNote,
   updateTableNote,
@@ -209,6 +210,11 @@ export function replayEdits(
       const cell = tableCellAtPath(blockAt(editable, [edit.path[0]]), edit.path);
       if (!cell?.editable) {
         throw new Error(`table cell edit is not allowed at [${edit.path.join(",")}]`);
+      }
+      if ("blocks" in edit) {
+        if (!Array.isArray(edit.blocks)) throw new Error(`table cell blocks must be an array at [${edit.path.join(",")}]`);
+        document = editAt(target, () => updateTableCellBlocks(document, edit.path, edit.blocks));
+        return;
       }
       if (!Array.isArray(edit.content)) {
         throw new Error(`table cell content must be InlineContent at [${edit.path.join(",")}]`);
