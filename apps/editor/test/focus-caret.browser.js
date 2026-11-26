@@ -86,7 +86,7 @@ async (page, { openPath }) => {
     await page.evaluate(() => getSelection().removeAllRanges());
     // #695 places active-document controls after the tablist. Traverse their actual
     // keyboard stops before the settings → metadata title → editor caret-restoration boundary.
-    for (const name of ['Read','Edit','Source','Wide document','Outline','Save','File actions']) {
+    for (const name of ['Read','Edit','Source','Wide document','Outline','Highlights: off','Save','File actions']) {
       await page.keyboard.press('Tab');
       assert(await page.locator('.top-bar-actions').getByRole('button',{name,exact:true}).evaluate(n=>n===document.activeElement), `Tab-row actions retain keyboard order at ${name}`);
     }
