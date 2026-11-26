@@ -10,6 +10,7 @@ import { authorDocument } from "@litzio/core";
 import { textRevision } from "@litzio/file-commit";
 import { createAuthoredDocumentFile, regenerateAuthoredDocumentFile } from "../server/document-authoring.ts";
 import { stopAuthoringThread } from "../server/authoring-thread.ts";
+import { executeFolderTrash } from "../server/file-operations.ts";
 import { nativeSource } from "./helpers/document.ts";
 import { largeAuthoringRequest, measureAuthoringSave } from "./helpers/large-authoring.ts";
 
@@ -72,6 +73,20 @@ test("authoring off the main thread never overwrites a concurrent writer or repo
     return { winner: (outcomes[0] as PromiseFulfilledResult<{ revision: string }>).value, rejected: (outcomes[1] as PromiseRejectedResult).reason as Error };
   };
 
+  // Confirm Trash before a save, then move its parent after validation is dispatched.
+  const folder = path.join(root, "reports"), trashed = path.join(root, "trashed");
+  fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, "existing.txt"), "original");
+  const remove = (source: string) => fs.renameSync(source, trashed);
+  const confirmed = await executeFolderTrash({ root, path: folder, checkOnly: true }, { remove });
+  const saving = createAuthoredDocumentFile(path.join(folder, "new.md"), medium);
+  await whileComputing();
+  const moved = await executeFolderTrash({ root, path: folder, expectedIdentity: confirmed.identity, expectedRevision: confirmed.revision }, { remove });
+  assert.equal(moved.receipt.source, "moved");
+  await assert.rejects(saving, { errorKind: "conflict" });
+  assert.equal(fs.existsSync(folder), false);
+  assert.deepEqual(fs.readdirSync(trashed), ["existing.txt"]);
+
   // Same name, two creators in one Host: one publishes, the other is a conflict.
   const same = path.join(root, "same.md");
   const created = await settledSources([createAuthoredDocumentFile(same, titled("First")), createAuthoredDocumentFile(same, titled("Second"))]);
@@ -100,9 +115,14 @@ test("authoring off the main thread never overwrites a concurrent writer or repo
 
   // A figure this save published or reused changes while it computes (for example a
   // Host rename): the document would point at a missing image, so it is not published.
-  const renamedFigure = path.join(root, "figure-rename.md");
+  const renamedFigure = path.join(root, "rename", "figure-rename.md");
   const renaming = createAuthoredDocumentFile(renamedFigure, medium);
-  await whileComputing(); fs.renameSync(path.join(root, "assets", "figure-1.png"), path.join(root, "assets", "renamed.png"));
+  const assets = path.join(path.dirname(renamedFigure), "assets");
+  // Observe publication of a later figure so the first one has finished staging.
+  while (!fs.existsSync(path.join(assets, "figure-2.png"))) {
+    await Promise.race([new Promise(resolve => setTimeout(resolve, 10)), renaming.then(() => assert.fail("save completed before the asset change"))]);
+  }
+  fs.renameSync(path.join(assets, "figure-1.png"), path.join(assets, "renamed.png"));
   await assert.rejects(renaming, (error: Error & { errorKind?: string }) => /figure image changed/.test(error.message) && error.errorKind === "conflict");
   assert.equal(fs.existsSync(renamedFigure), false);
 

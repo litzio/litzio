@@ -1,26 +1,10 @@
 import path from "node:path";
 import fs from "node:fs";
-import { authoredDocumentRequestSchema } from "@litzio/plugin-sdk";
 import { commitFile } from "@litzio/file-commit";
 import { createDocumentFromAuthoring } from "./document-create.ts";
 import { createDocumentImageAsset, documentImageMatches } from "./asset-api.ts";
-import { validateImage } from "./image-validation.ts";
-import { authorDocumentInThread } from "./authoring-thread.ts";
-import { accessPath, canonicalFilePath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
-
-/** Validate the same SDK image/key contract for document creation and regeneration. */
-export function validatedAuthoringRequest(raw: unknown) {
-  const input = authoredDocumentRequestSchema.parse(raw);
-  const referenced = new Set(input.authoring.inputs.flatMap(input => input.blocks.flatMap(block => block.kind === "figure" && block.imageAsset !== undefined ? [block.imageAsset] : [])));
-  if (referenced.size !== input.images.length || input.images.some(image => !referenced.has(image.key))) throw new Error("Image keys must match Figure asset references");
-  const images = input.images.map(image => {
-    const bytes = Buffer.from(image.base64, "base64");
-    if (bytes.toString("base64") !== image.base64) throw new Error("Invalid image base64");
-    validateImage(image.mime, bytes);
-    return { ...image, bytes };
-  });
-  return { input, images };
-}
+import { authorDocumentInThread, validateAuthoringInThread } from "./authoring-thread.ts";
+import { accessPath, canonicalFilePath, rootIdentity, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 
 /** Shared Host/CLI document construction and exclusive publication, never plugin file IO. */
 export async function createAuthoredDocumentFile(file: string, raw: unknown, access: FileAccess = LOCAL_FILE_ACCESS, beforePublish: () => void = () => {}) {
@@ -59,12 +43,26 @@ async function publishAuthoredDocumentFile(file: string, raw: unknown, access: F
   file = path.resolve(access ? access.resolve(file, true, revision === undefined) : accessPath(file, access, true));
   if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
   beforePublish();
-  const { input, images } = validatedAuthoringRequest(raw);
-  return inArrivalOrder(file, () => publishInOrder(file, input, images, access, beforePublish, revision));
+  // Missing descendants may be created, but their existing ancestor must survive validation.
+  let parent = path.dirname(file);
+  while (!fs.lstatSync(parent, { throwIfNoEntry: false }) && path.dirname(parent) !== parent) parent = path.dirname(parent);
+  const real = canonicalFilePath(parent), identity = rootIdentity(parent, access);
+  const checkParent = () => {
+    beforePublish();
+    try {
+      if (canonicalFilePath(parent) === real && rootIdentity(parent, access) === identity) return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" && (error as NodeJS.ErrnoException).code !== "ENOTDIR") throw error;
+    }
+    throw Object.assign(new Error("The target folder changed while the document was being built; the document was not saved."), { errorKind: "conflict" });
+  };
+  return inArrivalOrder(file, () => publishInOrder(file, raw, access, checkParent, revision));
 }
 
-async function publishInOrder(file: string, input: ReturnType<typeof validatedAuthoringRequest>["input"], images: ReturnType<typeof validatedAuthoringRequest>["images"],
-  access: FileAccess, beforePublish: () => void, revision?: string) {
+async function publishInOrder(file: string, raw: unknown, access: FileAccess, beforePublish: () => void, revision?: string) {
+  const validated = await validateAuthoringInThread(raw);
+  const images = validated.images.map(({ key, mime, bytes }) => ({ key, mime, bytes: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength) }));
+  beforePublish();
   const created: { directory: string; owner: fs.BigIntStats }[] = [];
   try {
     const missing: string[] = [];
@@ -92,7 +90,7 @@ async function publishInOrder(file: string, input: ReturnType<typeof validatedAu
     // Completed image files can be reused by another CLI/Host process immediately.
     // Retain them on failure; only unpublished temporary files are request-owned.
     for (const image of images) {
-      bindings[image.key] = createDocumentImageAsset(file, image.mime, image.bytes, access, revision === undefined ? image.key : undefined).path;
+      bindings[image.key] = (await createDocumentImageAsset(file, image.mime, image.bytes, access, revision === undefined ? image.key : undefined)).path;
     }
     // Other requests run while the thread computes: right before the document is
     // published, every figure it references must still be the bytes placed for it.
@@ -101,8 +99,8 @@ async function publishInOrder(file: string, input: ReturnType<typeof validatedAu
       for (const image of images) if (!documentImageMatches(file, bindings[image.key]!, image.bytes, access))
         throw Object.assign(new Error("A figure image changed while the document was being built; the document was not saved."), { errorKind: "conflict" });
     };
-    if (revision === undefined) return await createDocumentFromAuthoring(file, input.authoring, bindings, access, checked);
-    const authored = await authorDocumentInThread(input.authoring, bindings);
+    if (revision === undefined) return await createDocumentFromAuthoring(file, validated.authoring, bindings, access, checked);
+    const authored = await authorDocumentInThread(validated.authoring, bindings);
     checked();
     commitFile(accessPath(file, access), authored.source, revision);
     return { path: file, revision: authored.documentRevision, inputs: authored.inputs };

@@ -4,6 +4,7 @@ import { assertUnicode, decodeUtf8 } from "@litzio/file-commit";
 import { validFileStem } from "../shared/file-operations.ts";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
+import { promisify } from "node:util";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { ASSET_FORMATS, ASSET_TYPES, isAssetMime, MAX_ASSET_BYTES } from "../shared/asset-policy.ts";
@@ -103,7 +104,7 @@ export function createImageAsset(locator: string, mime: string, bytes: Buffer, k
 }
 
 /** Shared validated publication; new authored documents use their image key. */
-export function createDocumentImageAsset(locator: string, mime: string, bytes: Buffer, access: FileAccess, imageKey?: string): { path: string } {
+export function createDocumentImageAsset(locator: string, mime: string, bytes: Buffer, access: FileAccess, imageKey?: string): Promise<{ path: string }> {
   if (imageKey !== undefined) return publishImageAsset(locator, mime, bytes, Buffer.alloc(0), access, `${imageKey}.image`, "drop", true, true);
   const hash = createHash("sha256").update(bytes).digest("hex");
   const documentHash = createHash("sha256").update(path.basename(locator)).digest("hex");
@@ -133,7 +134,9 @@ export function importDocumentImageAsset(document: string, source: string, acces
   return { path: result.path, receipt: { outcome: "success" } };
 }
 
-function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating = false, keyed = false): ImageChoiceResponse {
+function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating: true, keyed?: boolean): Promise<ImageChoiceResponse>;
+function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string): ImageChoiceResponse;
+function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating = false, keyed = false): ImageChoiceResponse | Promise<ImageChoiceResponse> {
   validateImage(mime, bytes); // Rejected input must not create even a directory/temp file.
   assertUnicode(originalName);
   if (source !== "paste" && source !== "drop") throw new AssetError("Invalid image input source.");
@@ -165,62 +168,78 @@ function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Bu
   }
   const directoryId = fs.statSync(directory, { bigint: true });
   const temporary = path.join(directory, `.image-${randomUUID()}.tmp`);
-  let fd: number | undefined, owner: fs.BigIntStats | undefined, ownsTemporary = false, published: string | undefined;
-  try {
-    fd = fs.openSync(accessPath(temporary, access, true), "wx", 0o600);
-    ownsTemporary = true;
-    owner = fs.fstatSync(fd, { bigint: true });
-    fs.writeFileSync(fd, bytes);
-    fs.fsyncSync(fd);
-    fs.closeSync(fd); fd = undefined;
-    const current = fs.statSync(assetDirectory(scope.root, false, access), { bigint: true });
-    if (current.dev !== directoryId.dev || current.ino !== directoryId.ino) throw new AssetError("Asset directory changed during write.");
-    assertOwnedFile(temporary, owner, access);
-    // A hard link publishes the completed bytes atomically and fails on EEXIST.
-    // Unlike rename on POSIX, it cannot overwrite another file on a name collision.
-    for (; Number.isSafeInteger(sequence); sequence++) {
-      const suffix = keyed ? (sequence > 1 ? `-${createHash("sha256").update(bytes).digest("hex").slice(0, 8)}` : "") : numbered || sequence > 1 ? `-${sequence}` : "";
-      const filename = `${stem}${suffix}.${ASSET_TYPES[mime]}`;
-      // Treat existing case variants identically on all supported filesystems.
-      const existingName = keyed ? fs.readdirSync(directory).find(name => name.normalize("NFC").toLowerCase() === filename) : undefined;
-      const destination = path.join(directory, existingName ?? filename);
-      try { fs.linkSync(accessPath(temporary, access), accessPath(destination, access, true)); published = destination; break; }
-      catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-        if (creating) {
-          // Refuse links/non-files; a different regular file keeps the existing
-          // collision suffix policy. Reused bytes never acquire a rollback token.
-          const existing = inspectAsset(destination, undefined, access);
-          if (existing.owner.size === BigInt(bytes.length) && existing.hash === createHash("sha256").update(bytes).digest("hex")) {
-            return { path: `./assets/${path.basename(destination)}` };
-          }
-          if (keyed && sequence > 1) throw new AssetError("Asset content hash suffix is already occupied; existing file was preserved.");
-        }
-      }
-    }
-    if (!published) throw new AssetError("Could not allocate a unique asset filename.");
-    assertOwnedFile(published, owner, access);
-    unlinkOwnedFile(temporary, owner, scope.root, directoryId, access); ownsTemporary = false;
-    const relative = `./assets/${path.basename(published)}`;
-    const verified = inspectAsset(published, owner, access);
-    if (verified.owner.size !== BigInt(bytes.length) || verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError("Asset content changed during publication.");
-    return creating ? { path: relative } : { path: relative, rollbackToken: signReceipt({ document: scope.document, path: relative, identity: verified.identity }, key) };
-  } catch (error) {
-    // A completed authoring asset is immediately shareable across processes.
-    // Its creator cannot delete it even when a later publication check fails.
-    if (!creating && published && owner) {
-      const verified = inspectAsset(published, owner, access);
-      if (verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError(`Asset content changed; cleanup refused for assets/${path.basename(published)}.`);
-      unlinkOwnedFile(published, verified.owner, scope.root, directoryId, access, true);
-    }
-    throw error;
-  } finally {
+  let fd: number | undefined, owner: fs.BigIntStats | undefined, ownsTemporary = false;
+  const cleanup = () => {
     if (fd !== undefined) fs.closeSync(fd);
     if (ownsTemporary && owner) {
       try { unlinkOwnedFile(temporary, owner, scope.root, directoryId, access); }
       catch (error) { throw new AssetError(`Asset write failed. Temporary cleanup failed for assets/${path.basename(temporary)}: ${error instanceof Error ? error.message : String(error)}`); }
     }
-  }
+  };
+  const publish = (owner: fs.BigIntStats) => {
+    fs.closeSync(fd!); fd = undefined;
+    let published: string | undefined;
+    try {
+      const current = fs.statSync(assetDirectory(scope.root, false, access), { bigint: true });
+      if (current.dev !== directoryId.dev || current.ino !== directoryId.ino) throw new AssetError("Asset directory changed during write.");
+      assertOwnedFile(temporary, owner, access);
+      // A hard link publishes the completed bytes atomically and fails on EEXIST.
+      // Unlike rename on POSIX, it cannot overwrite another file on a name collision.
+      for (; Number.isSafeInteger(sequence); sequence++) {
+        const suffix = keyed ? (sequence > 1 ? `-${createHash("sha256").update(bytes).digest("hex").slice(0, 8)}` : "") : numbered || sequence > 1 ? `-${sequence}` : "";
+        const filename = `${stem}${suffix}.${ASSET_TYPES[mime]}`;
+        // Treat existing case variants identically on all supported filesystems.
+        const existingName = keyed ? fs.readdirSync(directory).find(name => name.normalize("NFC").toLowerCase() === filename) : undefined;
+        const destination = path.join(directory, existingName ?? filename);
+        try { fs.linkSync(accessPath(temporary, access), accessPath(destination, access, true)); published = destination; break; }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+          if (creating) {
+            // Refuse links/non-files; a different regular file keeps the existing
+            // collision suffix policy. Reused bytes never acquire a rollback token.
+            const existing = inspectAsset(destination, undefined, access);
+            if (existing.owner.size === BigInt(bytes.length) && existing.hash === createHash("sha256").update(bytes).digest("hex")) {
+              return { path: `./assets/${path.basename(destination)}` };
+            }
+            if (keyed && sequence > 1) throw new AssetError("Asset content hash suffix is already occupied; existing file was preserved.");
+          }
+        }
+      }
+      if (!published) throw new AssetError("Could not allocate a unique asset filename.");
+      assertOwnedFile(published, owner, access);
+      unlinkOwnedFile(temporary, owner, scope.root, directoryId, access); ownsTemporary = false;
+      const relative = `./assets/${path.basename(published)}`;
+      const verified = inspectAsset(published, owner, access);
+      if (verified.owner.size !== BigInt(bytes.length) || verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError("Asset content changed during publication.");
+      return creating ? { path: relative } : { path: relative, rollbackToken: signReceipt({ document: scope.document, path: relative, identity: verified.identity }, key) };
+    } catch (error) {
+      // A completed authoring asset is immediately shareable across processes.
+      // Its creator cannot delete it even when a later publication check fails.
+      if (!creating && published && owner) {
+        const verified = inspectAsset(published, owner, access);
+        if (verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError(`Asset content changed; cleanup refused for assets/${path.basename(published)}.`);
+        unlinkOwnedFile(published, verified.owner, scope.root, directoryId, access, true);
+      }
+      throw error;
+    }
+  };
+
+  let asyncCleanup = false;
+  try {
+    fd = fs.openSync(accessPath(temporary, access, true), "wx", 0o600);
+    ownsTemporary = true;
+    owner = fs.fstatSync(fd, { bigint: true });
+    if (creating) {
+      const opened = fd, identity = owner;
+      const writing = promisify(fs.writeFile)(opened, bytes).then(() => promisify(fs.fsync)(opened))
+        .then(() => publish(identity)).finally(cleanup);
+      asyncCleanup = true;
+      return writing;
+    }
+    fs.writeFileSync(fd, bytes);
+    fs.fsyncSync(fd);
+    return publish(owner);
+  } finally { if (!asyncCleanup) cleanup(); }
 }
 
 /**
