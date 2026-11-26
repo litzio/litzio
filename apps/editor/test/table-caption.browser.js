@@ -471,6 +471,8 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   expect(await caption.getAttribute('data-number'), 'Every table keeps its official number after Reload').toBe('Table 1');
   expect(await table.getByRole('button',{name:'Add caption',exact:true}).count()).toBe(0);
   const empty = await tableJSON();
+  // The grid is named by its caption text only: an empty caption's hint and input label are no name.
+  await expect(table.locator('table')).toHaveAccessibleName('');
   expect(await editor.evaluate(element => element.editor.can().undo()), 'Opening an empty caption creates no history').toBe(false);
   expect(await page.getByRole('tab',{selected:true}).getAttribute('aria-label')).not.toContain('Unsaved changes');
   await editor.evaluate(element => element.editor.setEditable(false));
@@ -493,6 +495,7 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   await page.keyboard.press('Shift+Enter');
   expect(await tableJSON(), 'Captions refuse line breaks').toEqual(empty);
   await page.keyboard.type('Restored caption');
+  await expect(table.locator('table')).toHaveAccessibleName('Restored caption');
   expect(await caption.getAttribute('data-number')).toBe('Table 1');
   const restored = await tableJSON();
   await page.keyboard.press('ControlOrMeta+z');
@@ -503,5 +506,6 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   expect(await save()).toContain(':::{table} Restored caption');
   await reloadDocument(page);
   expect(await caption.innerText()).toBe('Restored caption');
+  await expect(table.locator('table'), 'Reload names the grid by its caption').toHaveAccessibleName('Restored caption');
   return {richCaptionPreserved:true,history:true,keyboard:true,moveDelete:true,removeAdd:true,saveReload:true};
 }

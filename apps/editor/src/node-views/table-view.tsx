@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { NodeViewContent, NodeViewWrapper, useEditorState, type ReactNodeViewProps } from "@tiptap/react";
 import { useEditorContentOnly } from "../editor-visibility.ts";
@@ -15,10 +15,28 @@ import { captionPrefixText, useCaptionNumberText } from "../cross-reference.tsx"
 import { TableTools } from "../table-tools.tsx";
 import { focusBlock, handleTextblockMouseDown, useCaptionPlaceholder, useObjectActions, usePropertyEntry, type DraftListener } from "./shared.ts";
 
+let captionIds = 0;
+
+/** The grid's <table> is named by the caption's text, as a native caption inside it would; an empty
+ * caption gives no name. Only the text is referenced, not its input label or hint. */
+function labelGridByCaption(inside: Node | null | undefined): void {
+  const content = inside instanceof Element ? inside.closest(".table-block")?.querySelector(".table > [data-node-view-content-react]") : null;
+  const grid = content?.querySelector(":scope > table");
+  const text = content?.querySelector(":scope > .table-caption [data-node-view-content-react]");
+  if (!grid || !text) return;
+  if (!text.id) text.id = `table-caption-text-${++captionIds}`;
+  if (grid.getAttribute("aria-labelledby") !== text.id) grid.setAttribute("aria-labelledby", text.id);
+}
+
 export function TableCaptionView({ node, editor, getPos }: ReactNodeViewProps) {
   useTranslation();
   const placeholder = useCaptionPlaceholder({ editor, getPos }, "table");
   const numbered = useCaptionNumberText(editor, getPos, "table");
+  // The caption mounts after its table's grid; a redrawn grid is relabelled by the table view.
+  useLayoutEffect(() => {
+    const position = getPos();
+    if (typeof position === "number") labelGridByCaption(editor.view.nodeDOM(position));
+  });
   return <NodeViewWrapper className="caption" data-testid="table-caption" data-number={numbered} data-caption-prefix={numbered === undefined ? undefined : captionPrefixText(numbered)}
     onMouseDown={(event: ReactMouseEvent) => handleTextblockMouseDown(event, { editor, node, getPos })}>
     <NodeViewContent as="div" aria-label={i18n.t("Table caption")} data-empty-caption={node.content.size === 0 || undefined}
@@ -47,6 +65,8 @@ export function TableView({ node, editor, getPos, selected, onDraftChange }: Rea
   const sourcePath = String(node.attrs.sourcePath);
   const dirty = editing && (draft !== label || numberDraft.changedFrom(enumerator));
   useEffect(() => { onDraftChange?.("Table", sourcePath, dirty); return () => onDraftChange?.("Table", sourcePath, false); }, [sourcePath, dirty, onDraftChange]);
+  // Every change inside the table renders this view, after a grid the engine may have redrawn.
+  useLayoutEffect(() => labelGridByCaption(grid.current));
   const begin = () => { if (!editor.isEditable || contentOnly || editing) return; setDraft(label); numberDraft.reset(enumerator); setError(""); setEditing(true); };
   usePropertyEntry(anchor, begin);
   useObjectActions(anchor, { properties: begin });
