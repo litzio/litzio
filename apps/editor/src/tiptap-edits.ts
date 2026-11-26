@@ -1,4 +1,4 @@
-import { DOCUMENT_STATUSES, type DocumentStatus, type NodePath, type TableCellBlock } from "@litzio/core";
+import { DOCUMENT_STATUSES, type ComplexTableInput, type DocumentStatus, type NodePath, type TableCellBlock } from "@litzio/core";
 import { allocateBlockPath } from "./block-locators.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 import { inlineContentText as inlineText, sameInlineContent as sameInline, isAdmonitionVariant, paragraphInlineContent, type CodeBlockContent, type EditableDocument, type FigureContent, type InlineContent, type ListContent } from "@litzio/core";
@@ -491,7 +491,7 @@ function insertEdit(node: TiptapJSON): InsertEdit {
     return { block: "figure", ...figureContent(node), ...(label ? { label } : {}), ...insertEnumerator(node) };
   }
   if (node.type === "table") {
-    if (isComplexTableJSON(node)) throw new Error("a new table cannot have merged cells, header rows after the first or cell blocks");
+    if (isComplexTableJSON(node)) return { ...complexTableInput(node), ...tableExtras(node) };
     const grid = tableCells(node);
     if (grid.some((row, index) => row.some(cell => cell.header !== (index === 0)))) {
       throw new Error("a new table holds editable cells, with header cells only in its first row");
@@ -500,11 +500,7 @@ function insertEdit(node: TiptapJSON): InsertEdit {
     if (grid.some(row => row.some((cell, column) => (cell.align || null) !== align[column]))) {
       throw new SaveContentError("table alignment must be uniform within each column", undefined, { code: "table-shape", phase: "collect", action: "Set alignment for the whole column using the table controls." });
     }
-    const caption = tableCaption(node);
-    const notes = tableNotes(node);
-    const label = blockLabel(node);
-    return { block: "table", rows: grid.map(row => row.map(cell => cell.content)), ...(align.some(Boolean) ? { align } : {}),
-      ...(caption.length ? { caption } : {}), ...(notes.length ? { notes } : {}), ...(label ? { label } : {}), ...insertEnumerator(node) };
+    return { block: "table", rows: grid.map(row => row.map(cell => cell.content)), ...(align.some(Boolean) ? { align } : {}), ...tableExtras(node) };
   }
   if (LIST_BLOCKS.has(node.type ?? "")) {
     return { block: "list", list: listContent(node) };
@@ -729,6 +725,27 @@ function complexTableCells(node: TiptapJSON) {
       });
     }
   }));
+}
+
+/** The caption, notes, label and fixed number of a new table block. */
+function tableExtras(node: TiptapJSON) {
+  const caption = tableCaption(node);
+  const notes = tableNotes(node);
+  const label = blockLabel(node);
+  return { ...(caption.length ? { caption } : {}), ...(notes.length ? { notes } : {}), ...(label ? { label } : {}), ...insertEnumerator(node) };
+}
+
+/** A complex table that Litzio's own clipboard moved or copied is Core complex table input: its
+ * header rows are those its header cells span, and each row lists the cells that start in it. */
+function complexTableInput(node: TiptapJSON): { block: "table"; grid: "complex"; headerRows: number; rows: ComplexTableInput["rows"] } {
+  const cells = complexTableCells(node);
+  const headerRows = Math.max(0, ...cells.flatMap((row, rowIndex) => row.filter(cell => cell.header).map(cell => rowIndex + cell.rowspan)));
+  if (cells.some((row, rowIndex) => row.some(cell => cell.header !== rowIndex < headerRows))) {
+    throw new Error("a table's header cells fill its first rows");
+  }
+  return { block: "table", grid: "complex", headerRows, rows: cells.map(row => ({ cells: row.map(cell => ({
+    rowspan: cell.rowspan, colspan: cell.colspan, ...(["left", "center", "right"].includes(cell.align) ? { align: cell.align as "left" | "center" | "right" } : {}), blocks: cell.blocks,
+  })) })) };
 }
 
 /** What a complex table cell keeps while its text changes: its place, kind, alignment, spans and

@@ -12,11 +12,15 @@ import { Button } from "@/components/ui/button.tsx";
 import { PanelHeader } from "@/components/ui/panel-header.tsx";
 
 import type { FolderTreeState } from "./folder-tree.ts";
+import type { ViewScreen } from "../views/view-api.ts";
+import type { OpenPluginFile } from "../views/view-file-actions.ts";
 
 type SidebarProps = {
   onCopyPath?(path: string): void;
   onAddToChat?(path: string, returnFocus: HTMLElement): void;
   onFileAction: FileActionHandler;
+  pluginScreens?: readonly ViewScreen[];
+  onOpenPluginFile?: OpenPluginFile;
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
   open: boolean;
@@ -51,7 +55,7 @@ type SidebarProps = {
 /** Explorer panel beside the Activity bar, which owns its open/collapse toggle. File navigation
  * stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
-  onCopyPath, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
+  onCopyPath, onFileAction, pluginScreens, onOpenPluginFile, fileActionsDisabled, isFileDirty, onWidth, open, overlay, onClose, documentPath, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onAddToChat,
 }: SidebarProps) {
   useTranslation();
@@ -90,6 +94,7 @@ export function Sidebar({
             key={tree.root}
             onAddToChat={onAddToChat ? (path, focus) => onAddToChat(path, focus) : undefined}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
+            pluginScreens={pluginScreens} onOpenPluginFile={onOpenPluginFile}
             tree={tree}
             focusFolder={focusFolder}
             onFolderFocused={onFolderFocused}

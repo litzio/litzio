@@ -6,7 +6,11 @@ import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { Copy, Link, Pencil, Trash2, ChevronRight, Ellipsis, File, Image as ImageIcon, FileText, FileX, FolderOpen, FolderPlus, PanelRightOpen, Plus, RotateCw, X } from "lucide-react";
+import { Copy, Link, Pencil, Trash2, ChevronRight, Ellipsis, File, Image as ImageIcon, FileText, FileX, FolderOpen, FolderPlus, Info, PanelRightOpen, Plus, RotateCw, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
+import { viewScreenIcon } from "../views/view-screen-icon.ts";
+import { viewFileActions, type OpenPluginFile } from "../views/view-file-actions.ts";
+import type { ViewScreen } from "../views/view-api.ts";
 import { fileDeletion } from "../host-capabilities.ts";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -18,6 +22,8 @@ type FolderTreeProps = {
   onCopyPath?(path: string): void;
   onAddToChat?(path: string, returnFocus: HTMLElement): void;
   onFileAction: FileActionHandler;
+  pluginScreens?: readonly ViewScreen[];
+  onOpenPluginFile?: OpenPluginFile;
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
   tree: FolderTreeState;
@@ -62,7 +68,7 @@ function pathActions(path: string, root: string, copy?: (path: string) => void):
 }
 
 /** One opened folder as a tree: folders expand in place, documents open. */
-export function FolderTree({ onCopyPath, onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
+export function FolderTree({ onCopyPath, onAddToChat, onFileAction, pluginScreens = [], onOpenPluginFile, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
@@ -94,17 +100,30 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, fileActionsD
   const [focused, setFocused] = useState<string>();
   const [preview, setPreview] = useState<TreeItem>();
   const previewReturn = useRef<HTMLElement | null>(null);
+  const [pickPlugin, setPickPlugin] = useState<TreeItem>();
+  const pluginReturn = useRef<HTMLElement | null>(null);
+  const pluginChoices = pickPlugin ? defaultPluginActions(pickPlugin) : [];
   // One tab stop: the item last focused, else the open document, else the first item.
   const tabStop = [focused, documentPath].find(path => items.some(item => item.entry.path === path)) ?? items[0]?.entry.path;
 
-  const activate = async (item: TreeItem) => {
-    if (item.entry.kind === "folder") onToggleFolder(item.entry.path);
-    else if (item.entry.kind === "document" || /\.pdf$/i.test(item.entry.path)) onOpenDocument(item.entry.path);
-    else {
-      previewReturn.current = rows.current.get(item.entry.path) ?? null;
-      setPreview(item);
-    }
-  };
+  function defaultPluginActions(item: TreeItem) {
+    return viewFileActions(pluginScreens, item.entry.path).filter(({ action }) => action.openByDefault);
+  }
+  function previewFile(item: TreeItem) {
+    previewReturn.current = rows.current.get(item.entry.path) ?? null;
+    setPreview(item);
+  }
+  function activate(item: TreeItem) {
+    const { kind, path } = item.entry;
+    if (kind === "folder") { onToggleFolder(path); return; }
+    if (kind === "document" || /\.pdf$/i.test(path)) { onOpenDocument(path); return; }
+    const candidates = kind === "file" ? defaultPluginActions(item) : [];
+    if (!candidates.length) { previewFile(item); return; }
+    if (fileActionsDisabled || !onOpenPluginFile) return;
+    if (candidates.length === 1) { onOpenPluginFile(candidates[0]!, path); return; }
+    pluginReturn.current = rows.current.get(path) ?? null;
+    setPickPlugin(item);
+  }
   const keyDown = (event: KeyboardEvent<HTMLUListElement>) => {
     if (event.defaultPrevented || !event.currentTarget.contains(event.target as Node)) return;
     const index = items.findIndex(item => item.entry.path === focused);
@@ -166,7 +185,9 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, fileActionsD
           const expanded = folder && tree.expanded.has(entry.path);
           // Text files and Markdown without a native marker open in text mode.
           const foreign = entry.kind === "document" && entry.native === false;
-          const description = foreign ? i18n.t("Not a {{product}} document") : entry.kind === "image" ? i18n.t("Read-only image preview") : entry.kind === "file" ? i18n.t("This file cannot be edited in {{product}}.") : undefined;
+          const pluginActions = folder ? [] : viewFileActions(pluginScreens, entry.path);
+          const usesPlugin = entry.kind === "file" && !/\.pdf$/i.test(entry.path) && pluginActions.some(({ action }) => action.openByDefault);
+          const description = foreign ? i18n.t("Not a {{product}} document") : entry.kind === "image" ? i18n.t("Read-only image preview") : entry.kind === "file" && !usesPlugin ? i18n.t("This file cannot be edited in {{product}}.") : undefined;
           const Icon = foreign ? FileX : entry.kind === "image" ? ImageIcon : entry.kind === "file" ? File : FileText;
           const row = (
             <li
@@ -188,8 +209,7 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, fileActionsD
               aria-selected={folder ? entry.path === focused : undefined}
               aria-current={!folder && entry.path === documentPath ? "page" : undefined}
               onFocus={() => setFocused(entry.path)}
-              onClick={() => { void activate(item); }}
-              onDoubleClick={() => {  }}
+              onClick={event => { if (folder || event.detail <= 1) activate(item); }}
             >
               {folder ? <span className="sidebar-tree-chevron" aria-hidden="true"><ChevronRight /></span>
                 : <Icon className="sidebar-tree-icon" aria-hidden="true" />}
@@ -214,12 +234,41 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, fileActionsD
             ...(onAddToChat ? [{ id: "add-to-chat", label: i18n.t("Add to chat"), icon: <FileText aria-hidden="true" />, run: () => onAddToChat(entry.path, rows.current.get(entry.path)!) }] : []),
             ...(entry.kind === "document" && onOpenRight ? [{ id: "open-right", label: i18n.t("Open to the right"), icon: <PanelRightOpen aria-hidden="true" />, disabled: openRightDisabled, run: () => onOpenRight(entry.path) }] : []),
             ...pathActions(entry.path, tree.root, onCopyPath),
+            ...(usesPlugin ? [{ id: "file-info", label: i18n.t("File information"), icon: <Info aria-hidden="true" />, run: () => previewFile(item) }] : []),
+            ...pluginActions.map(pluginAction => {
+              const ActionIcon = viewScreenIcon(pluginAction.action.icon);
+              return { id: pluginAction.key, label: pluginAction.label, icon: <ActionIcon aria-hidden="true" />,
+                run: () => { onOpenPluginFile?.(pluginAction, entry.path); } };
+            }),
             { id: "rename", label: i18n.t("Rename…"), icon: <Pencil aria-hidden="true" />, run: () => choose("rename") },
             { id: "delete", label: i18n.t("Delete file…"), icon: <Trash2 aria-hidden="true" />, danger: true, run: () => choose("delete") },
           ];
           return <ContextMenu key={entry.path} trigger={row} actions={actions} disabled={fileActionsDisabled} />;
         })}
       </ul>
+      {pickPlugin ? <Dialog open onOpenChange={open => { if (!open) setPickPlugin(undefined); }}>
+        <DialogContent finalFocus={() => pluginReturn.current ?? false}>
+          <DialogHeader>
+            <DialogTitle>{i18n.t("Choose a plugin to open this file")}</DialogTitle>
+            <DialogDescription className="break-all">{pickPlugin.entry.name}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            {pluginChoices.map(choice => {
+              const Icon = viewScreenIcon(choice.action.icon);
+              return <Button key={choice.key} variant="outline" className="h-auto min-h-[var(--size-control)] justify-start whitespace-normal text-left" disabled={fileActionsDisabled}
+                onClick={() => {
+                  if (!onOpenPluginFile?.(choice, pickPlugin.entry.path)) return;
+                  pluginReturn.current = null;
+                  setPickPlugin(undefined);
+                }}>
+                <Icon aria-hidden="true" />{`${choice.screen.title} · ${choice.action.label}`}
+              </Button>;
+            })}
+            {!pluginChoices.length ? <p role="status">{i18n.t("Unavailable")}</p> : null}
+          </div>
+          <Button variant="ghost" className="justify-self-end" onClick={() => setPickPlugin(undefined)}>{i18n.t("Cancel")}</Button>
+        </DialogContent>
+      </Dialog> : null}
       {fileAction ? <FileActionDialog action={fileAction.action} entry={fileAction.item.entry}
         root={tree.root} client={fileAction.client}
         trash={fileDeletion() === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}

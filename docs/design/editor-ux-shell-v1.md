@@ -788,12 +788,35 @@ semantics, so it has no CLI counterpart.
 
 Files lists every regular non-hidden file, including extensionless files; symlinks/junctions stay excluded.
 Markdown retains existing document/native admission and tab behavior. Images use the image icon and
-read-only preview description; other files use the generic file icon and explicit editing-unavailable
-description. Mouse and Enter/Space share the same dispatch. Image/file selection opens a transient
+read-only preview description; other files use the generic file icon and show the editing-unavailable
+description when they have no default plugin open action. Click and Enter/Space share the same dispatch.
+Image preview and file information open a transient
 shared Dialog, preserving the existing editor, selection, Undo, dirty work and property drafts.
 Other files show name/path and an editing-unavailable explanation only. Image loading/failure stays
 inside the dialog; closing or Escape returns focus to its tree row. The modal blocks Save shortcuts.
 The image picker remains independent. See the [Host preview contract](filesystem-host-boundary-v1.md#read-only-folder-preview-217).
+
+### Plugin file actions (#2018)
+
+An Explorer file's context menu and the owning file tab group's **File actions** menu show matching
+actions from enabled, trusted plugins. The file menu includes read-only PDF tabs when a plugin
+contributes a matching action. Both menus use the declared label and icon and disambiguate duplicate
+labels with the plugin name. Choosing an action opens or activates its screen with that file selected.
+
+A click, Enter or Space first attempts the existing document, text, PDF or image preview path.
+For other files, one default plugin opens directly, multiple default plugins open the **Choose a
+plugin to open this file** dialog, and no candidate opens file information. For a file with a default
+plugin, **File information** is also available in the Explorer context menu. The second click of a
+double-click never delivers the action again. The dialog lists the file name and the plugin/action
+buttons. Escape or Cancel returns focus to the Explorer row.
+
+See the [screen handoff contract](plugin-screens-v1.md#파일-동작으로-열기-2018).
+
+Reference captures at 1440px show the [Explorer menu](assets/plugin-file-actions-2018/explorer-1440-light.png),
+[PDF tab menu](assets/plugin-file-actions-2018/pdf-tab-1440-light.png),
+[choice dialog](assets/plugin-file-actions-2018/chooser-1440-light.png), and
+[Korean dark choice dialog](assets/plugin-file-actions-2018/chooser-1440-ko-dark.png).
+The minimum-width layout shows the [640px Korean dark PDF tab menu](assets/plugin-file-actions-2018/pdf-tab-640-ko-dark.png).
 
 ## Command center (#363)
 

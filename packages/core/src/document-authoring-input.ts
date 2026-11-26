@@ -48,7 +48,11 @@ function complexGridIssue(grid: { headerRows: number; rows: { cells: { column?: 
     children: row.cells.map(cell => ({ type: "tableCell", ...(index < grid.headerRows ? { header: true } : {}), ...(cell.column !== undefined ? { column: cell.column } : {}),
       rowspan: cell.rowspan ?? 1, colspan: cell.colspan ?? 1, children: [{ type: "paragraph", children: [] }] })) })) };
   try { locateTableCells(skeleton, []); return undefined; }
-  catch (error) { return writeIssueOf(error).reason; }
+  catch (error) {
+    // Core's grid path here is [row, column]: the row and the grid column where the cell starts.
+    const { reason, path } = writeIssueOf(error);
+    return path?.length ? `${reason} at [${path.join(",")}]` : reason;
+  }
 }
 const block = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("paragraph"), ...inlineFields }),

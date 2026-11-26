@@ -225,6 +225,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const pastedPaths = [], pastedData = [];
   const uploadGates = new Map();
   const sent = [], conversations = new Map(), receipts = new Map();
+  const severalLines = ['Review the saved document.', 'Summarize the main findings.', 'List any assumptions.', 'Flag missing evidence.', 'Suggest a next step.', 'Keep the summary brief.'].join('\n');
+  const acceptedBeforeObservation = 'Accepted before observation';
+  const longDraft = [acceptedBeforeObservation, ...Array(6).fill(severalLines)].join('\n');
   let resumeFailure = false, copilotUnavailable = false, promptReject = true;
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
   let forgottenSubmissions = false, allowNewSend = false;
@@ -301,7 +304,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       if (body.action === 'send') {
         const item = selected.turns.flatMap(turn => turn.items).find(item => item.submissionId === body.submissionId);
         const result = { submission: { id: body.submissionId, status: 'accepted', conversationId: selected.id, itemId: item.id }, conversation: selected };
-        if (body.message === 'Accepted before observation') result.conversation = { ...selected, turns: selected.turns.map(turn => ({ ...turn, items: turn.items.filter(item => item.submissionId !== body.submissionId) })) };
+        if (body.message === acceptedBeforeObservation || body.message === longDraft) result.conversation = { ...selected, turns: selected.turns.map(turn => ({ ...turn, items: turn.items.filter(item => item.submissionId !== body.submissionId) })) };
         receipts.set(body.submissionId, result);
         if (body.message === 'Uncertain first' && !allowNewSend) {
           lostResult = result; receipts.set(body.submissionId, { submission: { id: body.submissionId, status: 'unknown' } });
@@ -350,7 +353,50 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.keyboard.type('Assistant keyboard input');
   expect(await message.inputValue(), 'Typing after opening goes to the assistant').toBe('Assistant keyboard input');
   expect(await editor.textContent()).not.toContain('Assistant keyboard input');
+  const composerHeight = async (input = message) => (await input.boundingBox()).height;
+  const minimumComposerHeight = await composerHeight();
+  expect(minimumComposerHeight).toBe(80);
+  const captureComposer = async name => {
+    await page.screenshot({ path: `tmp/2022-composer/${name}.png`,
+      mask: [page.locator('.activity-bar-status'), page.locator('.document-location'), page.locator('.sidebar-folder-header')] });
+  };
+  if (screenshots) await captureComposer('one-line-1440-light');
+  const oneLine = await message.boundingBox();
+  const transcriptBeforeGrowth = await panel.locator('.assistant-transcript').boundingBox();
+  await message.press('Shift+Enter');
+  await expect(message).toHaveValue('Assistant keyboard input\n');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+  await page.evaluate(text => navigator.clipboard.writeText(text), severalLines);
+  await message.press('ControlOrMeta+v');
+  await expect(message).toHaveValue(`Assistant keyboard input\n${severalLines}`);
+  if (screenshots) await captureComposer('multiline-1440-light');
+  const multiline = await message.boundingBox();
+  expect(multiline.height).toBeGreaterThan(minimumComposerHeight);
+  expect(multiline.y + multiline.height).toBeCloseTo(oneLine.y + oneLine.height, 0);
+  expect((await panel.locator('.assistant-transcript').boundingBox()).height).toBeLessThan(transcriptBeforeGrowth.height);
+  await expect(message).toHaveCSS('resize', 'none');
+  await message.fill(longDraft);
+  const maximum = Math.max(180, (await panel.boundingBox()).height * 0.4);
+  expect(await composerHeight()).toBeCloseTo(maximum, 0);
+  await message.press('ControlOrMeta+Home');
+  await message.hover();
+  await page.mouse.wheel(0, 120);
+  await expect.poll(() => message.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  if (screenshots) {
+    await captureComposer('max-1440-light');
+    const html = page.locator('html');
+    await html.evaluate(element => { element.dataset.theme = 'dark'; });
+    await captureComposer('max-1440-dark');
+    await html.evaluate(element => { element.dataset.theme = 'light'; });
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await captureComposer('max-1920-light');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  await page.setViewportSize({ width: 1440, height: 480 });
+  expect(await composerHeight()).toBeCloseTo(180, 0);
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await message.fill('');
+  expect(await composerHeight()).toBe(minimumComposerHeight);
   // At intermediate widths the assistant remains modal; closing restores the center.
   for (const width of [1440, 1024]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -1215,6 +1261,21 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(await panel.getByRole('textbox').evaluate(element => document.activeElement === element)).toBe(true);
   expect(await panel.evaluate(element => ({ width: element.getBoundingClientRect().width, overflow: element.scrollWidth > element.clientWidth }))).toEqual({ width: 640, overflow: false });
+  const narrowMessage = panel.getByRole('textbox');
+  const koreanDraft = '저장된 문서의 내용을 검토해 주세요.\n주요 결과를 세 문장으로 요약해 주세요.\n사용한 가정과 근거를 정리해 주세요.\n빠진 조건이나 예외가 있다면 알려 주세요.\n추가로 확인할 항목을 제안해 주세요.\n마지막에 다음 단계를 ';
+  const koreanEnding = '알려 주세요.';
+  await narrowMessage.fill(koreanDraft);
+  await narrowMessage.press('ControlOrMeta+End');
+  const ime = await page.context().newCDPSession(page);
+  try {
+    await ime.send('Input.imeSetComposition', { text: 'ㅇ', selectionStart: 1, selectionEnd: 1 });
+    await ime.send('Input.imeSetComposition', { text: koreanEnding, selectionStart: koreanEnding.length, selectionEnd: koreanEnding.length });
+    await ime.send('Input.insertText', { text: koreanEnding });
+  } finally { await ime.detach(); }
+  await expect(narrowMessage).toHaveValue(koreanDraft + koreanEnding);
+  expect(await composerHeight(narrowMessage)).toBeGreaterThan(minimumComposerHeight);
+  if (screenshots) await captureComposer('multiline-640-dark-ko');
+  await narrowMessage.fill('');
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(true);
   await expect(panel.getByRole('button', { name: '추론 강도 설정', exact: true })).toContainText('높음');
   await panel.getByRole('button', {name: '모델 설정', exact: true}).click();
@@ -1735,19 +1796,22 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   let releaseLateSnapshot, releaseLateReceipt;
   snapshotGate = new Promise(resolve => { releaseLateSnapshot = resolve; });
   receiptGate = new Promise(resolve => { releaseLateReceipt = resolve; });
-  await message.fill('Accepted before observation');
+  await message.fill(longDraft);
+  expect(await composerHeight()).toBeGreaterThan(minimumComposerHeight);
   await message.press('Enter');
-  await expect(panel.locator('.assistant-submission')).toContainText('Accepted before observation');
+  await expect(message).toHaveValue('');
+  expect(await composerHeight()).toBe(minimumComposerHeight);
+  await expect(panel.locator('.assistant-submission')).toContainText(acceptedBeforeObservation);
   await expect(panel.locator('.assistant-submission-status')).toHaveCount(0);
   await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(1);
-  expect(sent.filter(value => value.message === 'Accepted before observation').length).toBe(1);
+  expect(sent.filter(value => value.message === longDraft).length).toBe(1);
   releaseLateSnapshot(); snapshotGate = undefined; releaseLateReceipt(); receiptGate = undefined;
   await expect(panel.locator('.assistant-submission')).toHaveCount(0);
   await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(1);
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   // #1548: provider history may still lack its correlated row after Stop.
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
-  await message.fill('Accepted before observation'); await message.press('Enter');
+  await message.fill(acceptedBeforeObservation); await message.press('Enter');
   await expect(panel.locator('.assistant-submission-status')).toHaveCount(0);
   for (const turn of selected.turns) for (const item of turn.items) if (item.kind === 'user') item.userMessageSource = 'host';
   const previousConversation = selected.id;

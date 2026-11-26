@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { hostConnection } from "../host-client.ts";
+import { hostConnection, type HostClient } from "../host-client.ts";
 import { viewRequest, type ViewScreen } from "./view-api.ts";
 export function useViewScreens() {
-  const [entries, setEntries] = useState<ViewScreen[]>([]);
+  const [catalog, setCatalog] = useState<{ client: HostClient; screens: ViewScreen[] }>();
   useEffect(() => {
     let controller: AbortController;
     let refreshing = false;
@@ -11,11 +11,11 @@ export function useViewScreens() {
       controller?.abort(); controller = new AbortController();
       const signal = controller.signal;
       const client = availableClient();
-      if (!client) { refreshing = false; setEntries([]); return; }
+      if (!client) { refreshing = false; setCatalog(undefined); return; }
       refreshing = true;
       void viewRequest(client, { action: "screens", screenCode: false }, signal).then(value => {
-        if (!signal.aborted) setEntries(value.screens ?? []);
-      }).catch(() => { if (!signal.aborted) setEntries([]); }).finally(() => { if (!signal.aborted) refreshing = false; });
+        if (!signal.aborted) setCatalog({ client, screens: value.screens ?? [] });
+      }).catch(() => { if (!signal.aborted) setCatalog(undefined); }).finally(() => { if (!signal.aborted) refreshing = false; });
     };
     let previous = availableClient();
     const unsubscribe = hostConnection.subscribe(() => {
@@ -33,5 +33,5 @@ export function useViewScreens() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
-  return entries;
+  return hostConnection.get().state === "connected" && catalog?.client === hostConnection.getScreenClient() ? catalog : undefined;
 }

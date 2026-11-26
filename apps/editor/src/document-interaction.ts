@@ -133,7 +133,9 @@ function internalPasteError(html: string, schema: Schema): UiMessage | undefined
     if (checkboxes.has(element)) continue;
     if ((!typed && (!allowed.has(element.tagName) || element.hasAttribute("style"))) ||
         (typed && !TYPES.has(typed)) || misplaced(element, typed ?? (element.tagName === "BR" ? "hardBreak" : "")) ||
-        (["TABLE", "THEAD", "TBODY", "TR", "TD", "TH"].includes(element.tagName) && !element.closest('[data-litzio-type="table"]')) || element.hasAttribute("colspan") || element.hasAttribute("rowspan")) {
+        (["TABLE", "THEAD", "TBODY", "TR", "TD", "TH"].includes(element.tagName) && !element.closest('[data-litzio-type="table"]')) ||
+        // Only a typed cell of a typed table keeps its spans: a complex table moved or copied in Litzio (ADR-0024).
+        ((element.hasAttribute("colspan") || element.hasAttribute("rowspan")) && !(typed === "tableCell" && element.closest('[data-litzio-type="table"]')))) {
       return { key: "This clipboard content includes unsupported structure or formatting. Nothing was pasted; the clipboard and your selection are kept. Paste plain text explicitly or use supported content." };
     }
   }
@@ -245,18 +247,22 @@ function atNestedDocumentEnd(view: EditorView): boolean {
   return lastLine && view.endOfTextblock("down");
 }
 
-function tableTab(state: EditorState, backward: boolean, editable: boolean): Transaction | null {
+export function tableTab(state: EditorState, backward: boolean, editable: boolean): Transaction | null {
   const { $from } = state.selection;
   const cell = tableCellOf($from);
   if (!cell) return null;
-  const cells: number[] = [];
+  // Every cell in document order, the cells that start with a list included; a cell's text
+  // starts in its first textblock.
+  const cells: { node: PMNode; pos: number }[] = [];
   const start = $from.before(1);
-  // A cell's text starts in its first textblock.
-  $from.node(1).descendants((node, pos, parent) => { if (node.isTextblock && parent?.type.name === "tableCell" && parent.firstChild === node) cells.push(start + pos + 2); });
-  // Past the cell's opening token and its first textblock's.
-  const index = cells.indexOf(tableCellRange($from)!.from + 2);
+  $from.node(1).descendants((node, pos) => {
+    if (node.type.name !== "tableCell") return true;
+    cells.push({ node, pos: start + 1 + pos });
+    return false;
+  });
+  const index = cells.findIndex(item => item.pos === tableCellRange($from)!.from);
   const target = cells[index + (backward ? -1 : 1)];
-  if (target !== undefined) return state.tr.setSelection(TextSelection.create(state.doc, target)).scrollIntoView();
+  if (target) return state.tr.setSelection(TextSelection.create(state.doc, cellTextblock(target.node, target.pos, false).from)).scrollIntoView();
   // A complex table gains no row: Tab leaves it, as in a read-only table.
   if (!backward && editable && !isComplexTable($from.node(1))) return addTableRowBelow(state, $from.index(0), { row: cell.row, column: 0 });
   const edge = backward ? $from.before(1) : $from.after(1);

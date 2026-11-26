@@ -493,7 +493,9 @@ export function replayEdits(
     } else if (item.block === "equation") {
       document = editAt(target, () => insertEquation(document, index, item.latex));
     } else if (item.block === "table") {
-      document = editAt(target, () => insertTable(document, index, item.rows, item.align, item.notes));
+      document = editAt(target, () => item.grid === "complex"
+        ? insertTable(document, index, { grid: "complex", headerRows: item.headerRows, rows: item.rows }, undefined, item.notes)
+        : insertTable(document, index, item.rows, item.align, item.notes));
       if (item.caption) document = editAt(target, () => updateTableCaption(document, [index], item.caption!));
     } else if (item.block === "list") {
       document = editAt(target, () => insertList(document, index, item.list));
