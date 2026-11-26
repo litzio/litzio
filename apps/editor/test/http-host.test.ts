@@ -775,14 +775,14 @@ test("HTTP authored creation preserves Core validity, receipt and exclusive publ
     assert.equal((await send("/api/document", "PUT", payload)).status, 400);
   }
   assert.equal(fs.existsSync(path.join(a, "invalid.md")), false);
-  for (const invalid of [
-    [{ ...images[0], key: "wrong" }],
-    [{ ...images[0], base64: "%%%" }],
-  ]) {
+  for (const [invalid, message] of [
+    [[{ ...images[0], key: "wrong" }], "Image keys must match Figure asset references"],
+    [[{ ...images[0], base64: "%%%" }], "Invalid image base64"],
+  ] as const) {
     const rejected = path.join(a, "bad-image", "nested", "bad-image.md");
     const response = await send("/api/document", "PUT", { path: rejected, authoring, images: invalid });
     assert.equal(response.status, 400);
-    assert.equal(typeof (await response.json()).error, "string");
+    assert.equal((await response.json()).error, message);
     assert.equal(fs.existsSync(path.join(a, "bad-image")), false);
     assert.equal(fs.readFileSync(file, "utf8"), receipt.source);
     assert.deepEqual(fs.readFileSync(path.resolve(path.dirname(file), relative)), png);

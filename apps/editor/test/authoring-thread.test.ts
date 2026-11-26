@@ -100,9 +100,14 @@ test("authoring off the main thread never overwrites a concurrent writer or repo
 
   // A figure this save published or reused changes while it computes (for example a
   // Host rename): the document would point at a missing image, so it is not published.
-  const renamedFigure = path.join(root, "figure-rename.md");
+  const renamedFigure = path.join(root, "rename", "figure-rename.md");
   const renaming = createAuthoredDocumentFile(renamedFigure, medium);
-  await whileComputing(); fs.renameSync(path.join(root, "assets", "figure-1.png"), path.join(root, "assets", "renamed.png"));
+  const assets = path.join(path.dirname(renamedFigure), "assets");
+  // Observe publication of a later figure so the first one has finished staging.
+  while (!fs.existsSync(path.join(assets, "figure-2.png"))) {
+    await Promise.race([new Promise(resolve => setTimeout(resolve, 10)), renaming.then(() => assert.fail("save completed before the asset change"))]);
+  }
+  fs.renameSync(path.join(assets, "figure-1.png"), path.join(assets, "renamed.png"));
   await assert.rejects(renaming, (error: Error & { errorKind?: string }) => /figure image changed/.test(error.message) && error.errorKind === "conflict");
   assert.equal(fs.existsSync(renamedFigure), false);
 

@@ -4,6 +4,7 @@ import { assertUnicode, decodeUtf8 } from "@litzio/file-commit";
 import { validFileStem } from "../shared/file-operations.ts";
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
+import { promisify } from "node:util";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { ASSET_FORMATS, ASSET_TYPES, isAssetMime, MAX_ASSET_BYTES } from "../shared/asset-policy.ts";
@@ -103,7 +104,7 @@ export function createImageAsset(locator: string, mime: string, bytes: Buffer, k
 }
 
 /** Shared validated publication; new authored documents use their image key. */
-export function createDocumentImageAsset(locator: string, mime: string, bytes: Buffer, access: FileAccess, imageKey?: string): { path: string } {
+export function createDocumentImageAsset(locator: string, mime: string, bytes: Buffer, access: FileAccess, imageKey?: string): Promise<{ path: string }> {
   if (imageKey !== undefined) return publishImageAsset(locator, mime, bytes, Buffer.alloc(0), access, `${imageKey}.image`, "drop", true, true);
   const hash = createHash("sha256").update(bytes).digest("hex");
   const documentHash = createHash("sha256").update(path.basename(locator)).digest("hex");
@@ -133,7 +134,9 @@ export function importDocumentImageAsset(document: string, source: string, acces
   return { path: result.path, receipt: { outcome: "success" } };
 }
 
-function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating = false, keyed = false): ImageChoiceResponse {
+function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating: true, keyed?: boolean): Promise<ImageChoiceResponse>;
+function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string): ImageChoiceResponse;
+function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating = false, keyed = false): ImageChoiceResponse | Promise<ImageChoiceResponse> {
   validateImage(mime, bytes); // Rejected input must not create even a directory/temp file.
   assertUnicode(originalName);
   if (source !== "paste" && source !== "drop") throw new AssetError("Invalid image input source.");
@@ -221,14 +224,22 @@ function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Bu
     }
   };
 
+  let asyncCleanup = false;
   try {
     fd = fs.openSync(accessPath(temporary, access, true), "wx", 0o600);
     ownsTemporary = true;
     owner = fs.fstatSync(fd, { bigint: true });
+    if (creating) {
+      const opened = fd, identity = owner;
+      const writing = promisify(fs.writeFile)(opened, bytes).then(() => promisify(fs.fsync)(opened))
+        .then(() => publish(identity)).finally(cleanup);
+      asyncCleanup = true;
+      return writing;
+    }
     fs.writeFileSync(fd, bytes);
     fs.fsyncSync(fd);
     return publish(owner);
-  } finally { cleanup(); }
+  } finally { if (!asyncCleanup) cleanup(); }
 }
 
 /**
