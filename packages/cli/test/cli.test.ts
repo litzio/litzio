@@ -3231,12 +3231,15 @@ test("plugin CLI forwards management requests and refuses malformed arguments be
   t.mock.method(globalThis, "fetch", async (url: URL, init?: RequestInit) => {
     calls++;
     if (url.pathname === "/daemon/health") return new Response(JSON.stringify({ protocolVersion: DAEMON_PROTOCOL }));
-    bodies.push(JSON.parse(init!.body as string));
+    const body = JSON.parse(init!.body as string);
+    assert.equal(url.pathname, body.action === "file-actions" ? "/api/plugin-screens" : "/api/plugins");
+    bodies.push(body);
     return new Response(JSON.stringify({ receipt: { outcome: "success" } }));
   });
   let output = ""; t.mock.method(process.stdout, "write", (chunk: string) => { output += chunk; return true; });
   const forwarded: [string[], unknown][] = [
     [["list"], { action: "list" }], [["register", "C:/host/example"], { action: "register", directory: "C:/host/example" }],
+    [["file-actions", "C:/sample/File.DOCX"], { action: "file-actions", path: "C:/sample/File.DOCX" }],
     [["bundle", "C:/host/example"], { action: "bundle", directory: "C:/host/example" }],
     [["dependencies", "C:/host/example"], { action: "dependencies", directory: "C:/host/example" }],
     ...["enable", "disable", "reload", "unregister", "secret-status", "settings"].map(action => [[action, "local.example"], { action, id: "local.example" }] as [string[], unknown]),
@@ -3246,12 +3249,13 @@ test("plugin CLI forwards management requests and refuses malformed arguments be
     assert.equal(await runCliAsync(["plugins", ...args, ...host]), 0, args.join(" "));
     assert.deepEqual(bodies.at(-1), body);
   }
-  const usage = /^Error: plugins list\|install <directory-or-id>\|/;
+  const usage = /^Error: plugins list\|file-actions <path>\|install <directory-or-id>\|/;
   const registrationId = "62fbf782-043e-4c03-8b20-60aaaf34b6da";
   calls = 0;
   for (const [args, reason] of [
     [["plugins"], usage], [["plugins", "list", "extra"], usage], [["plugins", "constructor", "x"], usage], [["plugins", "secret-delete", "local.example"], usage],
     [["plugins", "settings", "local.example", "--input", settings], usage], [["operation", "list"], usage],
+    [["plugins", "file-actions"], usage], [["plugins", "file-actions", "A.docx", "B.docx"], usage],
     [["operation", "invoke", "local.example.read"], /^Error: operation invoke <id> --input <json-file>$/],
     [["plugins", "trust", "local.example", "--registration", registrationId, "--registration", registrationId], /^Error: Duplicate plugin trust option$/],
     [["plugins", "enable", "local.example", "--digest", "abc"], /^Error: Invalid plugin trust option$/]] as [string[], RegExp][]) {

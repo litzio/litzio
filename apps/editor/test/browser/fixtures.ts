@@ -188,6 +188,13 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "unsafe.svg", create: () => '<svg xmlns="http://www.w3.org/2000/svg"><script>window.__litzioSVG = true; fetch("/api/folder-places");</script><text y="20">Untrusted media</text></svg>' },
   ], scenarios: ["http-host"] },
   "http-host-b/fixture": { files: [{ name: "b.md", create: () => nativeSource("# HTTP B\n\nBeta.\n") }], scenarios: ["http-host"] },
+  "http-host-a/file-actions": { files: [
+    { name: "Preview.pdf", create: syntheticPdf },
+    { name: "Proposal.DOCX", create: () => "Synthetic proposal" },
+    { name: "Message.eml", create: () => "Subject: Synthetic message\n\nHello.\n" },
+    { name: "README", create: () => "Synthetic source" },
+    { name: "Outline.md", create: () => nativeSource("# Project outline\n\nA sample document.\n") },
+  ], scenarios: ["plugin-file-actions"] },
   // Content editing in a plugin document view (#1976), inside the HTTP Host's first root.
   "http-host-a/content-edit": { files: [
     { name: "content.md", create: () => nativeSource("# Content editing\n\nTeh first paragraph has a typo.\n\nSecond paragraph stays.\n\n" +

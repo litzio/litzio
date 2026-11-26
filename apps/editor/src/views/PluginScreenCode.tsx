@@ -5,11 +5,12 @@ import { Notice } from "../ui/primitives.tsx";
 import type { HostClient } from "../host-client.ts";
 import { saveScreenDocument, type ScreenDocumentInput } from "./screen-document.ts";
 import { DocumentViewScope } from "./screen-document-view.tsx";
-import type { ScreenConfirmInput, ScreenOpenDocumentResult, ScreenPickedPath, ScreenPickPathInput } from "@litzio/plugin-sdk";
+import type { ScreenConfirmInput, ScreenFileOpen, ScreenOpenDocumentResult, ScreenPickedPath, ScreenPickPathInput } from "@litzio/plugin-sdk";
 import { useScreenPathPicker } from "./screen-path-picker.tsx";
 import { useScreenConfirmation } from "./screen-confirmation.tsx";
 import { isScreenPath } from "./screen-path.ts";
 type ScreenProps = { React: typeof React; ui: typeof ui; invoke(operation: string, input?: unknown): Promise<unknown>;
+  fileOpen?: ScreenFileOpen;
   confirm(input: ScreenConfirmInput): Promise<boolean>;
   pickPath(input: ScreenPickPathInput): Promise<ScreenPickedPath | null>;
   openDocument(input: {path: string}): Promise<ScreenOpenDocumentResult>;
@@ -22,7 +23,7 @@ export class ScreenBoundary extends React.Component<{ children: React.ReactNode;
   }
   render() { return this.state.error && this.props.closing ? null : this.state.error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{this.state.error.stack ?? this.state.error.message}</pre></Notice> : this.props.children; }
 }
-export function PluginScreenCode({ code, owner, client, roots, onOpen }: { code: string; owner: string; client: HostClient; roots: string[]; onOpen?(path: string, signal: AbortSignal): Promise<ScreenOpenDocumentResult> }) {
+export function PluginScreenCode({ code, owner, client, roots, fileOpen, onOpen }: { code: string; owner: string; client: HostClient; roots: string[]; fileOpen?: ScreenFileOpen; onOpen?(path: string, signal: AbortSignal): Promise<ScreenOpenDocumentResult> }) {
   const lifetime = React.useRef<AbortController | null>(null);
   const latestRoots = React.useRef(roots); latestRoots.current = roots;
   const { confirm, dialog: confirmation } = useScreenConfirmation(client, lifetime);
@@ -72,5 +73,5 @@ export function PluginScreenCode({ code, owner, client, roots, onOpen }: { code:
     catch (cause) { opening = {status:"refused",path:receipt.path,message:String((cause as Error).message ?? cause)}; }
     return {...receipt, opening};
   }, [client, openDocument]);
-  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <DocumentViewScope.Provider value={{ client, roots }}><Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} confirm={confirm} pickPath={pickPath} openDocument={openDocument} />{dialog}{confirmation}</DocumentViewScope.Provider> : null;
+  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <DocumentViewScope.Provider value={{ client, roots }}><Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} confirm={confirm} pickPath={pickPath} openDocument={openDocument} fileOpen={fileOpen} />{dialog}{confirmation}</DocumentViewScope.Provider> : null;
 }

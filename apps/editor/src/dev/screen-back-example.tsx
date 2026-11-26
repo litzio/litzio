@@ -16,12 +16,13 @@ export function ScreenBackExample() {
   const [longName, setLongName] = useState(false), [disabled, setDisabled] = useState(false), [narrow, setNarrow] = useState(false);
   const toggle = (label: string, pressed: boolean, set: (value: boolean) => void) =>
     <ui.Button aria-pressed={pressed} onClick={() => set(!pressed)}>{label}</ui.Button>;
-  return <div className="task-surface"><ScreenFrame title="Return to list"><ui.ScreenLayout width={narrow ? "narrow" : "full"}
-    description={opened ? `${opened.label} · ${opened.details?.[0]}` : undefined}
+  return <div className="task-surface"><ScreenFrame title={longName ? `Return to list: ${LONG_LIST_NAME}` : "Return to list"}><ui.ScreenLayout width={narrow ? "narrow" : "full"}
+    details={opened ? `${longName ? LONG_LIST_NAME : opened.label}.pdf · ${opened.details?.[0]}` : undefined}
+    description={opened ? "원본 PDF와 변환한 문서를 나란히 놓고 빠지거나 바뀐 내용을 확인합니다." : undefined}
     back={opened ? { label: longName ? LONG_LIST_NAME : "변환한 문서", onBack: () => setOpened(null), disabled } : undefined}
     status={opened?.status && <ui.Status tone={opened.status.tone} label={opened.status.label} />}
     actions={opened && <><ui.Button>PDF 고르기</ui.Button><ui.Button>문서 열기</ui.Button><ui.Button variant="default">검토 완료</ui.Button></>}>
-    <ui.Toolbar label="Return example">{toggle("Long list name", longName, setLongName)}{toggle("Disable return", disabled, setDisabled)}{toggle("Narrow width", narrow, setNarrow)}</ui.Toolbar>
+    <ui.Toolbar label="Return example">{toggle("Long names", longName, setLongName)}{toggle("Disable return", disabled, setDisabled)}{toggle("Narrow width", narrow, setNarrow)}</ui.Toolbar>
     {opened ? <ui.Section title="문서 정보"><ui.Row kind="fact" label="쪽 수">{opened.details?.[0]}</ui.Row><ui.Row kind="fact" label="상태">{opened.status?.label}</ui.Row></ui.Section>
       : <ui.ItemList items={DOCUMENTS} onOpen={setOpened} />}
   </ui.ScreenLayout></ScreenFrame></div>;

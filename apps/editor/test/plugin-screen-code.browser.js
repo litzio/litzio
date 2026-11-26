@@ -90,9 +90,16 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   // Frame contract: plugin header slots, ordered progress, centered body and sticky title.
   frameMode=true; revision++;
   await expect(workspace.locator('.task-header')).toContainText('Service connected');
-  await expect(workspace.locator('.task-header-description')).toHaveText('Convert source PDFs into readable results.');
+  // A screen giving only a description keeps working: the text sits behind ⓘ and no details are drawn.
+  const about=workspace.locator('.task-header').getByRole('button',{name:'About this screen',exact:true});
+  await expect(about).toHaveAccessibleDescription('Convert source PDFs into readable results.');
+  await expect(workspace.locator('.task-header-details')).toHaveCount(0);
+  await about.hover();
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText('Convert source PDFs into readable results.');
+  await page.mouse.move(0,0);
   await expect(workspace.locator('li[aria-current="step"]')).toHaveText('1Choose files');
   await page.setViewportSize({width:1440,height:1000});
+  await expect.poll(()=>workspace.locator('.task-header').evaluate(n=>{const h=n.querySelector('.task-header-heading').getBoundingClientRect(),a=n.querySelector('.task-header-trailing').getBoundingClientRect();return a.top<h.bottom && a.left>=h.right;})).toBe(true);
   const body=workspace.locator('.screen-layout');
   await expect.poll(()=>body.evaluate(n=>{const r=n.getBoundingClientRect(),p=n.parentElement.getBoundingClientRect();return r.width<p.width && Math.abs((r.left+r.right)-(p.left+p.right))<2;})).toBe(true);
   await workspace.getByRole('button',{name:'Choose PDF',exact:true}).click();

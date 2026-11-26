@@ -10,7 +10,7 @@
 
 SDK 0.10.0은 Core의 `updateDocumentStatus`, `DocumentStatus`, `DOCUMENT_STATUSES`와 선택 `DocumentAuthoringInput.status`를 제공한다. 상태 의미와 검증은 [native 문서 계약](document-support-v1.md#문서-검토-상태)을 따른다. SDK 0.11.0은 화면 부품 `ui.ItemList`와 그 타입을 더한다([화면 계약](plugin-screens-v1.md#공용-정보-부품)). SDK 0.12.0은 `ui.ScreenLayout`의 `back`과 그 타입 `ScreenLayoutBack`을 더한다([화면 계약](plugin-screens-v1.md#머리-구역과-작업-흐름)).
 
-SDK 0.13.0은 `insertAdmonition`, `updateAdmonitionVariant`, `updateAdmonitionInlineContent`, `ADMONITION_VARIANTS`, `AdmonitionVariant`, `updateDocumentTitle`을 제공한다. SDK 0.14.0은 `ui.DocumentView`의 `editContent`·`onEditStateChange`·`onSave`와 타입 `ScreenDocumentEditState`를 더한다([내용 편집](plugin-screens-v1.md#내용-편집)). SDK 0.16.0은 Core의 표 주석 연산 `insertTableNote`, `updateTableNote`, `removeTableNote`, `moveTableNote`를 재수출한다. 표 경로와 주석 위치로 표에 딸린 문단을 넣고 고치고 빼고 옮기며, 의미와 검증은 Core와 CLI `insert-table-note` 등이 공유한다. SDK 0.17.0은 `ui.DocumentView`의 `onSave`에 Host가 받아들인 결과의 `blocks`와 타입 `ScreenDocumentSavedBlock`을 더한다([내용 편집](plugin-screens-v1.md#내용-편집)). SDK 0.18.0은 `documentViewChange`·타입 `ScreenDocumentViewChange`와 `ui.DocumentView`의 `apply`·`onApplyStateChange`·타입 `ScreenDocumentViewApply`·`ScreenDocumentApplyState`를 더한다([고친 결과 먼저 보이기](plugin-screens-v1.md#고친-결과-먼저-보이기)). SDK 0.19.0은 병합 칸·여러 머리글 행·칸 안 문단·목록이 있는 표([ADR-0024](../adr/0024-complex-tables.md))를 읽고 쓴다. 문서 읽기의 표는 `grid: "complex"`, `headerRows`와 시작 칸만 담은 행을 주고, 각 칸은 `column`·`rowspan`·`colspan`·`blocks`를 가진다. `insertTable`과 공식 작성의 `kind: "table"`은 같은 모양의 `grid: "complex"` 입력을 받는다. 재수출하는 `updateTableCellBlocks`는 칸의 문단·목록을 바꾸고, `tableCellAtPath`는 칸 경로(복잡한 표는 칸이 시작하는 열)로 읽기 모델의 칸을 찾는다. 타입 `TableCellBlock`, `ComplexTableInput`, `ComplexTableCellInput`, `EditableComplexTableCell`을 함께 준다. 행·열·열 정렬 연산은 이런 표를 바꾸지 않고 거부한다.
+SDK 0.13.0은 `insertAdmonition`, `updateAdmonitionVariant`, `updateAdmonitionInlineContent`, `ADMONITION_VARIANTS`, `AdmonitionVariant`, `updateDocumentTitle`을 제공한다. SDK 0.14.0은 `ui.DocumentView`의 `editContent`·`onEditStateChange`·`onSave`와 타입 `ScreenDocumentEditState`를 더한다([내용 편집](plugin-screens-v1.md#내용-편집)). SDK 0.16.0은 Core의 표 주석 연산 `insertTableNote`, `updateTableNote`, `removeTableNote`, `moveTableNote`를 재수출한다. 표 경로와 주석 위치로 표에 딸린 문단을 넣고 고치고 빼고 옮기며, 의미와 검증은 Core와 CLI `insert-table-note` 등이 공유한다. SDK 0.17.0은 `ui.DocumentView`의 `onSave`에 Host가 받아들인 결과의 `blocks`와 타입 `ScreenDocumentSavedBlock`을 더한다([내용 편집](plugin-screens-v1.md#내용-편집)). SDK 0.18.0은 `documentViewChange`·타입 `ScreenDocumentViewChange`와 `ui.DocumentView`의 `apply`·`onApplyStateChange`·타입 `ScreenDocumentViewApply`·`ScreenDocumentApplyState`를 더한다([고친 결과 먼저 보이기](plugin-screens-v1.md#고친-결과-먼저-보이기)). SDK 0.19.0은 신분증의 선택 필드 `fileActions`를 더한다([파일 동작](#파일-동작-2018)). SDK 0.20.0은 `ui.ScreenLayout`에 대상의 짧은 정보 `details`를 더한다([머리 구역](plugin-screens-v1.md#머리-구역과-작업-흐름)). SDK 0.21.0은 병합 칸·여러 머리글 행·칸 안 문단·목록이 있는 표([ADR-0024](../adr/0024-complex-tables.md))를 읽고 쓴다. 문서 읽기의 표는 `grid: "complex"`, `headerRows`와 시작 칸만 담은 행을 주고, 각 칸은 `column`·`rowspan`·`colspan`·`blocks`를 가진다. `insertTable`과 공식 작성의 `kind: "table"`은 같은 모양의 `grid: "complex"` 입력을 받는다. 재수출하는 `updateTableCellBlocks`는 칸의 문단·목록을 바꾸고, `tableCellAtPath`는 칸 경로(복잡한 표는 칸이 시작하는 열)로 읽기 모델의 칸을 찾는다. 타입 `TableCellBlock`, `ComplexTableInput`, `ComplexTableCellInput`, `EditableComplexTableCell`을 함께 준다. 행·열·열 정렬 연산은 이런 표를 바꾸지 않고 거부한다.
 
 ## 신분증
 
@@ -27,6 +27,25 @@ SDK 0.13.0은 `insertAdmonition`, `updateAdmonitionVariant`, `updateAdmonitionIn
 선택 선언에는 `description`, `operations`, `settingsSchema`, `secrets`, `skills`, `healthCheck`도 있다. 공개 작업은 id·version·effect(read/write)·scope·assistant·inputSchema·outputSchema를 선언한다. 생략 기본값은 version 1, read, host, assistant false, 빈 schema다. 화면 전용 handler는 공개 작업 선언 없이 자기 화면의 invoke로 호출한다. 비서는 assistant:true 읽기와 healthCheck만 호출한다. 외부 CLI의 공개 invoke와 같은 입력·출력 검증 및 receipt를 사용한다.
 
 아이콘은 제공된 이름 또는 artifact 내부 SVG/PNG다(확장자 대소문자 무관, 최대 64 KiB·가로/세로 1–256px). WebP 등 다른 형식은 거부한다. SDK의 공통 형식 정의를 manifest 검증과 Host 로더가 함께 사용한다. host/screen/icon의 절대 경로·URL·상위 탈출을 거부하며 파일은 artifact 안에서 해석한다. 화면 소스와 SDK handler 검증은 설치 시 실행 전에 수행한다. 스키마의 외부 참조·중복 작업/secret/skill ID를 거부한다. SDK는 Editor/React 엔진에 의존하지 않는다.
+
+### 파일 동작 (#2018)
+
+SDK 0.19.0의 선택 필드 `fileActions`는 신분증 최상위에 선언한다. 생략하면 빈 배열이며 SDK는 `contributes.fileActions`로 정규화한다.
+
+```json
+{
+  "fileActions": [
+    { "id": "convert", "label": "문서 변환", "icon": "FileText", "extensions": [".pdf", ".docx"], "screenId": "main", "openByDefault": true }
+  ]
+}
+```
+
+- `id`는 기존 ID 형식을 따르고 플러그인 안에서 유일하다. `label`은 양끝 공백을 제거한 뒤 비어 있지 않은 한 줄 문자열이다.
+- `icon`은 SDK의 `SCREEN_ICONS` 이름이며 기본값은 `FileText`다. `screenId`는 같은 신분증의 화면을 가리키며, 현재 형식의 유일한 화면이자 기본값인 `main`을 사용한다.
+- `extensions`는 점으로 시작하는 소문자 ASCII 영숫자 확장자를 하나 이상 담는다. 중복 값과 알 수 없는 필드는 검증에서 거절한다. 파일명에 붙은 마지막 확장자를 대소문자 구분 없이 비교한다.
+- `openByDefault`는 기본값이 `false`다. `true`를 지정하면 리치오의 기본 열기·이미지 미리보기가 없는 파일의 기본 열기 후보가 된다. 한 플러그인은 확장자마다 후보를 하나만 선언할 수 있다. [탐색기와 탭의 파일 동작](editor-ux-shell-v1.md#plugin-file-actions-2018)을 따른다.
+
+`litzio plugins file-actions <path> --host <origin> --json`은 지정한 Host의 읽기 작업 `plugins.file-actions` v1을 호출한다. 결과는 `{target,fileActions,receipt}`이며 각 항목은 선언 필드에 `plugin`, `screenTitle`, 준비 중일 때의 `activation`을 더한다. 일치 항목이 없으면 빈 배열과 성공 receipt를, 유효하지 않은 입력에는 거부 receipt를 반환한다. 조회는 화면 목록의 기여와 같은 규칙을 쓰며 경로의 파일명만 검사한다. 비서는 결과의 플러그인 ID와 공개 작업 스키마로 기존 `operation invoke`를 사용한다. 화면으로 전달하는 값은 [화면 계약](plugin-screens-v1.md#파일-동작으로-열기-2018)을 따른다.
 
 ## Node 처리 코드의 공식 CLI
 

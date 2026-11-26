@@ -641,6 +641,28 @@ test("fast Save verifies the original work, corrects only its own bytes, and kee
   assert.match(warnings.join("\n"), /verify-local-write: paragraph, different\/uncorrected, 3 blocks/);
   for (const entry of warnings) assert.doesNotMatch(entry, /Alpha|Injected|\.md|New external/);
 
+  const receiptFolder = path.join(a, "receipt-folder");
+  const receiptAlias = path.join(a, "receipt-alias");
+  fs.mkdirSync(receiptFolder);
+  fs.symlinkSync(receiptFolder, receiptAlias, process.platform === "win32" ? "junction" : "dir");
+  const aliasDocument = await open(path.join("receipt-alias", "moved"));
+  const waitingMove = hold();
+  const movedSave = await (await submit(aliasDocument, "Save before moving.")).json();
+  assert.equal(movedSave.pendingLocalWrite, true);
+  const movedCheck = await waitingMove;
+  try {
+    const aliasPath = path.join(receiptAlias, "moved.md");
+    const statusQuery = query(aliasPath, movedSave.revision);
+    assert.deepEqual(await (await send(statusQuery)).json(), { state: "pending" });
+    fs.renameSync(receiptFolder, path.join(a, "receipt-folder-moved"));
+    const result = await send(statusQuery);
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), { state: "done" });
+    assert.equal((await send(query(aliasPath, "invalid"))).status, 400);
+  } finally {
+    movedCheck.release();
+  }
+
   const shutdown = await open("host-exit");
   const waitingHost = hold();
   const shutdownSave = await (await submit(shutdown, "Open after restart.")).json();

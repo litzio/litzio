@@ -289,8 +289,17 @@ export async function handleDocumentRequest(
       } else {
         const revision = query.get("revision") ?? "";
         if (!/^[a-f0-9]{64}$/.test(revision)) throw new Error("invalid document revision");
-        const file = resolveDocumentPath(query.get("path") ?? undefined, access);
-        sendJson(res, 200, documents?.localWrite?.status(canonicalFilePath(file), revision) ?? { state: "done" });
+        let file: string;
+        try {
+          file = canonicalFilePath(resolveDocumentPath(query.get("path") ?? undefined, access));
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code !== "ENOENT" && code !== "ENOTDIR") throw error;
+          // A move or deletion can invalidate the locator before the client stops polling.
+          sendJson(res, 200, { state: "done" });
+          return;
+        }
+        sendJson(res, 200, documents?.localWrite?.status(file, revision) ?? { state: "done" });
       }
     } catch (error) { failure(error); }
     return;
