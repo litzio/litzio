@@ -18,7 +18,7 @@
 
 ## 화면 실행
 
-플러그인의 유일한 화면 형식은 React JS/JSX 코드다. manifest의 screen은 artifact 내부 진입 파일이고 default export 컴포넌트는 `React`, `ui`, `invoke`, `saveDocument`, `pickPath`, `openDocument`, `confirm`를 받는다. React는 앱 인스턴스를 공유하고 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다.
+플러그인의 유일한 화면 형식은 React JS/JSX 코드다. manifest의 screen은 artifact 내부 진입 파일이고 default export 컴포넌트는 `React`, `ui`, `invoke`, `saveDocument`, `pickPath`, `openDocument`, `confirm`를 받는다. Manifest의 `fileActions`로 화면을 열거나 활성화하면 선택 prop `fileOpen`으로 대상 파일을 받는다. [파일 동작으로 열기](#파일-동작으로-열기-2018)를 따른다. React는 앱 인스턴스를 공유하고 CSS 토큰·글꼴은 같은 화면 트리에서 상속한다.
 
 Host는 로컬 출처를 복사하고 설치본 안에서 필요한 esbuild 번들을 준비한다. 실행 시 npm 설치나 원격 import 해석을 하지 않는다. 불러오는 중에도 검증한 manifest의 화면 이름과 아이콘을 목록에 제공한다. 이때 목록의 `activation`은 Host가 정한 `loading` 또는 `slow`이며, 작업 막대는 아이콘을 흐리게 표시하고 Tooltip에서 불러오는 중임을 알린다. 탭을 열면 불러오는 중을 표시하며, 준비되면 같은 탭에서 화면 코드와 설치본 digest revision을 읽어 연다. 목록에서 화면이 사라지면 사용할 수 없음을 표시한다. 1440px 기준 화면은 [작업 막대](assets/plugin-startup-1918/activity-1440-light.png)와 [열린 탭](assets/plugin-startup-1918/screen-1440-light.png)이다. 원본을 편집해도 화면 revision은 유지되며, 다시 읽기가 성공하면 새 설치본의 revision을 제공한다. 대상 Host의 `/api/plugin-screens`의 screens 작업은 화면 목록과 선택적 코드를 반환한다. 파일 동작 조회도 같은 경로를 사용한다. 클라이언트는 CSP script-src의 blob 모듈로 실행한다. 샌드박스·iframe·권한 모델·서명·버전 협상은 만들지 않는다.
 
