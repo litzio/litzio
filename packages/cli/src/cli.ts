@@ -67,6 +67,8 @@ type CommandSpec = {
 type OutputFormat = "text" | "json";
 
 const BODY_INDEX_NOTE = "Block 0 is the document metadata; body blocks start at 1 (also the first index in a path).";
+// ADR-0024: these commands keep a rectangular grid of one-paragraph cells.
+const COMPLEX_TABLE_NOTE = "A table with merged cells, several header rows or cell blocks refuses this command without writing.";
 const PATH_NOTE = [
   "Paths identify nodes in the current document snapshot.",
   "Structural edits may change them.",
@@ -145,7 +147,7 @@ const COMMANDS: CommandSpec[] = [
       "Stdin accepts one leading UTF-8 BOM for Windows PowerShell pipes; file input rules are unchanged.",
       `Example: cat operations.json | ${brand.cliCommand} apply-batch document.md --operations -`,
       "Use existing flag names without -- as keys. Scalar options accept string, number or boolean only.",
-      "JSON options (content, caption-content, cells, list, keys, paths, and insert-table align) accept objects/arrays",
+      "JSON options (content, caption-content, cells, grid, blocks, list, keys, paths, and insert-table align) accept objects/arrays",
       "directly or existing JSON strings. Required, unknown and mutually exclusive options follow single edits.",
       "JSON options accept objects, arrays or strings only; null option values are rejected.",
       "All document edit commands, including format, are allowed; create, check, inspect, daemon,",
@@ -546,7 +548,7 @@ const COMMANDS: CommandSpec[] = [
     name: "insert-table",
     group: "Edit — tables",
     summary: "Insert a Markdown table at a top-level index",
-    usage: `${brand.cliCommand} insert-table <file> --at <index|end> --cells <json> [--align <json>] [--caption <text> | --caption-content <json>] [--label <label>]`,
+    usage: `${brand.cliCommand} insert-table <file> --at <index|end> (--cells <json> [--align <json>] | --grid <json>) [--caption <text> | --caption-content <json>] [--label <label>]`,
     details: [
       "Insert a Markdown table at a top-level index.",
       "--cells is a JSON array of rows, each an array of cells; the first row is the header row.",
@@ -557,6 +559,11 @@ const COMMANDS: CommandSpec[] = [
       "--label follows update-label's validation and duplicate rules; a caption is not required for a label.",
       "Insertion, caption and label are applied in one write; any failure leaves the original unchanged.",
       "Example: --cells '[[\"Port\",\"Type\"],[\"U\",\"AC\"]]'",
+      "--grid is a table with merged cells, several header rows or cell blocks: {\"headerRows\":N,\"rows\":[{\"cells\":[...]}]}.",
+      "Each row lists only the cells that start in it. A cell is {column?, rowspan?, colspan?, align?, blocks}, spans default to 1,",
+      "and blocks are {\"kind\":\"paragraph\",\"content\":InlineContent} or {\"kind\":\"list\",\"list\":ListContent} (bullets or decimal numbers).",
+      "For such a table, inspect --format json gives grid, headerRows and each cell's path [table,row,column], spans and blocks.",
+      "A grid of one-paragraph cells, one header row and no merged cells is written as a pipe table.",
     ],
   },
   {
@@ -624,6 +631,7 @@ const COMMANDS: CommandSpec[] = [
     details: [
       "Insert an empty body row into a top-level Markdown table.",
       "Row 0 is the header row, so --at is from 1 to the row count (the end).",
+      COMPLEX_TABLE_NOTE,
       ...PATH_NOTE,
     ],
   },
@@ -635,6 +643,7 @@ const COMMANDS: CommandSpec[] = [
     details: [
       "Insert an empty column, header cell included, into a top-level Markdown table.",
       "--at is from 0 to the column count (the end).",
+      COMPLEX_TABLE_NOTE,
       ...PATH_NOTE,
     ],
   },
@@ -646,6 +655,7 @@ const COMMANDS: CommandSpec[] = [
     details: [
       "Remove a body row from a top-level Markdown table.",
       "Row 0 is the header row and cannot be removed, so --at is from 1 to the last row.",
+      COMPLEX_TABLE_NOTE,
       ...PATH_NOTE,
     ],
   },
@@ -657,6 +667,7 @@ const COMMANDS: CommandSpec[] = [
     details: [
       "Remove a column, header cell included, from a top-level Markdown table.",
       "A table keeps at least one column; use remove-block to remove the whole table.",
+      COMPLEX_TABLE_NOTE,
       ...PATH_NOTE,
     ],
   },
@@ -667,6 +678,7 @@ const COMMANDS: CommandSpec[] = [
     usage: `${brand.cliCommand} move-table-row <file> --path <table> --from <row> --to <row>`,
     details: [
       "Move a body row of a top-level Markdown table. Row 0 is the header row and stays first.",
+      COMPLEX_TABLE_NOTE,
       ...PATH_NOTE,
     ],
   },
@@ -677,6 +689,7 @@ const COMMANDS: CommandSpec[] = [
     usage: `${brand.cliCommand} move-table-column <file> --path <table> --from <column> --to <column>`,
     details: [
       "Move a column, header cell and alignment included, within a top-level Markdown table.",
+      COMPLEX_TABLE_NOTE,
       ...PATH_NOTE,
     ],
   },
@@ -687,6 +700,7 @@ const COMMANDS: CommandSpec[] = [
     usage: `${brand.cliCommand} update-table-alignment <file> --path <table> --column <column> --align <left|center|right|none>`,
     details: [
       "Set the alignment of one column of a top-level Markdown table, or clear it with none.",
+      COMPLEX_TABLE_NOTE,
       ...PATH_NOTE,
     ],
   },
@@ -757,10 +771,13 @@ const COMMANDS: CommandSpec[] = [
     name: "update-table-cell",
     group: "Edit — tables",
     summary: "Replace the content of a Markdown table cell through Core",
-    usage: `${brand.cliCommand} update-table-cell <file> --path <table,row,cell> (--text <text> | --content <json>)`,
+    usage: `${brand.cliCommand} update-table-cell <file> --path <table,row,cell> (--text <text> | --content <json> | --blocks <json>)`,
     details: [
       "Replace the whole content of one cell in a top-level Markdown table. Use line endings in --text or break nodes in --content. Empty --text clears the cell.",
       "--content is Core InlineContent JSON, including marks, links, inline math, references and break nodes.",
+      "--blocks replaces the cell's paragraphs and lists, as in insert-table --grid; the table is written as HTML when it needs to be.",
+      "In a table with merged cells, the cell is the one that starts at that column (inspect gives its path).",
+      "--text and --content replace a cell of one paragraph; a cell of several blocks or a list takes --blocks.",
       "Cell content must not have leading or trailing padding whitespace.",
       ...PATH_NOTE,
     ],
@@ -1239,11 +1256,11 @@ function formatBlock(block: EditableBlock): string[] {
     const cells = block.rows.flatMap((row) =>
       row.cells.map(
         (cell) =>
-          `  ${formatPath(cell.path)} cell header=${cell.header} textEditable=${cell.editable} text=${quote(cell.text)}`,
+          `  ${formatPath(cell.path)} cell header=${cell.header}${"rowspan" in cell ? ` rowspan=${cell.rowspan} colspan=${cell.colspan}` : ""} textEditable=${cell.editable} text=${quote(cell.text)}`,
       ),
     );
     const notes = (block.notes ?? []).map((note, index) => `  note ${index} text=${quote(inlineText(note))}`);
-    return [`${path} table`, ...cells, ...notes];
+    return [`${path} table${block.grid === "complex" ? ` grid=complex headerRows=${block.headerRows}` : ""}`, ...cells, ...notes];
   }
   if (block.block === "list") {
     return [`${path} list${block.ordered ? ` style=${block.style ?? "decimal"} delimiter=${quote(block.delimiter ?? ".")}` : ""}`, ...formatListItems(block, 1)];

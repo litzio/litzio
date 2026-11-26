@@ -15,7 +15,8 @@
 - Direct-editing verification: 2026-10-26 (#555 and the approved table-caption portion of #557; scope and evidence below).
 - Caption-label verification: 2026-10-26 (#462 Core template rule, CLI inspect, cross-reference browser immediate update, Undo/Redo, Source and Save → Reload).
 - CLI insertion verification: 2026-10-15 (#280 caption/label in one write, label-only table, invalid/duplicate label refusal and rich batch caption; Core/CLI tests).
-- Last verified: 2026-11-26 — #2015: 칸 내용이 문단 하나를 담는 블록 구조로 바뀐 뒤 Editor 단위 검사와 로컬 `table-caption`·`table-cell-editing`·`table-authoring`·`markdown-paste`·`recovery-structure`·`focus-caret`·`save-error`·`continuous-editing`·`property-drafts`·`notification-center`·`document-view-editing` 실행, 1440 밝음·어두움·640·문서 보기 전후 캡처의 픽셀 비교로 확인했다. Desktop 실행 재검증 없음.
+- Last verified: 2026-11-26 — #2015 공개 입장: [복잡한 표](#complex-tables-2015)의 읽기·작성·칸 연산과 행·열 거부를 Core·CLI·Host 단위 검사로, 편집기 표시와 잠금을 Editor 단위 검사와 로컬 브라우저 실행으로 확인했다. Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-26 — #2015: 칸 내용이 문단 하나를 담는 블록 구조로 바뀐 뒤 Editor 단위 검사와 로컬 `table-caption`·`table-cell-editing`·`table-authoring`·`markdown-paste`·`recovery-structure`·`focus-caret`·`save-error`·`continuous-editing`·`property-drafts`·`notification-center`·`document-view-editing` 실행, 1440 밝음·어두움·640·문서 보기 전후 캡처의 픽셀 비교로 확인했다. Desktop 실행 재검증 없음.
 - Previous verification: 2026-11-26 — #2013: 편집기 표 블록의 격자·캡션·주석 구조와 클립보드 HTML을 Editor 단위 검사, 로컬 `table-caption`·`table-cell-editing`·`table-authoring`·`recovery-structure`·`markdown-paste`·`document-view-editing` 실행과 1440·640px 전후 캡처로 확인했다. Desktop 실행 재검증 없음.
 - Previous verification: 2026-10-11 (contract compared with current code and regression coverage; caption inline math and reference display, #165).
 - Scope: Core table format, captions, notes, labels and their Editor/CLI interfaces. See [Table interaction](table-interaction-v1.md).
@@ -238,6 +239,39 @@ column edits preserve the notes. Moving, deleting or copying the table includes 
 The grid, caption and notes share one comparison block.
 
 See [ADR-0023](../adr/0023-table-inline-breaks-and-notes.md) for the format decision.
+
+## Complex tables (#2015)
+
+[ADR-0024](../adr/0024-complex-tables.md) admits a `{table}` whose grid is the HTML subset
+there: merged cells, several header rows, or paragraphs and lists in a cell. Native parsing reads
+such a grid; one that fits a pipe grid (one header row, no merged cell, one paragraph per cell)
+is read as the pipe table its canonical write produces. The read model gives a complex table
+`grid: "complex"` and `headerRows`; each row holds only the cells that start in it, each with
+`column`, `rowspan`, `colspan`, optional `align` and `blocks` (`{kind:"paragraph",content}` or
+`{kind:"list",list}`). A cell path `[table,row,column]` names the column where the cell starts;
+a covered position has no cell and an operation refuses it. A cell of one paragraph also gives
+its `content`. `inspect --format json` and the SDK document read return the same grid.
+
+Core `insertTable` and shared authoring (`kind: "table"`, `grid: "complex"`) take that grid as
+input, CLI `insert-table --grid`. Authoring counts the expanded grid against the 500-row,
+32-column and 8,000-position limits from the spans before any span is expanded, and counts
+cell blocks in the block budget. `updateTableCell` (`--text`/`--content`) replaces a cell of one
+paragraph; `updateTableCellBlocks` (`update-table-cell --blocks`) replaces a cell's blocks and
+moves the table between the pipe and HTML grids as the grid requires. Row, column and column
+alignment operations refuse a complex table without writing, in Core, CLI, `apply-batch` and
+Host Save; table notes, caption, label and numbering keep working.
+
+The document tab, the plugin document view and the comparison view show spans, paragraphs,
+lists and numbers with the same renderer. A cell holds paragraphs and bullet or numbered lists;
+paragraphs and lists in one cell are the cell's block padding apart. In this version a complex
+table's cells are read-only in the Editor: a change to them is refused as other unsupported
+changes are, and the caption and notes stay editable. A complex table has no row or column
+handles, and Tab in its last cell leaves the table instead of adding a row. A simple table
+cannot gain merged cells or cell blocks in the Editor, and a copied complex table is not pasted
+as a new table. Quick Save leaves complex tables to the full Save.
+Samples: [1440 light](assets/complex-tables-2015/1440-light-tables.png) · [1440 dark](assets/complex-tables-2015/1440-dark-tables.png) ·
+[640](assets/complex-tables-2015/640-light-tables.png) · [caret in a cell](assets/complex-tables-2015/1440-light-caret.png) ·
+[changes before saving](assets/complex-tables-2015/1440-light-comparison.png).
 
 ## Shared caption gap (#721)
 

@@ -15,6 +15,7 @@ import { isDivider, supportedQuoteContent } from "./quote.ts";
 import { supportedTargetLabel } from "./reference.ts";
 import { repeatRoundTrip, roundTrip, serialize as serializeTree } from "./serialize.ts";
 import { tableCellContent, tableOf, tableCaptionParagraph, tableNoteContent, tableNoteParagraphs, isNativeTableSource, validNumberOptions } from "./table.ts";
+import { isComplexGrid, tableCellBlocks, usePipeGrid } from "./table-grid.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
 import { NUMBERED_KINDS, referenceTemplatesError, type NumberedKind } from "../numbering.ts";
 import { referenceTemplateValue } from "./reference-templates.ts";
@@ -107,16 +108,21 @@ function supportedBlock(node: MystNode): boolean {
   const table = tableOf(node);
   if (table) {
     const caption = tableCaptionParagraph(node);
+    const complex = isComplexGrid(table);
     return (!caption || projectInlineContent(caption) !== undefined) &&
-      tableNoteParagraphs(node).every(note => tableNoteContent(note) !== undefined) && fields(table, ["children"]) &&
+      tableNoteParagraphs(node).every(note => tableNoteContent(note) !== undefined) && fields(table, complex ? ["children", "headerRows"] : ["children"]) &&
       (table.children ?? []).length > 0 && (table.children ?? []).every(row => row.type === "tableRow" && fields(row, ["children"]) &&
-        (row.children ?? []).every(cell => fields(cell, ["header", "align", "children"]) && tableCellContent(cell) !== undefined));
+        (row.children ?? []).every(cell => complex
+          ? fields(cell, ["header", "align", "children", "column", "rowspan", "colspan"]) && tableCellBlocks(cell) !== undefined
+          : fields(cell, ["header", "align", "children"]) && tableCellContent(cell) !== undefined));
   }
   return isDivider(node) || supportedListContent(node) !== undefined || supportedCodeBlock(node) !== undefined || supportedTargetLabel(node) !== undefined;
 }
 
 function assertInlineContent(node: MystNode, path: number[]): void {
-  if (["heading", "paragraph", "tableCell"].includes(node.type)) {
+  // A complex table's cell holds paragraphs and lists, which are checked themselves.
+  const cellBlocks = node.type === "tableCell" && (node.children ?? []).some(child => child.type === "paragraph" || child.type === "list");
+  if (["heading", "paragraph", "tableCell"].includes(node.type) && !cellBlocks) {
     const content = projectInlineContent(node);
     if (!content) throw new NativeDocumentError("native-content", "Unsupported native inline content", path, node.position?.start.line);
     if (hasAdjacentMatchingLinks(content)) {
@@ -147,8 +153,15 @@ export function assertNativeDocument(document: MystDocument): void {
 }
 
 export function parseNativeDocument(source: string): MystDocument {
-  const document = parseTree(source);
+  // ADR-0024: a `{table}` grid may be the supported HTML subset.
+  const document = parseTree(source, { complexTables: true, nativeAdmission: true });
   assertNativeDocument(document);
+  // An HTML grid that fits a pipe grid is a pipe table, as its canonical write is, so that the read
+  // model and the operations see the grid that the document keeps.
+  document.children.forEach((node, index) => {
+    const table = tableOf(node);
+    if (isComplexGrid(table)) usePipeGrid(table!, [index]);
+  });
   serializeTree(document);
   return document;
 }

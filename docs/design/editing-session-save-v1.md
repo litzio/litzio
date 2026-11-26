@@ -238,7 +238,7 @@ Historical Save replay and nested-parser verification: [Save, switching and prop
 
 요청은 열기 기준의 누적 편집을 유지한다. Host는 이전과 이번 내용을 비교해 바뀐 경로 하나를
 Core에 전달한다. 구조·문서 설정·지원 밖 편집이 섞인 누적 요청, 여러 내용 변경, 적격 여부를
-확정할 수 없는 경우는 전체 재생을 사용한다. Undo로 편집 항목이 없어지면 열기 시 내용이
+확정할 수 없는 경우는 전체 재생을 사용한다. 병합 칸·여러 머리글 행·칸 안 블록이 있는 복잡한 표([ADR-0024](../adr/0024-complex-tables.md))의 칸도 전체 재생으로 저장한다. Undo로 편집 항목이 없어지면 열기 시 내용이
 후보다. [Core 조건](document-support-v1.md#local-canonical-output-1983)을 통과하면 Host는
 기존 교체 직전 revision 검사를 거쳐 승인한다.
 

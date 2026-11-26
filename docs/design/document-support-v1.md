@@ -297,7 +297,7 @@ limited to ordinary text, supported emphasis marks, code, single-line math and s
 HTTP(S) links. Table edits allow plain cell text and single-line math.
 
 Unknown spans, list neighbours, endnote references, reference definitions or targets,
-unsupported inline syntax and multiline prose use full Save. These exclusions protect
+unsupported inline syntax, multiline prose and complex tables ([ADR-0024](../adr/0024-complex-tables.md): cells with start columns and blocks) use full Save. These exclusions protect
 against list continuation, document-wide reference binding and endnote relocation.
 Core rereads the changed block and its existing neighbours, compares their exact
 boundaries and meanings, and preserves source outside the replacement. Structural,

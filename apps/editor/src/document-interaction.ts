@@ -17,7 +17,8 @@ import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
 import { fromTiptapContent, toTiptapContent } from "./tiptap-inline.ts";
-import { forEachTableRow, inTableCell, tableCellOf, tableCellRange } from "./table-structure.ts";
+import { inTableCell, isComplexTable, tableCellOf, tableCellRange } from "./table-structure.ts";
+import { TableMap } from "@tiptap/pm/tables";
 
 const FOOTNOTES_ATTR = "data-litzio-footnotes";
 
@@ -256,7 +257,8 @@ function tableTab(state: EditorState, backward: boolean, editable: boolean): Tra
   const index = cells.indexOf(tableCellRange($from)!.from + 2);
   const target = cells[index + (backward ? -1 : 1)];
   if (target !== undefined) return state.tr.setSelection(TextSelection.create(state.doc, target)).scrollIntoView();
-  if (!backward && editable) return addTableRowBelow(state, $from.index(0), { row: cell.row, column: 0 });
+  // A complex table gains no row: Tab leaves it, as in a read-only table.
+  if (!backward && editable && !isComplexTable($from.node(1))) return addTableRowBelow(state, $from.index(0), { row: cell.row, column: 0 });
   const edge = backward ? $from.before(1) : $from.after(1);
   const selection = TextSelection.findFrom(state.doc.resolve(edge), backward ? -1 : 1, true);
   return selection ? state.tr.setSelection(selection).scrollIntoView() : paragraphBeside(state, !backward);
@@ -303,24 +305,25 @@ function tableVertical(view: EditorView, down: boolean): Transaction | null {
     }
     return state.tr.setSelection(TextSelection.create(doc, caret)).scrollIntoView();
   };
-  const tablePos = $cell.before(1), table = $cell.node(1), target = $cell.index(-1) + (down ? 1 : -1);
+  // Rows and columns of the grid, as TableMap lays out merged cells: the target is the cell at the
+  // current cell's first column, in the row below its last row or above its first.
+  const tablePos = $cell.before(1), table = $cell.node(1), grid = $cell.node(2), gridStart = $cell.start(2);
+  const map = TableMap.get(grid), rect = map.findCell($cell.pos - gridStart);
+  const target = down ? rect.bottom : rect.top - 1;
   if (target < 0) {
     const $table = doc.resolve(tablePos), before = Selection.findFrom($table, -1);
     if (!before) return state.tr.setSelection(new GapCursor($table)).scrollIntoView();
     if (!(before instanceof TextSelection)) return state.tr.setSelection(before).scrollIntoView();
     return caretIn(before.$head.start(), before.$head.end());
   }
-  let pos = -1, row: PMNode | undefined;
-  forEachTableRow(table, tablePos, (node, at, index) => { if (index === target) { pos = at; row = node; } });
-  if (!row) {
+  if (target >= map.height) {
+    let pos = -1;
     table.forEach((child, offset) => { if (child.type.name === "tableCaption") pos = tablePos + 1 + offset; });
     return state.tr.setSelection(TextSelection.create(doc, pos + 1)).scrollIntoView();
   }
-  const column = Math.min($cell.index(), row.childCount - 1);
-  pos += 1;
-  for (let index = 0; index < column; index++) pos += row.child(index).nodeSize;
+  const offset = map.map[target * map.width + rect.left];
   // The target cell's first (down) or last (up) textblock.
-  const { from, to } = cellTextblock(row.child(column), pos, !down);
+  const { from, to } = cellTextblock(grid.nodeAt(offset)!, gridStart + offset, !down);
   return caretIn(from, to);
 }
 

@@ -1,4 +1,4 @@
-import { DOCUMENT_STATUSES, type DocumentStatus } from "@litzio/core";
+import { DOCUMENT_STATUSES, type DocumentStatus, type TableCellBlock } from "@litzio/core";
 import { allocateBlockPath } from "./block-locators.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 import { inlineContentText as inlineText, sameInlineContent as sameInline, isAdmonitionVariant, paragraphInlineContent, type CodeBlockContent, type EditableDocument, type FigureContent, type InlineContent, type ListContent } from "@litzio/core";
@@ -220,6 +220,10 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
         const oldNotes = block.notes ?? [];
         if (notes.length !== oldNotes.length || notes.some((note, index) => !sameInline(note, oldNotes[index]))) {
           noteEdits.push({ path: block.path, notes });
+        }
+        if (block.grid === "complex") {
+          complexTableCellEdits(toTiptapBlock(block), node);
+          return;
         }
         const next = tableCells(node);
         const shape = tableShape(tableCells(toTiptapBlock(block)), next);
@@ -487,6 +491,7 @@ function insertEdit(node: TiptapJSON): InsertEdit {
     return { block: "figure", ...figureContent(node), ...(label ? { label } : {}), ...insertEnumerator(node) };
   }
   if (node.type === "table") {
+    if (isComplexTableJSON(node)) throw new Error("a new table cannot have merged cells, header rows after the first or cell blocks");
     const grid = tableCells(node);
     if (grid.some((row, index) => row.some(cell => cell.header !== (index === 0)))) {
       throw new Error("a new table holds editable cells, with header cells only in its first row");
@@ -614,6 +619,11 @@ function assertBlockChange(before: TiptapJSON | undefined, after: TiptapJSON | u
     if (normalizeAttr(before.attrs?.sourcePath) !== normalizeAttr(after.attrs?.sourcePath)) {
       throw new Error("table identity cannot change");
     }
+    if (isComplexTableJSON(before) || isComplexTableJSON(after)) {
+      if (!isComplexTableJSON(before)) throw new Error("a table cannot gain merged cells, header rows after the first or cell blocks");
+      complexTableCellEdits(before, after);
+      return;
+    }
     tableShape(tableCells(before), tableCells(after));
     return;
   }
@@ -690,6 +700,42 @@ function tableCells(node: TiptapJSON): TableCellShape[][] {
       }
     });
   });
+}
+
+/** True when a table's grid is complex (ADR-0024): a merged cell, a header row after the first, a
+ * row that only covered cells fill, or a cell that does not hold exactly one paragraph. This is
+ * when Core keeps the grid as HTML rather than as a pipe grid. */
+export function isComplexTableJSON(node: TiptapJSON): boolean {
+  return tableRowsJSON(node).some((row, rowIndex) => !row.content?.length || row.content.some(cell =>
+    Number(cell.attrs?.colspan ?? 1) !== 1 || Number(cell.attrs?.rowspan ?? 1) !== 1 || (rowIndex > 0 && cell.attrs?.header === true) ||
+    cell.content?.length !== 1 || cell.content[0].type !== "paragraph"));
+}
+
+/** A complex table's cells: each start cell's snapshot position, kind, alignment, spans and blocks. */
+function complexTableCells(node: TiptapJSON) {
+  return tableRowsJSON(node).map((row, rowIndex) => (row.content ?? []).map((cell, index) => {
+    try {
+      if (cell.type !== "tableCell" || !cell.content?.length) throw new Error(`unsupported Tiptap node ${describeType(cell)} in table row`);
+      return {
+        source: String(cell.attrs?.[TABLE_CELL_SOURCE_ATTR] ?? ""), header: cell.attrs?.header === true, align: String(cell.attrs?.align ?? ""),
+        rowspan: Number(cell.attrs?.rowspan ?? 1), colspan: Number(cell.attrs?.colspan ?? 1),
+        blocks: cell.content.map((child): TableCellBlock => child.type === "paragraph"
+          ? { kind: "paragraph", content: paragraphInline(child) } : { kind: "list", list: listContent(child) }),
+      };
+    } catch (error) {
+      throw new SaveContentError(error instanceof Error ? error.message : String(error), undefined, {
+        cause: error, phase: "collect", cell: { row: rowIndex, column: index },
+        ...(error instanceof SaveContentError ? { action: error.action } : {}),
+      });
+    }
+  }));
+}
+
+/** A complex table keeps its grid and every cell's blocks; its cells are read-only in this version. */
+function complexTableCellEdits(before: TiptapJSON, after: TiptapJSON): void {
+  if (JSON.stringify(complexTableCells(before)) !== JSON.stringify(complexTableCells(after))) {
+    throw new Error("cells of a table with merged cells, header rows or cell blocks are read-only");
+  }
 }
 
 type TableShape = Pick<TableShapeEdit, "rows" | "columns" | "align">;

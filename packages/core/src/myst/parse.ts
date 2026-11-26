@@ -39,7 +39,7 @@ export function sourcePosition(node: MystNode): MystNode["position"] {
   return directiveRanges.get(node) ?? node.position;
 }
 
-export function parse(source: string, { complexTables = false } = {}): MystDocument {
+export function parse(source: string, { complexTables = false, nativeAdmission = false } = {}): MystDocument {
   assertUnicode(source);
   const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
   const file = new VFile();
@@ -65,7 +65,8 @@ export function parse(source: string, { complexTables = false } = {}): MystDocum
   } else containerChildrenTransform(document, new VFile());
   readTableBreaks(document);
   locateFootnotes(document, text, OPTIONS, convertedTables?.size ? parse : undefined);
-  if (complexTables) rejectOutOfScopeHtml(document);
+  // Native admission refuses HTML outside the grids itself, with its own codes and reasons.
+  if (complexTables && !nativeAdmission) rejectOutOfScopeHtml(document);
   return document;
 }
 

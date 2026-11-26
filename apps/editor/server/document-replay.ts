@@ -4,6 +4,7 @@ import {
   endnotesInPlace,
   citationReport,
   getEditableDocument,
+  tableCellAtPath,
   inspectDocument,
   isAdmonitionVariant,
   inlineContentLength,
@@ -204,9 +205,8 @@ export function replayEdits(
     const target = { path: edit.path, part: 0 };
     editAt(target, () => {
       assertPath(edit.path, "table cell");
-      const [table, row, index] = edit.path;
-      const block = blockAt(editable, [table]);
-      const cell = edit.path.length === 3 && block?.block === "table" ? block.rows[row]?.cells[index] : undefined;
+      // A complex table's cell path names the column where the cell starts (ADR-0024).
+      const cell = tableCellAtPath(blockAt(editable, [edit.path[0]]), edit.path);
       if (!cell?.editable) {
         throw new Error(`table cell edit is not allowed at [${edit.path.join(",")}]`);
       }
@@ -225,7 +225,8 @@ export function replayEdits(
       assertPath(edit.path, "table");
       const block = blockAt(editable, edit.path);
       const width = block?.block === "table" ? block.rows[0]?.cells.length ?? 0 : 0;
-      if (edit.path.length !== 1 || block?.block !== "table" || edit.rows[0] !== 0 ||
+      // Rows and columns move whole only in a rectangular grid; Core refuses the others too.
+      if (edit.path.length !== 1 || block?.block !== "table" || block.grid === "complex" || edit.rows[0] !== 0 ||
           !isTableAxis(edit.rows, block.rows.length) || !isTableAxis(edit.columns, width) || !Array.isArray(edit.cells) ||
           (edit.align !== undefined && (!Array.isArray(edit.align) || edit.align.length !== edit.columns.length ||
             edit.align.some(align => align !== null && !["left", "center", "right"].includes(align))))) {

@@ -586,7 +586,8 @@ function cellAlignmentStyle(node: ProseMirrorNode): string {
 const TableRow = Node.create({
   name: "tableRow",
   allowGapCursor: false,
-  content: "tableCell+",
+  // A complex grid's row can be covered entirely by cells that start above it.
+  content: "tableCell*",
   parseHTML() {
     return [{ tag: "tr" }];
   },
@@ -595,12 +596,12 @@ const TableRow = Node.create({
   },
 });
 
-// A cell holds its content as blocks: one paragraph of inline content, including hard breaks.
-// Every cell spans one row and one column; the span attributes exist for TableMap and are never
-// read from pasted HTML.
+// A cell holds its content as blocks: one paragraph of inline content, including hard breaks, or in
+// a complex table (ADR-0024) paragraphs and lists. A complex table's cell spans rows and columns;
+// TableMap reads the spans, and they are never read from pasted HTML.
 const TableCell = Node.create({
   name: "tableCell",
-  content: "paragraph",
+  content: "(paragraph | bulletList | orderedList)+",
   isolating: true,
   addAttributes() {
     return { header: headerAttr, align: hiddenAttr(""), [TABLE_CELL_SOURCE_ATTR]: { default: "", rendered: false },
@@ -611,7 +612,8 @@ const TableCell = Node.create({
     return [{ tag: "th[data-table-cell]" }, { tag: "td[data-table-cell]" }];
   },
   renderHTML({ node }) {
-    return [node.attrs.header ? "th" : "td", { "data-table-cell": "", style: cellAlignmentStyle(node) }, 0];
+    const span = (name: "colspan" | "rowspan") => Number(node.attrs[name]) > 1 ? { [name]: String(node.attrs[name]) } : {};
+    return [node.attrs.header ? "th" : "td", { "data-table-cell": "", ...span("rowspan"), ...span("colspan"), style: cellAlignmentStyle(node) }, 0];
   },
 });
 

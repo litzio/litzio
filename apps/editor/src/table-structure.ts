@@ -1,4 +1,5 @@
 import type { Node as PMNode, ResolvedPos } from "@tiptap/pm/model";
+import { TableMap } from "@tiptap/pm/tables";
 import type { TiptapJSON } from "./tiptap-inline.ts";
 
 // A top-level table block holds a grid of rows, then its caption and optional notes. The grid
@@ -37,10 +38,27 @@ export function tableCellRange($pos: ResolvedPos): { from: number; to: number } 
   return inTableCell($pos) ? { from: $pos.before(CELL_DEPTH), to: $pos.after(CELL_DEPTH) } : undefined;
 }
 
-/** The row and column of the cell holding `$pos`, when that cell is in a top-level table block. */
+/** The row and column of the cell holding `$pos`, when that cell is in a top-level table block. The
+ * column is the grid column where the cell starts, as in Core cell paths (ADR-0024). */
 export function tableCellOf($pos: ResolvedPos): { row: number; column: number } | undefined {
   if (!inTableCell($pos)) return undefined;
-  return { row: $pos.index(CELL_DEPTH - 2), column: $pos.index(CELL_DEPTH - 1) };
+  const grid = $pos.node(CELL_DEPTH - 2);
+  const rect = TableMap.get(grid).findCell($pos.before(CELL_DEPTH) - $pos.start(CELL_DEPTH - 2));
+  return { row: rect.top, column: rect.left };
+}
+
+/** True when a table block's grid is complex (ADR-0024): a merged cell, a header row after the
+ * first, a row that only covered cells fill, or a cell that does not hold exactly one paragraph.
+ * Core keeps such a grid as HTML; rectangular row and column commands do not apply to it. */
+export function isComplexTable(table: PMNode): boolean {
+  return tableRows(table).some((row, index) => {
+    let complex = row.childCount === 0;
+    row.forEach(cell => {
+      if (cell.attrs.colspan !== 1 || cell.attrs.rowspan !== 1 || (index > 0 && cell.attrs.header) ||
+          cell.childCount !== 1 || cell.firstChild!.type.name !== "paragraph") complex = true;
+    });
+    return complex;
+  });
 }
 
 /** The rows of a table block's JSON, without its caption and notes. */

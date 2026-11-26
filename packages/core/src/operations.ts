@@ -1,7 +1,7 @@
 import { assertFigureRoundTrip } from "./myst/figure-round-trip.ts";
 import { assertPersistentParagraph } from "./myst/paragraph.ts";
 import { type NodePath } from "./document.ts";
-import { getEditableDocument } from "./editable.ts";
+import { getEditableDocument, tableCellAtPath } from "./editable.ts";
 import { sectionBoundaries, sectionMarker, sectionRange } from "./section.ts";
 import {
   assertInlineContent,
@@ -52,6 +52,8 @@ import {
   setTableCellContent, setTableColumnAlignNode, tableBlockNode, tableCaptionParagraph, tableCellContent, tableOf,
   setTableNoteParagraphs, tableNoteHasFootnote, tableNoteParagraphs,
 } from "./myst/table.ts";
+import { isComplexGrid, locateTableCells, settleTableGrid, tableCellBlockNodes, tableCellBlocks } from "./myst/table-grid.ts";
+import type { ComplexTableInput, TableCellBlock } from "./table.ts";
 import { assertBodyIndex, cloneDocument, getNode, type MystDocument, type MystNode, toText } from "./myst/tree.ts";
 
 const TEXT_BLOCKS = new Set(["paragraph", "heading"]);
@@ -410,8 +412,9 @@ function inlineTarget(document: MystDocument, path: NodePath, allowEndnote = fal
   assertBodyIndex(document, path[0]);
   const block = getEditableDocument(document).blocks.find(block => block.path[0] === path[0]);
   if (path.length === 3 && block?.block === "table") {
-    const cell = block.rows[path[1]]?.cells[path[2]];
-    return cell?.editable ? { content: cell.content, update: updateTableCell } : undefined;
+    // A cell of several blocks has no single inline content to edit.
+    const content = tableCellAtPath(block, path)?.content;
+    return content ? { content, update: updateTableCell } : undefined;
   }
   if (path.length !== 1 || !block || !("editable" in block) || !block.editable) return undefined;
   if (block.block === "paragraph") return { content: block.content, update: updateParagraphInlineContent };
@@ -756,28 +759,77 @@ const TABLE_CELL_FAILURE = "table cell text cannot be preserved through canonica
 /** A cell's content: plain text (including line endings), or supported inline content. */
 export type TableCellInput = string | InlineContent[];
 
-/** Replace the whole content of an editable cell in a top-level table ([table, row, cell]). */
+/** Replace the whole content of an editable cell in a top-level table ([table, row, cell]). In a
+ * complex table the cell is the one that starts at that column, and inline input replaces a cell
+ * that holds one paragraph; other cells take block input (`updateTableCellBlocks`). */
 export function updateTableCell(document: MystDocument, path: NodePath, cell: TableCellInput): MystDocument {
   if (path.length !== 3) {
     throw new DocumentDiagnosticError("invalid-operation", "updateTableCell requires a top-level table cell path [table,row,cell]");
   }
-  if (tableCellContent(tableCellAt(document, path)) === undefined) {
-    throw new DocumentDiagnosticError("unsupported-content", `table cell at [${path.join(",")}] is not editable in this version`);
+  const current = tableCellAt(document, path);
+  const complex = isComplexGrid(tableOf(getNode(document, [path[0]])));
+  if (complex ? !(current?.children?.length === 1 && current.children[0].type === "paragraph") : tableCellContent(current) === undefined) {
+    throw new DocumentDiagnosticError("unsupported-content", complex
+      ? `table cell at [${path.join(",")}] holds several blocks or a list; replace its blocks instead`
+      : `table cell at [${path.join(",")}] is not editable in this version`);
   }
   const content = tableCellInput(cell);
   const next = cloneDocument(document);
-  setTableCellContent(tableCellAt(next, path)!, content);
+  const target = tableCellAt(next, path)!;
+  if (complex) target.children = tableCellBlockNodes([{ kind: "paragraph", content }]);
+  else setTableCellContent(target, content);
+  if (complex) settleTableGrid(tableOf(next.children[path[0]])!, [path[0]]);
   assertStableTable(next, path[0], TABLE_CELL_FAILURE);
   return next;
 }
 
-/** A cell of a top-level table, plain or in a table directive, at [table, row, cell]. */
+/** Replace the blocks of a top-level table cell: paragraphs and bullet or decimal lists (ADR-0024).
+ * The table is written as a pipe grid when every cell is one paragraph, otherwise as HTML. */
+export function updateTableCellBlocks(document: MystDocument, path: NodePath, blocks: TableCellBlock[]): MystDocument {
+  if (path.length !== 3) {
+    throw new DocumentDiagnosticError("invalid-operation", "updateTableCellBlocks requires a top-level table cell path [table,row,cell]");
+  }
+  if (!tableCellBlocks(tableCellAt(document, path))) {
+    throw new DocumentDiagnosticError("unsupported-content", `table cell at [${path.join(",")}] is not editable in this version`);
+  }
+  const nodes = tableCellBlockNodes(tableCellBlocksInput(blocks));
+  const next = cloneDocument(document);
+  const table = tableOf(next.children[path[0]])!;
+  // A pipe grid takes its complex form first, so that its cells can hold blocks.
+  if (!isComplexGrid(table)) locateTableCells(table, [path[0]]);
+  tableCellAt(next, path)!.children = nodes;
+  settleTableGrid(table, [path[0]]);
+  assertStableTable(next, path[0], TABLE_CELL_FAILURE);
+  return next;
+}
+
+function tableCellBlocksInput(blocks: TableCellBlock[]): TableCellBlock[] {
+  if (!Array.isArray(blocks) || !blocks.length) {
+    throw new DocumentDiagnosticError("invalid-operation", "a table cell needs at least one block; an empty cell is one empty paragraph");
+  }
+  return blocks.map(block => {
+    if (block?.kind === "paragraph" && Array.isArray(block.content)) {
+      assertInlineContent(block.content);
+      return { kind: "paragraph", content: block.content };
+    }
+    if (block?.kind === "list") return { kind: "list", list: normalizeList(block.list) };
+    throw new DocumentDiagnosticError("invalid-operation", "a table cell block is {kind:\"paragraph\",content} or {kind:\"list\",list}");
+  });
+}
+
+/** A cell of a top-level table, plain or in a table directive, at [table, row, cell]: in a complex
+ * table, the cell that starts at that column. */
 function tableCellAt(document: MystDocument, path: NodePath): MystNode | undefined {
   const [index, row, column] = path;
   const table = tableOf(getNode(document, [index]));
   if (!table) return undefined;
-  const cell = table.children?.[row]?.children?.[column];
-  if (!Number.isInteger(row) || !Number.isInteger(column) || !cell) throw new DocumentDiagnosticError("invalid-operation", `table cell path [${path.join(",")}] is out of range`);
+  const cells = table.children?.[row]?.children;
+  const cell = isComplexGrid(table) ? cells?.find(cell => cell.column === column) : cells?.[column];
+  if (!Number.isInteger(row) || !Number.isInteger(column) || !cell) {
+    throw new DocumentDiagnosticError("invalid-operation", isComplexGrid(table) && cells && Number.isInteger(column)
+      ? `table cell path [${path.join(",")}] is not where a cell starts; use the path of the cell that covers it`
+      : `table cell path [${path.join(",")}] is out of range`);
+  }
   return cell;
 }
 
@@ -909,7 +961,11 @@ function editTableNotes(document: MystDocument, path: NodePath, edit: (notes: My
 function assertStableTable(document: MystDocument, index: number, failure: string): void {
   const result = roundTripFor(document, failure);
   const { markdown, reparsed } = result;
-  const cells = (block: MystNode | undefined) => (tableOf(block)?.children ?? []).map((row) => (row.children ?? []).map(tableCellContent));
+  // Each row's cells by start column: a pipe grid that becomes complex, or the reverse, keeps them.
+  const cells = (block: MystNode | undefined) => {
+    const table = tableOf(block), complex = isComplexGrid(table);
+    return (table?.children ?? []).map(row => new Map((row.children ?? []).map((cell, index) => [complex ? cell.column as number : index, tableCellBlocks(cell)])));
+  };
   const reloaded = reparsed.children[bodyIndex(document, index)];
   const before = cells(document.children[index]);
   const after = cells(reloaded);
@@ -917,18 +973,32 @@ function assertStableTable(document: MystDocument, index: number, failure: strin
   if (repeatRoundTrip(result).markdown !== markdown || !tableOf(reloaded) ||
       // The full semantic guard above admits the GFM-to-directive canonical wrapper change.
       !sameInlineContent(caption(document.children[index]), caption(reloaded)) || after.length !== before.length ||
-      before.some((row, rowIndex) => row.length !== after[rowIndex].length || row.some((content, column) => {
-        const reloaded = after[rowIndex][column];
-        return content !== undefined && (reloaded === undefined || !sameInlineContent(content, reloaded));
+      before.some((row, rowIndex) => row.size !== after[rowIndex].size || [...row].some(([column, blocks]) => {
+        const reloaded = after[rowIndex].get(column);
+        return blocks !== undefined && (reloaded === undefined || !sameCellBlocks(blocks, reloaded));
       }))) {
     throw new DocumentDiagnosticError("round-trip-mismatch", failure);
   }
 }
 
+function sameCellBlocks(left: TableCellBlock[], right: TableCellBlock[]): boolean {
+  return left.length === right.length && left.every((block, index) => {
+    const other = right[index];
+    return block.kind === "paragraph" ? other.kind === "paragraph" && sameInlineContent(block.content, other.content)
+      : other.kind === "list" && sameList(block.list, other.list);
+  });
+}
+
 const TABLE_FAILURE = "table cannot be preserved through canonical round-trip";
 
-/** Insert a top-level Markdown table of text or inline-content cells; the first row is its header row. */
-export function insertTable(document: MystDocument, index: number, rows: TableCellInput[][], align?: ("left" | "center" | "right" | null)[], notes?: TableCellInput[]): MystDocument {
+/** Insert a top-level table: rows of text or inline-content cells, the first row being its header
+ * row, or a complex grid (ADR-0024). Each is written as a pipe grid when it fits one. */
+export function insertTable(document: MystDocument, index: number, rows: TableCellInput[][] | ComplexTableInput, align?: ("left" | "center" | "right" | null)[], notes?: TableCellInput[]): MystDocument {
+  if (!Array.isArray(rows) && rows?.grid === "complex") {
+    if (align !== undefined) throw new DocumentDiagnosticError("table-shape", "a complex table grid sets alignment on its cells");
+    if (notes !== undefined && !Array.isArray(notes)) throw new DocumentDiagnosticError("invalid-operation", "table notes must be an array of paragraphs");
+    return insertTableBlock(document, index, complexTableNode(rows, index), notes);
+  }
   if (!Array.isArray(rows) || !Array.isArray(rows[0]) || rows[0].length === 0) {
     throw new DocumentDiagnosticError("table-shape", "a table needs a header row with at least one cell");
   }
@@ -943,16 +1013,44 @@ export function insertTable(document: MystDocument, index: number, rows: TableCe
     throw new DocumentDiagnosticError("invalid-operation", "table notes must be an array of paragraphs");
   }
   const content = rows.map(row => row.map(cell => tableCellInput(cell)));
-  const block = tableBlockNode(createTableNode(content, align), [], "");
+  return insertTableBlock(document, index, createTableNode(content, align), notes);
+}
+
+function insertTableBlock(document: MystDocument, index: number, table: MystNode, notes?: TableCellInput[]): MystDocument {
+  const block = tableBlockNode(table, [], "");
   if (notes?.length) setTableNoteParagraphs(block, notes.map(tableNoteNode));
   const next = insertBlock(document, index, block);
   assertStableTable(next, index, TABLE_FAILURE);
   return next;
 }
 
+/** The grid of complex table input, in the form its canonical write uses. */
+function complexTableNode(input: ComplexTableInput, index: number): MystNode {
+  if (!Number.isSafeInteger(input.headerRows) || !Array.isArray(input.rows) || !input.rows.length ||
+      input.rows.some(row => !row || typeof row !== "object" || !Array.isArray(row.cells))) {
+    throw new DocumentDiagnosticError("table-shape", "a complex table grid needs headerRows and rows of cells");
+  }
+  const table: MystNode = { type: "table", headerRows: input.headerRows, children: input.rows.map((row, rowIndex) => ({
+    type: "tableRow",
+    children: row.cells.map(cell => {
+      if (!cell || typeof cell !== "object") throw new DocumentDiagnosticError("table-shape", "a table cell is an object with blocks");
+      return {
+        type: "tableCell",
+        ...(rowIndex < input.headerRows ? { header: true } : {}),
+        ...(cell.column !== undefined ? { column: cell.column } : {}),
+        rowspan: cell.rowspan ?? 1, colspan: cell.colspan ?? 1,
+        ...(cell.align !== undefined ? { align: cell.align } : {}),
+        children: tableCellBlockNodes(tableCellBlocksInput(cell.blocks)),
+      };
+    }),
+  })) };
+  settleTableGrid(table, [index]);
+  return table;
+}
+
 /** Insert an empty body row into a top-level table; row 0 is the header row, so `row` starts at 1. */
 export function insertTableRow(document: MystDocument, path: NodePath, row: number): MystDocument {
-  const rows = tableAt(document, path, "insertTableRow").children?.length ?? 0;
+  const rows = rectangularTableAt(document, path, "insertTableRow").children?.length ?? 0;
   if (!Number.isInteger(row) || row < 1 || row > rows) {
     throw new DocumentDiagnosticError("invalid-operation", `table row index must be an integer from 1 to ${rows}: ${row}`);
   }
@@ -964,7 +1062,7 @@ export function insertTableRow(document: MystDocument, path: NodePath, row: numb
 
 /** Insert an empty column into a top-level table at `column` (0 to the column count). */
 export function insertTableColumn(document: MystDocument, path: NodePath, column: number): MystDocument {
-  const columns = tableAt(document, path, "insertTableColumn").children?.[0]?.children?.length ?? 0;
+  const columns = rectangularTableAt(document, path, "insertTableColumn").children?.[0]?.children?.length ?? 0;
   if (!Number.isInteger(column) || column < 0 || column > columns) {
     throw new DocumentDiagnosticError("invalid-operation", `table column index must be an integer from 0 to ${columns}: ${column}`);
   }
@@ -976,7 +1074,7 @@ export function insertTableColumn(document: MystDocument, path: NodePath, column
 
 /** Remove a body row from a top-level table; row 0 is the header row and stays. */
 export function removeTableRow(document: MystDocument, path: NodePath, row: number): MystDocument {
-  const rows = tableAt(document, path, "removeTableRow").children?.length ?? 0;
+  const rows = rectangularTableAt(document, path, "removeTableRow").children?.length ?? 0;
   assertTableBodyRow(row, rows);
   const next = cloneDocument(document);
   removeTableRowNode(tableAt(next, path, "removeTableRowNode"), row);
@@ -986,7 +1084,7 @@ export function removeTableRow(document: MystDocument, path: NodePath, row: numb
 
 /** Remove a column, header cell included; a table keeps at least one column. */
 export function removeTableColumn(document: MystDocument, path: NodePath, column: number): MystDocument {
-  const columns = tableAt(document, path, "removeTableColumn").children?.[0]?.children?.length ?? 0;
+  const columns = rectangularTableAt(document, path, "removeTableColumn").children?.[0]?.children?.length ?? 0;
   if (columns <= 1) throw new DocumentDiagnosticError("table-shape", "a table needs at least one column; remove the table instead");
   assertTableColumn(column, columns);
   const next = cloneDocument(document);
@@ -997,7 +1095,7 @@ export function removeTableColumn(document: MystDocument, path: NodePath, column
 
 /** Move a body row to another body position; the header row stays first. */
 export function moveTableRow(document: MystDocument, path: NodePath, from: number, to: number): MystDocument {
-  const rows = tableAt(document, path, "moveTableRow").children?.length ?? 0;
+  const rows = rectangularTableAt(document, path, "moveTableRow").children?.length ?? 0;
   assertTableBodyRow(from, rows);
   assertTableBodyRow(to, rows);
   const next = cloneDocument(document);
@@ -1008,7 +1106,7 @@ export function moveTableRow(document: MystDocument, path: NodePath, from: numbe
 
 /** Move a column, header cell included, to another column position. */
 export function moveTableColumn(document: MystDocument, path: NodePath, from: number, to: number): MystDocument {
-  const columns = tableAt(document, path, "moveTableColumn").children?.[0]?.children?.length ?? 0;
+  const columns = rectangularTableAt(document, path, "moveTableColumn").children?.[0]?.children?.length ?? 0;
   assertTableColumn(from, columns);
   assertTableColumn(to, columns);
   const next = cloneDocument(document);
@@ -1019,7 +1117,7 @@ export function moveTableColumn(document: MystDocument, path: NodePath, from: nu
 
 /** Set (left, center, right) or clear (null) the alignment of a table column. */
 export function updateTableColumnAlignment(document: MystDocument, path: NodePath, column: number, align: "left" | "center" | "right" | null): MystDocument {
-  const columns = tableAt(document, path, "updateTableColumnAlignment").children?.[0]?.children?.length ?? 0;
+  const columns = rectangularTableAt(document, path, "updateTableColumnAlignment").children?.[0]?.children?.length ?? 0;
   assertTableColumn(column, columns);
   if (align !== null && !["left", "center", "right"].includes(align)) {
     throw new DocumentDiagnosticError("table-shape", "table alignment must be left, center, right or null");
@@ -1041,6 +1139,16 @@ function assertTableColumn(column: number, columns: number): void {
   if (!Number.isInteger(column) || column < 0 || column >= columns) {
     throw new DocumentDiagnosticError("invalid-operation", `table column index must be an integer from 0 to ${columns - 1}: ${column}`);
   }
+}
+
+/** Row, column and column-alignment operations address a rectangular grid of one-paragraph cells;
+ * they cannot keep a complex table's merged cells, header rows or cell blocks (ADR-0024). */
+function rectangularTableAt(document: MystDocument, path: NodePath, operation: string): MystNode {
+  const table = tableAt(document, path, operation);
+  if (isComplexGrid(table)) {
+    throw new DocumentDiagnosticError("table-shape", `${operation} cannot keep the merged cells, header rows or cell blocks of the table at [${path.join(",")}]`);
+  }
+  return table;
 }
 
 function tableAt(document: MystDocument, path: NodePath, operation: string): MystNode {

@@ -40,6 +40,8 @@ export function localEdit(opening: EditableDocument, bibliography: string[], pre
     const locator = current ?? old!;
     const [index, row, column] = locator.path;
     const block = opening.blocks.find(item => item.path.length === 1 && item.path[0] === index);
+    // ADR-0024: a complex table's cells take the full Save.
+    if (block?.block === "table" && block.grid === "complex") return { reason: "complex-table" };
     const original = locator.kind === "paragraph" && block?.block === "paragraph" ? block
       : locator.kind === "cell" && block?.block === "table" ? block.rows[row]?.cells[column] : undefined;
     if (!original?.editable) return { reason: "opening-locator" };

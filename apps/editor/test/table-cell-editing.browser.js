@@ -227,6 +227,23 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(table).toHaveCount(3);
   await expect(table.last().locator('[data-table-note]')).toHaveText('a. Nominal value');
   await expect(table.last().locator('[data-table-cell] br')).toHaveCount(1);
+  // ADR-0024: a complex table shows its merged cells, header rows and cell blocks. In this version its
+  // cells are read-only: typing changes nothing, so the file keeps its bytes, and it has no row tools.
+  const complex = [dir, 'complex-table.md'].join(separator);
+  const complexBefore = await markdown(complex, 'complex-table.md');
+  await open(complex);
+  await expect(table.locator('th[colspan="2"]')).toHaveText('Range');
+  await expect(table.locator('td[rowspan="2"] > p')).toHaveText(['Output', 'rated']);
+  await expect(table.locator('td > ol > li')).toHaveText(['Peak', 'Mean']);
+  await expect(table.getByTestId('table-caption')).toContainText('Output limits');
+  await typeAtEnd('230 V', ' x');
+  await expect(cell('230 V')).toHaveCount(1);
+  await expect(table.locator('.table-row-handle, .table-column-handle')).toHaveCount(0);
+  await page.keyboard.press('ControlOrMeta+s');
+  await page.reload();
+  await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+  result.complexTableKeepsBytes = await markdown(complex, 'complex-table.md') === complexBefore;
+
   result.consoleErrors = problems;
   const failed = Object.entries(result).filter(([key, value]) => key !== 'consoleErrors' && value !== true);
   if (failed.length > 0 || problems.length > 0) throw new Error(`Table cell editing failed: ${JSON.stringify(result)}`);
