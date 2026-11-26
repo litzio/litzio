@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
 import type { LucideIcon } from "lucide-react";
 import { Check } from "lucide-react";
-import { Fragment, useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useEditorVisible } from "./editor-visibility.ts";
 import { useOverlayBounds, type OverlayAnchor } from "./ui/use-overlay-bounds.ts";
@@ -18,6 +18,8 @@ export type CommandMenuItem = {
   /** A short secondary text, such as the Markdown shortcut for the same block. */
   hint?: string;
   icon?: LucideIcon;
+  /** A decorative mark in the icon slot when the item has no icon, such as a color swatch. */
+  marker?: ReactNode;
   /** A single-choice row; false still reserves its radio semantics. */
   checked?: boolean;
   checkRole?: "checkbox";
@@ -129,7 +131,7 @@ export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnO
               onMouseDown={event => event.preventDefault()}
               onClick={() => onSelect(item.id)}
             >
-              {Icon ? <Icon className="command-menu-icon" aria-hidden="true" size={16} /> : null}
+              {Icon ? <Icon className="command-menu-icon" aria-hidden="true" size={16} /> : item.marker ? <span className="command-menu-icon" aria-hidden="true">{item.marker}</span> : null}
               <span className="command-menu-label">{item.label}</span>
               {item.checked ? <Check className="command-menu-icon" aria-hidden="true" size={16} /> : null}
               {item.hint ? <kbd className="command-menu-hint">{item.hint}</kbd> : null}

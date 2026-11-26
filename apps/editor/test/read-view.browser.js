@@ -393,7 +393,8 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   await page.getByTestId('link-url').press('Escape');
 
   // Metadata outside-click completion must never apply when entering Read.
-  await editor.locator('h2').hover();
+  // Its start, clear of the selection toolbar still shown for the earlier selection.
+  await editor.locator('h2').hover({position: {x: 8, y: 8}});
   await panel.getByTestId('label-target-edit').click();
   await page.getByTestId('label-target-input').fill('UNAPPLIED-section');
   const beforeMetadata = await json();

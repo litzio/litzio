@@ -11,8 +11,10 @@ import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { FileText, Info, Palette, History, Server } from "lucide-react";
+import { FileText, Highlighter, Info, Palette, History, Server } from "lucide-react";
+import { HighlightSetSettings } from "./HighlightSetSettings.tsx";
 import { SettingsRow, SettingsSelect, SettingsProgress } from "@/components/ui/settings.tsx";
+import { ColorSwatches } from "@/components/ui/color-swatches.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
 import type { CliIntegrationState, DesktopBridge, DesktopInfo, OfferedUpdate, ReleaseChannel, UpdateState } from "../../shared/desktop-bridge.ts";
@@ -81,7 +83,7 @@ function updateStatusLabel(state: UpdateState): string | undefined {
   }
 }
 
-export type SettingsCategory = "plugins" | "appearance" | "recovery" | "assistant" | "about";
+export type SettingsCategory = "plugins" | "appearance" | "highlights" | "recovery" | "assistant" | "about";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -171,6 +173,7 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
   };
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
+    { id: "highlights", label: i18n.t("Highlight sets"), icon: Highlighter },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
     { id: "plugins", label: i18n.t("Plugins"), icon: Server },
     { id: "assistant", label: i18n.t("Assistant"), icon: FileText },
@@ -193,6 +196,7 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
             <div className="settings-content-inner">
               <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
               {category === "plugins" ? <PluginSettings desktop={desktop} /> : null}
+              {category === "highlights" ? <HighlightSetSettings /> : null}
               {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} providerReadRevision={assistantProviderRevision} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} testId="theme"
@@ -224,19 +228,13 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
 
                 <SettingsRow label={<span title={i18n.t("Remembered here; never saved in the document.")}>{i18n.t("Accent color")}</span>}>
                   <div className="settings-accent-control">
-                    <div className="settings-accents" role="radiogroup" aria-label={i18n.t("Accent color")} data-testid="accent-color">
-                      {ACCENT_COLORS.map(color => <label key={color} className="settings-accent" title={i18n.t(ACCENT_LABELS[color])}>
-                        <input type="radio" name="accent-color" value={color} checked={accent === color} aria-label={i18n.t(ACCENT_LABELS[color])}
-                          onChange={() => {
-                            document.documentElement.dataset.accent = color;
-                            setAccent(color);
-                            setAccentProblem(!writeAccentColor(color));
-                          }} />
-                        <span className="settings-accent-face">
-                          <span className="settings-accent-swatch" style={{ backgroundColor: `var(--id-color-accent-${color})` }} aria-hidden="true" />
-                        </span>
-                      </label>)}
-                    </div>
+                    <ColorSwatches colors={ACCENT_COLORS} value={accent} label={i18n.t("Accent color")} testId="accent-color"
+                      colorLabel={color => i18n.t(ACCENT_LABELS[color])} colorValue={color => `var(--id-color-accent-${color})`}
+                      onChange={color => {
+                        document.documentElement.dataset.accent = color;
+                        setAccent(color);
+                        setAccentProblem(!writeAccentColor(color));
+                      }} />
                     <span className="settings-accent-name">{i18n.t(ACCENT_LABELS[accent])}</span>
                   </div>
                 </SettingsRow>

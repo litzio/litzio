@@ -239,3 +239,18 @@ export function writeTableWrapPreferences(defaultValue: boolean, documents: Reco
     return true;
   } catch { return false; }
 }
+
+// Highlight sets (#2020): this device's named word colors, per-document choices and folder defaults.
+// View decorations only. No Markdown, Host writes or editor transactions.
+export const HIGHLIGHT_SETS_KEY = `${brand.storagePrefix}.highlightSets.v1`;
+export function readHighlightSets(): unknown {
+  try { return JSON.parse(globalThis.localStorage?.getItem(HIGHLIGHT_SETS_KEY) ?? "null"); }
+  catch { return null; }
+}
+export function writeHighlightSets(value: unknown): boolean {
+  try {
+    if (!globalThis.localStorage) return false;
+    globalThis.localStorage.setItem(HIGHLIGHT_SETS_KEY, JSON.stringify(value));
+    return true;
+  } catch { return false; }
+}
