@@ -2194,7 +2194,9 @@ ul.list[data-type="taskList"] > li > label > input {
   pointer-events: none;
 }
 
-.document:is(:hover, :focus-within) .block-controls.visible,
+/* Chromium restyles descendants by the first class of this compound when the
+ * document's hover or focus changes. `.visible` keeps that to the shown handle. */
+.document:is(:hover, :focus-within) .visible.block-controls,
 .block-controls[data-menu-open="true"],
 .block-controls:hover,
 .block-controls:focus-within {
@@ -3066,11 +3068,11 @@ h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-
 .folder-picker-main { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .folder-picker-columns > div, .folder-picker-option { display: grid; grid-template-columns: minmax(0, 1fr) 11rem 5rem; align-items: center; }
 .folder-picker-columns > div { padding: var(--space-1) var(--space-3); gap: var(--space-2); }
-.folder-picker-columns [role="columnheader"] > button { width: 100%; padding-inline: 0; border: 0; justify-content: flex-start; }
-.folder-picker-columns [role="columnheader"]:last-child > button { justify-content: flex-end; }
+.folder-picker-columns [role="columnheader"] > button { width: 100%; padding-inline: 0; border: 0; justify-content: var(--folder-picker-column-justify, flex-start); }
 .folder-picker-columns { flex: none; border-bottom: var(--border-width) solid var(--id-color-border); }
 .folder-picker-columns [role="columnheader"] { min-width: 0; }
-.folder-picker-columns [role="columnheader"]:last-child { text-align: right; }
+/* A `:last-child … button` selector would restyle every app button whenever a body child is added. */
+.folder-picker-columns [role="columnheader"]:last-child { text-align: right; --folder-picker-column-justify: flex-end; }
 .folder-picker-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; position: relative; }
 .folder-picker-list { margin: 0; padding: 0; list-style: none; min-height: var(--size-control); flex: 1; outline: none; }
 .folder-picker-list:focus-visible .folder-picker-option[data-active="true"] { box-shadow: var(--focus-ring-inset); }
@@ -3518,8 +3520,10 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 [data-slot="context-menu-content"], [data-slot="popover-content"], [data-slot="tooltip-content"], .notification-center li)[data-ending-style] { transition-duration: var(--duration-fast); }
 .notification-auto > ul { transition: display var(--duration-normal) allow-discrete; }
 
-/* The writing-time command center returns keyboard input without an exit delay. */
+/* The writing-time command center returns keyboard input without an exit delay.
+ * The rare attribute comes first: Chromium restyles every element with the first
+ * attribute of the overlay compound whenever a `:has()` state changes in the body. */
 .command-center-dialog[data-ending-style],
-.ui-portal:has(.command-center-dialog[data-ending-style]) [data-slot="dialog-overlay"][data-ending-style] {
+.ui-portal:has(.command-center-dialog[data-ending-style]) [data-ending-style][data-slot="dialog-overlay"] {
   transition-duration: 0s;
 }
