@@ -263,19 +263,33 @@ async (page, { openPath, expect, screenshots }) => {
     return $from.depth === 1 && $from.parent.textContent === 'Closing paragraph.';
   });
   await open(complex);
+  // The table selected as a block, then a click in a cell and typing: the text must not replace the
+  // table, so Save and reopen keep its grid, caption and note.
+  const selectTable = async () => {
+    await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(node => {
+      let at = -1;
+      node.editor.state.doc.forEach((child, offset) => { if (child.type.name === 'table') at = offset; });
+      node.editor.chain().setNodeSelection(at).focus().run();
+    });
+    // The native cut reads the browser selection: wait until the engine's table selection is drawn in a focused editor.
+    await page.waitForFunction(() => {
+      const {view, state} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
+      return state.selection.node?.type.name === 'table' && view.hasFocus() && document.getSelection()?.containsNode(view.nodeDOM(state.selection.from), true);
+    });
+  };
+  await selectTable();
+  await cell('230 V AC').click();
+  await page.keyboard.type('240');
+  await page.keyboard.press('ControlOrMeta+s');
+  await open(complex);
+  await expect(table.locator('th[colspan="2"]')).toHaveText('Range');
+  const afterTyping = await markdown(complex, 'complex-table.md');
+  result.selectedComplexTableKeepsTyping = afterTyping.includes('<th colspan="2"><p>Range</p></th>') &&
+    afterTyping.includes(':::{table} Output limits') && afterTyping.includes('a. Measured at rated load.');
   // Litzio's own clipboard moves the whole table: cut it, paste it after the closing paragraph,
   // then save and reopen with its merged cells, header rows, cell blocks, caption and note.
   const gridSource = source => source.slice(source.indexOf(':::{table}'), source.indexOf(':::\n', source.indexOf(':::{table}') + 1));
-  await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(node => {
-    let at = -1;
-    node.editor.state.doc.forEach((child, offset) => { if (child.type.name === 'table') at = offset; });
-    node.editor.chain().setNodeSelection(at).focus().run();
-  });
-  // The native cut reads the browser selection: wait until the engine's table selection is drawn in a focused editor.
-  await page.waitForFunction(() => {
-    const {view, state} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
-    return state.selection.node?.type.name === 'table' && view.hasFocus() && document.getSelection()?.containsNode(view.nodeDOM(state.selection.from), true);
-  });
+  await selectTable();
   await page.keyboard.press('ControlOrMeta+x');
   await expect(table).toHaveCount(0);
   await page.locator('[data-document-tab][data-active=true] .document-editor > p', {hasText: 'Closing paragraph.'}).click();
@@ -294,7 +308,7 @@ async (page, { openPath, expect, screenshots }) => {
   await page.getByRole('button', {name:'Save', exact:true}).click();
   expect((await written).status()).toBe(200);
   const moved = await markdown(complex, 'complex-table.md');
-  result.complexTableMoves = moved.indexOf('Closing paragraph.') < moved.indexOf(':::{table}') && gridSource(moved) === gridSource(complexSaved);
+  result.complexTableMoves = moved.indexOf('Closing paragraph.') < moved.indexOf(':::{table}') && gridSource(moved) === gridSource(afterTyping);
   await open(complex);
   await expect(table.locator('td[rowspan="2"] > p')).toHaveText(['Output', 'rated']);
   await expect(table.locator('[data-table-note]')).toHaveText('a. Measured at rated load.');

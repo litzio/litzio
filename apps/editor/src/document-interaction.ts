@@ -221,6 +221,17 @@ function selectedPreview(state: EditorState): boolean {
     ["equation", "figure", "footnoteDefinition"].includes(state.selection.node.type.name);
 }
 
+/** A whole complex table selected as a block (ADR-0024). Typing must not replace its grid,
+ * caption and notes with the typed text; Delete, cut and paste still act on the block. */
+function selectedComplexTable(state: EditorState): boolean {
+  return state.selection instanceof NodeSelection && state.selection.node.type.name === "table" && isComplexTable(state.selection.node);
+}
+
+/** A selection without a native text caret: typing and composition must not replace it. */
+function readOnlySelection(state: EditorState): boolean {
+  return selectedPreview(state) || selectedComplexTable(state);
+}
+
 function fullCaptionRange(state: EditorState, from: number, to: number): boolean {
   const $from = state.doc.resolve(from), $to = state.doc.resolve(to);
   return $from.sameParent($to) && ["figure", "tableCaption"].includes($from.parent.type.name) &&
@@ -582,10 +593,10 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
       // A selected block has no native text caret. Keep the DOM read-only for that
       // selection, while the engine remains editable for explicit keymaps/clipboard.
       const syncPreviewInput = (view: EditorView) => {
-        view.dom.contentEditable = String(view.editable && !selectedPreview(view.state));
+        view.dom.contentEditable = String(view.editable && !readOnlySelection(view.state));
       };
       const rejectPreviewComposition = (view: EditorView) => {
-        if (!selectedPreview(view.state)) return false;
+        if (!readOnlySelection(view.state)) return false;
         syncPreviewInput(view);
         return true;
       };
@@ -654,7 +665,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
             return false;
           },
           beforeinput: (view, event) => {
-            if (selectedPreview(view.state) && /^(insert|delete)/.test(event.inputType)) {
+            if (readOnlySelection(view.state) && /^(insert|delete)/.test(event.inputType)) {
               syncPreviewInput(view);
               if (event.cancelable) event.preventDefault();
               return true;
@@ -803,7 +814,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
         // Consume ordinary text on selected previews without replacing content or adding space.
         // Text carets and explicit property inputs retain their existing input paths.
         handleTextInput(view, _from, _to, text) {
-          return !!text && selectedPreview(view.state);
+          return !!text && readOnlySelection(view.state);
         },
         handlePaste: (view, event, slice) => {
           const notes = pastedFootnotes;
