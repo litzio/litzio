@@ -12,7 +12,9 @@ import { encodeEmphasisBoundaries, hasAlternateBoundaries } from "./emphasis-bou
 import { encodeLineStarts, hasLineStartSyntax } from "./line-start.ts";
 import { parse } from "./parse.ts";
 import { prepareReferences } from "./reference.ts";
-import { isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode, tableNoteParagraphs } from "./table.ts";
+import { assertComplexTableDirective, isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode, tableNoteParagraphs } from "./table.ts";
+import { locateTableCells, needsComplexGrid, usePipeGrid } from "./table-grid.ts";
+import { writeTableHtml } from "./table-html.ts";
 import { cloneDocument, type MystDocument, type MystNode } from "./tree.ts";
 
 const LOSS = "Document contains semantic content that cannot be preserved in canonical Markdown";
@@ -108,6 +110,21 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
   const footnotes = footnoteWriteIssue(document);
   if (footnotes) throw new SemanticLossError(footnotes.reason, footnotes);
   const tree = cloneDocument(document);
+  let complexTables = false;
+  const convertedToPipe = new Set<number>();
+  tree.children.forEach((node, index) => {
+    const table = node.type === "table" ? node : node.kind === "table"
+      ? node.children?.find(child => child.type === "table") : undefined;
+    if (!table || !needsComplexGrid(table)) return;
+    const path = [index];
+    locateTableCells(table, path);
+    const block = node.type === "table" ? tableBlockNode(table, [], "") : node;
+    assertComplexTableDirective(block, path);
+    tree.children[index] = block;
+    usePipeGrid(table, path);
+    if (table.headerRows === undefined) convertedToPipe.add(index);
+    else complexTables = true;
+  });
   // Normalize prose on the disposable write clone. Table notes are prose;
   // cells and figure/table captions have separate whitespace contracts.
   const normalizeStarts = (node: MystNode): void => {
@@ -144,12 +161,14 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
   tree.children = tree.children.map((node, index) => {
     try {
       const flow = { type: "root", children: [node.type === "table" ? tableBlockNode(node, [], "") : node] };
-      prepareReferences(flow);
+      const path = blockPaths[index];
+      prepareReferences(flow, convertedToPipe.has(path[0]) ? path : undefined);
       return flow.children[0];
     }
     catch (error) {
-      throw new DocumentWriteError(error instanceof Error ? error.message : String(error), {
-        code: writeIssueOf(error).code ?? "invalid-reference", path: blockPaths[index], action: "Review this reference or target and replace it with a supported reference or plain text.",
+      const issue = writeIssueOf(error);
+      throw new DocumentWriteError(issue.reason, {
+        code: issue.code ?? "invalid-reference", path: issue.path ?? blockPaths[index], action: "Review this reference or target and replace it with a supported reference or plain text.",
       }, { cause: error });
     }
   });
@@ -165,16 +184,32 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
   assertNoSerializationDiagnostics(file, document);
   // Normalize the complete output, including preserved source, before semantic verification.
   const markdown = `${frontMatter}${String(file.result ?? "").trimEnd()}\n`.replace(/\r\n?/g, "\n");
-  const result = previous?.markdown === markdown ? previous : parsedRoundTrip(markdown);
+  const result = previous?.markdown === markdown ? previous : parsedRoundTrip(markdown, complexTables);
   const difference = semanticDifferenceIssue(expected, result.fingerprint);
-  if (difference) throw new SemanticLossError(difference.reason, {
-    ...(difference.blockIndex !== undefined ? { path: blockPaths[difference.blockIndex] } : {}),
-  });
+  if (difference) {
+    const index = difference.blockIndex;
+    const path = index === undefined ? undefined : blockPaths[index];
+    if (path && convertedToPipe.has(path[0])) {
+      const before = expected.children[index!].children.find(node => node.type === "table");
+      const after = result.fingerprint.children[index!]?.children.find(node => node.type === "table");
+      if (before) {
+        for (const [row, entry] of before.children.entries()) {
+          for (const [column, cell] of entry.children.entries()) {
+            const readback = after?.children[row]?.children[column];
+            if (!readback || semanticDifferenceIssue(cell, readback)) {
+              throw new SemanticLossError("Cell content cannot be preserved in a pipe table", { path: [...path, row, column] });
+            }
+          }
+        }
+      }
+    }
+    throw new SemanticLossError(difference.reason, { path });
+  }
   return result;
 }
 
-function parsedRoundTrip(markdown: string): RoundTrip {
-  const reparsed = parse(markdown);
+function parsedRoundTrip(markdown: string, complexTables: boolean): RoundTrip {
+  const reparsed = parse(markdown, { complexTables });
   return { markdown, reparsed, fingerprint: semanticFingerprint(reparsed) };
 }
 
@@ -249,8 +284,11 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
       node.children = node.children.map((child, index, siblings) => isDollarMath(child, siblings[index - 1])
         ? { type: "html", value: `$${child.value}$` } : child);
     }
-    node.children?.forEach((child, childIndex) => visit(child, childIndex, node,
-      node === tree ? blockPaths[childIndex] : [...path, childIndex], inLink, inCell));
+    node.children?.forEach((child, childIndex) => {
+      if (child.type !== "table" || child.headerRows === undefined) {
+        visit(child, childIndex, node, node === tree ? blockPaths[childIndex] : [...path, childIndex], inLink, inCell);
+      }
+    });
     // myst-to-md has no GFM task list writer and drops `checked`. Write each checkbox before
     // the item's prepared inline content; an empty item is its checkbox alone, which the pinned
     // task list patch reads back as an empty item. A checklist is written tight, also around a
@@ -308,11 +346,12 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
       node.value = `:::{${node.kind}}\n:::`;
       delete node.children;
     }
-    // Write every supported table directive with a GFM grid. The upstream list-table writer
-    // wraps cells in paragraphs and drops column alignment. The full guard still applies.
+    // Core chooses the grid and writes the shared directive wrapper.
     if (isTableDirective(node)) {
       const caption = tableCaptionParagraph(node);
-      const body = [render(tableOf(node)!), ...tableNoteParagraphs(node).map(render)].join("\n\n");
+      const table = tableOf(node)!;
+      const grid = table.headerRows === undefined ? render(table) : writeTableHtml(table, path);
+      const body = [grid, ...tableNoteParagraphs(node).map(render)].join("\n\n");
       const title = caption ? render(caption) : "";
       if (/[\r\n]/.test(title)) throw new SemanticLossError("table caption must fit on one line", { code: "line-break", path,
         action: "Remove line breaks from the table caption." });

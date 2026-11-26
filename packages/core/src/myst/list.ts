@@ -16,7 +16,7 @@ const hasOnly = (node: MystNode, fields: Set<string>) => Object.keys(node).every
  * rejected by native admission (see `checklistShapeIssue`).
  * `spread` is recorded as myst-parser produces it for every Markdown list.
  */
-export function supportedListContent(node: MystNode): ListContent | undefined {
+export function supportedListContent(node: MystNode, preserveWhitespace = false): ListContent | undefined {
   if (node.type !== "list" || typeof node.ordered !== "boolean" || node.spread !== false || !hasOnly(node, LIST_FIELDS)) {
     return undefined;
   }
@@ -36,8 +36,8 @@ export function supportedListContent(node: MystNode): ListContent | undefined {
     const [nested, ...rest] = children;
     if ((paragraph && !hasOnly(paragraph, PARAGRAPH_FIELDS)) || rest.length > 0) return undefined;
     const content = paragraph ? projectInlineContent(paragraph) : [];
-    if (!content || (paragraph && structuralInlineContent(content).length === 0)) return undefined;
-    const list = nested === undefined ? undefined : supportedListContent(nested);
+    if (!content || (paragraph && !preserveWhitespace && structuralInlineContent(content).length === 0)) return undefined;
+    const list = nested === undefined ? undefined : supportedListContent(nested, preserveWhitespace);
     if (nested !== undefined && !list) return undefined;
     items.push({ content, ...(checklist ? { checked: item.checked } : {}), ...(list ? { list } : {}) });
   }

@@ -225,6 +225,20 @@ function containsLink(content: InlineContent[]): boolean {
   return content.some((item) => item.kind === "link" || ("children" in item && containsLink(item.children)));
 }
 
+/** Separate adjacent links with equal targets have no distinct native inline identity. */
+export function hasAdjacentMatchingLinks(content: InlineContent[]): boolean {
+  type Link = Extract<InlineContent, { kind: "link" }>;
+  let previous: Link | undefined;
+  const visit = (items: InlineContent[], owner?: Link): boolean => items.some(item => {
+    if (item.kind === "link") return visit(item.children, item);
+    if ("children" in item) return visit(item.children, owner);
+    if (owner && previous && owner !== previous && owner.url === previous.url && owner.title === previous.title) return true;
+    previous = owner;
+    return false;
+  });
+  return visit(content);
+}
+
 function containsReference(content: InlineContent[]): boolean {
   return content.some((item) => item.kind === "reference" || item.kind === "footnote" || item.kind === "citation" ||
     ("children" in item && containsReference(item.children)));
