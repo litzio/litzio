@@ -4,7 +4,7 @@ import { commitFile } from "@litzio/file-commit";
 import { createDocumentFromAuthoring } from "./document-create.ts";
 import { createDocumentImageAsset, documentImageMatches } from "./asset-api.ts";
 import { authorDocumentInThread, validateAuthoringInThread } from "./authoring-thread.ts";
-import { accessPath, canonicalFilePath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { accessPath, canonicalFilePath, rootIdentity, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 
 /** Shared Host/CLI document construction and exclusive publication, never plugin file IO. */
 export async function createAuthoredDocumentFile(file: string, raw: unknown, access: FileAccess = LOCAL_FILE_ACCESS, beforePublish: () => void = () => {}) {
@@ -43,7 +43,20 @@ async function publishAuthoredDocumentFile(file: string, raw: unknown, access: F
   file = path.resolve(access ? access.resolve(file, true, revision === undefined) : accessPath(file, access, true));
   if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
   beforePublish();
-  return inArrivalOrder(file, () => publishInOrder(file, raw, access, beforePublish, revision));
+  // Missing descendants may be created, but their existing ancestor must survive validation.
+  let parent = path.dirname(file);
+  while (!fs.lstatSync(parent, { throwIfNoEntry: false }) && path.dirname(parent) !== parent) parent = path.dirname(parent);
+  const real = canonicalFilePath(parent), identity = rootIdentity(parent, access);
+  const checkParent = () => {
+    beforePublish();
+    try {
+      if (canonicalFilePath(parent) === real && rootIdentity(parent, access) === identity) return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" && (error as NodeJS.ErrnoException).code !== "ENOTDIR") throw error;
+    }
+    throw Object.assign(new Error("The target folder changed while the document was being built; the document was not saved."), { errorKind: "conflict" });
+  };
+  return inArrivalOrder(file, () => publishInOrder(file, raw, access, checkParent, revision));
 }
 
 async function publishInOrder(file: string, raw: unknown, access: FileAccess, beforePublish: () => void, revision?: string) {
