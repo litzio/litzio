@@ -11,7 +11,8 @@ import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { FileText, Info, Palette, History, Server } from "lucide-react";
+import { FileText, Highlighter, Info, Palette, History, Server } from "lucide-react";
+import { HighlightSetSettings } from "./HighlightSetSettings.tsx";
 import { SettingsRow, SettingsSelect, SettingsProgress } from "@/components/ui/settings.tsx";
 import { ColorSwatches } from "@/components/ui/color-swatches.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -82,7 +83,7 @@ function updateStatusLabel(state: UpdateState): string | undefined {
   }
 }
 
-export type SettingsCategory = "plugins" | "appearance" | "recovery" | "assistant" | "about";
+export type SettingsCategory = "plugins" | "appearance" | "highlights" | "recovery" | "assistant" | "about";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -172,6 +173,7 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
   };
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
+    { id: "highlights", label: i18n.t("Highlight sets"), icon: Highlighter },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
     { id: "plugins", label: i18n.t("Plugins"), icon: Server },
     { id: "assistant", label: i18n.t("Assistant"), icon: FileText },
@@ -194,6 +196,7 @@ export function SettingsDialog({ onAssistantSaved, assistantProviderRevision, th
             <div className="settings-content-inner">
               <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
               {category === "plugins" ? <PluginSettings desktop={desktop} /> : null}
+              {category === "highlights" ? <HighlightSetSettings /> : null}
               {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} providerReadRevision={assistantProviderRevision} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} testId="theme"

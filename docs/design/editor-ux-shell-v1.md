@@ -183,7 +183,8 @@ no document. Only the tablist scrolls horizontally; Read/Edit/Source, layout tog
 status, Save and File actions stay fixed at the right of that row. At viewport widths
 up to 1024px the less frequent Wide document toggle moves into ⋯ as a checked menu
 item. Outline remains a direct button so its overlay Escape/focus-return path remains
-stable. Document actions (including Save, views, split/layout controls and File actions)
+stable. The [highlight set](#highlight-sets-2020) button follows Outline in every view of non-text
+document tabs. Document actions (including Save, views, split/layout controls and File actions)
 are hidden when the group has no active document tab, including the empty start
 screen and plugin tabs (#973). Text document tabs retain their existing subset of
 actions. Pending document work retains its disabled guards. No special tab is added.
@@ -435,7 +436,8 @@ Current document settings examples:
 
 ## Dedicated Settings screen (#594)
 
-Settings opens at Appearance; an update notice's View opens About. Theme, page style, language,
+Settings opens at Appearance; an update notice's View opens About; the tab row's Manage sets… opens
+[Highlight sets](#highlight-sets-2020). Theme, page style, language,
 accent and [Activity bar labels](#activity-bar-671--1817) changes apply immediately, with profile-local preference storage and failure notices.
 Theme/page roles, startup choice and display transitions follow [Visual Language](editor-visual-language-v1.md#surfaces-and-themes); preference storage and failure behavior follow [Adjustable values and preferences](editor-visual-language-v1.md#adjustable-values-and-preferences).
 Recovery retains its explanation, count and confirmed Clear all; individual records stay
@@ -1242,6 +1244,44 @@ Captures (synthetic document, persistent Chrome): [before · 1440 light](assets/
 [1440 dark, Korean](assets/document-find-1982/after-1440-dark-ko.png) · [640 light](assets/document-find-1982/after-640-light.png) ·
 [640 dark, Korean](assets/document-find-1982/after-640-dark-ko.png) · [no match](assets/document-find-1982/no-results-1440-light.png) ·
 [table cell](assets/document-find-1982/table-cell-1440-light.png) · [plugin document view](assets/document-find-1982/document-view-1440-light.png).
+
+## Highlight sets (#2020)
+
+A highlight set is a named list of words, each shown in one of eight palette colors at weight 650
+([palette](editor-visual-language-v1.md#tokens-and-palette)); there is no free color picker, regular
+expression or per-word style. English words (a letter, then letters, digits, `'` or `-`) match as whole
+words in any case: `shall` finds `SHALL` and `shall-like`, not `Marshall` or `shallow`. Every other entry,
+Korean text and phrases with spaces included, matches letter for letter wherever it occurs; where two entries
+match at one place the longer wins. Text blocks are matched across formatting marks; inline math, references
+and citations interrupt a match, and code blocks keep their syntax colors.
+
+Highlights are view decorations like [Find](#find-in-document-1982): they change no document content, dirty
+state, Undo history, save edit or recovery snapshot, and are not part of copied content, printing or anything
+sent to the assistant. They show in a document tab's Read and Edit views, plugin document views
+(`ui.DocumentView`, `ui.LinkedDocumentView`) and comparisons, each resolving the set by its document path; Source,
+text-mode tabs and template previews show none. A current Find match keeps its own face over a highlighted word.
+
+The tab row's highlighter button (after Outline) chooses the document's set. While a set is on, the button shows
+up to three of its colors and its name; at widths up to 1024px it keeps the icon and colors. Its tooltip and
+accessible name give the set and whether it comes from the folder default. The menu lists the sets (radio, with
+their colors and a Folder default hint), Off, then the **Default for this folder** checkbox and **Manage sets…**,
+which opens Settings → Highlight sets. The Command Center offers `Highlight set: {name}` for each set (with
+Current), Turn off highlights and Manage highlight sets.
+
+A document's own choice, Off included, wins over the default of the folder directly containing it; subfolders do
+not inherit it. Choices are remembered per path like other tab memory (not per Host), follow a successful rename,
+and are dropped with a deleted set; a renamed folder's default stays with the old path. Settings → Highlight sets
+creates, renames and deletes (with confirmation) sets and adds words with a color, changes a word's color through
+a swatch Popover, and removes words. Sets live in this device's preference storage (`litzio.highlightSets.v1`,
+[preferences](editor-visual-language-v1.md#adjustable-values-and-preferences)); a failed write keeps the change
+for the page and Settings shows an alert. Like [UI display language](#ui-display-language-256) and
+[document table display](#document-table-display-902) this is a local display preference: no Core operation or
+CLI command, and no shared or team-wide sets.
+
+A full rescan happens when a set or choice changes; an edit rescans only the text blocks it touched. With 5,000
+blocks and about 34,000 highlights a full rescan takes about 10–35 ms and an edit under 1 ms (node, #2020 PR).
+`pnpm browser:test highlight-sets` covers the entry points, persistence across reload, Read/Source, copy and the
+640px row; `highlight-sets.test.ts` covers matching, the per-block rescan and the preference store.
 
 ## Writing interactions
 

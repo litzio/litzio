@@ -3144,6 +3144,20 @@ h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-
   background: var(--id-color-warning);
   color: var(--id-color-paper);
 }
+/* Highlight sets (#2020): this device's word colors as view decorations. A current Find match keeps
+ * its own face, text selection its own colors, and printing shows the document's plain text. */
+:is(.highlight-word, .highlight-word-text, .highlight-swatch)[data-highlight="blue"] { --highlight-color: var(--id-color-highlight-blue); }
+:is(.highlight-word, .highlight-word-text, .highlight-swatch)[data-highlight="green"] { --highlight-color: var(--id-color-highlight-green); }
+:is(.highlight-word, .highlight-word-text, .highlight-swatch)[data-highlight="teal"] { --highlight-color: var(--id-color-highlight-teal); }
+:is(.highlight-word, .highlight-word-text, .highlight-swatch)[data-highlight="violet"] { --highlight-color: var(--id-color-highlight-violet); }
+:is(.highlight-word, .highlight-word-text, .highlight-swatch)[data-highlight="pink"] { --highlight-color: var(--id-color-highlight-pink); }
+:is(.highlight-word, .highlight-word-text, .highlight-swatch)[data-highlight="amber"] { --highlight-color: var(--id-color-highlight-amber); }
+:is(.highlight-word, .highlight-word-text, .highlight-swatch)[data-highlight="red"] { --highlight-color: var(--id-color-highlight-red); }
+:is(.highlight-word, .highlight-word-text, .highlight-swatch)[data-highlight="gray"] { --highlight-color: var(--id-color-highlight-gray); }
+.document-editor .highlight-word { color: var(--highlight-color); font-weight: var(--font-weight-highlight); }
+.document-editor .ProseMirror-active-search-match .highlight-word { color: inherit; }
+@media print { .document-editor .highlight-word { color: inherit; font-weight: inherit; } }
+.highlight-swatch { display: inline-block; flex: none; width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--highlight-color); }
 
 /* Formatting buttons retain the former static pressed state. */
 .selection-toolbar [data-slot="button"][aria-pressed="true"] {
@@ -3530,3 +3544,23 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .ui-portal:has(.command-center-dialog[data-ending-style]) [data-ending-style][data-slot="dialog-overlay"] {
   transition-duration: 0s;
 }
+
+/* Highlight sets (#2020): the tab row's set button and its menu. */
+.highlight-set-button { gap: var(--space-1); padding-inline: var(--space-2); }
+.highlight-set-button[data-active] { color: var(--id-color-text); }
+.highlight-set-colors { display: inline-flex; flex: none; gap: calc(var(--space-1) / 2); }
+.highlight-set-name { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.highlight-set-menu { min-width: 15rem; }
+.highlight-set-menu-mark { display: inline-flex; flex: none; justify-content: center; width: var(--size-icon-slot); }
+.highlight-set-menu-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.highlight-set-menu-hint { flex: none; font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
+.highlight-set-settings { display: flex; flex-direction: column; gap: var(--space-4); }
+.highlight-set-section { display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: var(--space-4); border-bottom: var(--border-width) solid var(--id-color-border-subtle); }
+.highlight-set-section-header { display: flex; align-items: center; gap: var(--space-1); min-height: var(--size-control); }
+.highlight-set-section-name { flex: 1 1 auto; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.highlight-set-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.highlight-set-form > input { flex: 1 1 12rem; min-width: 0; max-width: var(--layout-settings-control-width); }
+.highlight-word-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.highlight-word-chip { display: inline-flex; align-items: center; gap: var(--space-1); padding-inline: 0; border: var(--border-width) solid var(--id-color-border-subtle); border-radius: var(--id-radius-sm); background: var(--id-color-paper); }
+.highlight-word-text { color: var(--highlight-color); font-weight: var(--font-weight-highlight); overflow-wrap: anywhere; }
+.highlight-color-popover[data-slot="popover-content"] { width: auto; padding: var(--space-2); }

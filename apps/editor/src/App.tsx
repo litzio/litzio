@@ -19,6 +19,7 @@ import { getHostClient, hostConnection, monitorDesktopHost, type HostClient } fr
 import { creationUndoNeedsConfirmation, type FolderTrashConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
+import { activeHighlightSet, chooseHighlightSet, relocateHighlightChoice, useHighlightState } from "./highlight-sets.ts";
 import { productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, FIND_SHORTCUT, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { useShellLayout } from "./shell/useShellLayout.ts";
@@ -67,7 +68,7 @@ import darkIcon from "@brand-dark-icon";
 import { CommandCenter } from "./shell/CommandCenter.tsx";
 import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
-import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Search, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
+import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Highlighter, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Search, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
 import type {
   EditorFileResponse,
   DocumentStartResponse,
@@ -401,6 +402,8 @@ function EditorApp() {
   const { openedPath = "", draftActive = false, documentDirty = false, reloadDialog = false } = session ?? {};
   const tableWrapPath = nativeSession ? openedPath : "";
   const tableWrap = useTableWrap(tableWrapPath);
+  const highlightState = useHighlightState();
+  const activeHighlight = activeHighlightSet(tableWrapPath, highlightState);
   const busy = Boolean(operation || fileOperationPending || session?.busy || continuationPending);
   // Match the window-level navigation guard; a tab-owned Save still permits Settings diagnostics.
   const settingsDisabled = Boolean(operation || fileOperationPending || continuation);
@@ -646,6 +649,7 @@ function EditorApp() {
       catch { setError({ key: "The file changed, but local recovery could not be updated. Review local recovery in Settings." }); }
       if (action === "rename") {
         relocateTableWrap(entry.path, path);
+        relocateHighlightChoice(entry.path, path);
         owner?.relocate(path);
         setTabs(previous => previous.map(tab => {
           if (tab.path !== entry.path) return tab;
@@ -722,6 +726,10 @@ function EditorApp() {
       navigate({ type: "select", id: "settings" });
       globalThis.document.getElementById("tab-settings")?.focus();
     } else placeTab("settings");
+  }
+  function openHighlightSettings(): void {
+    setSettingsCategory("highlights");
+    openSettingsTab();
   }
   useLayoutEffect(() => {
     if (settingsFocusRequested.current) {
@@ -1176,6 +1184,16 @@ function EditorApp() {
     { id: "table-wrap", kind: "command", label: i18n.t("This document’s tables: wrap long text"), icon: FileText,
       detail: i18n.t(tableWrap ? "Current: wrap" : "Current: single line"), disabled: !tableWrapPath || busy,
       run: () => { setTableWrap(tableWrapPath, !tableWrap); } },
+    ...highlightState.sets.map(set => ({ id: `highlight-set:${set.id}`, kind: "command" as const,
+      label: i18n.t("Highlight set: {{name}}", { name: set.name }), icon: Highlighter, disabled: !tableWrapPath || busy,
+      detail: activeHighlight?.set.id === set.id ? i18n.t("Current") : undefined, keywords: ["highlight", "강조"],
+      run: () => { chooseHighlightSet(tableWrapPath, set.id); } })),
+    { id: "highlight-off", kind: "command", label: i18n.t("Turn off highlights"), icon: Highlighter,
+      disabled: !tableWrapPath || busy || !activeHighlight, keywords: ["highlight", "강조"],
+      run: () => { chooseHighlightSet(tableWrapPath, "off"); } },
+    { id: "highlight-settings", kind: "command", label: i18n.t("Manage highlight sets"), icon: Highlighter, takesFocus: true,
+      disabled: settingsDisabled, keywords: ["highlight", "강조", "settings", "설정"],
+      run: () => { settingsReturnFocus.current = commandReturnFocus.current; openHighlightSettings(); } },
     { id: "width", kind: "command", label: i18n.t(documentWidth === "wide" ? "Standard document width" : "Wide document"), icon: documentWidth === "wide" ? Columns3 : StretchHorizontal, disabled: session?.kind === "text",
       keywords: ["document width", "문서 너비"], run: toggleDocumentWidth },
     ...THEMES.map(value => ({ id: `theme-${value}`, kind: "command" as const,
@@ -1337,6 +1355,7 @@ function EditorApp() {
               outline={panelOpen && !assistantOpen}
               onToggleOutline={owner?.kind === "text" ? undefined : toggleOutline}
               outlineToggleRef={group.id === navigation.focused ? outlineToggle : undefined}
+              onManageHighlights={owner?.kind === "native" ? openHighlightSettings : undefined}
             /> : pdfTab?.pdf && pluginActions.length ? <div className="top-bar-actions">
               <TabFileMenu documentPath={pdfTab.pdf} pluginActions={pluginActions} onOpenPluginFile={openPluginFile}
                 disabled={groupBusy || Boolean(continuation)} fileActionsRef={group.id === navigation.focused ? fileActionsToggle : undefined} />

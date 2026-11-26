@@ -12,6 +12,8 @@ import { fragmentTarget, handleLinkActivation, handleLinkClick, handleLinkMouseD
 import type { EditorView } from "@tiptap/pm/view";
 import { ReadingPreview } from "./ReadingPreview.tsx";
 import { DocumentFind } from "./document-find.ts";
+import { highlightExtension, highlightRedraw } from "./highlight-decorations.ts";
+import { activeHighlightSet, subscribeHighlightSets } from "./highlight-sets.ts";
 import { DocumentFindBar, type DocumentFindHandle } from "./DocumentFindBar.tsx";
 import { ImageRenameContext, imageRenameKey, renameSnapshot, type ImageRenamer } from "./image-rename.ts";
 import type { MediaReplacement } from "../shared/file-operations.ts";
@@ -158,6 +160,8 @@ type DocumentEditorProps = ReadingCallbacks & {
   /** Internal initialization only; the opening model remains the structural baseline. */
   initialSnapshot?: EditorSnapshot;
   documentPath?: string;
+  /** The path's highlight set (#2020); off for template previews. */
+  highlights?: boolean;
   onStructuralReject: (reason?: UiMessage) => void;
   onNotice?: (message: UiMessage, action?: () => void) => void;
   onDraftChange?: (active: boolean) => void;
@@ -180,7 +184,7 @@ type DocumentEditorProps = ReadingCallbacks & {
 };
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(function DocumentEditor(
-  { readOnly = false, preview = false, contentOnly = false, inputHeld = false, onBlockLeave, comparison, showHeadingLevels = !readOnly && !contentOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
+  { readOnly = false, preview = false, contentOnly = false, inputHeld = false, onBlockLeave, comparison, showHeadingLevels = !readOnly && !contentOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, highlights = true, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
   ref,
 ) {
   useTranslation();
@@ -270,6 +274,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   }, []);
   const documentPathRef = useRef(documentPath);
   documentPathRef.current = documentPath;
+  const highlightsRef = useRef(highlights);
+  highlightsRef.current = highlights;
   // This component remounts for a new document. Keep extension and view option identities
   // stable during React updates so setOptions cannot rebuild NodeViews holding drafts.
   const assetClient = useHostClient();
@@ -291,6 +297,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       extensions: [
         ...extensions,
         ...(comparison ? [comparisonLayout(comparison)] : [DocumentFind]),
+        highlightExtension(() => highlightsRef.current ? activeHighlightSet(documentPathRef.current ?? "")?.set.words ?? null : null),
         // editable:false stops native input. Explicit keymaps, commands and async form
         // completions also dispatch transactions, so reject every content change here.
         ReadOnlyBoundary,
@@ -408,6 +415,13 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   // A gallery owns one disposable reading state, with no drafts, saving or history to retain.
   // Replace state directly rather than authoring a transaction through the document write guard.
   useEffect(() => { if (editor && comparison) editor.view.dispatch(editor.state.tr.setMeta(comparisonLayoutKey, comparison)); }, [editor, comparison]);
+  // Highlight sets are this device's view preference: redraw without a document or history change.
+  useEffect(() => {
+    if (!editor) return;
+    const redraw = () => { if (!editor.isDestroyed) editor.view.dispatch(highlightRedraw(editor.state.tr)); };
+    redraw();
+    return subscribeHighlightSets(redraw);
+  }, [editor, documentPath, highlights]);
   const previewModel = useRef(document);
   useLayoutEffect(() => {
     if (!editor || !preview || !readOnly || previewModel.current === document) return;

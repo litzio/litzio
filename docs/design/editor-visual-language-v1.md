@@ -66,6 +66,21 @@ Settings offers six validated presets, default Plum, with no free color picker. 
 | Green | `#9bce91` | `#c2e5ba` | `#2d3d2c` | `#374a35` |
 | Graphite | `#b5c6d1` | `#d4e0e8` | `#303b43` | `#3a4751` |
 
+[Highlight sets](editor-ux-shell-v1.md#highlight-sets-2020) color words with eight fixed palette colors at weight 650; there is no free color picker. Their values are their own (`--id-color-highlight-*`), so an accent preset never changes them. Blue is darker than the link blue in light and brighter in dark, and Pink replaces Plum so a word never takes the default selection color. Contrast is on `paper`; OKLab distance is from the link color and from Plum selected text.
+
+| Color | Light | Contrast | Dark | Contrast | Distance from link (light/dark) |
+| --- | --- | --- | --- | --- | --- |
+| Blue / 파랑 | `#1d3f9e` | 9.30 | `#5c9dff` | 5.87 | 0.120 / 0.111 |
+| Green / 초록 | `#2f7031` | 6.03 | `#8fd48a` | 9.08 | 0.269 / 0.199 |
+| Teal / 청록 | `#00726b` | 5.80 | `#55d0d6` | 8.65 | 0.190 / 0.113 |
+| Violet / 보라 | `#6a3cc4` | 6.87 | `#b59cff` | 6.96 | 0.102 / 0.083 |
+| Pink / 분홍 | `#b3246e` | 6.19 | `#ff8ad0` | 7.45 | 0.266 / 0.178 |
+| Amber / 황토 | `#7a6400` | 5.75 | `#d9cc55` | 9.66 | 0.291 / 0.243 |
+| Red / 빨강 | `#b3261e` | 6.54 | `#ff8a7a` | 6.97 | 0.324 / 0.224 |
+| Gray / 회색 | `#5a636c` | 6.11 | `#959ea9` | 5.88 | 0.172 / 0.130 |
+
+Dark Gray sits below the body text (OKLab distance 0.259) so it never reads as plain text. Every highlight color also meets 4.5:1 on Flat paper.
+
 UI text/generated small numbers meet 4.5:1; required control boundaries, focus and state indicators meet 3:1 against adjacent backgrounds, including canvas/paper in Flat. Document-tab markers meet 3:1 at rest and hover. Decorative dividers, segment face/shadow edges and rest-versus-hover differences do not carry a 3:1 state-boundary requirement; text and focus still do.
 
 The encoded native-select chevron is a deliberate literal exception: data-URL SVG cannot inherit CSS variables, so its theme-specific stroke matches `text-muted`. Black/transparent mask alpha and zero-alpha rings are rendering mechanisms. Shadows remain tokens; document art and syntax/KaTeX content keep their own ownership.
@@ -229,6 +244,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | Settings | `--layout-settings-content-width`, `--layout-settings-control-width`, `--layout-document-settings-label-width`, `--layout-document-settings-label-width-narrow`, `--space-document-settings-after` |
 | Figure metadata | `--layout-figure-popover-width`, `--size-figure-property-thumbnail-max-width/height`, `--space-figure-popover-gap`; preview retains intrinsic ratio |
 | Motion | `--duration-fast` (250ms, control colors), `--duration-normal` (250ms, surfaces, progress, disclosure), `--ease-motion` (deceleration); at most 250ms, reduced motion disables both durations |
+| Highlight sets | `--id-color-highlight-blue/green/teal/violet/pink/amber/red/gray`, `--font-weight-highlight` (650); see the palette above |
 | Heading depth | `--font-size-heading-level`, `--id-color-heading-level`, `--space-heading-level-gap`, `--layout-reading-heading-gutter`, `--space-heading-level-reading-gap`; all in Adjustable values, using existing metadata/theme tokens |
 | Folder/image picker | `--layout-folder-picker-width`, `--layout-folder-picker-height` |
 | File/reading previews/comparison | `--layout-file-preview-width`, `--layout-file-preview-image-max-height`, `--layout-reading-preview-width/height`, `--layout-recovery-compare-width`, `--layout-recovery-diff-max-height` |

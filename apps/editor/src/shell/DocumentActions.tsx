@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { DocumentView } from "./TopBar.tsx";
 import type { OpenPluginFile, ViewFileAction } from "../views/view-file-actions.ts";
 import { viewScreenIcon } from "../views/view-screen-icon.ts";
+import { HighlightSetMenu } from "./HighlightSetMenu.tsx";
 
 type PluginFileMenuProps = {
   documentPath: string;
@@ -73,13 +74,15 @@ type DocumentActionsProps = PluginFileMenuProps & {
   onMove?(): void;
   openRightDisabled?: boolean;
   moveDisabled?: boolean;
+  /** Present for documents that show highlight sets (#2020); opens their Settings. */
+  onManageHighlights?(): void;
 };
 
 /** Actions and status of this tab row's active document. */
 export function DocumentActions({
   documentPath, textMode, markdownText, hideViewControls, wide, onToggleWide, status, unsaved = false, draftNotice = "", view, viewDisabled, onViewChange, saveDisabled,
   onSave, onCompare, compareDisabled, onReload, reloadDisabled, onCopyPath, fileActionsRef, pluginActions, onOpenPluginFile,
-  outline, onToggleOutline, outlineToggleRef, compact: groupCompact = false, onOpenRight, onMove, openRightDisabled, moveDisabled,
+  outline, onToggleOutline, outlineToggleRef, compact: groupCompact = false, onOpenRight, onMove, openRightDisabled, moveDisabled, onManageHighlights,
 }: DocumentActionsProps) {
   useTranslation();
   // Outline stays directly reachable, including the overlay's Escape/focus-return path.
@@ -124,6 +127,7 @@ export function DocumentActions({
             <PanelRight aria-hidden="true" />
           </Button>
         ) : null}
+        {onManageHighlights && documentPath ? <HighlightSetMenu path={documentPath} compact={compact} onManage={onManageHighlights} /> : null}
       </div> : null}
       <div className="top-bar-group" role="group" aria-label={i18n.t("File actions")}>
         <p className="document-status status" data-testid="status" data-operation={status} role="status" title={displayStatus || undefined}>
