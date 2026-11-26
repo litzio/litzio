@@ -1039,10 +1039,11 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
 .settings-switch:checked::before { margin-left: auto; background: var(--id-color-text-on-accent); }
 .settings-switch:disabled { opacity: .5; cursor: default; }
 .settings-accent-control { display: flex; align-items: center; gap: var(--space-2); }
-.settings-accents { display: flex; flex-shrink: 0; }
-.settings-accent { position: relative; min-width: 0; }
-.settings-accent input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.settings-accent-face {
+.color-swatches { display: flex; flex-shrink: 0; }
+.color-swatch { position: relative; min-width: 0; }
+.color-swatch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.color-swatch input:disabled { cursor: default; }
+.color-swatch-face {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1050,10 +1051,11 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar) {
   height: var(--size-control-compact);
   border-radius: 50%;
 }
-.settings-accent input:hover + .settings-accent-face .settings-accent-swatch { filter: brightness(1.1); }
-.settings-accent input:checked + .settings-accent-face .settings-accent-swatch { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
-.settings-accent input:focus-visible + .settings-accent-face { box-shadow: var(--focus-ring); }
-.settings-accent-swatch { width: calc(var(--size-control-compact) - var(--space-2)); height: calc(var(--size-control-compact) - var(--space-2)); border-radius: 50%; }
+.color-swatch input:enabled:hover + .color-swatch-face .color-swatch-fill { filter: brightness(1.1); }
+.color-swatch input:checked + .color-swatch-face .color-swatch-fill { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
+.color-swatch input:focus-visible + .color-swatch-face { box-shadow: var(--focus-ring); }
+.color-swatch-fill { width: calc(var(--size-control-compact) - var(--space-2)); height: calc(var(--size-control-compact) - var(--space-2)); border-radius: 50%; }
+.color-swatch input:disabled + .color-swatch-face { opacity: .5; }
 .settings-accent-name { font-size: var(--font-size-xs); line-height: var(--line-height-meta); color: var(--id-color-text-muted); white-space: nowrap; }
 .settings-section--stacked { grid-template-columns: minmax(0, 1fr); }
 .settings-section--stacked > button { justify-self: start; }
