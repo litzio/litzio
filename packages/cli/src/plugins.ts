@@ -106,8 +106,9 @@ export async function pluginCli(args: string[]): Promise<number> {
     const health = await fetch(new URL("/daemon/health", origin), { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, redirect: "error", signal: AbortSignal.timeout(5000) });
     if (!health.ok || (await health.json()).protocolVersion !== DAEMON_PROTOCOL) throw new Error("Host protocol check failed");
     dispatched = true;
-    const timeout = body.source || ["update", "reload"].includes(String(body.action)) ? 600_000 : 30000;
-    const response = await fetch(new URL("/api/plugins", origin), { method: "POST", headers: { "Content-Type": "application/json", Origin: origin.origin }, body: JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(timeout) });
+    const waitsForActivation = ["invoke", "enable"].includes(String(body.action));
+    const timeout = body.source || ["update", "reload"].includes(String(body.action)) ? 600_000 : 30_000;
+    const response = await fetch(new URL("/api/plugins", origin), { method: "POST", headers: { "Content-Type": "application/json", Origin: origin.origin }, body: JSON.stringify(body), redirect: "error", signal: waitsForActivation ? undefined : AbortSignal.timeout(timeout) });
     const value = await response.json();
     process.stdout.write((args.includes("--json") || command !== "operation" || !value.error ? JSON.stringify({ target: origin.origin, ...value }) : `${value.code ? value.code + ": " : ""}${value.message ?? value.error}`) + "\n");
     return response.ok && (!value.receipt || value.receipt.outcome === "success") ? 0 : 1;

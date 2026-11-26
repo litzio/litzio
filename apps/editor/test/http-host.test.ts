@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { folderVersion } from "../server/folder-watch.ts";
 import { listenForFetch, startFetchServer } from "../../../test/helpers/fetch-server.ts";
 import { nativeSource } from "./helpers/document.ts";
+import { getEditableDocument, machineNodes, parse } from "@litzio/core";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createServer, request } from "node:http";
@@ -539,10 +540,13 @@ test("fast Save verifies the original work, corrects only its own bytes, and kee
     assert.equal(response.status, 200);
     return await response.json() as { path: string; revision: string; source: string };
   };
-  const submit = (file: Awaited<ReturnType<typeof open>>, text: string, revision = file.revision, previous?: string) =>
+  const submit = (file: Awaited<ReturnType<typeof open>>, text: string, revision = file.revision, previous?: string, describe = false) =>
     send("/api/document", "POST", { path: file.path, revision, base: { source: file.source,
       ...(previous ? { savedEdits: { paragraphs: [{ path: [2], content: [{ kind: "text", text: previous }] }] } } : {}) },
-    paragraphs: [{ path: [2], content: [{ kind: "text", text }] }] });
+    paragraphs: [{ path: [2], content: [{ kind: "text", text }] }], ...(describe ? { describe: true } : {}) });
+  // A described Save reports the accepted document's inspect nodes of the block it changed.
+  const savedBlock = (file: string, index: number) =>
+    [{ path: [index], nodes: machineNodes(getEditableDocument(parse(fs.readFileSync(file, "utf8")))).filter(node => node.path[0] === index) }];
   const query = (file: string, revision: string) => `/api/local-write-status?${new URLSearchParams({ path: file, revision })}`;
   const receipt = async (file: string, revision: string) => {
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -557,9 +561,10 @@ test("fast Save verifies the original work, corrects only its own bytes, and kee
 
   const first = await open("first");
   const waiting = hold();
-  const firstSave = await (await submit(first, "First edit.")).json();
+  const firstSave = await (await submit(first, "First edit.", first.revision, undefined, true)).json();
   assert.equal(firstSave.pendingLocalWrite, true);
   assert.match(fs.readFileSync(first.path, "utf8"), /First edit/);
+  assert.deepEqual(firstSave.blocks, savedBlock(first.path, 2), "the quick path describes its candidate");
   const check = await waiting;
   const save = DocumentThread.prototype.save;
   const submitted = Promise.withResolvers<void>();
@@ -568,13 +573,15 @@ test("fast Save verifies the original work, corrects only its own bytes, and kee
     submitted.resolve();
     return result;
   });
-  const queued = submit(first, "Second edit.", firstSave.revision, "First edit.");
+  const queued = submit(first, "Second edit.", firstSave.revision, "First edit.", true);
   await submitted.promise;
   check.release();
   const second = await queued;
   assert.equal(second.status, 200);
-  assert.equal((await second.json()).pendingLocalWrite, undefined);
+  const secondSave = await second.json();
+  assert.equal(secondSave.pendingLocalWrite, undefined);
   assert.match(fs.readFileSync(first.path, "utf8"), /Second edit/);
+  assert.deepEqual(secondSave.blocks, savedBlock(first.path, 2), "the full path describes its readback");
 
   const corrected = await open("corrected");
   inject = "different";
@@ -585,6 +592,7 @@ test("fast Save verifies the original work, corrects only its own bytes, and kee
   assert.equal(fs.readFileSync(corrected.path, "utf8"), corrected.source.replace("Alpha.", "Full result."));
   const next = await (await submit(corrected, "Regular save.", status.revision, "Full result.")).json();
   assert.equal(next.pendingLocalWrite, undefined);
+  assert.equal(next.blocks, undefined, "only a described Save carries blocks");
 
   const rejected = await open("rejected");
   inject = "rejected";

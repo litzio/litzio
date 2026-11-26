@@ -1,4 +1,9 @@
 import { inlineContentToNodes, projectInlineContent, type InlineContent } from "../inline.ts";
+import { labelError } from "../label.ts";
+import { DocumentWriteError } from "../write-error.ts";
+import { labelIdentifier } from "./label.ts";
+import { readTableHtml } from "./table-html.ts";
+import { tableGridError, tableInline } from "./table-grid.ts";
 import type { MystNode } from "./tree.ts";
 import type { VFile } from "vfile";
 
@@ -99,7 +104,7 @@ export function isNativeTableSource(node: MystNode): boolean {
  * drop names inherited from Object.prototype; VFile diagnostics still record them.
  * Unsupported options and diagnostics also participate in the write fingerprint.
  */
-export function retainTableSource(node: MystNode, file: VFile): void {
+export function retainTableSource(node: MystNode, file: VFile, complexTables?: Set<MystNode>, path: number[] = []): void {
   if (node.type === "mystDirective" && node.name !== "table") {
     node.children?.filter(child => child.type === "container" && child.kind === "table")
       .forEach(child => nonNativeTableSources.add(child));
@@ -109,12 +114,16 @@ export function retainTableSource(node: MystNode, file: VFile): void {
     // caption when the directive has no argument. Preserve the table's source order.
     const container = node.children?.[0];
     const children = container?.children ?? [];
-    const grid = children.findIndex(child => child.type === "table");
+    const first = children[0]?.type === "caption" ? 1 : 0;
+    const rawGrid = complexTables && path.length === 1 && container?.kind === "table" && children[first]?.type === "html"
+      ? children[first] : undefined;
+    const grid = rawGrid ? first : children.findIndex(child => child.type === "table");
     if (container?.kind === "table" && grid >= 0 && grid < children.length - 1) {
       const after = children.splice(grid + 1);
       children.push({ type: "legend", children: after });
     }
-    const unsupported = Object.fromEntries(Object.entries(node.options ?? {})
+    const options = node.options ?? {};
+    const unsupported = Object.fromEntries(Object.entries(options)
       .filter(([name]) => name !== "name" && name !== "label" && name !== "enumerator" && name !== "enumerated" && name !== "numbered"));
     const diagnostics = file.messages.filter(message => message.line != null && node.position &&
       message.line >= node.position.start.line && message.line <= node.position.end.line)
@@ -122,8 +131,40 @@ export function retainTableSource(node: MystNode, file: VFile): void {
     if ((Object.keys(unsupported).length || diagnostics.length) && node.children?.[0]) {
       node.children[0]["(unsupported table options)"] = { options: unsupported, diagnostics };
     }
+    if (rawGrid) {
+      if (Object.keys(unsupported).length || diagnostics.length) {
+        throw new DocumentWriteError("Unsupported table options: " + [...Object.keys(unsupported), ...diagnostics].join(", "), {
+          code: "native-content", path, line: node.position?.start.line,
+          action: "Use supported table options with valid values.",
+        }, { cause: { options, diagnostics } });
+      }
+      const grid = readTableHtml(String(rawGrid.value), path, rawGrid.position?.start.line);
+      grid.position = rawGrid.position;
+      children[first] = grid;
+      complexTables!.add(container!);
+    }
   }
-  node.children?.forEach(child => retainTableSource(child, file));
+  node.children?.forEach((child, index) => retainTableSource(child, file, complexTables, [...path, index]));
+}
+
+export function validNumberOptions(node: MystNode): boolean {
+  return (node.enumerated === undefined || typeof node.enumerated === "boolean") &&
+    (node.enumerator === undefined || (node.enumerated !== false && typeof node.enumerator === "string" &&
+      Boolean(node.enumerator.trim()) && !/[\r\n]/.test(node.enumerator)));
+}
+
+export function assertComplexTableDirective(node: MystNode, path: number[]): void {
+  if (!isTableDirective(node)) tableGridError("Unsupported table caption, notes or options", path, node.position?.start.line);
+  if (!validNumberOptions(node)) tableGridError("Invalid table numbering options", path, node.position?.start.line);
+  if (node.label !== undefined && (labelError(node.label) || !node.label || node.identifier !== labelIdentifier(node.label))) {
+    tableGridError("Invalid table label", path, node.position?.start.line);
+  }
+  const caption = tableCaptionParagraph(node);
+  if (caption) tableInline(caption, path);
+  for (const note of tableNoteParagraphs(node)) {
+    tableInline(note, path);
+    if (!tableNoteContent(note)) tableGridError("Table notes require supported prose without footnotes", path, note.position?.start.line);
+  }
 }
 
 /**

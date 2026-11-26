@@ -24,11 +24,10 @@ import { usePlugins, type Plugin } from "./plugin-state.ts";
 
 const ARTIFACT_CHANGED_HINT = "The installed files differ from when the plugin was installed. Reinstall to restore it from its source.";
 const ACTIVATION_HINTS = {
-  timeout: "The plugin was not ready in time. Turn it off and back on.",
   processExit: "The plugin process exited before it was ready. Turn it off and back on.",
   other: "Could not turn on the plugin. Turn it off and back on.",
 } as const satisfies Record<NonNullable<Plugin["activationFailure"]>, string>;
-type RowAction = "enable" | "disable" | "reload" | "update";
+type RowAction = "enable" | "disable" | "reload" | "update" | "restart";
 
 export function PluginSettings({ desktop }: { desktop?: DesktopBridge }) {
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
@@ -68,12 +67,16 @@ export function PluginSettings({ desktop }: { desktop?: DesktopBridge }) {
       else next.delete(key);
       return next;
     });
-    setBusy(true);
+    const enabling = action === "enable" || action === "restart";
+    if (!enabling) setBusy(true);
+    if (confirmTrust) setTrust(undefined);
     report("");
     if (action === "reload") setReinstalling(plugin.id);
     try {
-      await change(action, { id: plugin.id, ...(confirmTrust ? { registrationId: plugin.registrationId, trust: true } : {}) });
+      if (action === "restart") await change("disable", { id: plugin.id });
+      await change(action === "restart" ? "enable" : action, { id: plugin.id, ...(confirmTrust ? { registrationId: plugin.registrationId, trust: true } : {}) });
     } catch (error) {
+      if (enabling && error instanceof Error && error.message === "Operation unavailable or plugin disabled") return;
       if (confirmTrust && error instanceof Error && error.message === PLUGIN_REGISTRATION_CHANGED) {
         setListProblem(i18n.t(PLUGIN_REGISTRATION_CHANGED));
       } else {
@@ -82,9 +85,8 @@ export function PluginSettings({ desktop }: { desktop?: DesktopBridge }) {
           : error instanceof Error ? error.message : String(error));
       }
     } finally {
-      if (confirmTrust) setTrust(undefined);
       if (action === "reload") setReinstalling(undefined);
-      setBusy(false);
+      if (!enabling) setBusy(false);
     }
   };
   return <section className="settings-group" aria-label={i18n.t("Plugins")}>
@@ -127,19 +129,23 @@ export function PluginSettings({ desktop }: { desktop?: DesktopBridge }) {
       const hasError = !!(rowProblem || plugin.error || plugin.activationFailure);
       const reinstallHint = plugin.artifactChanged ? i18n.t(ARTIFACT_CHANGED_HINT) : undefined;
       const kind = plugin.activationFailure;
-      const processHint = !reinstallHint && (kind === "timeout" || kind === "processExit") ? i18n.t(ACTIVATION_HINTS[kind]) : undefined;
+      const processHint = !reinstallHint && kind === "processExit" ? i18n.t(ACTIVATION_HINTS[kind]) : undefined;
       const genericActivationHint = kind === "other" && (plugin.activationFailedAtStartup || !plugin.error) ? i18n.t(ACTIVATION_HINTS.other) : undefined;
-      const rowDetail = rowProblem && !(rowProblem.action === "enable" && processHint) ? githubErrorText(rowProblem.message) : undefined;
+      const rowDetail = rowProblem && !((rowProblem.action === "enable" || rowProblem.action === "restart") && processHint) ? githubErrorText(rowProblem.message) : undefined;
       const detail = rowDetail ? [rowDetail.text, rowDetail.hint].filter(Boolean).join(" ") : reinstallHint ?? processHint ?? genericActivationHint ??
         (plugin.error === PLUGIN_SOURCE_READD_REQUIRED ? i18n.t(PLUGIN_SOURCE_READD_REQUIRED) : plugin.error);
+      const activation = plugin.activation;
       const version = plugin.artifactChanged ? undefined : plugin.version ? i18n.t("Version {{version}}", { version: plugin.version }) : i18n.t("No version");
       return <section key={plugin.id} aria-label={plugin.name ?? plugin.id}>
         <Row label={<span className="plugin-heading"><PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />{plugin.name ?? plugin.id}</span>} description={<>{[version, sourceLabel(plugin), plugin.description].filter(Boolean).join(" · ")}<PluginUpdateState plugin={plugin} /></>}>
           {plugin.artifactChanged ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void runRow(plugin, "reload")}>{i18n.t(reinstalling === plugin.id ? "Reinstalling…" : "Reinstall")}</Button> : null}
           {plugin.update?.available ? <Button size="sm" variant="outline" disabled={busy} aria-label={i18n.t("Update {{name}}", { name: plugin.name ?? plugin.id })} onClick={() => void runRow(plugin, "update")}>{i18n.t("Update")}</Button> : null}
-          <PluginState tone={hasError ? "error" : plugin.enabled && !plugin.running ? "warning" : plugin.running ? "ok" : "neutral"} label={i18n.t(hasError ? "Plugin error" : plugin.enabled && !plugin.running ? "Plugin unavailable" : plugin.running ? "Running" : "Installed")} detail={detail} />
+          {activation === "slow" ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void runRow(plugin, "restart")}>{i18n.t("Restart")}</Button> : null}
+          {activation ? <PluginState tone={activation === "slow" ? "warning" : "progress"} label={i18n.t(activation === "slow" ? "Not responding" : "Loading")}
+            detail={i18n.t(activation === "slow" ? "The plugin is taking longer than expected. You can wait or restart it." : "Plugin features become available when loading finishes.")} /> :
+          <PluginState tone={hasError ? "error" : plugin.enabled && !plugin.running ? "warning" : plugin.running ? "ok" : "neutral"} label={i18n.t(hasError ? "Plugin error" : plugin.enabled && !plugin.running ? "Plugin unavailable" : plugin.running ? "Running" : "Installed")} detail={detail} />}
           <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("{{name}} settings", { name: plugin.name ?? plugin.id })} onClick={() => { setProblem(""); setSelected(plugin.id); }} />}><Settings aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Settings")}</TooltipContent></Tooltip>
-          <input className="settings-switch" type="checkbox" role="switch" aria-label={i18n.t("Enable {{name}}", { name: plugin.name ?? plugin.id })} checked={plugin.enabled} disabled={busy} onChange={event => { if (event.target.checked && !plugin.trusted) setTrust(plugin); else void runRow(plugin, event.target.checked ? "enable" : "disable"); }} />
+          <input className="settings-switch" type="checkbox" role="switch" aria-label={i18n.t("Enable {{name}}", { name: plugin.name ?? plugin.id })} checked={plugin.enabled || Boolean(activation)} disabled={busy} onChange={event => { if (event.target.checked && !plugin.trusted) setTrust(plugin); else void runRow(plugin, event.target.checked ? "enable" : "disable"); }} />
         </Row>
       </section>;
     })}
@@ -263,7 +269,7 @@ function GitHubError({ message }: { message: string }) {
   const { text, hint } = githubErrorText(message);
   return <>{text}{hint ? <PluginDetail>{hint}</PluginDetail> : null}</>;
 }
-function PluginState({ tone, label, detail }: { tone: "ok" | "error" | "warning" | "neutral"; label: string; detail?: string }) {
+function PluginState({ tone, label, detail }: { tone: "ok" | "error" | "warning" | "neutral" | "progress"; label: string; detail?: string }) {
   return <span className="plugin-status" role="status"><Status variant="plain" tone={tone} label={label} />{detail ? <PluginDetail>{detail}</PluginDetail> : null}</span>;
 }
 /** Dialog-owned drafts; Host remains the owner of saved settings. */

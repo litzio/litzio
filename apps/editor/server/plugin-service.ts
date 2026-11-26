@@ -7,12 +7,14 @@ export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, sett
   const host = new PluginHost(settingsFile, { access, assistantDirectory, log: logging?.log, warn: logging?.warn });
   let ready: Promise<void> | undefined, closing: Promise<void> | undefined;
   let closed = false;
-  const start = () => {
-    if (closed) return Promise.reject(new Error("The Plugin Host is closing."));
+  // Catalogs and management can respond as soon as registered activations have been scheduled.
+  const begin = () => {
+    if (closed) throw new Error("The Plugin Host is closing.");
     return ready ??= host.start();
   };
+  const start = async () => begin();
   const invoke = async (operation: string, args: any = {}): Promise<any> => {
-    await start();
+    begin();
     if (operation === "pluginSecretSet") {
       try { return await host.setSecret(args.id, args.name, args.value); }
       catch (error) {
@@ -29,8 +31,9 @@ export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const close = () => {
     closed = true;
+    host.stopActivations();
     return closing ??= (async () => { try { await ready; } finally { await host.close(); } })();
   };
-  return { host, start, invoke, route, close };
+  return { host, start, begin, invoke, route, close };
 }
 export type PluginService = ReturnType<typeof createPluginService>;

@@ -1,5 +1,7 @@
 import type { InlineContent } from "./inline.ts";
 
+export const MAX_LIST_START = 999_999_999;
+
 export const LIST_STYLES = ["decimal", "lower-alpha", "upper-alpha", "lower-roman", "upper-roman"] as const;
 export type ListStyle = typeof LIST_STYLES[number];
 export type ListDelimiter = "." | ")";

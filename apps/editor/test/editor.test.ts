@@ -50,6 +50,7 @@ import { loadEditorFile, saveTextFile, commitDocumentSave, createDocumentFile, c
 import { loadEditableDocument } from "./helpers/document.ts";
 import { saveEdits } from "../server/document-replay.ts";
 import { DocumentSaveCache } from "../server/document-save-cache.ts";
+import { changedBlocks } from "../server/document-save-describe.ts";
 import { DocumentThread } from "../server/document-thread.ts";
 import { Worker } from "node:worker_threads";
 import type { SaveRequest, SupportedEdits } from "../shared/document-protocol.ts";
@@ -1031,6 +1032,18 @@ test("current revision save returns the hash of the saved markdown", () => {
   assert.equal(saved.markdown.includes(PARAGRAPH_TO), true);
   assert.equal(saved.markdown.includes("fig-control"), true);
   assert.equal(saved.markdown.includes("eq-current"), true);
+});
+
+test("a described Save names the top-level blocks whose edits changed and only while the structure stays", () => {
+  const text = (path: number[], value: string) => ({ path, content: [{ kind: "text" as const, text: value }] });
+  const previous = { paragraphs: [text([2], "Kept."), text([4], "Undone.")], cells: [text([6, 1, 0], "Cell.")] };
+  // [2] is unchanged, [4] went back to its opening text, [6] changed a cell and [8] is new.
+  const next = { paragraphs: [text([2], "Kept."), text([8], "New.")], cells: [text([6, 1, 0], "Cell edited.")] };
+  assert.deepEqual(changedBlocks(previous, next), [4, 6, 8]);
+  assert.deepEqual(changedBlocks(next, next), []);
+  for (const structural of [{ deletes: [[3]] }, { headingLevels: [{ path: [1], from: 1, to: 2 }] }, { admonitions: [{ path: [5], variant: "tip" as const }] }]) {
+    assert.equal(changedBlocks(previous, { ...next, ...structural } as Parameters<typeof changedBlocks>[1]), undefined, JSON.stringify(structural));
+  }
 });
 
 test("session saves replay Core edits against their opening source and prove the last disk state", () => {

@@ -1179,7 +1179,7 @@ function EditorApp() {
   const activityItems: ActivityItem[] = [{ id: "templates", label: i18n.t("Template gallery"), icon: <FileText aria-hidden="true" />, active: activeId === "templates", run: openTemplateGallery },
     ...screens.filter((screen, index, all) => screen.primary && all.findIndex(s => s.primary && s.plugin === screen.plugin) === index).map(screen => {
       const Icon = viewScreenIcon(screen.icon);
-      return { id: `screen-${screen.plugin}`, label: screen.title, active: activeId === `screen-${screen.plugin}-${screen.id}`, run: () => openScreen(screen),
+      return { id: `screen-${screen.plugin}`, label: screen.title, loading: Boolean(screen.activation), active: activeId === `screen-${screen.plugin}-${screen.id}`, run: () => openScreen(screen),
         icon: <PluginIcon client={getHostClient()} plugin={screen.plugin} digest={screen.iconDigest} mono fallback={<Icon aria-hidden="true" />} /> };
     })];
 

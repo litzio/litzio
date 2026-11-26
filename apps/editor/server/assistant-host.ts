@@ -101,7 +101,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   const assistantOperations = {
     assistantSkills: async (args?: { provider?: AiProvider }) => {
       if (providerEngine(provider(args)) !== "codex") throw new Error("Skill selection is available only with Codex.");
-      await plugins?.start();
+      plugins?.begin();
       const catalog = await providerConnection().skills();
       return { ...catalog, skills: catalog.skills.map(skill => {
         const displayName = plugins?.host.skillDisplayName(skill.path);
@@ -152,7 +152,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     },
   };
   const sendConversation = async (args: any): Promise<any> => {
-      if (args.action === "send") await plugins?.start();
+      if (args.action === "send") plugins?.begin();
       if (closed) throw new Error("The Assistant Host is closing.");
       const currentSettings = settings();
       if (args.action === "file-change-compare" || args.action === "file-change-undo") return history().fileChange(args.id, args.turnId, args.path, args.action === "file-change-undo", args.folders ?? []);

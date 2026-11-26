@@ -105,6 +105,8 @@ async (page, {expect, screenshots, pluginFixture}) => {
   await expect.poll(async () => (await saves()).length).toBe(1);
   const [first] = await saves();
   expect(first.previousRevision).toBe(opening.revision);
+  // The Host describes the block this Save changed, so screen code needs no reread.
+  expect(first.blocks).toEqual([{path: config.paths[1], nodes: [expect.objectContaining({path: config.paths[1], type: 'paragraph', text: 'The first paragraph has a typo.'})]}]);
   expect(await disk()).toContain('The first paragraph has a typo.');
   expect((await read(documentPath)).revision).toBe(first.revision);
   await expect.poll(lastEdit).toMatchObject({state: 'clean', revision: first.revision});
@@ -343,6 +345,9 @@ async (page, {expect, screenshots, pluginFixture}) => {
   await expect(page.getByTestId('local-write-correction')).toContainText('The Host checked your save and corrected the file.');
   await expect(paragraph('Second paragraph. Corrected.')).toBeVisible();
   await expect.poll(lastEdit).toMatchObject({state: 'clean', revision: correctedRevision});
+  // The quick Save's description named the candidate; the correction arrives as a new revision.
+  expect((await saves()).at(-1)).toMatchObject({revision: localRevision, blocks: [expect.objectContaining({path: editedBlock.path})]});
+  await expect.poll(() => page.evaluate(() => globalThis.__viewStates.at(-1))).toMatchObject({state: 'ready', revision: correctedRevision});
   if (screenshots) await captureSizes('fast-save-correction');
   await page.unroute(heldStatus);
 
@@ -362,6 +367,8 @@ async (page, {expect, screenshots, pluginFixture}) => {
     await expect.poll(lastEdit).toMatchObject({state:'clean', revision:candidate.revision});
     holdReceipt = false;
     await expect.poll(lastEdit).toMatchObject({state:'failed', revision:beforeReject.revision});
+    // A refused quick Save takes the view back to the previous revision, as for any other change.
+    await expect.poll(() => page.evaluate(() => globalThis.__viewStates.at(-1))).toMatchObject({revision: beforeReject.revision});
     expect((await read(rejectedPath)).source).toBe(beforeReject.source);
     await expect(paragraph('Second paragraph.')).toHaveText('Second paragraph. Rejected edit.');
     await expect(workspace.locator('.task-header')).toContainText('Not saved');

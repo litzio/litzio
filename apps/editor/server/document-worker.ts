@@ -1,12 +1,21 @@
 import { parentPort } from "node:worker_threads";
 import { textRevision } from "@litzio/file-commit";
-import { citationReport, type LocalWriteBaseline } from "@litzio/core";
+import { citationReport, type Document, type LocalWriteBaseline } from "@litzio/core";
 import { readModel } from "./document-replay.ts";
 import { DocumentSaveCache } from "./document-save-cache.ts";
 import { prepareDocumentSave } from "./document-save-compute.ts";
-import { documentDiagnostic, saveDiagnostic, type DocumentWork, type DocumentWorkReply } from "./document-worker-protocol.ts";
+import { documentDiagnostic, saveDiagnostic, type DocumentWork, type DocumentWorkReply, type SaveWork } from "./document-worker-protocol.ts";
+import { changedBlocks, describeBlocks } from "./document-save-describe.ts";
 import { localEdit } from "./document-local-edit.ts";
 import { SaveContentError } from "../shared/save-error.ts";
+
+/** The accepted model's nodes of the blocks this Save changed, when asked and the structure stayed. */
+function described(work: SaveWork, disk: string, model: () => Document) {
+  if (!work.describe) return {};
+  const { path: _path, base, revision: _revision, ...edits } = work.request;
+  const changed = changedBlocks(base.source === disk ? {} : base.savedEdits ?? {}, edits);
+  return changed ? { blocks: describeBlocks(model(), changed) } : {};
+}
 
 const port = parentPort!;
 const cache = new DocumentSaveCache(undefined, undefined, process.env.LITZIO_LOCAL_WRITE !== "0");
@@ -62,7 +71,8 @@ port.on("message", (work: DocumentWork | { kind: "settle-save"; committed: boole
               else {
                 const { markdown, kind, blockCount } = result;
                 rememberCommitted = () => candidates.set(path, result.baseline);
-                reply({ result: { markdown, revision: textRevision(markdown), localWrite: { kind, blockCount, path: change.edit.path } } });
+                reply({ result: { markdown, revision: textRevision(markdown), localWrite: { kind, blockCount, path: change.edit.path },
+                  ...described(work, disk, () => result.baseline.model) } });
                 break;
               }
             } catch { fallback = "unproven-edit"; }
@@ -70,7 +80,7 @@ port.on("message", (work: DocumentWork | { kind: "settle-save"; committed: boole
         }
         const { saved, snapshot, source } = prepareDocumentSave(disk, revision, request, { path, cache });
         rememberCommitted = () => cache.remember(path, source, snapshot, edits, saved);
-        reply({ result: { markdown: saved.markdown, revision: saved.revision, fallback } });
+        reply({ result: { markdown: saved.markdown, revision: saved.revision, fallback, ...described(work, disk, () => saved.document) } });
         break;
       }
       case "verify-local-write": {

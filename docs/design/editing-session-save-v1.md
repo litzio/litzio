@@ -3,7 +3,7 @@
 #1285의 [완전 초기화](app-reset-v1.md)는 기존 pending-work/restart 검사를 재사용하며 현재 미저장 편집·초안·진행 작업을 먼저 정리해야 한다. 사용자가 삭제 범위를 확인한 뒤 로컬 복구 기록도 제거하므로 기존 일반 닫기에서의 복구 보존과 구분한다. 늦은 `beforeunload` 거부는 종료 후 helper 취소로 연결하며, CLI가 살아 있는 편집 owner를 확인 flag로 우회하지 못한다.
 
 - Status: Implemented
-- Last verified: 2026-11-25 — #1983의 HTTP 저장·교정과 브라우저 탭·문서 보기·복구를 확인했다.
+- Last verified: 2026-11-26 — #1995의 `describe` 응답을 HTTP Host 단위 검사와 document-view-editing 브라우저 시나리오로 확인했다. #1983의 HTTP 저장·교정과 브라우저 탭·문서 보기·복구 확인(2026-11-25)은 그대로다.
 
 - Boundaries: ADR-0001, ADR-0002, ADR-0003. Markdown remains the disk SSOT; Core operations and canonical validation remain the write path.
 
@@ -212,7 +212,7 @@ Outside IME composition, Save closes the current history group so input typed wh
 
 Extension and view option identities also remain stable for this keyed lifetime, preserving NodeViews that hold drafts across React rerenders. [Endnotes](footnotes-v1.md#editor) need no session state of their own: Core's snapshot already places them after the body, the displayed order is the saved order, and canonical write places them again.
 
-Open/New return the source and editable model with canonical writeability and whether the source's endnotes are already in canonical place (`endnotesInPlace`); when not, the first Save moves them and the Editor says so before it. Save returns the written revision and, for a local write, a pending verification indicator. It does not return or project a replacement display model. Replay produces canonical Markdown through the same Core operations and final serializer used for Source and previously acknowledged edits. The final-state pending Figure rules remain distinct from operations' composable intermediate-state checks. Open/New still run canonical writeability preflight.
+Open/New return the source and editable model with canonical writeability and whether the source's endnotes are already in canonical place (`endnotesInPlace`); when not, the first Save moves them and the Editor says so before it. Save returns the written revision and, for a local write, a pending verification indicator. A request with `describe: true` (the plugin document view sends it) also receives `blocks`: for each top-level block whose edits differ from the previously accepted cumulative edits, the accepted document's `inspect --format json` nodes. The full path reads them from its readback model and the quick path from its accepted local baseline. A Save with structural edits is not described. `describe` is a reply option only; it is not part of the replayed or remembered edits. It does not return or project a replacement display model. Replay produces canonical Markdown through the same Core operations and final serializer used for Source and previously acknowledged edits. The final-state pending Figure rules remain distinct from operations' composable intermediate-state checks. Open/New still run canonical writeability preflight.
 
 The HTTP Save/Source boundary requires a document path, a 64-character SHA-256 revision and `base.source`; `base.savedEdits`, when present, must be an edits object. Missing or malformed session fields and non-array edit collections are rejected with 400. A well-formed stale revision still produces 409. Internal file helpers can replay against a supplied disk snapshot without an HTTP session; this is not an alternate browser write route.
 
