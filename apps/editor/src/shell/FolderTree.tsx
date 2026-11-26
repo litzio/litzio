@@ -255,7 +255,7 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, pluginScreen
           <div className="grid gap-2">
             {pluginChoices.map(choice => {
               const Icon = viewScreenIcon(choice.action.icon);
-              return <Button key={choice.key} variant="outline" className="h-auto min-h-8 justify-start whitespace-normal text-left" disabled={fileActionsDisabled}
+              return <Button key={choice.key} variant="outline" className="h-auto min-h-[var(--size-control)] justify-start whitespace-normal text-left" disabled={fileActionsDisabled}
                 onClick={() => {
                   if (!onOpenPluginFile?.(choice, pickPlugin.entry.path)) return;
                   pluginReturn.current = null;
