@@ -225,6 +225,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const pastedPaths = [], pastedData = [];
   const uploadGates = new Map();
   const sent = [], conversations = new Map(), receipts = new Map();
+  const severalLines = ['Review the saved document.', 'Summarize the main findings.', 'List any assumptions.', 'Flag missing evidence.', 'Suggest a next step.', 'Keep the summary brief.'].join('\n');
+  const acceptedBeforeObservation = 'Accepted before observation';
+  const longDraft = [acceptedBeforeObservation, ...Array(6).fill(severalLines)].join('\n');
   let resumeFailure = false, copilotUnavailable = false, promptReject = true;
   let sendGate, releaseSend, sendReplyGate, releaseSendReply, lostResult;
   let forgottenSubmissions = false, allowNewSend = false;
@@ -301,7 +304,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       if (body.action === 'send') {
         const item = selected.turns.flatMap(turn => turn.items).find(item => item.submissionId === body.submissionId);
         const result = { submission: { id: body.submissionId, status: 'accepted', conversationId: selected.id, itemId: item.id }, conversation: selected };
-        if (body.message === 'Accepted before observation') result.conversation = { ...selected, turns: selected.turns.map(turn => ({ ...turn, items: turn.items.filter(item => item.submissionId !== body.submissionId) })) };
+        if (body.message === acceptedBeforeObservation || body.message === longDraft) result.conversation = { ...selected, turns: selected.turns.map(turn => ({ ...turn, items: turn.items.filter(item => item.submissionId !== body.submissionId) })) };
         receipts.set(body.submissionId, result);
         if (body.message === 'Uncertain first' && !allowNewSend) {
           lostResult = result; receipts.set(body.submissionId, { submission: { id: body.submissionId, status: 'unknown' } });
@@ -353,8 +356,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   const composerHeight = async (input = message) => (await input.boundingBox()).height;
   const minimumComposerHeight = await composerHeight();
   expect(minimumComposerHeight).toBe(80);
-  const severalLines = ['Review the saved document.', 'Summarize the main findings.', 'List any assumptions.', 'Flag missing evidence.', 'Suggest a next step.', 'Keep the summary brief.'].join('\n');
-  const longDraft = ['Accepted before observation', ...Array(6).fill(severalLines)].join('\n');
   const captureComposer = async name => {
     await page.screenshot({ path: `tmp/2022-composer/${name}.png`,
       mask: [page.locator('.activity-bar-status'), page.locator('.document-location'), page.locator('.sidebar-folder-header')] });
@@ -1800,7 +1801,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await message.press('Enter');
   await expect(message).toHaveValue('');
   expect(await composerHeight()).toBe(minimumComposerHeight);
-  await expect(panel.locator('.assistant-submission')).toContainText('Accepted before observation');
+  await expect(panel.locator('.assistant-submission')).toContainText(acceptedBeforeObservation);
   await expect(panel.locator('.assistant-submission-status')).toHaveCount(0);
   await expect(panel.getByRole('group', { name: 'Your message', exact: true })).toHaveCount(1);
   expect(sent.filter(value => value.message === longDraft).length).toBe(1);
@@ -1810,7 +1811,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
   // #1548: provider history may still lack its correlated row after Stop.
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
-  await message.fill('Accepted before observation'); await message.press('Enter');
+  await message.fill(acceptedBeforeObservation); await message.press('Enter');
   await expect(panel.locator('.assistant-submission-status')).toHaveCount(0);
   for (const turn of selected.turns) for (const item of turn.items) if (item.kind === 'user') item.userMessageSource = 'host';
   const previousConversation = selected.id;
