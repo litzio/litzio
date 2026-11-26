@@ -120,7 +120,7 @@ export function activate(context) {
 
 설정의 [플러그인 추가…]와 `plugins register <폴더>`는 Host 전용 복사본을 검증하고 비활성 상태로 등록한다. 처음 켤 때 목록의 registrationId를 확인하고 등록 단위를 신뢰한다. 등록 교체·제거 후 재추가에는 다시 확인한다. `plugins install <폴더 또는 제작 ID>`는 복사본의 검증·등록·신뢰·활성을 하나의 Host 작업으로 수행한다. 비서 관리도 같은 작업을 사용하며 활동에는 metadata만 남긴다.
 
-Host 시작 때 켜진 플러그인과 직접 켜는 플러그인은 활성화 시간 제한 없이 준비를 기다린다. 한 플러그인의 시작이 다른 플러그인의 시작을 막지 않는다. `list`는 준비 전 `activation: "loading"`, Host에서 30초가 지나면 `activation: "slow"`를 반환한다. 설정의 [다시 시작]은 설치본을 그대로 사용해 비활성화한 뒤 켠다. 작업 요청은 해당 플러그인이 준비되면 실행한다. 기다리는 동안 비활성화·제거·reload·Host 종료가 활성화를 중단하면 대기 중인 요청은 `Operation unavailable or plugin disabled`로 끝난다. 이미 준비된 인스턴스의 RPC에는 기존 10초 제한이 적용된다.
+Host 시작 때 켜진 플러그인과 직접 켜는 플러그인은 활성화 시간 제한 없이 준비를 기다린다. 한 플러그인의 시작이 다른 플러그인의 시작을 막지 않는다. `list`는 준비 전 `activation: "loading"`, Host에서 30초가 지나면 `activation: "slow"`를 반환한다. 설정의 [다시 시작]은 설치본을 그대로 사용해 비활성화한 뒤 켠다. 작업 요청은 해당 플러그인이 준비되면 실행한다. 비서 전송과 Codex 스킬 목록 조회는 활성화를 예약한 뒤 바로 이어진다. 플러그인 스킬은 활성화가 끝난 뒤 조회할 수 있다. 기다리는 동안 비활성화·제거·reload·Host 종료가 활성화를 중단하면 대기 중인 요청은 `Operation unavailable or plugin disabled`로 끝난다. 이미 준비된 인스턴스의 RPC에는 기존 10초 제한이 적용된다.
 
 공용 관리 작업의 결과, 자동 켜기, 활성화가 30초를 넘겼을 때와 끝났을 때의 경과 시간, 설치본 digest 불일치와 실행 중 프로세스 종료는 [daemon 로그](http-host-v1.md#daemon-log-1915)에 남긴다. 시작 때 자동 켜기에서 준비 전 프로세스가 종료되면 한 번 다시 실행한다. `list`의 `activationFailure`는 `processExit`(준비 전 프로세스 종료) 또는 `other`(검증·설정·활성화 오류 등)를 반환한다. 자동 켜기의 `other` 오류가 공통 문구로 반환될 때만 `activationFailedAtStartup: true`를 담는다. 설정의 플러그인 오류 행은 hover와 키보드 focus에서 실패에 맞는 안내를 표시하고, `other`의 구체적인 사유가 있으면 우선 표시한다.
 
