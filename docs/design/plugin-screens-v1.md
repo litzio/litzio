@@ -2,8 +2,7 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작 계약](plugin-stage1-v1.md).
-- Last verified: 2026-11-25 — [문서 보기의 내용 편집](#내용-편집)(#1976)을 production HTTP Host의 document-view-editing 시나리오(Windows persistent Chrome)와 Editor 단위 검사로 확인했다. 실제 OS 한국어 입력기·packaged Desktop·실제 문서 가져오기 플러그인에서의 사용·소유자 시각 승인은 포함하지 않는다.
-- Previous verification: 2026-11-23 — ScreenLayout `back`의 SDK 타입·제작 안내·문서 계약을 대조하고, UI gallery의 합성 화면에서 접근성 이름·Tab 순서·hover/focus 안내·긴 이름 줄임·비활성·narrow 배치·640px 배치와 back이 없는 머리의 변경 전후 픽셀 일치를, plugin-screen-code 시나리오에서 실제 플러그인 화면 머리를 Windows persistent Chrome으로 검증했다. 실제 플러그인의 back 사용·실제 AI 제작·packaged Desktop 수락·소유자 시각 승인은 포함하지 않는다.
+- Last verified: 2026-11-26 — 내용 편집 저장의 `onSave` `blocks`(#1995)를 HTTP Host 단위 검사(빠른·전체 경로가 저장본 재해석과 같은 노드)와 production HTTP Host의 document-view-editing 시나리오(Windows persistent Chrome, 빠른 저장의 교정·거부 뒤 `onStateChange` revision 포함)로 확인했다. 실제 문서 가져오기 플러그인에서의 사용·packaged Desktop·소유자 시각 승인은 포함하지 않는다.
 
 ## 연결 수명
 
@@ -137,11 +136,11 @@ SDK props에는 엔진·DOM 타입이 없다. 구조 편집·복구 기록·문�
 - 저장 시점: 고친 최상위 블록을 벗어날 때(다른 블록으로 커서가 옮겨 갈 때), 보기 밖으로 focus가 나갈 때, 보기 안에서 Ctrl+S를 누를 때, 편집 창(수식·인라인 수식·링크)을 적용하거나 닫은 뒤. 입력이 클릭의 커서 이동보다 먼저 처리돼 커서가 새 블록으로 옮겨 간 경우는 블록을 벗어난 것으로 보지 않는다. 한국어 등 입력기 조합 중에는 조합이 끝난 뒤 저장한다. 문서 탭은 [Ctrl+S로 저장](../adr/0007-editing-session-lifetime.md)하지만 이 보기는 블록을 벗어날 때 저장한다. 탭이 아닌 화면에는 닫기 확인과 복구 기록이 없으므로 잃을 수 있는 범위를 블록 하나로 줄이기 위해서다. 저장은 문서 탭과 같은 공식 저장 경로(revision 확인, 이전에 받아들여진 편집의 재생, Core 연산, 파일 교체)를 쓴다. ADR-0007이 자동 저장에 둔 조건과 같이 별도 쓰기 경로를 만들지 않고, 저장할 수 없으면 미저장으로 남기며, 충돌하면 덮어쓰지 않는다. 보내기 전에 저장 요청에 구조 변경 항목(순서·나누기·합치기·넣기·지우기·제목 단계·표의 행·열·알림 상자 종류)이 있으면 보내지 않는다. Host 쪽 구조 검사는 없다.
 - 차례: 저장은 한 번에 하나씩 차례로 보낸다. 저장 중에 생긴 저장 요청은 앞 저장이 끝난 뒤 한 번으로 묶어 보낸다. 실패한 저장은 Ctrl+S나 새로 고친 뒤에만 다시 보낸다.
 - `onEditStateChange?({state,revision,message?})`: `clean`(저장할 것이 없음)·`unsaved`·`saving`·`failed`·`conflict`. revision은 이 보기가 읽었거나 마지막으로 저장한 revision이고 message는 실패·충돌의 설명이다. 화면 머리의 상태 표시는 화면 코드가 이 알림으로 그린다.
-- `onSave?({previousRevision,revision})`: 이 보기의 저장을 Host가 받아들일 때마다 알린다.
+- `onSave?({previousRevision,revision,blocks?})`: 이 보기의 저장을 Host가 받아들일 때마다 알린다. `blocks`는 그 저장이 바꾼 최상위 블록을 문서 순서로 담은 `{path,nodes}[]`이며, `nodes`는 Host가 받아들인 문서에서 만든 CLI `inspect --format json`과 같은 노드다. 대응을 가진 화면 코드는 저장본을 다시 읽지 않고 이것으로 대응을 옮길 수 있다. Host가 저장을 설명하지 못하면(이 기능 이전의 Host 등) 생략되며, 그때는 저장본을 읽는다.
 - revision: 구조가 잠겨 있으므로 저장 뒤에도 NodePath가 같다. 저장할 때 편집기를 다시 만들지 않고 받아들여진 revision만 바꾼다. 이 보기가 읽은 revision과 이 보기의 저장으로 이어진 revision은 모두 `target.revision`과 LinkedDocumentView의 `revision`으로 유효하다. 다시 읽은 파일이 이 보기가 저장한 revision 그대로이면 `editContent`를 끈 읽기 전용 보기에서도 이어진 revision들을 계속 받아들이고, 다른 프로그램이 바꾼 revision을 읽으면 그 revision부터 다시 시작한다. 저장 순간에도 강조·연결 띠·보던 자리·클릭 알림이 끊기지 않는다. 알림(`onStateChange`, `onVisibleBlockChange`, `onBlockClick`, `onVisibleBlockLayoutChange`)은 최신 revision을 싣는다.
-- 보장: 내용 편집 저장은 최상위 구조를 바꾸지 않는다. 대응을 가진 화면 코드는 이를 믿지 말고 저장본을 읽어 블록 수·종류를 확인한다.
+- 보장: 내용 편집 저장은 최상위 구조를 바꾸지 않는다. 대응을 가진 화면 코드는 이를 믿지 말고 `blocks`의 노드나 저장본으로 블록 종류를 확인한다.
 - 충돌: 밖에서 파일이 바뀌어 Host가 저장을 거절(409)하면 고친 내용을 보기에 남긴 채 `conflict`로 바꾸고, 보기 안 경고 Notice에 상태와 [다시 읽기(고친 내용 버림)]를 보인다. 덮어쓰지 않으며 그 뒤의 저장도 보내지 않는다. 다시 읽기를 누르면 고친 내용을 버리고 저장본을 다시 읽는다. 다른 실패는 보기 안 오류 Notice에 이유를 보인다.
-- [빠른 저장](editing-session-save-v1.md#빠른-저장-1983) 뒤 전체 쓰기가 거부하면, 후보 revision의 수용을 취소하고 직전 revision에서 `failed`로 돌아간다. 거부된 편집과 후속 입력은 열린 보기에 남고, 기존 오류 Notice는 블록 위치와 이유를 표시한다. 전체 쓰기가 승인한 바이트로 교정하면 깨끗한 보기는 다시 읽고 이후 입력이 있으면 기존 충돌 처리를 따른다.
+- [빠른 저장](editing-session-save-v1.md#빠른-저장-1983) 뒤 전체 쓰기가 거부하면, 후보 revision의 수용을 취소하고 직전 revision에서 `failed`로 돌아간다. 거부된 편집과 후속 입력은 열린 보기에 남고, 기존 오류 Notice는 블록 위치와 이유를 표시한다. 전체 쓰기가 승인한 바이트로 교정하면 깨끗한 보기는 다시 읽고 이후 입력이 있으면 기존 충돌 처리를 따른다. 이 두 경우 앞서 `onSave`로 넘긴 `blocks`는 디스크와 다를 수 있다. 화면 코드는 새 알림 없이 기존 경로로 알게 된다: 교정은 다시 읽은 새 revision, 거부는 직전 revision을 `onStateChange`가 알리므로, 대응의 revision과 다르면 기존처럼 저장본을 읽어 따라간다. 교정 확인 전에 입력이 있어 보기가 `conflict`로 바뀌면, 그 전에 `onSave`로 받은 `blocks`를 대응에 쓰지 말고 다시 읽기 뒤 `onStateChange`가 알리는 revision부터 다시 맞춘다.
 - 다시 읽기: 미저장 상태(저장 중 포함)에서 `reloadKey`·`path`·`editContent`가 바뀌면 먼저 저장한 뒤 다시 읽는다. 저장이 실패하면 다시 읽지 않고 실패 상태를 유지한다. 저장할 것이 없으면 바로 다시 읽는다.
 - 소유: 편집 중 상태의 소유자는 그 문서 보기 하나이며 수명은 마운트(한 번의 읽기)와 같다. 앱의 탭 목록·Host·플러그인에 새 상태를 두지 않는다. 미저장 보기를 닫을 때의 확인과 복구 기록은 없다. 같은 문서가 문서 탭에도 열려 있으면 탭의 기존 외부 변경 감지를 따른다. 문서 탭이나 비서가 같은 문서를 고친 뒤 대응을 이어 붙이는 일은 화면 코드의 몫이다.
 

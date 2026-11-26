@@ -28,7 +28,7 @@ export type EditorSaveResult =
 export async function saveLiveEditor(
   editor: DocumentEditorHandle,
   snapshot: EditableDocument,
-  target: { path: string; revision: string; base: SaveRequest["base"] },
+  target: { path: string; revision: string; base: SaveRequest["base"]; describe?: true },
   requestSave: (body: SaveRequest) => Promise<SaveResponse>,
   current: () => boolean,
   admit?: (payload: SupportedEdits, submitted: TiptapJSON) => void,
@@ -39,7 +39,8 @@ export async function saveLiveEditor(
     submitted = editor.beginSave();
     payload = collectSupportedEdits(snapshot, submitted);
     admit?.(payload, submitted);
-    const next = await requestSave({ path: target.path, revision: target.revision, base: target.base, ...payload });
+    const next = await requestSave({ path: target.path, revision: target.revision, base: target.base, ...payload,
+      ...(target.describe ? { describe: true } : {}) });
     if (!current()) return { kind: "superseded" };
     let provisional: ProvisionalSave | undefined;
     if (next.pendingLocalWrite) {

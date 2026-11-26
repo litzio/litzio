@@ -5,7 +5,9 @@ import type { readModel } from "./document-replay.ts";
 import { DocumentConflictError } from "./document-save-compute.ts";
 
 export type DocumentReadModel = ReturnType<typeof readModel>;
-export type SaveWork = { kind: "save"; path: string; disk: string; request: SaveRequest; local?: boolean };
+export type SaveWork = { kind: "save"; path: string; disk: string; request: Omit<SaveRequest, "describe">; local?: boolean;
+  /** Reply with the changed blocks' inspect nodes (SaveRequest.describe). */
+  describe?: true };
 export type DocumentWork =
   | { kind: "open"; path: string; source: string }
   | { kind: "bibliography"; path: string; source: string }

@@ -1,5 +1,5 @@
 import type { ScreenDocumentEditState } from "@litzio/plugin-sdk";
-import type { DocumentFileResponse, LocalWriteStatus, SaveRequest, SaveResponse } from "../../shared/document-protocol.ts";
+import type { DocumentFileResponse, LocalWriteStatus, SavedBlock, SaveRequest, SaveResponse } from "../../shared/document-protocol.ts";
 import type { DocumentEditorHandle } from "../DocumentEditor.tsx";
 import { admitContentEdits, saveLiveEditor, type ProvisionalSave } from "../editor-save.ts";
 import type { SaveDisplayError } from "../save-error.ts";
@@ -20,7 +20,7 @@ export function createContentEditSession(options: {
   requestSave(body: SaveRequest): Promise<SaveResponse>;
   /** State, revision or error changed. */
   onChange(): void;
-  onSave(save: { previousRevision: string; revision: string }): void;
+  onSave(save: { previousRevision: string; revision: string; blocks?: SavedBlock[] }): void;
 }) {
   const { snapshot } = options;
   const base: SaveRequest["base"] = { source: snapshot.source };
@@ -52,7 +52,7 @@ export function createContentEditSession(options: {
     if (editor.isComposing()) { deferred = true; return false; }
     const previousRevision = latest;
     set("saving");
-    const result = await saveLiveEditor(editor, snapshot.document, { path: snapshot.path, revision: latest, base },
+    const result = await saveLiveEditor(editor, snapshot.document, { path: snapshot.path, revision: latest, base, describe: true },
       options.requestSave, () => !disposed, (payload, submitted) => admitContentEdits(payload, snapshot.document, submitted));
     if (result.kind === "superseded") return false;
     if (result.kind === "failed") {
@@ -64,7 +64,7 @@ export function createContentEditSession(options: {
     latest = result.revision;
     pending = result.provisional && { revision: result.revision, checkpoint: result.provisional };
     set(editor.hasDocumentChanges() ? "unsaved" : "clean");
-    options.onSave({ previousRevision, revision: result.revision });
+    options.onSave({ previousRevision, revision: result.revision, ...(result.blocks ? { blocks: result.blocks } : {}) });
     return true;
   }
 

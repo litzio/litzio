@@ -45,6 +45,7 @@ import { DocumentConflictError, prepareDocumentSave, replayCurrent, verifySaveRe
 export { DocumentConflictError } from "./document-save-compute.ts";
 import { DocumentThreadError, type DocumentThread } from "./document-thread.ts";
 import { saveDiagnostic } from "./document-worker-protocol.ts";
+import { changedBlocks, describeBlocks } from "./document-save-describe.ts";
 
 import type {
   SampleAvailability,
@@ -117,14 +118,14 @@ export function saveDocumentFile(
 ): SaveResponse & { path: string; markdown: string } {
   const filePath = fileStep(() => resolveDocumentPath(requestedPath, access));
   const disk = fileStep(() => decodeUtf8(readFileSync(accessPath(filePath, access))));
-  const revision = verifySaveRevision(disk, request.revision);
-  const { saved, snapshot, source } = prepareDocumentSave(disk, revision, request, cache && { path: filePath, cache });
-  fileStep(() => replaceDocumentFile(accessPath(filePath, access), saved.markdown, request.revision));
-  if (cache) {
-    const { path: _path, base: _base, revision: _revision, ...edits } = request;
-    cache.remember(filePath, source, snapshot, edits, saved);
-  }
-  return { markdown: saved.markdown, revision: saved.revision, path: filePath };
+  const { describe, ...save } = request as FileSaveRequest & { describe?: true };
+  const revision = verifySaveRevision(disk, save.revision);
+  const { saved, snapshot, source } = prepareDocumentSave(disk, revision, save, cache && { path: filePath, cache });
+  fileStep(() => replaceDocumentFile(accessPath(filePath, access), saved.markdown, save.revision));
+  const { path: _path, base, revision: _revision, ...edits } = save;
+  if (cache) cache.remember(filePath, source, snapshot, edits, saved);
+  const changed = describe && changedBlocks(base === undefined || base.source === disk ? {} : base.savedEdits ?? {}, edits);
+  return { markdown: saved.markdown, revision: saved.revision, path: filePath, ...(changed ? { blocks: describeBlocks(saved.document, changed) } : {}) };
 }
 
 async function openEditorFile(
@@ -154,13 +155,15 @@ async function saveFileInOrder(request: SaveRequest | TextSaveRequest, access: F
     const disk = fileStep(() => decodeUtf8(readFileSync(currentPath())));
     verifySaveRevision(disk, request.revision);
     if (!text) {
-      const { revision, localWrite } = await thread.save({ kind: "save", path: target, disk, request }, signal,
+      // The edits are fingerprinted and replayed; describing is only a reply option.
+      const { describe, ...edits } = request;
+      const { revision, localWrite, blocks } = await thread.save({ kind: "save", path: target, disk, request: edits, ...(describe ? { describe } : {}) }, signal,
         saved => commit(saved.markdown),
         markdown => {
           try { return readFileSync(currentPath()).equals(Buffer.from(markdown, "utf8")); }
           catch { return false; }
         }, commit);
-      return { revision, ...(localWrite ? { pendingLocalWrite: true } : {}) };
+      return { revision, ...(localWrite ? { pendingLocalWrite: true } : {}), ...(blocks ? { blocks } : {}) };
     }
     if ([filePath, target].some(file => path.extname(file).toLowerCase() === ".md") &&
         await thread.read({ kind: "check-text", source: disk }, signal)) {
@@ -545,7 +548,8 @@ export async function handleDocumentRequest(
       try {
         const saved = documents ? await withDocumentResponse(res, signal => saveFileInOrder(request, access, documents, signal))
           : saveDocumentFile(request.path, request, access);
-        sendJson(res, 200, { revision: saved.revision, ...(saved.pendingLocalWrite ? { pendingLocalWrite: true } : {}) } satisfies SaveResponse);
+        sendJson(res, 200, { revision: saved.revision, ...(saved.pendingLocalWrite ? { pendingLocalWrite: true } : {}),
+          ...(saved.blocks ? { blocks: saved.blocks } : {}) } satisfies SaveResponse);
       } catch (error) {
         if (error instanceof DocumentConflictError) {
           sendJson(res, 409, errorPayload(error, access));
@@ -564,12 +568,13 @@ export async function handleDocumentRequest(
 
 function saveRequestOf(value: unknown): SaveRequest {
   if (!isObject(value) || typeof value.path !== "string" || !value.path.trim()) throw new Error("document path is required");
-  const { path, revision, base, ...edits } = value;
+  const { path, revision, base, describe, ...edits } = value;
   if (typeof revision !== "string" || !/^[a-f0-9]{64}$/.test(revision)) throw new Error("invalid document revision");
   if (!isObject(base) || typeof base.source !== "string") throw new Error("invalid session source");
+  if (describe !== undefined && describe !== true) throw new Error("invalid describe request");
   const savedEdits = base.savedEdits === undefined ? undefined : supportedEditsOf(base.savedEdits);
   return { ...supportedEditsOf(edits), path, revision,
-    base: { source: base.source, ...(savedEdits === undefined ? {} : { savedEdits }) } };
+    base: { source: base.source, ...(savedEdits === undefined ? {} : { savedEdits }) }, ...(describe ? { describe } : {}) };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

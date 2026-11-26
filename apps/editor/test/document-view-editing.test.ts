@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { SaveRequest } from "../shared/document-protocol.ts";
+import type { SavedBlock, SaveRequest } from "../shared/document-protocol.ts";
 import type { DocumentEditorHandle } from "../src/DocumentEditor.tsx";
 import { SaveConflictError } from "../src/document-session.ts";
 import { appliedDocument, toTiptapDocument, type TiptapJSON } from "../src/tiptap-document.ts";
@@ -25,13 +25,13 @@ function fixture() {
     isComposing: () => composing,
   } as unknown as DocumentEditorHandle;
   const type = (text: string) => { (current.content![1]!.content![0] as { text: string }).text += text; };
-  const requests: { body: SaveRequest; resolve(revision: string): void; reject(error: Error): void }[] = [];
-  const saves: { previousRevision: string; revision: string }[] = [];
+  const requests: { body: SaveRequest; resolve(revision: string, blocks?: SavedBlock[]): void; reject(error: Error): void }[] = [];
+  const saves: { previousRevision: string; revision: string; blocks?: SavedBlock[] }[] = [];
   let changes = 0;
   const session = createContentEditSession({
     snapshot: { kind: "native", path: "/docs/view.md", source, document: snapshot, revision: "r0", endnotesInPlace: true },
     editor: () => editor,
-    requestSave: body => new Promise((resolve, reject) => requests.push({ body, resolve: revision => resolve({ revision }), reject })),
+    requestSave: body => new Promise((resolve, reject) => requests.push({ body, resolve: (revision, blocks) => resolve({ revision, ...(blocks ? { blocks } : {}) }), reject })),
     onChange: () => { changes++; },
     onSave: save => saves.push(save),
   });
@@ -55,8 +55,11 @@ test("content Saves run one at a time and continue revisions the view accepts", 
   assert.equal(session.state, "saving");
   assert.equal(requests.length, 1, "a second Save waits for the first");
   assert.equal(requests[0]!.body.revision, "r0");
+  assert.equal(requests[0]!.body.describe, true, "the view asks the Host to describe each Save");
   assert.equal(requests[0]!.body.paragraphs?.[0]?.content[0]?.kind === "text" && requests[0]!.body.paragraphs[0].content[0].text, "First paragraph. One");
-  requests[0]!.resolve("r1");
+  // The Host's description reaches the screen code unchanged.
+  const described = [{ path: [2], nodes: [{ path: [2], type: "paragraph", text: "First paragraph. One" }] }] as unknown as SavedBlock[];
+  requests[0]!.resolve("r1", described);
   assert.equal(await first, true);
   await settle();
   assert.equal(requests.length, 2, "queued triggers share one later Save");
@@ -66,7 +69,7 @@ test("content Saves run one at a time and continue revisions the view accepts", 
   requests[1]!.resolve("r2");
   assert.equal(await second, true);
   assert.equal(await third, true);
-  assert.deepEqual(saves, [{ previousRevision: "r0", revision: "r1" }, { previousRevision: "r1", revision: "r2" }]);
+  assert.deepEqual(saves, [{ previousRevision: "r0", revision: "r1", blocks: described }, { previousRevision: "r1", revision: "r2" }]);
   assert.equal(session.state, "clean");
   assert.equal(session.revision, "r2");
   for (const revision of ["r0", "r1", "r2"]) assert.equal(session.accepts(revision), true, revision);
@@ -74,7 +77,7 @@ test("content Saves run one at a time and continue revisions the view accepts", 
 });
 
 function requestsWithoutTarget(body: SaveRequest) {
-  const { path: _path, revision: _revision, base: _base, ...edits } = body;
+  const { path: _path, revision: _revision, base: _base, describe: _describe, ...edits } = body;
   return edits;
 }
 
