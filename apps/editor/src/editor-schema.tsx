@@ -3,7 +3,7 @@ import { createAssetHost } from "./image-assets.ts";
 import type { UiMessage } from "./ui-message.ts";
 import { i18n } from "./i18n.ts";
 import { allocateBlockPath } from "./block-locators.ts";
-import { Extension, Node, type Attribute, type Editor, type Extensions, type NodeViewRenderer } from "@tiptap/core";
+import { Extension, Node, type Attribute, type Editor, type Extensions, type KeyboardShortcutCommand, type NodeViewRenderer } from "@tiptap/core";
 import { EDITOR_SHORTCUTS } from "./shortcuts.ts";
 import { BulletList, ListItem, ListKeymap, OrderedList, TaskItem, TaskList } from "@tiptap/extension-list";
 import { Code } from "@tiptap/extension-code";
@@ -48,7 +48,7 @@ import { InlineMathView } from "./node-views/inline-math-view.tsx";
 import { LabelTargetView } from "./node-views/label-target-view.tsx";
 import { TableCaptionView, TableView } from "./node-views/table-view.tsx";
 import { EDIT_PROPERTIES, type DraftListener } from "./node-views/shared.ts";
-import { inTableCell, isComplexGrid, tableRows } from "./table-structure.ts";
+import { inTableCell, tableRows } from "./table-structure.ts";
 
 export type { DraftKind } from "./node-views/shared.ts";
 export { captionPlaceholderVisible } from "./node-views/shared.ts";
@@ -191,8 +191,25 @@ const SourcedOrderedList = OrderedList.extend({
   },
 }).configure({ HTMLAttributes: listHTML });
 
+// In a table cell, Tab moves between cells or leaves the table, and a list keeps its nesting
+// (ADR-0024): the list Tab shortcuts pass there, as they would where no handler takes the key.
+function outsideTableCell(shortcut: KeyboardShortcutCommand | undefined): KeyboardShortcutCommand {
+  return props => !inTableCell(props.editor.state.selection.$from) && !!shortcut?.(props);
+}
+
 const SimpleListItem = ListItem.extend({
   content: `paragraph ${NESTED_LISTS}`,
+  addKeyboardShortcuts() {
+    const shortcuts = this.parent?.() ?? {};
+    return { ...shortcuts, Tab: outsideTableCell(shortcuts.Tab), "Shift-Tab": outsideTableCell(shortcuts["Shift-Tab"]) };
+  },
+});
+
+const CellAwareListKeymap = ListKeymap.extend({
+  addKeyboardShortcuts() {
+    const shortcuts = this.parent?.() ?? {};
+    return { ...shortcuts, Tab: outsideTableCell(shortcuts.Tab) };
+  },
 });
 
 const SourcedTaskList = TaskList.extend({
@@ -533,13 +550,9 @@ const TableGrid = Node.create({
   // As prosemirror-tables' TableView: attributes of the grid's own <table> (an inline width or
   // style) are view state, so changing them neither rereads nor redraws the grid.
   addNodeView() {
-    return ({ node }) => {
+    return () => {
       const dom = document.createElement("table");
-      // ADR-0024: in this version a complex grid's cells are read-only, so input never reaches them.
-      const lock = (grid: ProseMirrorNode) => { if (isComplexGrid(grid)) dom.contentEditable = "false"; else dom.removeAttribute("contenteditable"); };
-      lock(node);
-      return { dom, contentDOM: dom, ignoreMutation: (mutation: ViewMutationRecord) => mutation.type === "attributes" && mutation.target === dom,
-        update: (next: ProseMirrorNode) => { if (next.type !== node.type) return false; lock(next); return true; } };
+      return { dom, contentDOM: dom, ignoreMutation: (mutation: ViewMutationRecord) => mutation.type === "attributes" && mutation.target === dom };
     };
   },
 });
@@ -829,7 +842,7 @@ export function editorExtensions(
     SourcedTaskList,
     SimpleTaskItem,
     ChecklistToggle,
-    ListKeymap,
+    CellAwareListKeymap,
     Admonition,
     Quote,
     FootnoteDefinition,

@@ -500,6 +500,39 @@ async (page, {expect, screenshots, pluginFixture, viewChange}) => {
   await expect(view).toHaveAttribute('data-state', 'ready');
   await expect(editor).toHaveAttribute('contenteditable', 'false');
 
+  // ADR-0024: a complex table's merged cells show as in a document tab, and the text of a cell's
+  // paragraph and list item is edited in place and saved through the full Save when the block is left.
+  const complexPath = [root, 'content-edit', 'complex-table.md'].join(separator);
+  const complexBefore = (await read(complexPath)).source;
+  config = {path: complexPath, edit: true, linked: false, revision: '', paths: []};
+  await page.evaluate(() => { globalThis.__editStates = []; });
+  await open();
+  const grid = content.locator('[data-block="table"]');
+  await expect(grid.locator('th[colspan="2"]')).toHaveText('Range');
+  await expect(grid.locator('td[rowspan="2"] > p')).toHaveText(['Output', 'rated']);
+  await grid.locator('td > ol > li', {hasText: /^Peak$/}).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' value');
+  await grid.locator('td > p', {hasText: /^230 V$/}).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' AC');
+  await paragraph('Closing paragraph').click();
+  await expect.poll(lastEdit).toMatchObject({state: 'clean'});
+  expect((await read(complexPath)).source).toBe(complexBefore.replace('<li>Peak</li>', '<li>Peak value</li>').replace('<p>230 V</p>', '<p>230 V AC</p>'));
+  if (screenshots) await captureSizes('complex-table');
+  // The table is the last block and its last cell is a list: the view adds no paragraph and keeps the
+  // list's nesting, so Tab there leaves the editor by the browser's focus order without a notice.
+  const lastPath = [root, 'content-edit', 'complex-table-last.md'].join(separator);
+  const lastBefore = (await read(lastPath)).source;
+  config = {path: lastPath, edit: true, linked: false, revision: '', paths: []};
+  await open();
+  await content.locator('td > ol > li', {hasText: /^Mean$/}).click();
+  await expect.poll(() => editor.evaluate(node => node.editor.view.hasFocus() && node.editor.state.selection.$from.parent.textContent === 'Mean')).toBe(true);
+  await page.keyboard.press('Tab');
+  await expect.poll(() => editor.evaluate(node => node.contains(document.activeElement))).toBe(false);
+  await expect(notice).toHaveCount(0);
+  expect((await read(lastPath)).source).toBe(lastBefore);
+
   // About 2,000 blocks, manual review runs only (no pass/fail on time): opening read-only and
   // with content editing, typing and Save.
   if (!screenshots) return;

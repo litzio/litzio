@@ -6,10 +6,10 @@ import { fromTiptapContent } from "./tiptap-inline.ts";
 /** Apply only Core's removed prefixes and suffixes, leaving node identities, marks and history intact. */
 export function normalizeSaveTails(state: EditorState) {
   const tr = closeHistory(state.tr);
-  state.doc.descendants((node, pos, parent) => {
+  state.doc.descendants((node, pos) => {
+    // Table cells, their lists included, preserve their hard breaks and have separate padding rules.
+    if (node.type.name === "tableCell") return false;
     if (!["paragraph", "quote", "admonition", "figure", "footnoteDefinition", "tableNote"].includes(node.type.name)) return;
-    // Table cells preserve their hard breaks and have separate padding rules.
-    if (parent?.type.name === "tableCell" || parent?.type.name === "tableHeader") return;
     let length: number, leading: number;
     try {
       const content = fromTiptapContent({ type: "doc", content: [{ type: "paragraph", content: node.toJSON().content }] });

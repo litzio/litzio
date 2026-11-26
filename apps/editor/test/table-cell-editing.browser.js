@@ -227,17 +227,42 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(table).toHaveCount(3);
   await expect(table.last().locator('[data-table-note]')).toHaveText('a. Nominal value');
   await expect(table.last().locator('[data-table-cell] br')).toHaveCount(1);
-  // ADR-0024: a complex table shows its merged cells, header rows and cell blocks. In this version its
-  // cells are read-only (input never reaches them) and it has no row tools.
+  // ADR-0024: a complex table shows its merged cells, header rows and cell blocks, and the text of its
+  // paragraphs and list items is edited in place. Its grid and blocks stay: Backspace at a paragraph's
+  // start joins nothing, and it has no row tools. Save and reopen keep it.
   const complex = [dir, 'complex-table.md'].join(separator);
   const complexBefore = await markdown(complex, 'complex-table.md');
   await open(complex);
   await expect(table.locator('th[colspan="2"]')).toHaveText('Range');
   await expect(table.locator('td[rowspan="2"] > p')).toHaveText(['Output', 'rated']);
   await expect(table.locator('td > ol > li')).toHaveText(['Peak', 'Mean']);
-  await expect(table.getByTestId('table-caption')).toContainText('Output limits');
-  await expect(table.locator('table[contenteditable="false"]')).toHaveCount(1);
+  await typeAtEnd('230 V', ' AC');
   await expect(table.locator('.table-row-handle, .table-column-handle')).toHaveCount(0);
+  await table.locator('td > ol > li', {hasText: /^Mean$/}).click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' value');
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('over 10 min');
+  await table.locator('td[rowspan="2"] > p', {hasText: /^rated$/}).click();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Backspace');
+  await expect(table.locator('td[rowspan="2"] > p')).toHaveText(['Output', 'rated']);
+  await save();
+  const complexSaved = await markdown(complex, 'complex-table.md');
+  result.complexTableSavesCellText = complexSaved === complexBefore.replace('<td><p>230 V</p></td>', '<td><p>230 V AC</p></td>')
+    .replace('<li>Mean</li>', '<li>Mean value<br>over 10 min</li>');
+  await open(complex);
+  await expect(table.locator('td > ol > li').last()).toHaveText(/^Mean value\s*over 10 min$/);
+  await expect(table.locator('th[colspan="2"]')).toHaveText('Range');
+  // The last cell starts with a list; Tab there leaves the table instead of adding a row.
+  await table.locator('td > ol > li').last().click();
+  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.textContent.startsWith('Mean value'));
+  await page.keyboard.press('Tab');
+  await page.waitForFunction(() => {
+    const {$from} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
+    return $from.depth === 1 && $from.parent.textContent === 'Closing paragraph.';
+  });
+  await open(complex);
   // The table selected as a block, then a click in a cell and typing: the text must not replace the
   // table, so Save and reopen keep its grid, caption and note.
   const selectTable = async () => {
@@ -253,12 +278,14 @@ async (page, { openPath, expect, screenshots }) => {
     });
   };
   await selectTable();
-  await cell('230 V').click();
+  await cell('230 V AC').click();
   await page.keyboard.type('240');
   await page.keyboard.press('ControlOrMeta+s');
   await open(complex);
   await expect(table.locator('th[colspan="2"]')).toHaveText('Range');
-  result.selectedComplexTableKeepsTyping = await markdown(complex, 'complex-table.md') === complexBefore;
+  const afterTyping = await markdown(complex, 'complex-table.md');
+  result.selectedComplexTableKeepsTyping = afterTyping.includes('<th colspan="2"><p>Range</p></th>') &&
+    afterTyping.includes(':::{table} Output limits') && afterTyping.includes('a. Measured at rated load.');
   // Litzio's own clipboard moves the whole table: cut it, paste it after the closing paragraph,
   // then save and reopen with its merged cells, header rows, cell blocks, caption and note.
   const gridSource = source => source.slice(source.indexOf(':::{table}'), source.indexOf(':::\n', source.indexOf(':::{table}') + 1));
@@ -281,7 +308,7 @@ async (page, { openPath, expect, screenshots }) => {
   await page.getByRole('button', {name:'Save', exact:true}).click();
   expect((await written).status()).toBe(200);
   const moved = await markdown(complex, 'complex-table.md');
-  result.complexTableMoves = moved.indexOf('Closing paragraph.') < moved.indexOf(':::{table}') && gridSource(moved) === gridSource(complexBefore);
+  result.complexTableMoves = moved.indexOf('Closing paragraph.') < moved.indexOf(':::{table}') && gridSource(moved) === gridSource(afterTyping);
   await open(complex);
   await expect(table.locator('td[rowspan="2"] > p')).toHaveText(['Output', 'rated']);
   await expect(table.locator('[data-table-note]')).toHaveText('a. Measured at rated load.');

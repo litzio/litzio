@@ -278,7 +278,9 @@ export function tableTab(state: EditorState, backward: boolean, editable: boolea
   if (!backward && editable && !isComplexTable($from.node(1))) return addTableRowBelow(state, $from.index(0), { row: cell.row, column: 0 });
   const edge = backward ? $from.before(1) : $from.after(1);
   const selection = TextSelection.findFrom(state.doc.resolve(edge), backward ? -1 : 1, true);
-  return selection ? state.tr.setSelection(selection).scrollIntoView() : paragraphBeside(state, !backward);
+  if (selection) return state.tr.setSelection(selection).scrollIntoView();
+  // A content-only view adds no paragraph: with nowhere to go, Tab is left to the browser's focus order.
+  return isStructureLocked(state) ? null : paragraphBeside(state, !backward);
 }
 
 /** The content range of the first (or last) textblock of the cell node at `cellPos`. */

@@ -197,7 +197,7 @@ const complex = nativeSource([":::{table} Limits", "", "<table>", "<thead>", "<t
   '<td rowspan="2"><p>Output</p><p>rated</p></td>', "<td><p>230 V</p></td>", "</tr>", "<tr>",
   "<td><ol><li>Peak</li><li>Mean</li></ol></td>", "</tr>", "</tbody>", "</table>", ":::", ""].join("\n"));
 
-test("a complex table keeps its spans, header rows and cell blocks, and its cells stay read-only", () => {
+test("a complex table keeps its spans, header rows and cell blocks, and only their text changes", () => {
   const document = loadEditableDocument(complex);
   const projection = toTiptapDocument(document);
   const schema = getSchema(editorExtensions());
@@ -212,16 +212,30 @@ test("a complex table keeps its spans, header rows and cell blocks, and its cell
   // Highlight sets mark words in a cell's paragraphs and list items as in any textblock.
   assert.deepEqual(highlightRanges(doc, [{ text: "rated", color: "blue" }, { text: "Mean", color: "green" }]).map(range => doc.textBetween(range.from, range.to)), ["rated", "Mean"]);
   assert.equal(collectSupportedEdits(document, projection).cells, undefined);
-  // The caption is the table's own and stays editable; the cells are read-only in this version.
   const captioned = structuredClone(projection);
   tableOf(captioned).content![1].content = [{ type: "text", text: "Output limits" }];
   assert.deepEqual(collectSupportedEdits(document, captioned).tableCaptions, [{ path: [1], content: [{ kind: "text", text: "Output limits" }] }]);
+  // Text in a paragraph and in a list item of merged-grid cells becomes block edits at the start column.
   const typed = structuredClone(projection);
-  gridOf(tableOf(typed)).content![2].content![1].content![0].content = [{ type: "text", text: "240 V" }];
-  assert.throws(() => assertSupportedDocumentChange(projection, typed), /read-only/);
-  const reshaped = structuredClone(projection);
-  gridOf(tableOf(reshaped)).content![0].content![0].attrs!.colspan = 1;
-  assert.throws(() => assertSupportedDocumentChange(projection, reshaped), /read-only/);
+  gridOf(tableOf(typed)).content![2].content![0].content![1].content = [{ type: "text", text: "rated load" }];
+  gridOf(tableOf(typed)).content![3].content![0].content![0].content![1].content![0].content = [{ type: "text", text: "Mean", marks: [{ type: "bold" }] }];
+  const edits = collectSupportedEdits(document, typed);
+  assert.deepEqual(edits.cells?.map(edit => [edit.path.join(","), "blocks" in edit]), [["1,2,0", true], ["1,3,1", true]]);
+  const saved = saveEdits(complex, edits).markdown;
+  assert.equal(saved, complex.replace("<p>rated</p>", "<p>rated load</p>").replace("<li>Mean</li>", "<li><strong>Mean</strong></li>"));
+  const reloaded = toTiptapDocument(loadEditableDocument(saved));
+  assert.equal(collectSupportedEdits(loadEditableDocument(saved), reloaded).cells, undefined);
+  // The grid and each cell's paragraphs and lists stay: spans, a new paragraph or list item are refused.
+  for (const [name, change] of [
+    ["span", (grid: TiptapJSON) => { grid.content![0].content![0].attrs!.colspan = 1; }],
+    ["paragraph", (grid: TiptapJSON) => { grid.content![2].content![1].content!.push({ type: "paragraph", content: [] }); }],
+    ["list item", (grid: TiptapJSON) => { const list = grid.content![3].content![0].content![0]; list.content!.push(structuredClone(list.content![0])); }],
+    ["list kind", (grid: TiptapJSON) => { grid.content![3].content![0].content![0].type = "bulletList"; }],
+  ] as const) {
+    const next = structuredClone(projection);
+    change(gridOf(tableOf(next)));
+    assert.throws(() => assertSupportedDocumentChange(projection, next), /keeps its grid/, name);
+  }
   // A simple table cannot gain blocks or spans, nor a new table come with them.
   const simple = toTiptapDocument(loadEditableDocument(mixed));
   const listed = structuredClone(simple);
@@ -251,6 +265,9 @@ test("a complex table keeps its spans, header rows and cell blocks, and its cell
   const tab = tableTab(state, false, true)!;
   assert.equal(tab.selection.$from.depth, 1);
   assert.equal(tab.doc.child(0).firstChild!.childCount, 4);
+  // A content-only view (a plugin document view) adds no paragraph: Tab is left to the browser.
+  const locked = EditorState.create({ schema, doc, selection: state.selection, plugins: [structureGuardPlugin(projection, () => {}, [], true)] });
+  assert.equal(tableTab(locked, false, true), null);
   // Shift+Tab from that cell reaches the previous cell's first textblock.
   assert.equal(tableTab(state, true, true)!.selection.$from.parent.textContent, "230 V");
   for (const id of ["table-row", "table-column", "table-row-delete", "table-align-right"]) {
