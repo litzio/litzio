@@ -275,35 +275,48 @@ async (page, { expect, screenshots, withBlockHover }) => {
     return {below:cell.top >= name.bottom - 1, start:Math.abs(cell.left - name.left) < 1, contained:row.scrollWidth <= row.clientWidth};
   })).toEqual({below:true,start:true,contained:true});
   await page.setViewportSize({width:1440,height:1000});
-  // The way back sits above the title, before the other header controls, and adds no space when absent.
-  const returnFrame = page.locator('.task-surface').filter({has:page.getByRole('heading',{name:'Return to list',exact:true})});
+  // One header row: the way back starts on the line where a title without it starts, then the title, details and ⓘ.
+  const returnFrame = page.locator('.task-surface').filter({has:page.getByRole('group',{name:'Return example',exact:true})});
   const back = returnFrame.locator('.task-header').getByRole('button',{name:'Back to 변환한 문서',exact:true});
   const titleOffset = frame => frame.locator('.task-header').evaluate(h => {
     const header = h.getBoundingClientRect(), title = h.querySelector('h1').getBoundingClientRect(), icon = h.querySelector('.screen-back svg')?.getBoundingClientRect();
-    return {top: title.top - header.top, iconStart: icon ? icon.left - title.left : null};
+    return {top: title.top - header.top, start: (icon ?? title).left - header.left, height: header.height, titleAfterBack: icon ? title.left > icon.right : null};
   });
   const plainOffset = await titleOffset(page.locator('.task-surface').filter({has:page.getByRole('heading',{name:'Screen frame',exact:true})}));
   const backOffset = await titleOffset(returnFrame);
-  expect(backOffset.top).toBeGreaterThan(plainOffset.top);
-  expect(Math.abs(backOffset.iconStart)).toBeLessThan(1);
+  expect(Math.abs(backOffset.start - plainOffset.start)).toBeLessThan(1);
+  expect(backOffset.titleAfterBack).toBe(true);
+  expect(await returnFrame.locator('.task-header').evaluate(h => {
+    const center = node => { const r = node.getBoundingClientRect(); return r.top + r.height / 2; };
+    const [title, details, info, back] = ['h1', '.task-header-details', '.task-header-info', '.screen-back'].map(s => h.querySelector(s));
+    return [back, details, info].every(node => Math.abs(center(node) - center(title)) < 1) && details.getBoundingClientRect().left > title.getBoundingClientRect().right && info.getBoundingClientRect().left > details.getBoundingClientRect().right;
+  })).toBe(true);
+  const info = returnFrame.locator('.task-header').getByRole('button',{name:'About this screen',exact:true});
+  await expect(info).toHaveAccessibleDescription('원본 PDF와 변환한 문서를 나란히 놓고 빠지거나 바뀐 내용을 확인합니다.');
+  // Tab order is back, ⓘ, then actions; the description behind ⓘ is reachable from the keyboard.
   await back.focus();
+  await page.keyboard.press('Tab'); await expect(info).toBeFocused();
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText('원본 PDF와 변환한 문서를 나란히 놓고 빠지거나 바뀐 내용을 확인합니다.');
   await page.keyboard.press('Tab');
   await expect(returnFrame.locator('.task-header').getByRole('button',{name:'PDF 고르기',exact:true})).toBeFocused();
-  await page.keyboard.press('Shift+Tab'); await expect(back).toBeFocused();
+  await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Shift+Tab'); await expect(back).toBeFocused();
   await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText('Back to 변환한 문서');
-  await returnFrame.getByRole('button',{name:'Long list name',exact:true}).click();
-  // A long name truncates within the heading; at 1440 status and actions keep the title row.
+  await returnFrame.getByRole('button',{name:'Long names',exact:true}).click();
+  // A long title and details truncate on the one row; at 1440 status and actions keep that row, at 640 they move below.
   for (const width of [1440, 640]) {
     await page.setViewportSize({width,height:1000});
-    expect(await returnFrame.locator('.screen-back').evaluate(button => {
-      const label = button.querySelector('.screen-back-label'), heading = button.closest('.task-header-heading'), box = button.getBoundingClientRect();
-      const title = heading.querySelector('h1').getBoundingClientRect(), trailing = heading.nextElementSibling.getBoundingClientRect();
-      return {truncated: label.scrollWidth > label.clientWidth, inside: box.right <= heading.getBoundingClientRect().right + 1, aboveTitle: box.bottom <= title.top,
-        titleRow: innerWidth < 1000 || (trailing.top < title.bottom && trailing.left >= box.right)};
-    })).toEqual({truncated:true, inside:true, aboveTitle:true, titleRow:true});
+    expect(await returnFrame.locator('.task-header-heading').evaluate(heading => {
+      const box = heading.getBoundingClientRect(), trailing = heading.nextElementSibling.getBoundingClientRect();
+      const [title, details, info, back] = ['h1', '.task-header-details', '.task-header-info', '.screen-back svg'].map(s => heading.querySelector(s));
+      const truncated = node => node.scrollWidth > node.clientWidth;
+      return {truncated: truncated(title) && truncated(details), full: title.title === title.textContent && details.title === details.textContent,
+        inside: [back, title, details, info].every(node => { const r = node.getBoundingClientRect(); return r.width > 0 && r.left >= box.left - 1 && r.right <= box.right + 1; }),
+        oneRow: title.getBoundingClientRect().top < back.getBoundingClientRect().bottom,
+        trailing: innerWidth < 1000 ? trailing.top >= box.bottom : trailing.top < box.bottom && trailing.left >= box.right};
+    })).toEqual({truncated:true, full:true, inside:true, oneRow:true, trailing:true});
   }
   await page.setViewportSize({width:1440,height:1000});
-  await returnFrame.getByRole('button',{name:'Long list name',exact:true}).click();
+  await returnFrame.getByRole('button',{name:'Long names',exact:true}).click();
   await returnFrame.getByRole('button',{name:'Narrow width',exact:true}).click();
   expect((await titleOffset(returnFrame))).toEqual(backOffset);
   await returnFrame.getByRole('button',{name:'Narrow width',exact:true}).click();
@@ -313,11 +326,13 @@ async (page, { expect, screenshots, withBlockHover }) => {
   await back.click();
   await expect(returnFrame.getByRole('button',{name:/^설비 점검 절차서/})).toBeVisible();
   await expect(returnFrame.locator('.screen-back')).toHaveCount(0);
-  expect((await titleOffset(returnFrame)).top).toBe(plainOffset.top);
+  await expect(returnFrame.locator('.task-header-about')).toBeHidden();
+  const listOffset = await titleOffset(returnFrame);
+  expect(Math.abs(listOffset.start - plainOffset.start)).toBeLessThan(1);
   await returnFrame.getByRole('button',{name:/^설비 점검 절차서/}).click();
   await expect(back).toBeVisible();
-  const taskHeader = await page.locator('.task-header').first().evaluate(n => { const s = getComputedStyle(n); return { paddingTop: s.paddingTop, paddingBottom: s.paddingBottom, paddingLeft: s.paddingLeft, border: s.borderBottom }; });
-  expect(taskHeader.paddingTop).toBe(taskHeader.paddingLeft);
+  const taskHeader = await page.locator('.task-header').first().evaluate(n => { const s = getComputedStyle(n), probe = document.createElement('div'); probe.style.paddingTop = 'var(--space-3)'; n.append(probe); const expected = getComputedStyle(probe).paddingTop; probe.remove(); return { expected, paddingTop: s.paddingTop, paddingBottom: s.paddingBottom, paddingLeft: s.paddingLeft, border: s.borderBottom }; });
+  expect(taskHeader.paddingTop).toBe(taskHeader.expected);
   expect(taskHeader.paddingBottom).toBe(taskHeader.paddingTop);
   expect(taskHeader.paddingLeft).toBe(panelHeader.paddingLeft);
   expect(taskHeader.border).toBe(panelHeader.border);

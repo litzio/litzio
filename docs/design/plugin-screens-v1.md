@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Authority: [ADR-0022](../adr/0022-plugin-screen-code.md), [실행·제작 계약](plugin-stage1-v1.md).
-- Last verified: 2026-11-26 — [고친 결과 먼저 보이기](#고친-결과-먼저-보이기)(#1995)를 Editor 단위 검사(구조 잠금·읽기 전용 경계·입력 보류의 우회 경계, 기준 교체 뒤 내용 편집 수집)와 production HTTP Host의 document-view-editing 시나리오(Windows persistent Chrome, 적용·저장 확정·실패 되돌림·거절·입력기 조합, 2,000블록 수동 측정)로, 내용 편집 저장의 `onSave` `blocks`를 HTTP Host 단위 검사와 같은 시나리오로 확인했다. 실제 문서 가져오기 플러그인·실제 PDF 표본·packaged Desktop·소유자 시각 승인은 포함하지 않는다.
+- Last verified: 2026-11-26 — 한 줄 [머리 구역](#머리-구역과-작업-흐름)(#2016)을 ui-gallery·production HTTP Host의 plugin-screen-code 시나리오(Windows persistent Chrome)와 합성 화면 캡처로 확인했다. [고친 결과 먼저 보이기](#고친-결과-먼저-보이기)(#1995)를 Editor 단위 검사(구조 잠금·읽기 전용 경계·입력 보류의 우회 경계, 기준 교체 뒤 내용 편집 수집)와 production HTTP Host의 document-view-editing 시나리오(Windows persistent Chrome, 적용·저장 확정·실패 되돌림·거절·입력기 조합, 2,000블록 수동 측정)로, 내용 편집 저장의 `onSave` `blocks`를 HTTP Host 단위 검사와 같은 시나리오로 확인했다. 실제 문서 가져오기 플러그인·실제 PDF 표본·packaged Desktop·소유자 시각 승인은 포함하지 않는다.
 
 ## 연결 수명
 
@@ -30,7 +30,7 @@ invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명
 
 비서 제작의 조건 협의와 계획 문서는 [비서 계약](main-agent-v1.md#플러그인)을 따른다. 질문 카드나 계획을 위한 새 화면 기능은 추가하지 않는다.
 
-기존 Button/Input/Select/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. 열어 보는 항목의 줄 목록은 [ui.ItemList](#공용-정보-부품)다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·space-6 여백·제목 typography를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 설명·상태·동작을 머리에, 내용을 본문에 그린다. 본문은 기본 전체 폭이며 narrow를 선택하면 기존 읽기 폭으로 가운데 정렬한다.
+기존 Button/Input/Select/DataTable/Notice/Chart/Slider/Toolbar/SummaryCard/ScreenLayout과 앱의 토큰을 재사용한다. 열어 보는 항목의 줄 목록은 [ui.ItemList](#공용-정보-부품)다. DataTable 행 타입은 DataTable 모듈이 소유하며 선언형 query 타입에 의존하지 않는다. 작업 탭의 틀은 템플릿 갤러리와 같은 surface·바깥 여백(`--space-6`)·[머리](#머리-구역과-작업-흐름)를 공유하며 전체 폭과 스크롤을 소유한다. 화면 제목은 manifest에서 한 번만 그리고 ScreenLayout의 title은 표시하지 않는다. ScreenLayout은 대상 정보·설명·상태·동작을 머리에, 내용을 본문에 그린다. 본문은 기본 전체 폭이며 narrow를 선택하면 기존 읽기 폭으로 가운데 정렬한다.
 
 ui.ContextMenu는 기존 공통 ContextMenu를 사용한다. trigger는 focus 가능한 ReactElement, actions는 `{id,label,icon,visible?,disabled?,disabledReason?,danger?,run}` 배열이며 전체 메뉴의 disabled도 받는다. icon은 ReactNode이고 글자만 쓰면 null로 둔다. 비활성 이유는 기존 hover·keyboard focus tooltip을 쓴다. 구분선·하위 메뉴는 지원하지 않는다. 우클릭·Shift+F10·메뉴 키로 열고 Esc·바깥 클릭으로 닫는다. 항목 실행 후 명시적으로 다른 곳으로 focus를 옮기지 않았으면 trigger로 복귀한다. 메뉴는 주 동작의 유일한 진입점이 아니며 같은 동작을 화면 버튼에도 둔다.
 
@@ -66,18 +66,24 @@ ui.Chart의 가로축 이름은 한 줄로 표시하며 긴 이름은 말줄임�
 
 ### 머리 구역과 작업 흐름
 
-화면 틀과 템플릿 갤러리는 TaskHeader를 공유한다. 제목은 기존 task-surface-title 크기·굵기·시작선을 유지한다. 설명은 제목 아래, 상태와 동작은 오른쪽에 놓이며 640px에서는 아래 줄로 내려간다. 머리는 sticky이며 본문과 구분선으로 나뉜다. 설정의 목록+상세 구조는 별도다.
+화면 틀과 템플릿 갤러리는 TaskHeader를 공유한다. 머리는 한 줄이다. 왼쪽부터 돌아가기, 제목, 대상 정보, 설명 안내(ⓘ)를 두고 상태와 동작은 오른쪽 끝에 둔다. 제목은 구역 이름 역할(`type-section-title`)이며 시작선은 본문의 시작선과 같다. 대상 정보는 보조 역할의 크기(`--font-size-xs`)와 보조 글씨 색이다. 설명은 ⓘ(ghost icon-sm Button·Lucide `Info`)의 hover·keyboard focus 안내(Tooltip)로 보이며, 단추의 접근 가능한 이름은 “화면 안내”(영어 “About this screen”), 설명은 단추의 접근 가능한 설명이다. 설명이나 대상 정보가 없으면 그 자리를 그리지 않는다. 줄 높이는 기본 컨트롤 높이(`--size-control`)이고 위아래 여백은 `--space-3`이며, 머리와 본문 사이 간격(`--space-6`)은 그대로다. 긴 제목과 대상 정보는 한 줄로 말줄임하고 전체는 hover 안내(`title`)로 보인다. 제목 쪽에 문서 탭 이름 최대 폭(`--layout-document-tab-max-width`)이 남지 않을 때만 상태와 동작이 아래 줄로 내려가며, 640px에서는 늘 아래 줄이다. 머리는 sticky이며 본문과 구분선으로 나뉜다. 설정의 목록+상세 구조는 별도다.
 
-`ui.ScreenLayout({description?,status?,actions?,back?,width?,fillHeight?,children})`의 description은 머리에 표시한다. status에는 ui.Status, actions에는 ui.Button을 넣으며 채운 주 동작은 화면에 하나다. title은 받아도 그리지 않는다. width는 기본 full, narrow는 기존 settings-content-width 토큰으로 가운데 정렬한 읽기 폭이다. 표·그래프 중심은 full, 한 가지씩 진행하는 화면은 narrow를 쓴다.
+`ui.ScreenLayout({details?,description?,status?,actions?,back?,width?,fillHeight?,children})`의 details(문자열)는 화면이 다루는 대상의 짧은 정보(예: 파일 이름·쪽 수)로 제목 뒤에, description(문자열)은 ⓘ 안내로 표시한다. details를 주지 않는 화면은 설명만 ⓘ로 옮겨지고 그 밖의 모양은 같다. status에는 ui.Status, actions에는 ui.Button을 넣으며 채운 주 동작은 화면에 하나다. title은 받아도 그리지 않는다. width는 기본 full, narrow는 기존 settings-content-width 토큰으로 가운데 정렬한 읽기 폭이다. 표·그래프 중심은 full, 한 가지씩 진행하는 화면은 narrow를 쓴다.
 
-목록에서 항목 하나를 열어 보이는 화면은 `back?: {label:string, onBack():void, disabled?:boolean}`으로 목록에 돌아가는 길을 알린다. 틀은 머리 왼쪽, 제목 위의 한 줄에 왼쪽 화살표(Lucide `ArrowLeft`)와 돌아갈 곳의 이름(`label`)으로 된 보조 글씨 색의 ghost sm Button을 그린다. 화살표는 제목의 시작선에 맞추며 제목과 description의 자리는 그대로다. 단추는 머리의 다른 조작보다 Tab 순서가 앞이고, 접근 가능한 이름과 hover·keyboard focus 안내는 “돌아가기: 이름”(영어 “Back to name”)이다. 긴 이름은 머리 제목 영역의 폭에서 한 줄로 줄이며 status·actions를 다른 줄로 밀지 않는다. `disabled`는 기존 비활성 단추 모양이며 이유를 받는 입력은 없다. 누르면 `onBack`만 부르며, 돌아가서 무엇을 보일지와 그 상태는 플러그인이 정한다. 틀은 화면 이동 상태·이력·전용 단축키를 갖지 않는다. 같은 일을 하는 단추를 actions에 따로 두지 않는다. back을 주지 않은 화면의 머리는 변하지 않는다. width·fillHeight·sticky 머리에서도 같은 자리다.
+목록에서 항목 하나를 열어 보이는 화면은 `back?: {label:string, onBack():void, disabled?:boolean}`으로 목록에 돌아가는 길을 알린다. 틀은 머리 줄의 맨 앞, 제목 앞에 왼쪽 화살표(Lucide `ArrowLeft`)만 있는 보조 글씨 색의 ghost icon-sm Button을 그린다. 화살표는 back이 없을 때 제목이 시작하는 선에서 시작하고 제목은 그 뒤에 온다. 단추는 머리의 다른 조작보다 Tab 순서가 앞이고, 돌아갈 곳의 이름(`label`)은 화면에 쓰지 않고 접근 가능한 이름과 hover·keyboard focus 안내 “돌아가기: 이름”(영어 “Back to name”)으로만 보인다. `disabled`는 기존 비활성 단추 모양이며 이유를 받는 입력은 없다. 누르면 `onBack`만 부르며, 돌아가서 무엇을 보일지와 그 상태는 플러그인이 정한다. 틀은 화면 이동 상태·이력·전용 단축키를 갖지 않는다. 같은 일을 하는 단추를 actions에 따로 두지 않는다. back을 주지 않은 화면의 머리는 변하지 않는다. width·fillHeight·sticky 머리에서도 같은 자리다.
 
-| back 상태 | 1440 밝음 | 1440 어두움 | 640 밝음 |
+합성 플러그인 화면(Windows persistent Chrome, 한국어)의 머리. 머리는 구분선을 포함한 높이, 본문은 ScreenLayout 위 끝, 내용은 도구 줄 아래 대조 칸·목록 위 끝의 y(px)이며 탭 표면은 73에서 시작한다.
+
+| 화면 | 이전 머리 / 본문 / 내용 | 현재 머리 / 본문 / 내용 | 캡처 |
 | --- | --- | --- | --- |
-| 여러 동작과 함께 | [보기](assets/screen-back-1897/back-1440-light.png) | [보기](assets/screen-back-1897/back-1440-dark.png) | [보기](assets/screen-back-1897/back-640-light.png) |
-| 비활성 · narrow | [비활성](assets/screen-back-1897/disabled-1440-light.png) · [narrow](assets/screen-back-1897/narrow-1440-light.png) | | |
-| 긴 이름 · keyboard focus | [긴 이름](assets/screen-back-1897/long-name-1440-light.png) · [긴 이름 focus](assets/screen-back-1897/long-name-focus-1440-light.png) · [focus](assets/screen-back-1897/focus-1440-light.png) | | |
-| back 없음(변경 전후 같음) | [전](assets/screen-back-1897/no-back-before-1440-light.png) · [후](assets/screen-back-1897/no-back-after-1440-light.png) | | |
+| 대조형 1440 밝음 | 150 / 247 / 295 | 57 / 154 / 202 | [전](assets/task-header-2016/before-compare-1440-light.png) · [후](assets/task-header-2016/after-compare-1440-light.png) · [ⓘ 안내](assets/task-header-2016/after-compare-1440-light-description.png) |
+| 목록형 1440 밝음 | 114 / 211 / 259 | 57 / 154 / 202 | [전](assets/task-header-2016/before-list-1440-light.png) · [후](assets/task-header-2016/after-list-1440-light.png) |
+| 템플릿 갤러리 1440 밝음 | 85 / 182 / – | 57 / 154 / – | [전](assets/task-header-2016/before-gallery-1440-light.png) · [후](assets/task-header-2016/after-gallery-1440-light.png) |
+| 대조형 1440 어두움 | 150 / 247 / 295 | 57 / 154 / 202 | [전](assets/task-header-2016/before-compare-1440-dark.png) · [후](assets/task-header-2016/after-compare-1440-dark.png) |
+| 대조형 1920×1080 밝음 | 150 / 247 / 295 | 57 / 154 / 202 | [전](assets/task-header-2016/before-compare-1920-light.png) · [후](assets/task-header-2016/after-compare-1920-light.png) |
+| 대조형 640 어두움 | 198 / 295 / 343 | 105 / 202 / 250 | [전](assets/task-header-2016/before-compare-640-dark.png) · [후](assets/task-header-2016/after-compare-640-dark.png) |
+
+캡처는 수동 비교 근거이며 실제 문서 가져오기 플러그인 화면·packaged Desktop·소유자 시각 승인은 포함하지 않는다.
 
 루트 ScreenLayout에서 `fillHeight={true}`를 지정하면 본문은 머리 아래의 높이가 정해진 flex 열(column)이 된다. 작업 칸은 `flex: 1; min-height: 0`으로 맞추고 각 칸에 스크롤을 둔다. 탭은 작업 영역의 최소 높이(12rem)도 확보할 수 없을 때만 콘텐츠에 접근하도록 스크롤된다. 기본값 false는 콘텐츠 높이에 따라 기존처럼 탭을 스크롤한다. [갤러리 채우기 예제](assets/screen-fill-height-1742/screen-fill-after-1440x1000-light.png)는 문서와 자료 칸을 같은 높이로 표시한다.
 
