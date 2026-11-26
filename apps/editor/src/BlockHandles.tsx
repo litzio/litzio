@@ -78,14 +78,25 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
   const [moving, setMoving] = useState<{ top: number; height: number } | null>(null);
   useLayoutEffect(() => {
     const host = gutter.current!.parentElement!;
-    const rectangles = () => {
-      const result: DOMRect[] = [];
-      editor.state.doc.forEach((_node, pos) => {
-        const element = editor.view.nodeDOM(pos);
-        if (element instanceof HTMLElement) result.push(element.getBoundingClientRect());
-      });
-      return result;
+    // Each nodeDOM call searches from the first block, so walk the top-level DOM once in block order.
+    const blockElements = () => {
+      const doc = editor.state.doc;
+      const elements: (Node | null)[] = [];
+      if (!doc.childCount) return elements;
+      for (let element = editor.view.nodeDOM(0); element && elements.length < doc.childCount; element = element.nextSibling) {
+        if (!(element instanceof HTMLElement && element.classList.contains("ProseMirror-widget"))) elements.push(element);
+      }
+      // Any other DOM between blocks shifts the walk, so the last block must still be its own node.
+      if (elements.length === doc.childCount && elements[elements.length - 1] === editor.view.nodeDOM(doc.content.size - doc.lastChild!.nodeSize)) {
+        return elements;
+      }
+      elements.length = 0;
+      doc.forEach((_node, pos) => { elements.push(editor.view.nodeDOM(pos)); });
+      return elements;
     };
+    const rectanglesOf = (elements: (Node | null)[]) =>
+      elements.flatMap(element => element instanceof HTMLElement ? [element.getBoundingClientRect()] : []);
+    const rectangles = () => rectanglesOf(blockElements());
     let pointer: { x: number; y: number } | null = null;
     // Preserve the last coordinates through mouseleave/scroll hit-test changes.
     let lastPointer: { x: number; y: number } | null = null;
@@ -131,19 +142,19 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
     };
     const dropTarget = (y: number, from: number) => blockDropTarget(bodyRectangles(), y, from);
     // `top` and `height` are host-relative client pixels, so a reused measurement yields the same block.
-    const blockAt = (node: ProseMirrorNode, pos: number, index: number, top: number, height: number,
+    const blockAt = (node: ProseMirrorNode, element: Node | null, index: number, top: number, height: number,
       hostRect: DOMRect, scale: number) => {
       const endnote = endnoteLabel(node) !== undefined;
-      const headingElement = node.type.name === "heading" ? editor.view.nodeDOM(pos) : null;
+      const headingElement = node.type.name === "heading" ? element : null;
       const heading = headingElement instanceof HTMLElement
         ? { level: Number(node.attrs.level), center: top / scale + parseFloat(getComputedStyle(headingElement).lineHeight) / 2 }
         : undefined;
       const location = saveLocations.find(location => location.index === index);
-      const element = location?.cell ? editor.view.nodeDOM(pos) : null;
-      const cellRect = element instanceof HTMLElement && location?.cell
-        ? element.querySelectorAll("tr")[location.cell.row]?.children[location.cell.column]?.getBoundingClientRect() : undefined;
+      const table = location?.cell ? element : null;
+      const cellRect = table instanceof HTMLElement && location?.cell
+        ? table.querySelectorAll("tr")[location.cell.row]?.children[location.cell.column]?.getBoundingClientRect() : undefined;
       // Clip to the scroll viewport so a horizontally hidden cell cannot paint over the gutter.
-      const scrollRect = element instanceof HTMLElement ? element.querySelector(".table-scroll")?.getBoundingClientRect() : undefined;
+      const scrollRect = table instanceof HTMLElement ? table.querySelector(".table-scroll")?.getBoundingClientRect() : undefined;
       const left = cellRect ? Math.max(cellRect.left, scrollRect?.left ?? cellRect.left) : 0;
       const right = cellRect ? Math.min(cellRect.right, scrollRect?.right ?? cellRect.right) : 0;
       const cell = cellRect && right > left ? { top: (cellRect.top - hostRect.top) / scale, left: (left - hostRect.left) / scale,
@@ -166,17 +177,13 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
         ? measured.map(block => new DOMRect(0, hostRect.top + block.top, 0, block.height)) : undefined);
     };
     const update = () => {
-      const rects = rectangles();
+      const elements = blockElements();
+      const rects = rectanglesOf(elements);
       const hostRect = host.getBoundingClientRect();
       const scale = Number(getComputedStyle(host).zoom) || 1;
       measured = rects.map(rect => ({ top: rect.top - hostRect.top, height: rect.height }));
-      let blockPos = 0;
-      publish(measured.map(({ top, height }, index) => {
-        const node = editor.state.doc.child(index);
-        const pos = blockPos;
-        blockPos += node.nodeSize;
-        return blockAt(node, pos, index, top, height, hostRect, scale);
-      }), hostRect);
+      publish(measured.map(({ top, height }, index) =>
+        blockAt(editor.state.doc.child(index), elements[index], index, top, height, hostRect, scale)), hostRect);
     };
     // Most transactions move no block: a typed character stays on its line. Measure the changed blocks,
     // the selection's blocks before and after, the block after each and the last block. When none moved,
@@ -215,7 +222,7 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
           moved = true;
           return;
         }
-        next[index] = blockAt(node, pos, index, block.top, block.height, hostRect, scale);
+        next[index] = blockAt(node, element, index, block.top, block.height, hostRect, scale);
       });
       if (moved) return false;
       publish(next, hostRect);
