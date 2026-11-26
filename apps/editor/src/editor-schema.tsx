@@ -493,37 +493,55 @@ function figureNode(documentPath?: string | (() => string), onDraftChange?: Draf
 // carry their opening position. The structure guard rejects any other change to the grid.
 const headerAttr: Attribute = { default: false, rendered: false, parseHTML: (element) => element.tagName === "TH" };
 
+// The table block is the document block (path, label, number, block tools, move and delete). Its
+// grid holds only rows, in the prosemirror-tables roles, so TableMap reads it; the caption and
+// notes follow the grid as its siblings.
+const TABLE_ROLES: Record<string, string> = { tableGrid: "table", tableRow: "row", tableCell: "cell" };
+
 const Table = Node.create({
   name: "table",
   allowGapCursor: false,
   group: "block",
-  content: "tableRow+ tableCaption tableNotes?",
+  content: "tableGrid tableCaption tableNotes?",
   isolating: true,
   selectable: true,
   draggable: false,
+  extendNodeSchema(extension) {
+    return TABLE_ROLES[extension.name] ? { tableRole: TABLE_ROLES[extension.name] } : {};
+  },
   addAttributes() {
     return blockAttrs({ label: hiddenAttr(""), enumerator: { default: null, rendered: false }, enumerated: { default: null, rendered: false } });
   },
   parseHTML() {
-    return [{ tag: "div[data-table-block]", contentElement: "table" }];
+    return [{ tag: "div[data-table-block]" }];
   },
   renderHTML({ node, HTMLAttributes }) {
     return ["div", { ...HTMLAttributes, class: "table-block", "data-block": "table",
-      "data-table-block": "", "data-source-path": String(node.attrs.sourcePath ?? "") },
-      ["table", { class: "table" }, 0]];
+      "data-table-block": "", "data-source-path": String(node.attrs.sourcePath ?? "") }, 0];
   },
 });
 
-// A native caption is part of its table, while rows/cells retain their engine coordinates.
+const TableGrid = Node.create({
+  name: "tableGrid",
+  allowGapCursor: false,
+  content: "tableRow+",
+  isolating: true,
+  selectable: false,
+  draggable: false,
+  parseHTML() { return [{ tag: "table" }]; },
+  renderHTML() { return ["table", 0]; },
+});
+
+// The caption follows the grid; table caption layout keeps it below the grid, at the grid's width.
 const TableCaption = Node.create({
   name: "tableCaption",
   content: "(text | inlineMath | crossReference | footnoteReference | citation)*",
   isolating: true,
   selectable: false,
-  parseHTML() { return [{ tag: "caption" }]; },
-  renderHTML() { return ["caption", { class: "caption table-caption" }, 0]; },
+  parseHTML() { return [{ tag: "div[data-table-caption]" }]; },
+  renderHTML() { return ["div", { class: "caption table-caption", "data-table-caption": "" }, 0]; },
   addNodeView() {
-    return captionNodeView(ReactNodeViewRenderer(TableCaptionView, { as: "caption", className: "table-caption", contentDOMElementTag: "span" }));
+    return captionNodeView(ReactNodeViewRenderer(TableCaptionView, { as: "div", className: "table-caption", contentDOMElementTag: "span" }));
   },
 });
 
@@ -531,10 +549,10 @@ const TableNotes = Node.create({
   name: "tableNotes",
   content: "tableNote+",
   parseHTML() {
-    return [{ tag: "tfoot[data-table-notes]", contentElement: "td" }];
+    return [{ tag: "div[data-table-notes]" }];
   },
   renderHTML() {
-    return ["tfoot", { "data-table-notes": "", "aria-label": i18n.t("Table notes") }, ["tr", ["td", 0]]];
+    return ["div", { "data-table-notes": "", "aria-label": i18n.t("Table notes") }, 0];
   },
 });
 
@@ -549,7 +567,7 @@ const TableNote = Node.create({
 
 function tableNode(onDraftChange?: DraftListener) {
   return Table.extend({
-    addNodeView() { return ReactNodeViewRenderer(props => <TableView {...props} onDraftChange={onDraftChange} />, { contentDOMElementTag: "table" }); },
+    addNodeView() { return ReactNodeViewRenderer(props => <TableView {...props} onDraftChange={onDraftChange} />, { contentDOMElementTag: "div" }); },
   });
 }
 
@@ -569,13 +587,16 @@ const TableRow = Node.create({
   },
 });
 
-// Cells hold inline content, including hard breaks.
+// Cells hold inline content, including hard breaks. Every cell spans one row and one column; the
+// span attributes exist for TableMap and are never read from pasted HTML.
 const TableCell = Node.create({
   name: "tableCell",
   content: "(text | hardBreak | inlineMath | crossReference | footnoteReference | citation)*",
   isolating: true,
   addAttributes() {
-    return { header: headerAttr, align: hiddenAttr(""), [TABLE_CELL_SOURCE_ATTR]: { default: "", rendered: false } };
+    return { header: headerAttr, align: hiddenAttr(""), [TABLE_CELL_SOURCE_ATTR]: { default: "", rendered: false },
+      colspan: { default: 1, rendered: false, parseHTML: () => 1 }, rowspan: { default: 1, rendered: false, parseHTML: () => 1 },
+      colwidth: { default: null, rendered: false, parseHTML: () => null } };
   },
   parseHTML() {
     return [{ tag: "th[data-table-cell]" }, { tag: "td[data-table-cell]" }];
@@ -799,6 +820,7 @@ export function editorExtensions(
     figureNode(documentPath, onDraftChange, validateFigure, chooseImage),
     equationNode(onDraftChange),
     tableNode(onDraftChange),
+    TableGrid,
     TableRow,
     TableCaption,
     TableNotes,

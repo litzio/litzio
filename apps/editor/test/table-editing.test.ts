@@ -10,6 +10,7 @@ import { history, undo } from "@tiptap/pm/history";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { splitBlock } from "@tiptap/pm/commands";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
+import { TableMap } from "@tiptap/pm/tables";
 import { editorExtensions, structureGuardPlugin } from "../src/editor-schema.tsx";
 import {
   assertSupportedDocumentChange,
@@ -30,15 +31,21 @@ function tableOf(projection: TiptapJSON): TiptapJSON {
   return projection.content!.find((block) => block.type === "table")!;
 }
 
+/** The rows of a table block: its grid holds them, before its caption and notes. */
+function gridOf(table: TiptapJSON): TiptapJSON {
+  return table.content![0];
+}
+
 function setCell(projection: TiptapJSON, row: number, cell: number, text: string, marks?: TiptapJSON["marks"]): TiptapJSON {
   const next = structuredClone(projection);
-  tableOf(next).content![row].content![cell].content = text ? [{ type: "text", text, ...(marks ? { marks } : {}) }] : [];
+  gridOf(tableOf(next)).content![row].content![cell].content = text ? [{ type: "text", text, ...(marks ? { marks } : {}) }] : [];
   return next;
 }
 
 test("editable, empty and formatted cells round-trip through the single Tiptap schema", () => {
   const projection = toTiptapDocument(loadEditableDocument(mixed));
-  const rows = tableOf(projection).content!.filter(node => node.type === "tableRow");
+  assert.equal(gridOf(tableOf(projection)).type, "tableGrid");
+  const rows = gridOf(tableOf(projection)).content!;
   assert.deepEqual(rows.map((row) => row.content!.map((cell) => cell.type)), [
     ["tableCell", "tableCell"],
     ["tableCell", "tableCell"],
@@ -49,6 +56,11 @@ test("editable, empty and formatted cells round-trip through the single Tiptap s
   const schema = getSchema(editorExtensions());
   assert.deepEqual(schema.nodeFromJSON(projection).toJSON(), schema.nodeFromJSON(schema.nodeFromJSON(projection).toJSON()).toJSON());
   assert.ok(schema.nodeFromJSON(projection).eq(schema.nodeFromJSON(projection)));
+  // prosemirror-tables reads the grid: every cell spans one row and one column.
+  let grid: ProseMirrorNode | undefined;
+  schema.nodeFromJSON(projection).descendants(node => { if (node.type.name === "tableGrid") grid = node; return !grid; });
+  const map = TableMap.get(grid!);
+  assert.deepEqual([map.width, map.height, map.problems], [2, 3, null]);
 });
 
 test("changed header and body cells become Core cell edits; unchanged tables send none", () => {
@@ -73,7 +85,7 @@ test("unsupported table grid changes are refused", () => {
   ];
   for (const [name, change] of changes) {
     const next = structuredClone(baseline);
-    change(tableOf(next));
+    change(gridOf(tableOf(next)));
     assert.throws(() => assertSupportedDocumentChange(baseline, next), Error, name);
   }
 });
@@ -158,8 +170,8 @@ function cellPosition(doc: ProseMirrorNode, row: number, cell: number): number {
   let found = -1;
   doc.descendants((node, position) => {
     if (node.type.name !== "table") return true;
-    const offset = position + 1;
-    node.forEach((tableRow, rowOffset, rowIndex) => {
+    const offset = position + 2;
+    node.firstChild!.forEach((tableRow, rowOffset, rowIndex) => {
       if (rowIndex !== row) return;
       tableRow.forEach((_, cellOffset, cellIndex) => {
         if (cellIndex === cell) found = offset + rowOffset + 1 + cellOffset;

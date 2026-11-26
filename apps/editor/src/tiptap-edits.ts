@@ -668,6 +668,10 @@ type TableCellShape = { header: boolean; content: InlineContent[]; align: string
 
 /** The cell grid of a table node, excluding the caption and notes. */
 function tableCells(node: TiptapJSON): TableCellShape[][] {
+  const [grid, ...rest] = node.content ?? [];
+  if (grid?.type !== "tableGrid" || rest.some(child => child.type !== "tableCaption" && child.type !== "tableNotes")) {
+    throw new Error("a table holds one grid of rows before its caption and notes");
+  }
   return tableRowsJSON(node).map((row, rowIndex) => {
     if (row.type !== "tableRow") throw new Error(`unsupported Tiptap node ${describeType(row)} in table`);
     return (row.content ?? []).map((cell, column) => {

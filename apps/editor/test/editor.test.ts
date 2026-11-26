@@ -172,7 +172,8 @@ test("technical document projects to one typed Tiptap document", () => {
   const admonition = projection.content?.find((block) => block.type === "admonition");
   assert.equal(admonition?.attrs?.variant, "warning");
   const table = projection.content?.find((block) => block.type === "table");
-  const rows = table?.content?.filter(node => node.type === "tableRow") ?? [];
+  assert.deepEqual(table?.content?.map(node => node.type), ["tableGrid", "tableCaption"]);
+  const rows = table?.content?.[0]?.content ?? [];
   assert.equal(rows.length, 3);
   assert.deepEqual(rows[0]?.content?.map((cell) => [cell.type, cell.attrs?.header]), [["tableCell", true], ["tableCell", true]]);
   assert.deepEqual(rows[1]?.content?.[1], { type: "tableCell", attrs: { header: false, sourceCell: "1,1" }, content: [{ type: "text", text: "AC" }] });
@@ -1760,7 +1761,7 @@ test("empty paragraph and empty heading saves are rejected", () => {
   });
   const table = loadEditableDocument(nativeSource("# Title\n\n| a | b |\n|--|--|\n| c | d |\n"));
   const broken = clone(toTiptapDocument(table));
-  broken.content![1].content![1].content![1].content = [{ type: "image" }];
+  broken.content![1].content![0].content![1].content![1].content = [{ type: "image" }];
   assert.throws(() => collectSupportedEdits(table, broken), (error: unknown) => {
     assert.ok(error instanceof SaveContentError);
     assert.match(error.message, /unsupported Tiptap node "image"/);
@@ -1809,9 +1810,9 @@ test("save error locations follow submitted split blocks and moved table cells",
   const submitted: TiptapJSON = { type: "doc", content: [
     { type: "paragraph", attrs: { sourcePath: "1" } },
     { type: "paragraph", attrs: { sourcePath: "1" } },
-    { type: "table", attrs: { sourcePath: "2" }, content: [
+    { type: "table", attrs: { sourcePath: "2" }, content: [{ type: "tableGrid", content: [
       { type: "tableRow", content: [{ type: "tableCell", attrs: { sourceCell: "1,1" } }] },
-    ] },
+    ] }] },
   ] };
   assert.match(saveErrorMessage(new SaveContentError("split failed", { path: [1], part: 1 }), submitted), /^Block 2 \(paragraph\)/);
   assert.match(saveErrorMessage(new SaveContentError("cell failed", { path: [2, 1, 1], part: 0 }), submitted), /^Block 3 \(table\), row 1, column 1/);
@@ -2049,7 +2050,7 @@ test("typed straight quotes save through the Editor adapter and Host and reload 
     { type: "text", text: '"READY"', marks: [{ type: "bold" }] },
     { type: "text", text: "." },
   ];
-  table.content![1].content![1].content = [{ type: "text", text: "it's \"on\"" }];
+  table.content![0].content![1].content![1].content = [{ type: "text", text: "it's \"on\"" }];
   let written = "";
   const saved = commitDocumentSave(() => input, (markdown) => { written = markdown; },
     { revision: documentRevision(input), ...collectSupportedEdits(editable, projected) });

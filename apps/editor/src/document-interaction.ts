@@ -67,7 +67,7 @@ export function pasteFootnotes(state: EditorState, slice: Slice, incoming: Footn
   return tr;
 }
 
-const TYPES = new Set(["paragraph", "heading", "admonition", "quote", "divider", "equation", "figure", "table", "tableRow", "tableCell", "tableCaption", "tableNotes", "tableNote", "bulletList", "orderedList", "listItem", "taskList", "taskItem", "codeBlock", "text", "hardBreak", "inlineMath", "crossReference", "footnoteReference", "citation"]);
+const TYPES = new Set(["paragraph", "heading", "admonition", "quote", "divider", "equation", "figure", "table", "tableGrid", "tableRow", "tableCell", "tableCaption", "tableNotes", "tableNote", "bulletList", "orderedList", "listItem", "taskList", "taskItem", "codeBlock", "text", "hardBreak", "inlineMath", "crossReference", "footnoteReference", "citation"]);
 const COPY_RESTRICTION = "This selection cannot be copied losslessly. Use Source to copy its original Markdown. The selection is kept.";
 const CUT_RESTRICTION = "This selection cannot be cut losslessly. Use Source to copy its original Markdown. Nothing was removed.";
 
@@ -504,7 +504,7 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           getAttrs: (element: HTMLElement) => {
             try { return JSON.parse(element.getAttribute("data-litzio-attrs") ?? "{}"); } catch { return false; }
           },
-          ...(type === "table" ? { contentElement: "table" } : type === "tableNotes" ? { contentElement: "td" } : type === "figure" ? { contentElement: "figcaption" } : {}),
+          ...(type === "figure" ? { contentElement: "figcaption" } : {}),
           // As Tiptap reads its own checklist item: the content is in the item's div, and the
           // leading checkbox is the check state.
           ...(type === "taskItem" ? {

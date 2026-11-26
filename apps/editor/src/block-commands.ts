@@ -649,19 +649,19 @@ export function insertTableAfter(state: EditorState, index: number, slash?: Slas
   for (let i = 0; i < index; i++) pos += tr.doc.child(i).nodeSize;
   const target = tr.doc.child(index);
   const reuse = target.type.name === "paragraph" && target.content.size === 0 && isNewBlockPath(String(target.attrs.sourcePath ?? ""));
-  const { table, tableRow, tableCell } = state.schema.nodes;
+  const { table, tableGrid, tableRow, tableCell } = state.schema.nodes;
   // Cells of a new table are part of the new block, so they are not marked as added.
   const node = table.create(
     { sourcePath: reuse ? target.attrs.sourcePath : allocateBlockPath("command") },
-    [...Array.from({ length: NEW_TABLE_ROWS }, (_, row) =>
-      tableRow.create(null, Array.from({ length: NEW_TABLE_COLUMNS }, () => tableCell.create({ header: row === 0 })))),
+    [tableGrid.create(null, Array.from({ length: NEW_TABLE_ROWS }, (_, row) =>
+      tableRow.create(null, Array.from({ length: NEW_TABLE_COLUMNS }, () => tableCell.create({ header: row === 0 }))))),
     state.schema.nodes.tableCaption.create()],
   );
   const at = reuse ? pos : pos + target.nodeSize;
   if (reuse) tr.replaceWith(pos, pos + target.nodeSize, node);
   else tr.insert(at, node);
-  // Inside the table, its first row and its first cell.
-  return tr.setSelection(TextSelection.create(tr.doc, at + 3)).setMeta(BLOCK_COMMAND_META, true).scrollIntoView();
+  // Inside the table, its grid, its first row and its first cell.
+  return tr.setSelection(TextSelection.create(tr.doc, at + 4)).setMeta(BLOCK_COMMAND_META, true).scrollIntoView();
 }
 
 /** Append a note paragraph and put the caret inside it. */

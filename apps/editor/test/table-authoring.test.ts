@@ -54,8 +54,8 @@ function apply(state: EditorState, tr: Transaction): EditorState {
 
 function grid(state: EditorState, index = TABLE): string[][] {
   const rows: string[][] = [];
-  state.doc.child(index).forEach(row => {
-    if (row.type.name !== "tableRow") return;
+  // The table block's grid holds its rows.
+  state.doc.child(index).firstChild!.forEach(row => {
     const cells: string[] = [];
     row.forEach(cell => cells.push(cell.textContent));
     rows.push(cells);
@@ -66,15 +66,15 @@ function grid(state: EditorState, index = TABLE): string[][] {
 function caretIn(state: EditorState, row: number, column: number, index = TABLE): EditorState {
   let pos = 0;
   for (let i = 0; i < index; i++) pos += state.doc.child(i).nodeSize;
-  const table = state.doc.child(index);
-  let at = pos + 1;
+  const table = state.doc.child(index).firstChild!;
+  let at = pos + 2;
   for (let i = 0; i < row; i++) at += table.child(i).nodeSize;
   at += 1;
   for (let i = 0; i < column; i++) at += table.child(row).child(i).nodeSize;
   return state.apply(state.tr.setSelection(TextSelection.create(state.doc, at + 1)));
 }
 
-const cellOf = (state: EditorState) => ({ row: state.selection.$from.index(1), column: state.selection.$from.index(2) });
+const cellOf = (state: EditorState) => ({ row: state.selection.$from.index(2), column: state.selection.$from.index(3) });
 
 test("whole rich caption input and composition preserve neighbors and one-step Undo", () => {
   const source = nativeSource("Before.\n\n:::{figure} ./diagram.svg\n\n**Rich** caption\n:::\n\n:::{table} **Rich** caption\n\n| A |\n| --- |\n| B |\n:::\n\nAfter.\n");
@@ -220,7 +220,7 @@ test("a new table has a header row and two body rows of three columns, and saves
   assert.equal(state.doc.child(1).type.name, "table");
   assert.deepEqual(grid(state, 1), [["", "", ""], ["", "", ""], ["", "", ""]]);
   const headers: boolean[][] = [];
-  state.doc.child(1).forEach(row => { if (row.type.name !== "tableRow") return; const flags: boolean[] = []; row.forEach(cell => flags.push(cell.attrs.header)); headers.push(flags); });
+  state.doc.child(1).firstChild!.forEach(row => { const flags: boolean[] = []; row.forEach(cell => flags.push(cell.attrs.header)); headers.push(flags); });
   assert.deepEqual(headers, [[true, true, true], [false, false, false], [false, false, false]]);
   assert.deepEqual(cellOf(state), { row: 0, column: 0 });
   assert.equal(state.selection.$from.index(0), 1);
@@ -246,13 +246,13 @@ test("a new table has a header row and two body rows of three columns, and saves
       assert.equal(saveEdits(saved.markdown, collectSupportedEdits(reopened.document, reopened.state.doc.toJSON() as TiptapJSON)).markdown, saved.markdown);
       // Save filled cells, then clear them while the table still has its insertion locator.
       const filled = structuredClone(next);
-      filled.content![1].content![0].content![0].content = [{ type: "text", text: "Draft" }];
+      filled.content![1].content![0].content![0].content![0].content = [{ type: "text", text: "Draft" }];
       const filledSaved = saveEdits(mixed, collectSupportedEdits(document, filled));
       assert.equal(saveEdits(mixed, collectSupportedEdits(document, next)).markdown, saved.markdown);
       // Clearing an opening-snapshot cell must produce the same persisted table.
       const openedFilled = editorState(filledSaved.markdown);
       const cleared = openedFilled.state.doc.toJSON() as TiptapJSON;
-      cleared.content![1].content![0].content![0].content = [];
+      cleared.content![1].content![0].content![0].content![0].content = [];
       assert.equal(saveEdits(filledSaved.markdown, collectSupportedEdits(openedFilled.document, cleared)).markdown, saved.markdown);
     }
   }
@@ -287,7 +287,7 @@ test("rows and columns are added next to the caret's cell, or at the end, and sa
   state = apply(state, addTableColumnRight(state, TABLE));
   assert.deepEqual(grid(state), [["Name", "", "Note"], ["U", "", "bold"], ["I", "", ""], ["P", "", ""]]);
   assert.deepEqual(cellOf(state), { row: 2, column: 1 });
-  assert.equal(state.doc.child(TABLE).child(0).child(1).attrs.header, true);
+  assert.equal(state.doc.child(TABLE).child(0).child(0).child(1).attrs.header, true);
   state = apply(state, state.tr.insertText("x"));
   // Without a caret in the table: after the last row / column.
   const outside = (current: EditorState) => current.apply(current.tr.setSelection(TextSelection.create(current.doc, 1)));
@@ -330,7 +330,8 @@ test("rows and columns are added, removed and moved only whole, and the header r
   const baseline = toTiptapDocument(loadEditableDocument(mixed));
   // An added cell has no snapshot position.
   const added = (header = false) => ({ type: "tableCell", attrs: { header }, content: [] });
-  const tableOf = (projection: TiptapJSON) => projection.content![TABLE];
+  // The table block's grid, which holds its rows.
+  const tableOf = (projection: TiptapJSON) => projection.content![TABLE].content![0];
   const changes: [string, (table: TiptapJSON) => void][] = [
     ["row above the header", (table) => { table.content!.unshift({ type: "tableRow", content: [added(true), added(true)] }); }],
     ["header row moved down", (table) => { table.content!.splice(2, 0, table.content!.shift()!); }],
@@ -407,8 +408,8 @@ test("aligned table insertion keeps the displayed grid consistent with Core Save
   state = apply(state, addTableColumnRight(state, TABLE));
   assert.deepEqual(rejected, []);
   const projected = state.doc.toJSON() as TiptapJSON;
-  const table = projected.content![TABLE];
-  for (const row of table.content!.filter(row => row.type === "tableRow")) assert.deepEqual(row.content!.map(cell => cell.attrs?.align), ["left", "", "right"]);
+  const table = projected.content![TABLE].content![0];
+  for (const row of table.content!) assert.deepEqual(row.content!.map(cell => cell.attrs?.align), ["left", "", "right"]);
   const saved = loadEditableDocument(saveEdits(source, collectSupportedEdits(document, projected)).markdown).blocks[TABLE];
   assert.ok(saved.block === "table");
   for (const row of saved.rows) assert.deepEqual(row.cells.map(cell => cell.align ?? ""), ["left", "", "right"]);
