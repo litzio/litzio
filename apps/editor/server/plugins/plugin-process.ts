@@ -79,19 +79,18 @@ process.on('message', async ({id, method, args}) => {
 `;
 
 type PluginProcessExit = { code: number | null; signal: NodeJS.Signals | null };
-export type PluginProcessActivationFailure =
-  | { kind: "timeout" }
-  | ({ kind: "processExit" } & PluginProcessExit);
+export type PluginProcessActivationFailure = { kind: "processExit" } & PluginProcessExit;
 
-export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: (exited: Promise<PluginProcessExit | undefined>) => void, artifactDirectory = path.dirname(entry), cli?: PluginCli, activation?: { timeoutMs?: number; onFailure(failure: PluginProcessActivationFailure): void }): Promise<PluginInstance> {
+export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: (exited: Promise<PluginProcessExit | undefined>) => void, artifactDirectory = path.dirname(entry), cli?: PluginCli, activation: { signal: AbortSignal; onFailure(failure: PluginProcessActivationFailure): void } | undefined = undefined): Promise<PluginInstance> {
   const runtimeUrl = await hostSdkUrl();
+  activation?.signal.throwIfAborted();
   const child = spawn(process.execPath, ["--input-type=module", "--eval", bootstrap], {
     stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true, env: { ...withoutGitHubTokens(process.env), ELECTRON_RUN_AS_NODE: "1" },
   });
   let sequence = 0, stopped = false, dead = false;
   let activationFailure: PluginProcessActivationFailure | undefined;
   let observedExit: PluginProcessExit | undefined;
-  const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
+  const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void; timer?: ReturnType<typeof setTimeout> }>();
   const exited = new Promise<PluginProcessExit | undefined>(resolve => child.once("close", () => resolve(observedExit)));
   const fail = (kind: "failed" | "timeout" = "failed") => {
     if (dead) return;
@@ -119,22 +118,24 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
     if (dead) { reject(new Error("Plugin process unavailable")); return; }
     const id = ++sequence;
     // This deadline bounds one RPC response, never an accepted background job.
-    const timer = setTimeout(() => {
-      if (method === "activate") activationFailure = { kind: "timeout" };
+    const timer = method === "activate" ? undefined : setTimeout(() => {
       fail("timeout");
       child.kill();
-    }, method === "activate" ? activation?.timeoutMs ?? 10_000 : 10_000);
+    }, 10_000);
     pending.set(id, { resolve, reject, timer });
     child.send({ id, method, args }, error => { if (error) { fail(); child.kill(); } });
   });
   const stop = async () => { stopped = true; child.kill(); await exited; };
+  const abort = () => { stopped = true; fail(); child.kill(); };
+  activation?.signal.addEventListener("abort", abort, { once: true });
   let operationNames: string[];
   try { operationNames = await request("activate", { entry, settings, secrets, cli, artifactDirectory, internalRoot, sdkUrl: runtimeUrl, nodeSdkUrl: await hostSdkUrl(true), sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id), codeScreen: manifest.contributes.screens?.some(screen => screen.entry) ?? false }); }
   catch (error) {
     await stop();
+    activation?.signal.throwIfAborted();
     if (activationFailure) activation?.onFailure(activationFailure);
     throw error;
-  }
+  } finally { activation?.signal.removeEventListener("abort", abort); }
   return {
     operations: Object.fromEntries(operationNames.map(id => [id, (input: unknown) => request("invoke", { operation: id, input })])),
     status: () => request("status"),

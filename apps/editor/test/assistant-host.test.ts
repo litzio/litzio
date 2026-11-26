@@ -12,19 +12,18 @@ import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 import { runCliAsync } from "../../../packages/cli/src/cli.ts";
 import { fakeProviderCli, useReleaseSource } from "./helpers/provider-cli.ts";
 
-test("Codex skill discovery waits for plugin startup; Copilot retains tool-only support", async () => {
+test("Codex skill discovery proceeds during plugin activation; Copilot retains tool-only support", { timeout: 10_000 }, async () => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-plugin-skill-catalog-"));
-  let started = false, discovered = false, release!: () => void;
-  const ready = new Promise<void>(resolve => { release = () => { started = true; resolve(); }; });
-  const agent = { async skills() { assert.equal(started, true); discovered = true; return { skills: [{ name: "internal", path: "/plugin/SKILL.md", description: "Review" }, { name: "user", path: "/user/SKILL.md", description: "User" }], errors: [] }; }, async close() {} } as unknown as ProviderConnections;
-  const plugins = { start: () => ready, host: { skillDisplayName: (file: string) => file === "/plugin/SKILL.md" ? "Fixture · documents" : undefined } } as import("../server/plugin-service.ts").PluginService;
+  const pendingActivation = new Promise<void>(() => {});
+  let scheduled = false;
+  const begin = () => { scheduled = true; return pendingActivation; };
+  const agent = { async skills() { assert.equal(scheduled, true); return { skills: [{ name: "internal", path: "/plugin/SKILL.md", description: "Review" }, { name: "user", path: "/user/SKILL.md", description: "User" }], errors: [] }; }, async close() {} } as unknown as ProviderConnections;
+  const plugins = { begin, start: begin, host: { skillDisplayName: (file: string) => file === "/plugin/SKILL.md" ? "Fixture · documents" : undefined } } as import("../server/plugin-service.ts").PluginService;
   const host = createAssistantHost(null, path.join(root, "settings.json"), { agent, plugins });
   try {
-    const listing = host.invoke("assistantSkills", { provider: "codex" });
-    await Promise.resolve(); assert.equal(discovered, false);
+    assert.deepEqual((await host.invoke("assistantSkills", { provider: "codex" })).skills, [{ name: "internal", path: "/plugin/SKILL.md", description: "Review", displayName: "Fixture · documents" }, { name: "user", path: "/user/SKILL.md", description: "User" }]);
     await assert.rejects(host.invoke("assistantSkills", { provider: "copilot" }), /only with Codex/);
-    release(); assert.deepEqual((await listing).skills, [{ name: "internal", path: "/plugin/SKILL.md", description: "Review", displayName: "Fixture · documents" }, { name: "user", path: "/user/SKILL.md", description: "User" }]);
-  } finally { release(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 test("the plugin authoring skill is in the assistant working folder only on a Host with plugins", async t => {
@@ -517,30 +516,16 @@ test("provider log lookup binds Litzio index, provider RPC ID and original metad
   assert.deepEqual(JSON.parse(ollama.stdout), { available: false, reason: "missing" }, "the Copilot CLI log location is checked for an Ollama conversation");
 });
 
-test("assistant shutdown rejects a send still waiting for plugin startup before provider admission", async t => {
-  const root = mkdtempSync(path.join(tmpdir(), "litzio-admission-close-"));
-  const connection = new ProviderConnections(path.join(root, "assistant"));
-  let release!: () => void, entered!: () => void;
-  const waiting = new Promise<void>(resolve => { entered = resolve; });
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  const plugins = { start: async () => { entered(); await gate; } } as unknown as import("../server/plugin-service.ts").PluginService;
-  const diagnostics = t.mock.method(connection, "diagnostics", async () => { throw new Error("provider admission after shutdown"); });
-  const host = createAssistantHost(null, path.join(root, "settings.json"), { agent: connection, plugins });
-  t.after(async () => { release(); await host.close(); rmSync(root, { recursive: true, force: true }); });
-  const sending = assert.rejects(host.invoke("assistantConversation", { action: "send", message: "Question", folders: [] }), /closing/);
-  await waiting;
-  await Promise.all([host.close(), host.close()]);
-  release(); await sending;
-  assert.equal(diagnostics.mock.callCount(), 0, "no provider resources may be created after close");
-});
-
-
-test("submission IDs survive event-before-response, duplicate sends and uncertain acceptance", async t => {
+test("submission IDs survive pending plugin activation, event-before-response, duplicate sends and uncertain acceptance", { timeout: 60_000 }, async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-submission-"));
   const log = path.join(root, "rpc.jsonl");
   const agent = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
     args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
-  const host = createAssistantHost(null, path.join(root, "ai.json"), { agent });
+  const pendingActivation = new Promise<void>(() => {});
+  let scheduled = false;
+  const begin = () => { scheduled = true; return pendingActivation; };
+  const plugins = { begin, start: begin, host: {} } as unknown as import("../server/plugin-service.ts").PluginService;
+  const host = createAssistantHost(null, path.join(root, "ai.json"), { agent, plugins });
   t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
   const input = { action: "send", submissionId: "submission-first", message: "Same message", folders: [root], model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const originalRequest = agent.client.request.bind(agent.client);
@@ -556,6 +541,7 @@ test("submission IDs survive event-before-response, duplicate sends and uncertai
   const sending = host.invoke("assistantConversation", input);
   const duplicate = host.invoke("assistantConversation", input);
   await observation;
+  assert.equal(scheduled, true, "the provider accepts the send while plugin activation remains pending");
   const early = await host.invoke("assistantConversations", { submissionId: input.submissionId });
   assert.equal(early.submission.status, "accepted", "provider observation identifies acceptance before RPC returns");
   release();

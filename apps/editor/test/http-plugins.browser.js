@@ -448,29 +448,89 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(page.getByRole("alert").filter({ hasText: "The selected plugin is no longer available." })).toBeVisible();
   expect(await page.evaluate(() => { window.pluginNoticeObserver.disconnect(); return window.pluginNoticeMaximum; }), "A closing dialog must not duplicate the selected-plugin notice").toBe(1);
   // The returned activation kind supplies the tooltip, including after the switch fails.
-  const startup = { id: "fixture.startup", name: "Fixture plugin", version: "1.0.0", source: { kind: "local" }, trusted: true, enabled: true, running: false, activationFailure: "timeout", error: "Plugin activation failed" };
+  const startup = { id: "fixture.startup", name: "Fixture plugin", version: "1.0.0", source: { kind: "local" }, trusted: true, enabled: true, running: false, activation: "loading" };
   const secretStoreError = "Windows secret store unavailable";
+  const startupScreen = { plugin: startup.id, id: "main", title: "Fixture screen", icon: "file", primary: true, entry: "screen.jsx" };
+  const restartActions = [];
+  let restarting = true;
+  await page.route("**/api/plugin-screens", route => {
+    const screen = startup.activation ? { ...startupScreen, activation: startup.activation }
+      : startup.running ? { ...startupScreen, codeRevision: "ready", ...(route.request().postDataJSON()?.screenCode === false ? {} : {
+        code: 'export default React => () => React.createElement("p", null, "Fixture screen ready")',
+      }) } : undefined;
+    return route.fulfill({ json: { screens: screen ? [screen] : [] } });
+  });
   let enableFailure = { kind: "processExit", message: "Plugin request failed" };
   await page.route("**/api/plugins", route => {
     const action = route.request().postDataJSON()?.action;
-    if (action === "disable") startup.enabled = false;
+    if (action === "disable") {
+      startup.enabled = false;
+      delete startup.activation;
+      if (restarting) restartActions.push("disable");
+    }
     if (action === "enable") {
+      if (restarting) {
+        restartActions.push("enable");
+        Object.assign(startup, { enabled: true, running: true });
+        return route.fulfill({ json: { plugins: [startup] } });
+      }
       Object.assign(startup, { activationFailure: enableFailure.kind, error: `Error: ${enableFailure.message}` });
       return route.fulfill({ status: 400, json: { error: enableFailure.message } });
     }
     if (route.request().method() === "GET" || action === "disable") return route.fulfill({ json: { plugins: [startup] } });
     return route.continue();
   });
-  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
+  await page.reload();
+  await openSettings();
   const startupRow = page.getByRole("region", { name: "Fixture plugin", exact: true });
   const startupDetails = startupRow.getByRole("button", { name: "Plugin status details", exact: true });
   const startupToggle = startupRow.getByRole("switch");
-  const timeoutHint = "The plugin was not ready in time. Turn it off and back on.";
+  const startupEntry = page.getByTestId("activity-bar").getByRole("button", { name: "Fixture screen", exact: true });
+  const startupStatus = startupRow.getByRole("status");
+  const captureLoading = async name => {
+    if (screenshots) await page.screenshot({
+      path: `tmp/plugin-startup-1918/${name}.png`,
+      mask: [page.locator(".activity-bar-status, .document-path, .sidebar-folder-name, .document-start-folder-path"),
+        page.locator(".document-tab-name").filter({ hasNotText: /^(Fixture screen|Settings|설정|a\.md)$/ })],
+      maskColor: "#7d8795",
+    });
+  };
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(startupStatus).toHaveText("Loading");
+  await expect(startupEntry).toHaveAccessibleDescription("Loading");
+  await expect(startupRow.getByRole("button", { name: "Restart" })).toHaveCount(0);
+  await captureLoading("loading-1440-light");
+  await startupEntry.hover();
+  await expect(page.getByText("Fixture screen · Loading", { exact: true })).toBeVisible();
+  await captureLoading("activity-1440-light");
+  await startupEntry.click();
+  const workspace = page.getByTestId("view-workspace");
+  await expect(workspace.getByRole("status")).toHaveText("Loading");
+  await captureLoading("screen-1440-light");
+  delete startup.activation;
+  startup.running = true;
+  await expect(workspace.getByText("Fixture screen ready", { exact: true })).toBeVisible();
+  await expect(startupEntry).not.toHaveAccessibleDescription("Loading");
+  startup.running = false;
+  startup.activation = "slow";
+  await openSettings();
+  await expect(startupStatus).toHaveText("Not responding");
+  await expect(startupDetails).toHaveAccessibleDescription("The plugin is taking longer than expected. You can wait or restart it.");
+  await captureLoading("slow-1440-light");
+  await startupRow.getByRole("button", { name: "Restart", exact: true }).click();
+  await expect(startupStatus).toHaveText("Running");
+  expect(restartActions).toEqual(["disable", "enable"]);
+  await startupEntry.click();
+  await expect(workspace.getByText("Fixture screen ready", { exact: true })).toBeVisible();
+  await openSettings();
+  restarting = false;
+  Object.assign(startup, { running: false, activationFailure: "processExit", error: "Plugin activation failed" });
+  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
   const exitHint = "The plugin process exited before it was ready. Turn it off and back on.";
   await expect(startupRow.getByRole("status")).toHaveText("Plugin error");
   await expect(startupToggle).toBeChecked();
   await startupDetails.hover();
-  await expect(page.getByText(timeoutHint, { exact: true })).toBeVisible();
+  await expect(page.getByText(exitHint, { exact: true })).toBeVisible();
   await startupToggle.click();
   await expect(startupToggle).not.toBeChecked();
   const manualEnable = responseFor("enable");
@@ -501,16 +561,16 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
 
   if (screenshots) {
     delete startup.activationFailedAtStartup;
-    Object.assign(startup, { enabled: true, activationFailure: "timeout", error: "Plugin activation failed" });
+    Object.assign(startup, { enabled: true, activation: "slow", activationFailure: undefined, error: undefined });
     await page.setViewportSize({ width: 1440, height: 900 });
-    for (const theme of ["light", "dark"]) {
+    for (const theme of ["dark"]) {
       await page.evaluate(theme => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", theme); }, theme);
       await page.reload();
       await page.getByRole("button", { name: "설정", exact: true }).click();
       await page.getByRole("button", { name: "플러그인", exact: true }).click();
       await startupRow.getByRole("button", { name: "플러그인 상태 자세히", exact: true }).hover();
-      await expect(page.getByText("플러그인이 제한 시간 안에 준비되지 않았습니다. 껐다가 다시 켜 보세요.", { exact: true })).toBeVisible();
-      await page.getByTestId("settings-dialog").screenshot({ path: `tmp/plugin-startup-1918/after-1440-${theme}.png` });
+      await expect(startupRow.getByRole("status")).toHaveText("응답이 늦음");
+      await captureLoading(`slow-1440-${theme}-ko`);
     }
   }
   await page.unrouteAll({ behavior: "wait" });

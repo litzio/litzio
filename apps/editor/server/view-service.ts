@@ -5,7 +5,7 @@ import type { PluginService } from "./plugin-service.ts";
 /** Stateless view execution; plugin runtime lifetime belongs to the plugin service. */
 export function createViewService(access: FileAccess, plugins: PluginService) {
   return { execute: async (input: unknown) => {
-    await plugins.start();
+    plugins.begin();
     return executeViewOperation(input, { access, plugins: plugins.host });
   } };
 }
