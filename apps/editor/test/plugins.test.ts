@@ -16,6 +16,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 
 import { PluginHost } from "../server/plugins/plugin-host.ts";
+import { executeViewOperation } from "../server/views.ts";
+import { LOCAL_FILE_ACCESS } from "../server/file-access.ts";
 import { PLUGIN_MANIFEST_MISSING } from "../shared/plugin-registration-error.ts";
 import { GitHubSource } from "../server/plugins/github-source.ts";
 import { FakeGitHub } from "./fake-github.ts";
@@ -1441,7 +1443,7 @@ test("Host SDK runtime is one self-contained JavaScript module with only Node bu
     }
   }
   const runtime = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles![0]!.contents).toString("base64")}`);
-  assert.equal(runtime.SDK_VERSION, "0.19.0");
+  assert.equal(runtime.SDK_VERSION, "0.20.0");
   assert.equal(typeof runtime.updateDocumentStatus, "function");
   assert.equal(JSON.parse(readFileSync(new URL("../../../packages/plugin-sdk/package.json", import.meta.url), "utf8")).version, runtime.SDK_VERSION);
   assert.equal(typeof runtime.PluginOperationError, "function");
@@ -1935,9 +1937,13 @@ test("slow activation keeps operations waiting and disable releases them", { tim
     }`);
   const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
   manifest.operations = [{ id: "read", version: 1, effect: "read", scope: "host", assistant: true, inputSchema: { type: "object" }, outputSchema: { type: "object" } }];
+  manifest.fileActions = [{ id: "open", label: "Open", extensions: [".docx"], openByDefault: true }];
   writeFileSync(manifestFile, JSON.stringify(manifest));
+  const fileActions = async () => (await executeViewOperation({ action: "file-actions", path: "C:\\sample\\File.DOCX" }, { access: LOCAL_FILE_ACCESS, plugins: host })).fileActions;
   await host.invoke("register", { directory });
+  assert.deepEqual(await fileActions(), []);
   await host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
+  assert.deepEqual(await fileActions(), []);
 
   const enabling = host.invoke("enable", { id });
   void enabling.catch(() => {});
@@ -1945,6 +1951,8 @@ test("slow activation keeps operations waiting and disable releases them", { tim
   const waiting = host.invokeOperation(`${id}.read`, {});
   while ((await host.list())[0]?.activation !== "slow" || !host.viewScreens().length) await delay(10);
   assert.equal(host.viewScreens()[0]?.code, undefined);
+  assert.equal(host.viewScreens(false)[0]?.fileActions[0]?.id, "open");
+  assert.equal((await fileActions())?.[0]?.activation, "slow");
   const screen = host.invokeOperation(`${id}.read`, {}, undefined, id);
   const assistant = host.invokeAssistantOperation(`${id}.read`, {});
   while (!existsSync(entered)) await delay(10);
@@ -1961,6 +1969,8 @@ test("slow activation keeps operations waiting and disable releases them", { tim
   assert.match(logs.find(line => line.includes("activation ended"))!, /^plugin activation ended plugin=fixture\.wait elapsedMs=\d+$/);
   assert.equal((await host.list())[0]?.activation, undefined);
   assert.ok(host.viewScreens()[0]?.codeRevision);
+  assert.equal((await fileActions())?.[0]?.activation, undefined);
+  assert.equal((await fileActions())?.[0]?.plugin, id);
 
   await host.invoke("disable", { id });
   rmSync(gate);
@@ -1976,6 +1986,7 @@ test("slow activation keeps operations waiting and disable releases them", { tim
   assert.equal("errorKind" in toolFailure && toolFailure.errorKind, "unavailable");
   assert.equal((await host.list())[0]?.enabled, false);
   assert.deepEqual(host.viewScreens(), []);
+  assert.deepEqual(await fileActions(), []);
 });
 
 test("health check publication enforces the SDK result even with a permissive plugin schema", async () => {
@@ -2128,16 +2139,25 @@ test("screen code is active-only, reloads local JSX, reports compiler failures a
 
     writeFileSync(path.join(directory, "part.jsx"), 'export const label = "First";');
     writeFileSync(path.join(directory, "screen.jsx"), 'import {label} from "./part.jsx"; export default function Screen(){return <div>{label}</div>}');
+    const manifestPath = path.join(directory, "litzio-plugin.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.fileActions = [{ id: "first", label: "First action", extensions: [".pdf"] }];
+    writeFileSync(manifestPath, JSON.stringify(manifest));
     await host.start(); await host.invoke("register", { directory });
     assert.deepEqual(host.viewScreens(), []);
     await host.invoke("trust", { id: "fixture.screen", registrationId: (await host.list())[0]!.registrationId });
     await host.invoke("enable", { id: "fixture.screen" });
     const first = host.viewScreens()[0]!; assert.match(first.code!, /First/);
     assert.equal(host.viewScreens(false)[0]!.code, undefined); assert.equal(host.viewScreens(false)[0]!.codeRevision, first.codeRevision);
+    assert.equal(host.viewScreens(false)[0]!.fileActions[0]!.id, "first");
     assert.deepEqual((await host.invoke("screen-invoke", {plugin:"fixture.screen",operation:"fixture.screen.measurements",input:{}}) as any).result, [10,18,12,24]);
     writeFileSync(path.join(directory, "part.jsx"), 'export const label = "Second";');
+    manifest.fileActions = [{ id: "second", label: "Second action", extensions: [".pdf"] }];
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    assert.equal(host.viewScreens(false)[0]!.fileActions[0]!.id, "first");
     await host.invoke("reload", { id: "fixture.screen" });
     assert.match(host.viewScreens()[0]!.code!, /Second/); assert.notEqual(host.viewScreens()[0]!.codeRevision, first.codeRevision);
+    assert.equal(host.viewScreens(false)[0]!.fileActions[0]!.id, "second");
     await host.invoke("disable", { id: "fixture.screen" }); assert.deepEqual(host.viewScreens(), []);
     writeFileSync(path.join(directory, "screen.jsx"), 'export default function Screen(){return <div>}');
     const validation: any = await host.invoke("validate", { directory });

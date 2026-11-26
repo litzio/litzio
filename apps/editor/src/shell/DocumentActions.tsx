@@ -2,16 +2,46 @@ import { SAVE_SHORTCUT } from "../shortcuts.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { operationText, type Operation } from "../operation.ts";
-import { useEffect, useState, type Ref } from "react";
+import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { ArrowLeftRight, Check, Circle, Copy, Ellipsis, FileDiff, FilePenLine, LoaderCircle, PanelRight, PanelRightOpen, RotateCcw, StretchHorizontal, TriangleAlert } from "lucide-react";
 import { ChoiceGroup } from "@/components/ui/choice-group.tsx";
 import { Button } from "@/components/ui/button.tsx";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
 import type { DocumentView } from "./TopBar.tsx";
+import type { OpenPluginFile, ViewFileAction } from "../views/view-file-actions.ts";
+import { viewScreenIcon } from "../views/view-screen-icon.ts";
 
-type DocumentActionsProps = {
+type PluginFileMenuProps = {
   documentPath: string;
+  pluginActions?: ViewFileAction[];
+  onOpenPluginFile?: OpenPluginFile;
+};
+
+export function TabFileMenu({ documentPath, pluginActions, onOpenPluginFile, fileActionsRef, disabled, children }: PluginFileMenuProps & {
+  fileActionsRef?: Ref<HTMLButtonElement>;
+  disabled?: boolean;
+  children?: ReactNode;
+}) {
+  return <DropdownMenu>
+    <DropdownMenuTrigger ref={fileActionsRef}
+      render={<Button type="button" size="icon-sm" variant="ghost" aria-label={i18n.t("File actions")} title={i18n.t("File actions")} disabled={disabled} />}>
+      <Ellipsis aria-hidden="true" />
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      {children}
+      {children && pluginActions?.length ? <DropdownMenuSeparator /> : null}
+      {pluginActions?.map(entry => {
+        const Icon = viewScreenIcon(entry.action.icon);
+        return <DropdownMenuItem key={entry.key} onClick={() => onOpenPluginFile?.(entry, documentPath)}>
+          <Icon aria-hidden="true" />{entry.label}
+        </DropdownMenuItem>;
+      })}
+    </DropdownMenuContent>
+  </DropdownMenu>;
+}
+
+type DocumentActionsProps = PluginFileMenuProps & {
   textMode?: boolean;
   markdownText?: boolean;
   /** Fixed reading surfaces have no view, width or outline controls. */
@@ -48,7 +78,7 @@ type DocumentActionsProps = {
 /** Actions and status of this tab row's active document. */
 export function DocumentActions({
   documentPath, textMode, markdownText, hideViewControls, wide, onToggleWide, status, unsaved = false, draftNotice = "", view, viewDisabled, onViewChange, saveDisabled,
-  onSave, onCompare, compareDisabled, onReload, reloadDisabled, onCopyPath, fileActionsRef,
+  onSave, onCompare, compareDisabled, onReload, reloadDisabled, onCopyPath, fileActionsRef, pluginActions, onOpenPluginFile,
   outline, onToggleOutline, outlineToggleRef, compact: groupCompact = false, onOpenRight, onMove, openRightDisabled, moveDisabled,
 }: DocumentActionsProps) {
   useTranslation();
@@ -112,12 +142,8 @@ export function DocumentActions({
             {saveLabel}
           </Button>
         {onReload ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger ref={fileActionsRef}
-              render={<Button type="button" size="icon-sm" variant="ghost" aria-label={i18n.t("File actions")} title={i18n.t("File actions")} disabled={reloadDisabled && !(compact && onToggleWide)} />}>
-              <Ellipsis aria-hidden="true" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+          <TabFileMenu fileActionsRef={fileActionsRef} documentPath={documentPath} pluginActions={pluginActions} onOpenPluginFile={onOpenPluginFile}
+            disabled={reloadDisabled && !(compact && onToggleWide)}>
               {compact && onToggleWide ? <DropdownMenuItem role="menuitemcheckbox" aria-checked={wide} onClick={onToggleWide}>
                 <StretchHorizontal aria-hidden="true" />{i18n.t("Wide document")}</DropdownMenuItem> : null}
               {onOpenRight ? <DropdownMenuItem onClick={onOpenRight} disabled={openRightDisabled}>
@@ -132,8 +158,7 @@ export function DocumentActions({
                 <DropdownMenuItem onClick={onCopyPath} disabled={!documentPath || reloadDisabled}>
                   <Copy aria-hidden="true" />{i18n.t("Copy path")}</DropdownMenuItem>
               ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          </TabFileMenu>
         ) : null}
       </div>
     </div>

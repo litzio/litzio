@@ -736,12 +736,20 @@ export class PluginHost {
     if (this.closed || this.disabling.has(id) || activation.controller.signal.aborted) throw new Error(PLUGIN_OPERATION_UNAVAILABLE);
   }
   viewScreens(includeCode = true) {
-    const ready = [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({ plugin: live.manifest.id, ...(live.screens[screen.id] ? { ...(includeCode ? { code: live.screens[screen.id] } : {}), codeRevision: this.record(live.manifest.id).digest } : {}), iconDigest: live.manifest.icon ? this.record(live.manifest.id).digest : undefined, ...screen })));
+    const ready = [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({
+      plugin: live.manifest.id,
+      ...(live.screens[screen.id] ? { ...(includeCode ? { code: live.screens[screen.id] } : {}), codeRevision: this.record(live.manifest.id).digest } : {}),
+      iconDigest: live.manifest.icon ? this.record(live.manifest.id).digest : undefined,
+      ...screen,
+      fileActions: this.disabling.has(live.manifest.id) ? [] : live.manifest.contributes.fileActions.filter(action => action.screenId === screen.id),
+    })));
     const loading = [...this.activating.keys()].flatMap(id => {
       const activation = this.activation(id), record = this.installed[id];
       if (this.loaded.has(id) || !activation?.manifest || !record?.trusted || !("installationId" in record)) return [];
+      const { manifest } = activation;
       return activation.manifest.contributes.screens.map(screen => ({
         ...screen, plugin: id, activation: activation.state, code: undefined, codeRevision: undefined, iconDigest: activation.manifest?.icon ? record.digest : undefined,
+        fileActions: this.disabling.has(id) ? [] : manifest.contributes.fileActions.filter(action => action.screenId === screen.id),
       }));
     });
     return [...ready.map(screen => ({ ...screen, activation: undefined })), ...loading];

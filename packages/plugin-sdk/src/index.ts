@@ -16,7 +16,7 @@ export { mergeParagraphWithPrevious, splitParagraph, updateHeadingLevel, machine
   insertTableNote, updateTableNote, removeTableNote, moveTableNote,
   ADMONITION_VARIANTS, type AdmonitionVariant } from "@litzio/core";
 
-export const SDK_VERSION = "0.19.0";
+export const SDK_VERSION = "0.20.0";
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
 const operation = z.strictObject({ id, version: z.number().int().positive().default(1), effect: z.enum(["read","write"]).default("read"), scope: z.enum(["host","folder"]).default("host"), assistant: z.boolean().default(false), inputSchema: schema.default({}), outputSchema: schema.default({}) });
@@ -47,23 +47,37 @@ export function parseGitHubSource(value: string): { owner: string; repo: string;
 export const GITHUB_TRACKS = ["release", "branch"] as const;
 export type GitHubTrack = typeof GITHUB_TRACKS[number];
 const githubSource = z.string().refine(value => !!parseGitHubSource(value), "Expected a public GitHub address: https://github.com/<owner>/<repo> or https://github.com/<owner>/<repo>/tree/<ref>/<folder>");
-const manifestVersion = z.string().refine(value => value.trim().length > 0 && !/[\r\n\v\f\u0085\u2028\u2029]/u.test(value), "Expected a non-empty single-line version");
-const cardSchema = z.strictObject({id,name:z.string().min(1),version:manifestVersion.optional(),repository:githubSource.optional(),description:z.string().optional(),icon:z.string().min(1).default("LayoutDashboard"),entry:z.string().min(1),screen:z.string().min(1),operations:z.array(operation).default([]),settingsSchema:schema.default({type:"object",additionalProperties:false}),secrets:z.array(secret).default([]),skills:z.array(skill).default([]),healthCheck:id.optional()});
+const nonEmptyLine = (value: string) => value.trim().length > 0 && !/[\r\n\v\f\u0085\u2028\u2029]/u.test(value);
+const manifestVersion = z.string().refine(nonEmptyLine, "Expected a non-empty single-line version");
+const fileAction = z.strictObject({
+  id,
+  label: z.string().refine(nonEmptyLine, "Expected a non-empty single-line label").transform(value => value.trim()),
+  icon: z.enum(SCREEN_ICONS).default("FileText"),
+  extensions: z.array(z.string().regex(/^\.[a-z0-9]+$/)).min(1)
+    .refine(values => new Set(values).size === values.length, "Duplicate file extension"),
+  screenId: z.literal("main").default("main"),
+  openByDefault: z.boolean().default(false),
+});
+const cardSchema = z.strictObject({id,name:z.string().min(1),version:manifestVersion.optional(),repository:githubSource.optional(),description:z.string().optional(),icon:z.string().min(1).default("LayoutDashboard"),entry:z.string().min(1),screen:z.string().min(1),operations:z.array(operation).default([]),settingsSchema:schema.default({type:"object",additionalProperties:false}),secrets:z.array(secret).default([]),skills:z.array(skill).default([]),healthCheck:id.optional(),fileActions:z.array(fileAction).default([])});
 export function validateManifest(input:unknown) {
  const card=cardSchema.parse(input);
  for(const file of [card.entry,card.screen]) if(/^(?:[a-z]+:|[/\\])/i.test(file)||file.split(/[/\\]/).includes(".."))throw new Error("Entry must stay inside package");
  if(!SCREEN_ICONS.includes(card.icon as any)&&(!pluginIconMime(card.icon)||/^(?:[a-z]+:|[/\\])/i.test(card.icon)||card.icon.split(/[/\\]/).includes("..")))throw new Error("Invalid icon path");
- for(const values of [card.operations,card.secrets,card.skills])if(new Set(values.map(v=>v.id)).size!==values.length)throw new Error("Duplicate identity");
+ for(const values of [card.operations,card.secrets,card.skills,card.fileActions])if(new Set(values.map(v=>v.id)).size!==values.length)throw new Error("Duplicate identity");
+ const defaultExtensions = card.fileActions.filter(action => action.openByDefault).flatMap(action => action.extensions);
+ if (new Set(defaultExtensions).size !== defaultExtensions.length) throw new Error("Only one default file action per extension is allowed in a plugin");
  if(Array.isArray(card.settingsSchema.required)&&card.settingsSchema.required.length)throw new Error("settingsSchema.required must be empty");
  compileSchema(card.settingsSchema);
  for(const op of card.operations){compileOperationInputSchema(op.inputSchema);compileSchema(op.outputSchema);}
  if(card.healthCheck){const op=card.operations.find(op=>op.id===card.healthCheck);if(!op||op.effect!=="read"||op.scope!=="host"||!compileSchema(op.inputSchema)({}))throw new Error("Health check must be a host read accepting empty input");}
  return {id:card.id,name:card.name,version:card.version,repository:card.repository,description:card.description,entry:card.entry,icon:SCREEN_ICONS.includes(card.icon as any)?undefined:card.icon,settingsSchema:card.settingsSchema,secrets:card.secrets,
- contributes:{operations:card.operations,healthCheck:card.healthCheck,skills:card.skills,screens:[{id:"main",title:card.name,icon:SCREEN_ICONS.includes(card.icon as any)?card.icon:"LayoutDashboard",entry:card.screen,primary:true}]}};
+ contributes:{operations:card.operations,healthCheck:card.healthCheck,skills:card.skills,fileActions:card.fileActions,screens:[{id:"main",title:card.name,icon:SCREEN_ICONS.includes(card.icon as any)?card.icon:"LayoutDashboard",entry:card.screen,primary:true}]}};
 }
 export type PluginManifest=ReturnType<typeof validateManifest>;
 export type OperationDefinition=z.infer<typeof operation>;
 export type ScreenContribution=PluginManifest["contributes"]["screens"][number];
+export type FileActionContribution = z.infer<typeof fileAction>;
+export type ScreenFileOpen = Readonly<{ request: number; actionId: string; path: string }>;
 export const healthCheckResultSchema=z.strictObject({ok:z.boolean(),message:z.string().min(1).max(300)});
 export type HealthCheckResult=z.infer<typeof healthCheckResultSchema>;
 export const HEALTH_CHECK_OUTPUT_SCHEMA={type:"object",properties:{ok:{type:"boolean"},message:{type:"string",minLength:1,maxLength:300}},required:["ok","message"],additionalProperties:false} as const;
