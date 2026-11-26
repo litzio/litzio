@@ -680,7 +680,7 @@ function tableCells(node: TiptapJSON): TableCellShape[][] {
         const align = String(cell.attrs?.align ?? "");
         const source = String(cell.attrs?.[TABLE_CELL_SOURCE_ATTR] ?? "");
         if (cell.type !== "tableCell") throw new Error(`unsupported Tiptap node ${describeType(cell)} in table row`);
-        const content = paragraphInline(cell);
+        const content = paragraphInline(cellParagraph(cell));
         return { header, align, content, source };
       } catch (error) {
         throw new SaveContentError(error instanceof Error ? error.message : String(error), undefined, {
@@ -744,6 +744,13 @@ function headingInline(node: TiptapJSON): InlineContent[] {
 
 function hasBreak(items: InlineContent[]): boolean {
   return items.some(item => item.kind === "break" || ("children" in item && hasBreak(item.children)));
+}
+
+/** The paragraph a table cell holds. */
+function cellParagraph(cell: TiptapJSON): TiptapJSON {
+  const [paragraph, ...rest] = cell.content ?? [];
+  if (paragraph?.type !== "paragraph" || rest.length) throw new Error("a table cell holds one paragraph");
+  return paragraph;
 }
 
 function paragraphInline(node: TiptapJSON): InlineContent[] {

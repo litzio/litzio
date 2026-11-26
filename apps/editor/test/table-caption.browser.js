@@ -403,10 +403,11 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   expect(await caption.locator('.katex').count()).toBe(1);
   // Native keys enter the caption from the final grid row, return to the grid, then leave the table.
   await table.locator('td').last().click();
-  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.type.name === 'tableCell');
+  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.node(-1).type.name === 'tableCell');
   await page.keyboard.press('End');
   await page.keyboard.press('ArrowDown');
-  const parent = () => editor.evaluate(element => element.editor.state.selection.$from.parent.type.name);
+  // A caret in a table cell is in the cell's paragraph.
+  const parent = () => editor.evaluate(element => { const {$from} = element.editor.state.selection; return $from.depth > 1 && $from.node(-1).type.name === 'tableCell' ? 'tableCell' : $from.parent.type.name; });
   expect(await parent()).toBe('tableCaption');
   await page.keyboard.press('ArrowUp');
   expect(await parent()).toBe('tableCell');
@@ -482,7 +483,7 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   expect(await tableJSON(), 'Editable transitions preserve document content').toEqual(empty);
   expect(await editor.evaluate(element => element.editor.can().undo()), 'Editable transitions create no history').toBe(false);
   await table.locator('td').last().click();
-  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.type.name === 'tableCell');
+  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.node(-1).type.name === 'tableCell');
   await page.keyboard.press('End');
   await page.keyboard.press('ArrowDown');
   expect(await parent(), 'ArrowDown also enters an empty caption').toBe('tableCaption');

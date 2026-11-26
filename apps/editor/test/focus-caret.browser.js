@@ -188,7 +188,7 @@ async (page, { openPath }) => {
     const cellCaret = async offset => {
       const position = await editor.evaluate((el, [text, offset]) => {
         let position;
-        el.editor.state.doc.descendants((node, pos) => { if (node.type.name === 'tableCell' && node.textContent === text) position = pos + 1 + offset; });
+        el.editor.state.doc.descendants((node, pos) => { if (node.type.name === 'tableCell' && node.textContent === text) position = pos + 2 + offset; });
         if (position === undefined) throw Error(`Missing boundary cell: ${text}`);
         el.editor.commands.setTextSelection(position); el.editor.view.focus(); return position;
       }, [text, offset]);

@@ -15,7 +15,8 @@
 - Direct-editing verification: 2026-10-26 (#555 and the approved table-caption portion of #557; scope and evidence below).
 - Caption-label verification: 2026-10-26 (#462 Core template rule, CLI inspect, cross-reference browser immediate update, Undo/Redo, Source and Save → Reload).
 - CLI insertion verification: 2026-10-15 (#280 caption/label in one write, label-only table, invalid/duplicate label refusal and rich batch caption; Core/CLI tests).
-- Last verified: 2026-11-26 — #2013: 편집기 표 블록의 격자·캡션·주석 구조와 클립보드 HTML을 Editor 단위 검사, 로컬 `table-caption`·`table-cell-editing`·`table-authoring`·`recovery-structure`·`markdown-paste`·`document-view-editing` 실행과 1440·640px 전후 캡처로 확인했다. Desktop 실행 재검증 없음.
+- Last verified: 2026-11-26 — #2015: 칸 내용이 문단 하나를 담는 블록 구조로 바뀐 뒤 Editor 단위 검사와 로컬 `table-caption`·`table-cell-editing`·`table-authoring`·`markdown-paste`·`recovery-structure`·`focus-caret`·`save-error`·`continuous-editing`·`property-drafts`·`notification-center`·`document-view-editing` 실행, 1440 밝음·어두움·640·문서 보기 전후 캡처의 픽셀 비교로 확인했다. Desktop 실행 재검증 없음.
+- Previous verification: 2026-11-26 — #2013: 편집기 표 블록의 격자·캡션·주석 구조와 클립보드 HTML을 Editor 단위 검사, 로컬 `table-caption`·`table-cell-editing`·`table-authoring`·`recovery-structure`·`markdown-paste`·`document-view-editing` 실행과 1440·640px 전후 캡처로 확인했다. Desktop 실행 재검증 없음.
 - Previous verification: 2026-10-11 (contract compared with current code and regression coverage; caption inline math and reference display, #165).
 - Scope: Core table format, captions, notes, labels and their Editor/CLI interfaces. See [Table interaction](table-interaction-v1.md).
 
@@ -73,6 +74,8 @@ The Editor table block holds a grid of rows, then exactly one caption, then the 
 The block is the document block (path, label, number, block tools, move and delete). The grid holds only rows and
 cells in the prosemirror-tables roles, so its TableMap reads it; the Editor does not install that library's editing
 plugin (cell selection, grid repair, its Tab and paste handling), and every cell spans one row and one column.
+A cell holds its content as blocks: one paragraph of inline content. A caret in a cell is in that paragraph, and
+the cell keeps the keys, paste and composition rules of this contract and [Table interaction](table-interaction-v1.md).
 The caption and notes are the grid's siblings and display below it at the grid's width
 (before/after samples with identical pixels: [1440 light](assets/table-structure-2013/1440-light-tables.png) ·
 [1440 dark](assets/table-structure-2013/1440-dark-tables.png) · [1440 scrolled wide table](assets/table-structure-2013/1440-light-wide-scrolled.png) ·

@@ -14,7 +14,7 @@ import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { BLOCK_COMMANDS, blockCommandGroup, type TableCellAddress } from "./block-commands.ts";
 import { CommandMenu, type CommandMenuItem } from "./CommandMenu.tsx";
 import { blockCommandAppearance } from "./command-icons.ts";
-import { forEachTableRow, tableCellOf, tableRows } from "./table-structure.ts";
+import { forEachTableRow, tableCellOf, tableCellRange, tableRows } from "./table-structure.ts";
 
 type MenuTarget = { position: number; kind: "row" | "column"; target: TableCellAddress };
 const menuTargetKey = new PluginKey<MenuTarget | null>("tableMenuTarget");
@@ -32,8 +32,9 @@ export const TableCellFocus = Extension.create({
       props: { decorations(state) {
         const decorations: Decoration[] = [];
         const { $from, $to } = state.selection;
-        if ($from.parent.type.name === "tableCell" && $from.sameParent($to)) {
-          decorations.push(Decoration.node($from.before(), $from.after(), { "data-current-cell": "true" }));
+        const cell = tableCellRange($from);
+        if (cell && cell.from === tableCellRange($to)?.from) {
+          decorations.push(Decoration.node(cell.from, cell.to, { "data-current-cell": "true" }));
         }
         const menu = menuTargetKey.getState(state);
         const table = menu && state.doc.nodeAt(menu.position);

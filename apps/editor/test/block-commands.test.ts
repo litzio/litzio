@@ -332,7 +332,8 @@ test("slash opens on supported inline surfaces with only valid command kinds", (
     ["> /", "quote", false, true],
     [":::{note}\n/\n:::", "admonition", false, true],
     ["Body[^n].\n\n[^n]: /", "footnoteDefinition", false, false],
-    ["| / |\n| --- |\n| Cell |", "tableCell", false, true],
+    // A table cell's text is in its paragraph.
+    ["| / |\n| --- |\n| Cell |", "paragraph", false, true],
     [":::{figure}\n\n/\n:::", "figure", false, true],
     ["# /", "heading", false, true],
   ] as const) {

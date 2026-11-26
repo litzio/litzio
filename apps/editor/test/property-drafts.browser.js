@@ -320,7 +320,7 @@ async (page, { openPath, expect }) => {
         await target.locator('td').first().click(); await page.keyboard.press('End');
         await page.waitForFunction(() => {
           const {selection} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state;
-          return selection.empty && selection.$from.parent.type.name === 'tableCell' &&
+          return selection.empty && selection.$from.node(-1).type.name === 'tableCell' &&
             selection.$from.parent.textContent === 'Value' && selection.$from.parentOffset === selection.$from.parent.content.size;
         });
         const cellSelection = await editor.evaluate(element => element.editor.state.selection.toJSON());

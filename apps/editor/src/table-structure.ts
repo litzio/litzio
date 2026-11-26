@@ -23,10 +23,24 @@ export function forEachTableRow(table: PMNode, tablePos: number, visit: (row: PM
   tableGrid(table)?.forEach((row, offset, index) => visit(row, tablePos + 2 + offset, index));
 }
 
+// A top-level table block is at depth 1, its grid at 2, a row at 3 and a cell at 4. A cell holds
+// blocks: a caret in a cell is in one of its paragraphs.
+const CELL_DEPTH = 4;
+
+/** True when `$pos` is inside a cell of a top-level table block, including inside its blocks. */
+export function inTableCell($pos: ResolvedPos): boolean {
+  return $pos.depth >= CELL_DEPTH && $pos.node(1).type.name === "table" && $pos.node(CELL_DEPTH).type.name === "tableCell";
+}
+
+/** The positions before and after the cell holding `$pos`, when that cell is in a top-level table block. */
+export function tableCellRange($pos: ResolvedPos): { from: number; to: number } | undefined {
+  return inTableCell($pos) ? { from: $pos.before(CELL_DEPTH), to: $pos.after(CELL_DEPTH) } : undefined;
+}
+
 /** The row and column of the cell holding `$pos`, when that cell is in a top-level table block. */
 export function tableCellOf($pos: ResolvedPos): { row: number; column: number } | undefined {
-  if ($pos.depth < 3 || $pos.parent.type.name !== "tableCell" || $pos.node(1).type.name !== "table") return undefined;
-  return { row: $pos.index($pos.depth - 2), column: $pos.index($pos.depth - 1) };
+  if (!inTableCell($pos)) return undefined;
+  return { row: $pos.index(CELL_DEPTH - 2), column: $pos.index(CELL_DEPTH - 1) };
 }
 
 /** The rows of a table block's JSON, without its caption and notes. */

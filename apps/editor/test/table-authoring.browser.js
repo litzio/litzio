@@ -65,7 +65,8 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
         cellOverflow:longest.scrollWidth-longest.clientWidth};
     }));
     const brokenWords = await tables.first().locator('td:nth-child(2)').evaluateAll(cells => cells.flatMap(cell => {
-      const text = cell.firstChild;
+      // The cell's text, inside its paragraph in the Editor.
+      const text = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT).nextNode();
       return [...text.textContent.matchAll(/[A-Za-z]+/g)].filter(match => {
         const range = document.createRange(); range.setStart(text, match.index); range.setEnd(text, match.index + match[0].length);
         return range.getClientRects().length !== 1;
@@ -229,12 +230,12 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await page.keyboard.press('End');
   await page.keyboard.type(' Setup');
   await initial.locator('td').last().click();
-  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.type.name === 'tableCell');
+  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.node(-1).type.name === 'tableCell');
   await page.keyboard.press('End');
   await page.keyboard.press('ControlOrMeta+Shift+End');
   await page.waitForFunction(() => {
     const {selection} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state;
-    return !selection.empty && selection.$from.parent.type.name === 'tableCell' &&
+    return !selection.empty && selection.$from.node(-1).type.name === 'tableCell' &&
       selection.$to.parent.textContent === 'Trailing paragraph' && selection.$to.parentOffset === selection.$to.parent.content.size;
   });
   await page.keyboard.press('Backspace');
@@ -388,7 +389,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
       (!handle || handle.bottom <= row.top || row.bottom <= handle.top || handle.right <= row.left);
   });
   await initial.locator('th').first().click();
-  await page.waitForFunction(()=>{const s=document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;return s.$from.parent.type.name==='tableCell'&&s.$from.index(2)===0;});
+  await page.waitForFunction(()=>{const s=document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;return s.$from.node(-1).type.name==='tableCell'&&s.$from.index(2)===0;});
   const menuCaret = await initial.evaluate(b=>JSON.stringify(b.closest('.document-editor').editor.state.selection.toJSON()));
   await initial.getByRole('button', {name:'Row 2 actions', exact:true}).focus();
   await page.keyboard.press('Enter');
@@ -848,7 +849,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   // Vertical arrows keep the column between rows; Chromium's native caret reached the side cell (#1813).
   const cellAt = () => page.evaluate(() => {
     const {$from} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
-    return `${$from.parent.type.name} ${$from.index(2)},${$from.index(3)} ${$from.parent.textContent}`;
+    return `${$from.node(-1).type.name} ${$from.index(2)},${$from.index(3)} ${$from.parent.textContent}`;
   });
   await tables.last().locator('td', {hasText:/^U$/}).click();
   await caretIn('U');
@@ -891,7 +892,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await tables.last().locator('td').last().click();
   await page.waitForFunction(() => {
     const {$from} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
-    return $from.parent.type.name === 'tableCell' && $from.index(2) === $from.node(2).childCount - 1 &&
+    return $from.node(-1).type.name === 'tableCell' && $from.index(2) === $from.node(2).childCount - 1 &&
       $from.index(3) === $from.node(3).childCount - 1;
   });
   await page.keyboard.press('Tab');
@@ -900,7 +901,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   result.lastTabFocus = await page.evaluate(() => {
     const {view, state} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
     const {$from} = state.selection;
-    return view.hasFocus() && $from.parent.type.name === 'tableCell' &&
+    return view.hasFocus() && $from.node(-1).type.name === 'tableCell' &&
       $from.index(2) === $from.node(2).childCount - 1 && $from.index(3) === 0;
   });
   await page.keyboard.type('Tab row');
@@ -919,7 +920,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await caretIn('Port');
   await page.keyboard.press('Shift+Tab');
   result.firstShiftTabLeavesTable = await page.evaluate(() =>
-    document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.type.name !== 'tableCell');
+    document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.node(-1).type.name !== 'tableCell');
   await tables.last().locator('td', {hasText:/^Tab row$/}).click();
   await caretIn('Tab row');
   await page.keyboard.press('Enter');

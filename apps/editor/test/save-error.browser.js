@@ -91,8 +91,8 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
     const e = el.editor;
     let cellPos;
     e.state.doc.descendants((node,pos) => { if (cellPos === undefined && node.type.name === 'tableCell' && !node.attrs.header) cellPos = pos; });
-    e.commands.insertContentAt(cellPos + 1, {type:'inlineMath', attrs:{value:'`v$'}});
-    if (e.state.doc.nodeAt(cellPos + 1)?.attrs.value !== '`v$') throw new Error('Invalid math was not inserted');
+    e.commands.insertContentAt(cellPos + 2, {type:'inlineMath', attrs:{value:'`v$'}});
+    if (e.state.doc.nodeAt(cellPos + 2)?.attrs.value !== '`v$') throw new Error('Invalid math was not inserted');
   });
   const hostRefusal = page.waitForResponse(response => response.url().endsWith('/api/document') && response.request().method() === 'POST');
   await refuse();
@@ -105,7 +105,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
   await page.setViewportSize({width:640,height:500});
   await page.evaluate(() => document.querySelector('.document-scroll[data-active="true"]').scrollTo(0,0));
   await page.getByRole('button',{name:'문제 위치로 이동',exact:true}).click();
-  await expect.poll(() => editor.evaluate(el => el.editor.view.hasFocus() && el.editor.state.selection.$from.parent.type.name === 'tableCell'), {message:'Cell navigation missed the cell'}).toBe(true);
+  await expect.poll(() => editor.evaluate(el => el.editor.view.hasFocus() && el.editor.state.selection.$from.node(-1).type.name === 'tableCell'), {message:'Cell navigation missed the cell'}).toBe(true);
   if (!await page.evaluate(() => document.querySelector('.document-scroll[data-active="true"]').scrollTop > 0)) throw new Error('Navigation did not scroll to the offscreen cell');
   const geometry = await overlay.evaluate(outline => {
     const e = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
@@ -192,7 +192,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
   await editor.evaluate(el => {
     const e=el.editor; let cellPos;
     e.state.doc.descendants((node,pos) => { if (cellPos === undefined && node.type.name === 'tableCell' && !node.attrs.header) cellPos=pos; });
-    e.commands.insertContentAt(cellPos+1,{type:'inlineMath',attrs:{value:'`v$'}});
+    e.commands.insertContentAt(cellPos+2,{type:'inlineMath',attrs:{value:'`v$'}});
   });
   let release, arrived;
   const gate = new Promise(resolve => { release=resolve; });

@@ -17,7 +17,7 @@ import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
 import { fromTiptapContent, toTiptapContent } from "./tiptap-inline.ts";
-import { forEachTableRow, tableCellOf } from "./table-structure.ts";
+import { forEachTableRow, inTableCell, tableCellOf, tableCellRange } from "./table-structure.ts";
 
 const FOOTNOTES_ATTR = "data-litzio-footnotes";
 
@@ -250,14 +250,28 @@ function tableTab(state: EditorState, backward: boolean, editable: boolean): Tra
   if (!cell) return null;
   const cells: number[] = [];
   const start = $from.before(1);
-  $from.node(1).descendants((node, pos) => { if (node.type.name === "tableCell") cells.push(start + pos + 2); });
-  const index = cells.indexOf($from.start());
+  // A cell's text starts in its first textblock.
+  $from.node(1).descendants((node, pos, parent) => { if (node.isTextblock && parent?.type.name === "tableCell" && parent.firstChild === node) cells.push(start + pos + 2); });
+  // Past the cell's opening token and its first textblock's.
+  const index = cells.indexOf(tableCellRange($from)!.from + 2);
   const target = cells[index + (backward ? -1 : 1)];
   if (target !== undefined) return state.tr.setSelection(TextSelection.create(state.doc, target)).scrollIntoView();
   if (!backward && editable) return addTableRowBelow(state, $from.index(0), { row: cell.row, column: 0 });
   const edge = backward ? $from.before(1) : $from.after(1);
   const selection = TextSelection.findFrom(state.doc.resolve(edge), backward ? -1 : 1, true);
   return selection ? state.tr.setSelection(selection).scrollIntoView() : paragraphBeside(state, !backward);
+}
+
+/** The content range of the first (or last) textblock of the cell node at `cellPos`. */
+function cellTextblock(cell: PMNode, cellPos: number, last: boolean): { from: number; to: number } {
+  let found = { from: cellPos + 1, to: cellPos + 1 }, done = false;
+  cell.descendants((node, offset) => {
+    if (done || node.isTextblock === false) return !done;
+    found = { from: cellPos + 2 + offset, to: cellPos + 2 + offset + node.content.size };
+    done = !last;
+    return false;
+  });
+  return found;
 }
 
 /** ArrowUp/ArrowDown from a grid cell's first/last visual line, or from a selected cell node, reaches the
@@ -271,10 +285,12 @@ function tableVertical(view: EditorView, down: boolean): Transaction | null {
   if (view.composing) return null;
   const $side = down ? selection.$to : selection.$from;
   let $cell, x: number | undefined;
+  const cell = tableCellRange($side);
   if (selection instanceof NodeSelection && selection.node.type.name === "tableCell") $cell = selection.$from;
-  else if (selection instanceof TextSelection && $side.parent.type.name === "tableCell" &&
-      selection.$from.sameParent(selection.$to) && view.endOfTextblock(down ? "down" : "up")) {
-    $cell = doc.resolve($side.before());
+  else if (selection instanceof TextSelection && cell && selection.$from.sameParent(selection.$to) &&
+      // Only from the cell's first (up) or last (down) textblock; moves between its blocks stay native.
+      $side.start() === cellTextblock(doc.nodeAt(cell.from)!, cell.from, down).from && view.endOfTextblock(down ? "down" : "up")) {
+    $cell = doc.resolve(cell.from);
     x = view.coordsAtPos($side.pos).left;
   } else return null;
   // Keep a text caret's horizontal position on the target textblock's first (down) or last (up) line.
@@ -303,7 +319,9 @@ function tableVertical(view: EditorView, down: boolean): Transaction | null {
   const column = Math.min($cell.index(), row.childCount - 1);
   pos += 1;
   for (let index = 0; index < column; index++) pos += row.child(index).nodeSize;
-  return caretIn(pos + 1, pos + 1 + row.child(column).content.size);
+  // The target cell's first (down) or last (up) textblock.
+  const { from, to } = cellTextblock(row.child(column), pos, !down);
+  return caretIn(from, to);
 }
 
 /** A caret key (Home, End, arrows) moves the native caret, and its selectionchange may still be
@@ -787,7 +805,8 @@ export function documentInteraction(reject: (reason?: UiMessage) => void): Exten
           if (error) return fail(error);
           if (event.clipboardData?.files.length && !isInternalClipboard(event.clipboardData.getData("text/html"))) return fail(`Add one ${ASSET_FORMATS} image at a time. Your selection and clipboard are kept.`);
           if (!slice.content.content.every(portable)) return fail({ key: "This clipboard content cannot be preserved. Nothing was pasted; your clipboard and selection are kept." });
-          const target = view.state.selection.$from.parent.type.name;
+          // Text in a table cell is in the cell's blocks; the cell is the inline place.
+          const target = inTableCell(view.state.selection.$from) ? "tableCell" : view.state.selection.$from.parent.type.name;
           if (target === "heading" || target === "tableCaption" || target === "tableCell") {
             let lineBreak = false;
             // A soft break read from Markdown is a physical newline inside a text node.

@@ -46,7 +46,7 @@ async (page, { openPath, expect, screenshots }) => {
     await page.waitForFunction(text => {
       const e = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
       const s = e.state.selection;
-      return s.$from.parent.type.name === 'tableCell' && e.state.doc.textBetween(s.from, s.to) === text;
+      return s.$from.node(-1).type.name === 'tableCell' && e.state.doc.textBetween(s.from, s.to) === text;
     }, text);
   };
 
