@@ -1279,9 +1279,16 @@ for the page and Settings shows an alert. Like [UI display language](#ui-display
 CLI command, and no shared or team-wide sets.
 
 A full rescan happens when a set or choice changes; an edit rescans only the text blocks it touched. With 5,000
-blocks and about 34,000 highlights a full rescan takes about 10–35 ms and an edit under 1 ms (node, #2020 PR).
+blocks and about 34,000 highlights a full rescan takes about 10–35 ms and an edit under 1 ms (node). In Chrome,
+turning a set on or off in such a document redraws its blocks in one frame of about 1.2 s.
 `pnpm browser:test highlight-sets` covers the entry points, persistence across reload, Read/Source, copy and the
 640px row; `highlight-sets.test.ts` covers matching, the per-block rescan and the preference store.
+
+Captures (synthetic document, persistent Chrome): [1440 light](assets/highlight-sets-2020/document-1440-light.png) ·
+[menu · 1440 light](assets/highlight-sets-2020/menu-1440-light.png) · [Settings · 1440 light](assets/highlight-sets-2020/settings-1440-light.png) ·
+[1440 dark](assets/highlight-sets-2020/document-1440-dark.png) · [menu · 1440 dark](assets/highlight-sets-2020/menu-1440-dark.png) ·
+[Settings · 1440 dark](assets/highlight-sets-2020/settings-1440-dark.png) · [1920×1080 dark](assets/highlight-sets-2020/document-1920-dark.png) ·
+[640 dark, Korean](assets/highlight-sets-2020/document-640-dark-ko.png) · [menu · 640 dark, Korean](assets/highlight-sets-2020/menu-640-dark-ko.png).
 
 ## Writing interactions
 

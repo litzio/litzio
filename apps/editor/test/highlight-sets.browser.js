@@ -51,9 +51,9 @@ async (page, { openPath, expect, screenshots }) => {
     await section(set).getByRole('button', {name:/^(Add|Change color)$/}).click();
   };
   await addSet('Requirements');
-  for (const [word, color] of [['shall', 'Blue'], ['must', 'Green'], ['해야 한다', 'Red'], ['Shall', 'Violet']]) await addWord('Requirements', word, color);
+  for (const [word, color] of [['shall', 'Violet'], ['must', 'Green'], ['해야 한다', 'Red'], ['Shall', 'Blue']]) await addWord('Requirements', word, color);
   await expect(section('Requirements').getByTestId('highlight-word')).toHaveCount(3);
-  await expect(section('Requirements').getByRole('button', {name:'Color of shall: Violet'})).toBeVisible();
+  await expect(section('Requirements').getByRole('button', {name:'Color of shall: Blue'})).toBeVisible();
   await addSet('Contract');
   await addWord('Contract', '위약금', 'Red');
   await shot('settings-1440-light');
@@ -66,11 +66,11 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(button()).toContainText('Requirements');
   const shown = () => words().evaluateAll(nodes => nodes.map(node => `${node.textContent}:${node.dataset.highlight}`));
   await expect.poll(shown).toEqual([
-    'shall:violet', 'SHALL:violet', 'must:green', '해야 한다:red', 'shall:violet',
-    ...Array.from({length: 12}, () => ['shall:violet', 'must:green']).flat(),
+    'shall:blue', 'SHALL:blue', 'must:green', '해야 한다:red', 'shall:blue',
+    ...Array.from({length: 12}, () => ['shall:blue', 'must:green']).flat(),
   ]);
   const style = await words().first().evaluate(node => ({ color: getComputedStyle(node).color, weight: getComputedStyle(node).fontWeight,
-    token: (() => { const probe = document.createElement('span'); probe.style.color = 'var(--id-color-highlight-violet)'; document.body.append(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; })() }));
+    token: (() => { const probe = document.createElement('span'); probe.style.color = 'var(--id-color-highlight-blue)'; document.body.append(probe); const value = getComputedStyle(probe).color; probe.remove(); return value; })() }));
   check(style.color === style.token && style.weight === '650', `highlight style ${JSON.stringify(style)}`);
   await clean();
   check(await editor().evaluate(el => JSON.stringify(el.editor.getJSON())) === opening, 'Highlights changed the document');
