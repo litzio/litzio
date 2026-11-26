@@ -5,6 +5,7 @@ import * as ts from "typescript/unstable/ast";
 import { API } from "typescript/unstable/sync";
 import { fileURLToPath } from "node:url";
 import { ACCENT_COLORS } from "../src/preferences.ts";
+import { HIGHLIGHT_COLORS } from "../src/highlight-sets.ts";
 
 function definitions(source: string): Map<string, string> {
   const values = new Map<string, string>();
@@ -149,6 +150,8 @@ test("every accent preset meets text, primary-action, focus and control contrast
       for (const fg of ["text", "text-muted", "text-subtle"]) check(fg, bg, 4.5);
     for (const fg of ["info", "warning", "danger"]) check(fg, "surface-muted", 4.5);
     if (preset.startsWith("dark-")) for (const bg of ["paper", "surface-subtle"]) check("border", bg, 3);
+    // Highlight set words (#2020) are document text on paper, including Flat.
+    for (const color of HIGHLIGHT_COLORS) check(`highlight-${color}`, "paper", 4.5);
   }
 });
 

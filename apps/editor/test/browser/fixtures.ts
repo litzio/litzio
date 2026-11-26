@@ -76,6 +76,18 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "large.md", create: () => nativeSource("# Large document\n\n" + Array.from({ length: 2000 }, (_, i) => i % 50 === 0
       ? `## Part ${i / 50 + 1}` : `Paragraph ${i} describes converter control and voltage regulation in block ${i}.`).join("\n\n") + "\n") },
   ], scenarios: ["document-find"] },
+  "highlight-sets": { files: [
+    { name: "requirements.md", create: () => nativeSource([
+      "# Braking requirements",
+      "The controller shall limit the current. It SHALL log every fault.",
+      "Marshall and shallow are other words. The operator must confirm the setting.",
+      "제어기는 과전류를 차단해야 한다. 위약금 조항은 계약서를 따른다.",
+      ":::{table} Limits\n:name: tbl-limits\n\n| Item | Rule |\n| --- | --- |\n| Current | The drive shall stop |\n:::",
+      "```python\nshall = 1\n```",
+      ...Array.from({ length: 12 }, (_, i) => `Requirement ${i + 1}: the system shall respond and must record the event.`),
+    ].join("\n\n") + "\n") },
+    { name: "other.md", create: () => nativeSource("# Other requirements\n\nThis document shall follow the folder default.\n") },
+  ], scenarios: ["highlight-sets"] },
   "app-reset": { files: [{ name: "document.md", create: () => nativeSource("# Reset fixture\n\nLocal pending work.\n") }], scenarios: ["app-reset"] },
   "read-view": { files: [
     { name: "heading-levels.md", create: () => "---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---\n\n" + Array.from({ length: 6 }, (_, i) =>

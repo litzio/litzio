@@ -122,7 +122,7 @@ export function TemplateGallery({ active, revision, disabled, onCreate, onOpenFo
         <div ref={scroll} className="template-preview-scroll" role="region" tabIndex={0} aria-label={templateText("Preview content")}>
           {previewProblem ? <Notice tone="error">{previewProblem}</Notice> : null}
           {!preview || preview.id !== selected?.id ? <p role="status">{i18n.t("Loading…")}</p> : null}
-          {preview ? <div hidden={!!previewProblem || preview.id !== selected?.id}><DocumentEditor preview readOnly document={preview.document} documentPath={preview.path}
+          {preview ? <div hidden={!!previewProblem || preview.id !== selected?.id}><DocumentEditor preview readOnly highlights={false} document={preview.document} documentPath={preview.path}
             onStructuralReject={() => setPreviewProblem(templateText("Could not display this template."))} /></div> : null}
         </div>
       </PopoverContent>

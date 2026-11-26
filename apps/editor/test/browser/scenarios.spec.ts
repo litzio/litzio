@@ -157,6 +157,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
 
         localStorage.removeItem("litzio.tableWrapDefault");
         localStorage.removeItem("litzio.tableWrapDocuments.v2");
+        localStorage.removeItem("litzio.highlightSets.v1");
       });
       await page.evaluate(() => new Promise<void>((resolve, reject) => {
         const request = indexedDB.deleteDatabase("litzio-recovery-v3");

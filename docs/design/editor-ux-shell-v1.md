@@ -183,7 +183,8 @@ no document. Only the tablist scrolls horizontally; Read/Edit/Source, layout tog
 status, Save and File actions stay fixed at the right of that row. At viewport widths
 up to 1024px the less frequent Wide document toggle moves into ⋯ as a checked menu
 item. Outline remains a direct button so its overlay Escape/focus-return path remains
-stable. Document actions (including Save, views, split/layout controls and File actions)
+stable. The [highlight set](#highlight-sets-2020) button follows Outline in every view of non-text
+document tabs. Document actions (including Save, views, split/layout controls and File actions)
 are hidden when the group has no active document tab, including the empty start
 screen and plugin tabs (#973). Text document tabs retain their existing subset of
 actions. Pending document work retains its disabled guards. No special tab is added.
@@ -435,7 +436,8 @@ Current document settings examples:
 
 ## Dedicated Settings screen (#594)
 
-Settings opens at Appearance; an update notice's View opens About. Theme, page style, language,
+Settings opens at Appearance; an update notice's View opens About; the tab row's Manage sets… opens
+[Highlight sets](#highlight-sets-2020). Theme, page style, language,
 accent and [Activity bar labels](#activity-bar-671--1817) changes apply immediately, with profile-local preference storage and failure notices.
 Theme/page roles, startup choice and display transitions follow [Visual Language](editor-visual-language-v1.md#surfaces-and-themes); preference storage and failure behavior follow [Adjustable values and preferences](editor-visual-language-v1.md#adjustable-values-and-preferences).
 Recovery retains its explanation, count and confirmed Clear all; individual records stay
@@ -1243,6 +1245,63 @@ Captures (synthetic document, persistent Chrome): [before · 1440 light](assets/
 [640 dark, Korean](assets/document-find-1982/after-640-dark-ko.png) · [no match](assets/document-find-1982/no-results-1440-light.png) ·
 [table cell](assets/document-find-1982/table-cell-1440-light.png) · [plugin document view](assets/document-find-1982/document-view-1440-light.png).
 
+## Highlight sets (#2020)
+
+A highlight set is a named list of words, each shown in one of eight palette colors at weight 650
+([palette](editor-visual-language-v1.md#tokens-and-palette)); there is no free color picker, regular
+expression or per-word style. English words (a letter, then letters, digits, `'` or `-`) match as whole
+words in any case: `shall` finds `SHALL` and `shall-like`, not `Marshall` or `shallow`. Every other entry,
+Korean text and phrases with spaces included, matches letter for letter wherever it occurs; where two entries
+match at one place the longer wins. Text blocks are matched across formatting marks; inline math, references
+and citations interrupt a match, and code blocks keep their syntax colors.
+
+Highlights are view decorations like [Find](#find-in-document-1982): they change no document content, dirty
+state, Undo history, save edit or recovery snapshot, and are not part of copied content, printing or anything
+sent to the assistant. They show in a document tab's Read and Edit views, plugin document views
+(`ui.DocumentView`, `ui.LinkedDocumentView`) and comparisons, each resolving the set by its document path; Source,
+text-mode tabs and template previews show none. A current Find match keeps its own face over a highlighted word.
+
+The tab row's highlighter button (after Outline) chooses the document's set. While a set is on, the button shows
+up to three of its colors and its name; at widths up to 1024px it keeps the icon and colors. Its tooltip and
+accessible name give the set and whether it comes from the folder default. The menu lists the sets (radio, with
+their colors and a Folder default hint), Off, then the **Default for this folder** checkbox and **Manage sets…**,
+which opens Settings → Highlight sets. The Command Center offers `Highlight set: {name}` for each set (with
+Current), Turn off highlights and Manage highlight sets.
+
+In Edit, including a plugin document view's content editing, the selection toolbar's **Highlight** button puts a
+one-line selection into the document's current set: its Popover names the word and set, offers the palette as
+radios (choosing applies at once) and, for a word already in the set, Remove highlight. The Popover belongs to the
+toolbar, so the selection and toolbar stay while a color is chosen; without a current set or a one-line selection
+it says so. A secondary click, or Shift+F10 with the caret, on a highlighted word leads the
+[body block menu](#body-block-context-menu-223) with a Highlight group: **Change color of “word”** opens the palette
+as a second menu with the current color checked, and **Remove “word” from highlights**. Read views, plugin document
+views without content editing and comparisons only show highlights; their context menus are unchanged.
+
+A document's own choice, Off included, wins over the default of the folder directly containing it; subfolders do
+not inherit it. Choices are remembered per path like other tab memory (not per Host), follow a successful rename,
+and are dropped with a deleted set; a renamed folder's default stays with the old path. Settings → Highlight sets
+creates, renames and deletes (with confirmation) sets and adds words with a color, changes a word's color through
+a swatch Popover, and removes words. Sets live in this device's preference storage (`litzio.highlightSets.v1`,
+[preferences](editor-visual-language-v1.md#adjustable-values-and-preferences)); a failed write keeps the change
+for the page and Settings shows an alert. Each change is applied to the latest saved sets, so windows and tabs of the
+same origin never drop each other's changes, and each shows another's saved change on its `storage` event. Like [UI display language](#ui-display-language-256) and
+[document table display](#document-table-display-902) this is a local display preference: no Core operation or
+CLI command, and no shared or team-wide sets.
+
+A full rescan happens when a set or choice changes; an edit rescans only the text blocks it touched. With 5,000
+blocks and about 34,000 highlights a full rescan takes about 10–35 ms and an edit under 1 ms (node). In Chrome,
+turning a set on or off in such a document redraws its blocks in one frame of about 1.2 s.
+`pnpm browser:test highlight-sets` covers the entry points, persistence across reload, Read/Source, copy, the
+640px row, the selection toolbar, the word's context menu, the comparison before saving and a plugin document view; `highlight-sets.test.ts` covers matching, the per-block rescan and the preference store.
+
+Captures (synthetic document, persistent Chrome): [1440 light](assets/highlight-sets-2020/document-1440-light.png) ·
+[menu · 1440 light](assets/highlight-sets-2020/menu-1440-light.png) · [Settings · 1440 light](assets/highlight-sets-2020/settings-1440-light.png) ·
+[1440 dark](assets/highlight-sets-2020/document-1440-dark.png) · [menu · 1440 dark](assets/highlight-sets-2020/menu-1440-dark.png) ·
+[Settings · 1440 dark](assets/highlight-sets-2020/settings-1440-dark.png) · [1920×1080 dark](assets/highlight-sets-2020/document-1920-dark.png) ·
+[640 dark, Korean](assets/highlight-sets-2020/document-640-dark-ko.png) · [menu · 640 dark, Korean](assets/highlight-sets-2020/menu-640-dark-ko.png) ·
+[selection toolbar](assets/highlight-sets-2020/toolbar-1440-light.png) · [word menu](assets/highlight-sets-2020/word-menu-1440-light.png) ·
+[comparison](assets/highlight-sets-2020/compare-1440-light.png) · [plugin document view](assets/highlight-sets-2020/plugin-view-1440-light.png).
+
 ## Writing interactions
 
 - The [document title](document-editing-v1.md#document-title-255) is a plain frontmatter string edited above the body. Empty/absent values show an empty input with Add a title placeholder. Every H1–H6 is a body section with ordinary movement, conversion and reference controls; no title is inferred from body position (#722).
@@ -1253,7 +1312,7 @@ Captures (synthetic document, persistent Chrome): [before · 1440 light](assets/
 - `/ref`, `/reference` and `/참조` list all reference kinds, including unlabeled headings. Figure and Table kind keywords (`figure` / `그림`, `table` / `표`) match their respective kinds. Empty queries retain labeled targets only, and unrelated queries do not list references unless their labels, captions or heading words match.
 - Body Paragraph/Heading menus convert between prose and H1–H6 while preserving inline content; line breaks prevent conversion to a Heading. Tab/Shift+Tab changes level within H1–H6; Markdown `# ` creates a body H1. Title metadata remains independent. See [document title](document-editing-v1.md#document-title-255). The Callout block menu groups the same five kinds under the accessible Type separator and checks the current kind. If the current kind is Hint, See also, Attention, Caution or Error, it appears first as a checked, disabled item. Move and Delete remain in separate groups. Insert search recognizes English and Korean names and the five directive names.
 - Block action menu exposes existing supported deletion, and for a table adding a row below or a column right of the caret's cell; Figure, Table and block Equation menus lead with the object tool row's Properties and content action; handle drag reorders through the existing editor operation. Unsupported document structures reject [native admission](document-support-v1.md). [Endnotes](footnotes-v1.md#editor) follow their first reference: their handle opens block actions but does not drag, they have no `+`, and a dragged block lands in the body.
-- Text selection in supported paragraphs, headings, quotes, simple admonitions, table cells and Figure/Table captions offers Bold, Italic, Strikethrough, Subscript, Superscript, Inline code, Link, Inline Math, Cross-reference and Endnote. Each button's tooltip names it with its shortcut where one exists (Bold Ctrl/Cmd+B, Italic Ctrl/Cmd+I, Strikethrough Ctrl/Cmd+Shift+S, Inline code Ctrl/Cmd+E, Link Ctrl/Cmd+'); Cross-reference uses a bookmark icon, as do reference choices in the slash menu; Endnote uses the slash menu's Endnote icon and is refused where the slash menu offers no Endnote ([footnotes](footnotes-v1.md#editor)). Ctrl/Cmd+, and Ctrl/Cmd+. toggle subscript and superscript; applying one replaces the other. Tab moves from the selection into the toolbar (in table cells and lists Tab keeps its cell/indent meaning); Escape or Shift+Tab returns with the selection unchanged.
+- Text selection in supported paragraphs, headings, quotes, simple admonitions, table cells and Figure/Table captions offers Bold, Italic, Strikethrough, Subscript, Superscript, Inline code, Link, Inline Math, Cross-reference, Endnote and Highlight. Each button's tooltip names it with its shortcut where one exists (Bold Ctrl/Cmd+B, Italic Ctrl/Cmd+I, Strikethrough Ctrl/Cmd+Shift+S, Inline code Ctrl/Cmd+E, Link Ctrl/Cmd+'); Cross-reference uses a bookmark icon, as do reference choices in the slash menu; Endnote uses the slash menu's Endnote icon and is refused where the slash menu offers no Endnote ([footnotes](footnotes-v1.md#editor)). Ctrl/Cmd+, and Ctrl/Cmd+. toggle subscript and superscript; applying one replaces the other. Highlight puts the selection into the document's [highlight set](#highlight-sets-2020). Tab moves from the selection into the toolbar (in table cells and lists Tab keeps its cell/indent meaning); Escape or Shift+Tab returns with the selection unchanged.
 - Figure selection shows the selection outline only. Explicit Edit, selected Enter or double-click on its image surface (including the pending frame and image-load error) opens Image/Alt text/Label fields. All captions are edited directly in the document; caption double-click keeps normal text selection. Metadata Apply preserves the live caption and its formatting. Figure metadata survives keyboard selection/focus movement. Done and pointer dismissal apply; Escape cancels. Core validation failure preserves values. The anchored popover, explicit replacement/rename and Mermaid source-entry contracts are in [Figure properties](figure-authoring-v1.md#anchored-figure-properties-757); cancelling never removes the Figure.
 - `/figure` and `+` insert an empty Figure without opening its properties; the caret starts in its caption. Image-less Figures, with or without caption or label, remain as pending Figures with a dashed `No content yet` frame. Clicking the frame selects the Figure; existing Edit connects an image URL later. Pending Figures retain normal Figure metadata, numbering and references and are included in Save/Source. See [Figure authoring](figure-authoring-v1.md).
 - Equations, Tables, inline math and section labels use the shared explicit properties form; Figure metadata uses the #757 popover described above: selecting a block opens no panel; Edit opens its explicit form (Equation in its document block with LaTeX, draft preview, number and label; Figure in a popover with image, alt text and label), with Apply/Cancel and Escape. Figure image surfaces, block/inline formula previews and Table metadata offer double-click through the same path; Enter on a selected Figure, Table or math node also opens properties (#557). Figure/Table caption and cell double-click keeps native text selection. Inline math has an explicit Cancel button and retains its unapplied draft on outside focus, Save/Source and tab switching. Edit, double-click and selected Enter focus the first field; closing retains a text selection inside the block or returns a [caret after the block](document-editing-v1.md#continuous-editing), so subsequent typing preserves it. Opening properties and focus restoration change neither document nor history; double-click while already editing leaves the existing form untouched. Unapplied changes retain the block-local notice and an explicit applied-only Save/Source notice.
@@ -1265,7 +1324,8 @@ In editable Visual view, secondary click on a body block opens its existing bloc
 at the pointer, including Table, Figure and Equation. Shift+F10 and the Menu key inside
 the editor open the current block's same menu by the caret. It shares the gutter menu's
 items, icons, disabled reasons, command execution and Undo/Redo; no separate action data,
-clipboard items, Core operation or CLI command is introduced. The shared CommandMenu
+clipboard items, Core operation or CLI command is introduced. On a highlighted word the menu leads with that
+word's [Highlight group](#highlight-sets-2020). The shared CommandMenu
 fits inside the owning document viewport, including its right/bottom edges and panels.
 Its shared surface is portaled beyond the fixed document scroll viewport, at the same
 menu stacking level as file/tab action menus above the floating notification center.

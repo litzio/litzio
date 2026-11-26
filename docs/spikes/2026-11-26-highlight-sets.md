@@ -51,7 +51,7 @@
 
 ## 결론/후속
 
-미정. 에이전트 추천은 A다. 소유자가 캡처를 보고 고른다.
+소유자가 2026-11-26에 시안 A를 골랐다. 팔레트의 링크 파랑·선택 자주와 다크 회색은 정식 구현에서 조정했고, 우클릭 메뉴와 색 상자는 공용 CommandMenu·Popover로 바꿨다. 정식 구현은 [#2029](https://github.com/litzio/litzio/pull/2029)와 그 뒤 PR이며 현재 계약은 [강조 세트](../design/editor-ux-shell-v1.md#highlight-sets-2020)다.
 
 ## 코드 위치
 

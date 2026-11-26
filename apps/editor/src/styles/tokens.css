@@ -58,6 +58,18 @@
    * at 1440px); Wide is the user's Wide document preference and is capped by the window. */
   --layout-content-width: 58rem;
   --layout-content-width-wide: 80rem;
+  /* Highlight sets (#2020): this device's word colors. Own values, so an accent preset never
+   * changes them; blue stays apart from the link blue and pink apart from the default plum
+   * selection. Text on paper >= 5.5:1 in both themes; see Visual Language. */
+  --id-color-highlight-blue: #1d3f9e;
+  --id-color-highlight-green: #2f7031;
+  --id-color-highlight-teal: #00726b;
+  --id-color-highlight-violet: #6a3cc4;
+  --id-color-highlight-pink: #b3246e;
+  --id-color-highlight-amber: #7a6400;
+  --id-color-highlight-red: #b3261e;
+  --id-color-highlight-gray: #5a636c;
+  --font-weight-highlight: 650;
   /* White document's top/bottom padding; the outer canvas gap uses --layout-content-gutter. */
   --layout-document-block-padding: var(--space-8);
   --layout-document-block-padding-narrow: var(--space-4);
@@ -425,6 +437,14 @@
   --id-color-backdrop: rgb(0 0 0 / 45%);
   --shadow-overlay: 0 8px 24px rgb(0 0 0 / 32%), 0 2px 6px rgb(0 0 0 / 24%);
   --shadow-segment: 0 1px 2px rgb(0 0 0 / 24%);
+  --id-color-highlight-blue: #5c9dff;
+  --id-color-highlight-green: #8fd48a;
+  --id-color-highlight-teal: #55d0d6;
+  --id-color-highlight-violet: #b59cff;
+  --id-color-highlight-pink: #ff8ad0;
+  --id-color-highlight-amber: #d9cc55;
+  --id-color-highlight-red: #ff8a7a;
+  --id-color-highlight-gray: #959ea9;
 }
 
 :root[data-theme="dark"][data-accent="violet"] {
