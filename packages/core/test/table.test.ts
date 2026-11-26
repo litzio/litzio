@@ -637,6 +637,7 @@ test("complex grid authoring checks the expanded grid before it expands a span",
   const wide = table(1, Array.from({ length: 300 }, () => ({ cells: [{ colspan: 30, blocks: paragraph }] })));
   assert.match(JSON.stringify(wide.error?.issues), /grid width or table size limit/);
   assert.match(JSON.stringify(table(1, [{ cells: [{ rowspan: 2, blocks: paragraph }] }, { cells: [] }]).error?.issues), /row group/);
+  assert.match(JSON.stringify(table(1, [{ cells: [{ blocks: paragraph }, { blocks: paragraph }] }, { cells: [{ blocks: paragraph }] }]).error?.issues), /Uncovered position in table row at \[1\]/);
   assert.match(JSON.stringify(table(1, [{ cells: [{ colspan: 33, blocks: paragraph }] }]).error?.issues), /grid width or table size limit/);
   // Cell blocks count toward the shared block budget.
   const blocks = Array.from({ length: core.DOCUMENT_AUTHORING_LIMITS.blocks }, () => paragraph[0]);

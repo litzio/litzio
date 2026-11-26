@@ -51,7 +51,15 @@ export function tableCellOf($pos: ResolvedPos): { row: number; column: number } 
  * first, a row that only covered cells fill, or a cell that does not hold exactly one paragraph.
  * Core keeps such a grid as HTML; rectangular row and column commands do not apply to it. */
 export function isComplexTable(table: PMNode): boolean {
-  return tableRows(table).some((row, index) => {
+  const grid = tableGrid(table);
+  return !!grid && isComplexGrid(grid);
+}
+
+/** isComplexTable for the grid node that holds the table block's rows. */
+export function isComplexGrid(grid: PMNode): boolean {
+  const rows: PMNode[] = [];
+  grid.forEach(row => rows.push(row));
+  return rows.some((row, index) => {
     let complex = row.childCount === 0;
     row.forEach(cell => {
       if (cell.attrs.colspan !== 1 || cell.attrs.rowspan !== 1 || (index > 0 && cell.attrs.header) ||

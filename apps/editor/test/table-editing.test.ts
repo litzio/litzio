@@ -13,6 +13,7 @@ import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { TableMap } from "@tiptap/pm/tables";
 import { editorExtensions, structureGuardPlugin } from "../src/editor-schema.tsx";
 import { BLOCK_COMMANDS } from "../src/block-commands.ts";
+import { tableTab } from "../src/document-interaction.ts";
 import { isComplexTable, tableCellOf } from "../src/table-structure.ts";
 import {
   assertSupportedDocumentChange,
@@ -224,12 +225,31 @@ test("a complex table keeps its spans, header rows and cell blocks, and its cell
   gridOf(tableOf(listed)).content![1].content![1].content = [{ type: "paragraph", content: [] }, { type: "paragraph", content: [] }];
   assert.throws(() => assertSupportedDocumentChange(simple, listed), /cannot gain/);
 
+  // Litzio's own clipboard moves a complex table (cut, then paste after a paragraph): it is deleted at
+  // its place and inserted as complex table input, so the grid, caption and notes move as they are.
+  const movable = complex + "\nAfter.\n";
+  const opened = loadEditableDocument(movable);
+  const [moving, after] = toTiptapDocument(opened).content!;
+  const moved = { ...toTiptapDocument(opened), content: [after, { ...moving, attrs: { ...moving.attrs, sourcePath: "new:paste:1" } }] };
+  // The cut declares the table's deletion, as the structure guard records it.
+  moved.attrs = { ...moved.attrs, deletedPaths: [String(moving.attrs!.sourcePath)] };
+  const movedSave = saveEdits(movable, collectSupportedEdits(opened, moved)).markdown;
+  const grid = (markdown: string) => markdown.slice(markdown.indexOf(":::{table}"), markdown.indexOf("</table>"));
+  assert.ok(movedSave.indexOf("After.") < movedSave.indexOf(":::{table}"));
+  assert.equal(grid(movedSave), grid(movable));
+
   // Row and column commands do not apply; the last cell's Tab leaves the table instead of adding a row.
   let state = EditorState.create({ schema, doc, plugins: [history(), structureGuardPlugin(projection, () => {})] });
   let last = -1;
   doc.descendants((node, pos) => { if (node.type.name === "paragraph" && node.textContent === "Mean") last = pos + 1; });
   state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, last)));
   assert.deepEqual(tableCellOf(state.selection.$from), { row: 3, column: 1 });
+  // Its last cell starts with a list: Tab leaves the table (here into a new paragraph after it) and adds no row.
+  const tab = tableTab(state, false, true)!;
+  assert.equal(tab.selection.$from.depth, 1);
+  assert.equal(tab.doc.child(0).firstChild!.childCount, 4);
+  // Shift+Tab from that cell reaches the previous cell's first textblock.
+  assert.equal(tableTab(state, true, true)!.selection.$from.parent.textContent, "230 V");
   for (const id of ["table-row", "table-column", "table-row-delete", "table-align-right"]) {
     assert.equal(BLOCK_COMMANDS.find(command => command.id === id)!.enabled(state, 0), false, id);
   }

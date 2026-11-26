@@ -48,7 +48,7 @@ import { InlineMathView } from "./node-views/inline-math-view.tsx";
 import { LabelTargetView } from "./node-views/label-target-view.tsx";
 import { TableCaptionView, TableView } from "./node-views/table-view.tsx";
 import { EDIT_PROPERTIES, type DraftListener } from "./node-views/shared.ts";
-import { inTableCell, tableRows } from "./table-structure.ts";
+import { inTableCell, isComplexGrid, tableRows } from "./table-structure.ts";
 
 export type { DraftKind } from "./node-views/shared.ts";
 export { captionPlaceholderVisible } from "./node-views/shared.ts";
@@ -533,9 +533,13 @@ const TableGrid = Node.create({
   // As prosemirror-tables' TableView: attributes of the grid's own <table> (an inline width or
   // style) are view state, so changing them neither rereads nor redraws the grid.
   addNodeView() {
-    return () => {
+    return ({ node }) => {
       const dom = document.createElement("table");
-      return { dom, contentDOM: dom, ignoreMutation: (mutation: ViewMutationRecord) => mutation.type === "attributes" && mutation.target === dom };
+      // ADR-0024: in this version a complex grid's cells are read-only, so input never reaches them.
+      const lock = (grid: ProseMirrorNode) => { if (isComplexGrid(grid)) dom.contentEditable = "false"; else dom.removeAttribute("contenteditable"); };
+      lock(node);
+      return { dom, contentDOM: dom, ignoreMutation: (mutation: ViewMutationRecord) => mutation.type === "attributes" && mutation.target === dom,
+        update: (next: ProseMirrorNode) => { if (next.type !== node.type) return false; lock(next); return true; } };
     };
   },
 });
