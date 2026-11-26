@@ -1,4 +1,4 @@
-.assistant-panel { position: fixed; z-index: 5; top: var(--app-titlebar-height, var(--layout-header-row)); right: 0; bottom: 0; width: var(--assistant-width, var(--layout-assistant-width)); display: flex; flex-direction: column; min-height: 0; background: var(--id-color-surface); border-left: var(--border-width) solid var(--id-color-border); font-size: var(--font-size-sm); line-height: var(--line-height-label); }
+.assistant-panel { position: fixed; z-index: 5; top: var(--app-titlebar-height, var(--layout-header-row)); right: 0; bottom: 0; width: var(--assistant-width, var(--layout-assistant-width)); display: flex; flex-direction: column; min-height: 0; background: var(--id-color-surface); border-left: var(--border-width) solid var(--id-color-border); font-size: var(--font-size-sm); line-height: var(--line-height-label); container-type: size; }
 .assistant-panel > .panel-header { padding-inline: var(--space-4); }
 .assistant-panel[hidden] { display: none; }
 .assistant-panel--overlay { width: 100%; z-index: 20; }
@@ -39,7 +39,7 @@
 .assistant-history strong { overflow-wrap: anywhere; }
 .assistant-history small { overflow-wrap: anywhere; }
 .assistant-composer { padding: var(--space-3); border-top: var(--border-width) solid var(--id-color-border-subtle); }
-.assistant-composer textarea { width: 100%; min-height: 80px; max-height: 180px; resize: vertical; padding: var(--space-3); color: var(--id-color-text); background: var(--id-color-surface); border: var(--border-width) solid var(--id-color-border-control); border-radius: var(--id-radius-md); font: inherit; }
+.assistant-composer textarea { width: 100%; field-sizing: content; min-height: 80px; max-height: max(180px, 40cqh); overflow-y: auto; resize: none; padding: var(--space-3); color: var(--id-color-text); background: var(--id-color-surface); border: var(--border-width) solid var(--id-color-border-control); border-radius: var(--id-radius-md); font: inherit; }
 .assistant-controls { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-block: var(--space-2); }
 .assistant-footer { display: flex; align-items: center; gap: var(--space-2); }
 .assistant-footer > button { flex-shrink: 0; }

@@ -186,6 +186,11 @@ HTTP는 `GET /api/assistant/provider-update?provider=<codex|copilot>`(상태)와
 패널은 shell이 소유하며 폭 340~560px를 기억한다. 좁은 창에서는 기존 overlay를 쓴다.
 머리 동작은 새 대화·기록·공급자 로그 ⋯ 메뉴·닫기다. 공급자 로그 메뉴는 ‘메모장에서 열기’와 ‘파일 위치 표시’를 담으며, 대화가 없거나 Desktop이 아니면 메뉴 단추가 비활성이고 이유는 hover·keyboard focus 안내로 읽는다.
 맥락 줄은 활성 문서의 파일 이름과 열린 폴더 수를 표시한다. 미저장 편집이 있으면 파일 이름 옆에 경고 plain Status ‘저장본’(Saved version)을 붙이고, 저장된 파일을 읽으며 미저장 변경은 포함하지 않는다는 설명과 전체 경로는 그 상태의 hover·keyboard focus 안내에 둔다.
+
+입력창은 패널 아래에서 내용에 따라 위로 자라며 대화록에 남는 높이가 줄어든다. 최소 높이는 80px이고, 최대 높이는 패널 높이의 40%와 180px 중 큰 값이다. 최대 높이를 넘는 내용은 입력창 안에서 스크롤한다. 보내거나 비우면 최소 높이로 돌아가고, 남아 있는 초안은 내용에 맞는 높이로 표시한다.
+
+[여러 줄 입력](assets/assistant-composer-2022/multiline-1440-light.png) · [최대 높이](assets/assistant-composer-2022/max-1440-light.png) · [좁은 창](assets/assistant-composer-2022/multiline-640-dark-ko.png)
+
 입력창 아래 선택(공급자·모델·추론 강도·쓰기 범위·모드)이 대화 시작이나 진행 중 작업으로 잠기면 감싸개가 이름 있는 keyboard 정지점이 되어 hover와 같은 이유 안내를 보인다. 그 아래 줄은 ‘파일 추가’ 아이콘·사용량 고리·보내기 단추이며, 줄바꿈 안내는 보내기 단추의 Tooltip(‘메시지 보내기 (Enter) · 줄바꿈 Shift+Enter’)에 있다.
 좁은 창 overlay에서 Tab·Shift+Tab은 패널 안에서 순환하고, 비활성 컨트롤과 이름 없는 감싸개는 정지점이 되지 않는다.
 보낸 메시지의 접수 상태는 도구 줄과 같은 plain Status로 표시한다(보내는 중은 진행, 확인 필요는 경고, 실패는 오류). 공급자 사용 불가·로그인 필요는 [비서 설정 열기]와 함께 `Notice tone="error"` 하나로 표시하며, 같은 이유로 실패한 모델 목록 요청을 다시 표시하지 않는다.
