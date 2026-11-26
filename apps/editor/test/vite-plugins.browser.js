@@ -322,6 +322,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, brand }) =>
   await page.keyboard.press("Escape");
   await toggle.click();
   await expect(external.getByRole("switch")).toBeChecked();
+  await expect(external.getByRole("status")).toHaveText("Running");
   const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" } })).json();
   expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.20.0");
   if (screenshots) {
