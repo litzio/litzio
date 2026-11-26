@@ -1,5 +1,18 @@
 import { Extension } from "@tiptap/core";
-import { Plugin, NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
+import { Plugin, PluginKey, NodeSelection, Selection, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
+import { isDocumentViewChange } from "./document-view-change.ts";
+
+const holdKey = new PluginKey<boolean>("inputHold");
+
+/** Hold (or release) input in an editable editor without making it read-only, which would redraw
+ * every block: a plugin document view does so while a change waits for its write (#1995). */
+export function holdInput(tr: Transaction, held: boolean): Transaction {
+  return tr.setMeta(holdKey, held).setMeta("addToHistory", false);
+}
+
+export function isInputHeld(state: EditorState): boolean {
+  return holdKey.getState(state) === true;
+}
 
 /** Shared Read transaction/key boundary, including isolated snapshot previews. */
 export const ReadOnlyBoundary = Extension.create({
@@ -7,8 +20,25 @@ export const ReadOnlyBoundary = Extension.create({
   priority: 10000,
   addProseMirrorPlugins() {
     const current = this.editor;
-    return [new Plugin({
-      filterTransaction: tr => current.isEditable || !tr.docChanged,
+    const held = (state: EditorState) => holdKey.getState(state) === true;
+    const hold = new Plugin<boolean>({
+      key: holdKey,
+      state: { init: () => false, apply: (tr, value) => tr.getMeta(holdKey) ?? value },
+      // Held input changes nothing; the held change itself is a document view change.
+      filterTransaction: (tr, state) => !held(state) || !tr.docChanged || isDocumentViewChange(tr),
+      props: {
+        handleDOMEvents: { beforeinput: (view, event) => {
+          if (!held(view.state)) return false;
+          event.preventDefault();
+          return true;
+        } },
+        handlePaste: view => held(view.state),
+        handleDrop: view => held(view.state),
+      },
+    });
+    return [hold, new Plugin({
+      // A plugin document view's change (document-view-change.ts) is shown in Read as well.
+      filterTransaction: tr => current.isEditable || !tr.docChanged || isDocumentViewChange(tr),
       props: {
         // ProseMirror skips its editable keydown handler in Read. Route
         // navigation/copy through the existing keymaps, retaining its state.

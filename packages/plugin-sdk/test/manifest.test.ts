@@ -54,3 +54,17 @@ test('SDK exposes table note operations', () => {
   assert.deepEqual(table?.block === 'table' && table.notes?.map(note => sdk.inlineContentText(note)), ['Second']);
   assert.throws(() => sdk.removeTableNote(doc, [1], 1));
 });
+
+test('documentViewChange gives the changed blocks with the changed document read model', () => {
+  const before = sdk.parse('---\nlitzio: 1\n---\n\n# Title\n\nFirst half\n\nsecond half.\n\nKept paragraph.\n\nLast paragraph.\n');
+  const merged = sdk.mergeParagraphWithPrevious(before, [3]);
+  const change = sdk.documentViewChange(before, merged);
+  // Kept and Last move up one place; their content is unchanged, so they are not part of the change.
+  assert.deepEqual([change.from, change.removed], [1, 2]);
+  assert.deepEqual(change.blocks.map(block => block.block === 'paragraph' && block.text), ['First halfsecond half.']);
+  assert.deepEqual(change.blocks[0]?.path, [2]);
+  assert.deepEqual(change.document, {title: null, status: null, headingNumbering: null, referenceTemplates: null});
+  const titled = sdk.documentViewChange(before, sdk.updateDocumentTitle(before, 'Report'));
+  assert.deepEqual([titled.from, titled.removed, titled.blocks.length, titled.document.title], [5, 0, 0, 'Report']);
+  assert.deepEqual(sdk.documentViewChange(before, before).blocks, []);
+});

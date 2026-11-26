@@ -29,6 +29,7 @@ import { FootnoteReference } from "./footnote.tsx";
 import { Citation } from "./citation.tsx";
 import { snapshotBlocksByPath } from "./tiptap-edits.ts";
 import { editorKeepsEndnoteReferences, LOCKED_ENDNOTES_REJECTION } from "./structure-lock.ts";
+import { documentViewBaseline, isDocumentViewChange } from "./document-view-change.ts";
 import {
   DELETED_PATHS_ATTR,
   isNewBlockPath,
@@ -904,8 +905,10 @@ export function keepsTopLevelStructure(before: ProseMirrorNode, next: ProseMirro
   return true;
 }
 
-export function structureGuardPlugin(baseline: TiptapJSON, onReject: (reason?: UiMessage) => void, initialDeletedPaths: readonly string[] = [], lockStructure = false): Plugin {
-  const blocksByPath = snapshotBlocksByPath(baseline);
+export function structureGuardPlugin(opening: TiptapJSON, onReject: (reason?: UiMessage) => void, initialDeletedPaths: readonly string[] = [], lockStructure = false): Plugin {
+  // A plugin document view's rebase (document-view-change.ts) replaces the opening snapshot.
+  let baseline = opening;
+  let blocksByPath = snapshotBlocksByPath(baseline);
   return new Plugin<string[]>({
     key: structureGuardKey,
     // Read through isStructureLocked (structure-lock.ts).
@@ -913,13 +916,20 @@ export function structureGuardPlugin(baseline: TiptapJSON, onReject: (reason?: U
     state: {
       init: () => [...initialDeletedPaths],
       apply(transaction, declared) {
+        if (isDocumentViewChange(transaction)) {
+          const rebased = documentViewBaseline(transaction);
+          if (!rebased) return declared;
+          baseline = rebased;
+          blocksByPath = snapshotBlocksByPath(baseline);
+          return [];
+        }
         return commandDeletions(transaction, declared);
       },
     },
     // Engine edits are accepted only if the normalized result has a semantic
     // save representation. This retains table/inline validation.
     filterTransaction(transaction, state) {
-      if (!transaction.docChanged) return true;
+      if (!transaction.docChanged || isDocumentViewChange(transaction)) return true;
       // Each accepted step keeps the previous structure, so the opening structure is kept.
       if (lockStructure && !keepsTopLevelStructure(transaction.before, transaction.doc)) {
         onReject({ key: LOCKED_STRUCTURE_REJECTION });
@@ -940,7 +950,7 @@ export function structureGuardPlugin(baseline: TiptapJSON, onReject: (reason?: U
       return false;
     },
     appendTransaction(transactions, old, state) {
-      if (!transactions.some(tr => tr.docChanged)) return null;
+      if (!transactions.some(tr => tr.docChanged) || transactions.some(isDocumentViewChange)) return null;
       const normalized = normalizeEngineDocument(baseline, state.doc.toJSON(), old.doc.childCount !== state.doc.childCount, blocksByPath);
       const tr = state.tr;
       state.doc.forEach((node, pos, index) => {

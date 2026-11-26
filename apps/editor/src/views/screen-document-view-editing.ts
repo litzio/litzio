@@ -30,7 +30,7 @@ export function createContentEditSession(options: {
   let state: ContentEditState = "clean";
   let error: SaveDisplayError | undefined;
   let edits = 0, failedEdits = -1;
-  let deferred = false, disposed = false;
+  let deferred = false, disposed = false, held = false;
   let running: Promise<boolean> | null = null, queued: Promise<boolean> | null = null;
 
   const set = (next: ContentEditState, failure?: SaveDisplayError) => {
@@ -41,7 +41,7 @@ export function createContentEditSession(options: {
 
   async function save(explicit: boolean): Promise<boolean> {
     const editor = options.editor();
-    if (disposed || !editor || state === "conflict") return false;
+    if (disposed || !editor || state === "conflict" || held) return false;
     if (!editor.hasDocumentChanges()) {
       if (state !== "clean") set("clean");
       return true;
@@ -102,9 +102,17 @@ export function createContentEditSession(options: {
     pending() { return state === "saving" || !!options.editor()?.hasDocumentChanges(); },
     /** The editor's applied content differs (or no longer differs) from the last acknowledged Save. */
     dirty(changed: boolean) {
+      if (held) return;
       if (state === "clean" || state === "unsaved" || (state === "failed" && !changed)) set(changed ? "unsaved" : "clean");
     },
     edited() { edits++; },
+    /** A change shown before its write (screen-document-view-apply.ts) holds Saves; the view reports saving. */
+    hold(value: boolean) {
+      if (held === value) return;
+      held = value;
+      if (value) set("saving");
+      else set(options.editor()?.hasDocumentChanges() ? "unsaved" : "clean");
+    },
     compositionEnded() {
       if (!deferred) return;
       deferred = false;

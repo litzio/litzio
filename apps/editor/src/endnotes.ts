@@ -1,3 +1,4 @@
+import { isDocumentViewChange } from "./document-view-change.ts";
 import { i18n } from "./i18n.ts";
 import { Extension, type Editor } from "@tiptap/core";
 import { closeHistory, isHistoryTransaction } from "@tiptap/pm/history";
@@ -157,7 +158,7 @@ export function endnoteEditingPlugin(): Plugin<{ label: string; initial: Fragmen
     },
     filterTransaction(tr, state) {
       if (!tr.docChanged || isHistoryTransaction(tr) || tr.getMeta(ORDER_META) || tr.getMeta(LIFECYCLE_META) || tr.getMeta("blockCommand") ||
-          tr.getMeta(LABEL_PROPERTIES_META)) return true;
+          tr.getMeta(LABEL_PROPERTIES_META) || isDocumentViewChange(tr)) return true;
       // A whole-document selection alone says nothing about a drop or targeted
       // transaction. Composition can first normalize AllSelection to text positions
       // just inside the outer blocks; ProseMirror's fitted replacement also consumes
@@ -258,7 +259,8 @@ export function endnotesPlugin(canOrder: () => boolean = () => true): Plugin<Ret
       },
     },
     appendTransaction(transactions, old, state) {
-      if (!transactions.some(tr => tr.docChanged || tr.getMeta(ENDNOTE_DRAFT_CLOSED))) return null;
+      // A document view change shows Core's own endnote placement.
+      if (!transactions.some(tr => tr.docChanged || tr.getMeta(ENDNOTE_DRAFT_CLOSED)) || transactions.some(isDocumentViewChange)) return null;
       const plan = planEndnoteLifecycle(endnoteBlocks(old.doc), endnoteBlocks(state.doc));
       const definitions = new Set(plan.removeDefinitions), references = new Set(plan.removeReferences);
       const removed: { from: number; to: number }[] = [];
