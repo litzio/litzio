@@ -48,6 +48,7 @@ import {
   updateEnumerator,
   updateNumberingMode,
   updateTableCell,
+  updateTableCellBlocks,
   updateTableCaption,
   insertTableNote,
   updateTableNote,
@@ -73,6 +74,8 @@ import {
   type AdmonitionVariant,
   type NodePath,
   type InlineContent,
+  type ComplexTableInput,
+  type TableCellBlock,
   type CitationRole,
   type ListContent,
 } from "@litzio/core";
@@ -207,9 +210,15 @@ export function changeFor(command: string, flags: string[], deferEndnotes = fals
       return (document) => updateFigure(document, pathFlag(flags), changes);
     }
     case "insert-table": {
+      // ADR-0024: --grid is a complex grid ({headerRows, rows:[{cells}]}); --cells and --align are a pipe grid's.
+      const grid = optionalFlag(flags, "--grid");
+      if ((grid === undefined) === (optionalFlag(flags, "--cells") === undefined)) throw new Error("exactly one of --cells or --grid is required");
+      if (grid !== undefined && optionalFlag(flags, "--align") !== undefined) throw new Error("--grid sets alignment on its cells; --align is for --cells");
       return (document) => {
         const at = insertionIndex(document, flags);
-        let inserted = insertTable(document, at, jsonFlag(flags, "--cells"), optionalFlag(flags, "--align") === undefined ? undefined : jsonFlag(flags, "--align"));
+        let inserted = grid !== undefined
+          ? insertTable(document, at, { ...jsonFlag<Omit<ComplexTableInput, "grid">>(flags, "--grid"), grid: "complex" })
+          : insertTable(document, at, jsonFlag(flags, "--cells"), optionalFlag(flags, "--align") === undefined ? undefined : jsonFlag(flags, "--align"));
         const caption = captionInput(flags);
         if (caption !== undefined) inserted = updateTableCaption(inserted, [at], caption);
         const label = optionalFlag(flags, "--label");
@@ -306,6 +315,11 @@ export function changeFor(command: string, flags: string[], deferEndnotes = fals
     case "move-table-note":
       return document => moveTableNote(document, pathFlag(flags), intFlag(flags, "--from"), intFlag(flags, "--to"));
     case "update-table-cell": {
+      // --blocks replaces a cell's paragraphs and lists; --text and --content replace one paragraph.
+      if (optionalFlag(flags, "--blocks") !== undefined) {
+        if (optionalFlag(flags, "--text") !== undefined || optionalFlag(flags, "--content") !== undefined) throw new Error("use --blocks without --text or --content");
+        return (document) => updateTableCellBlocks(document, pathFlag(flags), jsonFlag<TableCellBlock[]>(flags, "--blocks"));
+      }
       return (document) => updateTableCell(document, pathFlag(flags), plainTextOrContent(flags));
     }
     case "insert-target": {
@@ -374,7 +388,7 @@ function batchChange(operation: unknown): Change {
   for (const [key, value] of Object.entries(options)) {
     const name = `--${key}`;
     if (!COMMAND_OPTIONS[command].includes(name)) throw new Error(`unknown option: ${name}`);
-    const json = ["content", "caption-content", "cells", "list", "keys", "paths"].includes(key)
+    const json = ["content", "caption-content", "cells", "grid", "blocks", "list", "keys", "paths"].includes(key)
       || (command === "insert-table" && key === "align");
     if (json ? value === null || !["object", "string"].includes(typeof value)
       : !["string", "number", "boolean"].includes(typeof value)) {
@@ -422,7 +436,7 @@ export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "insert-figure": ["--at", "--image", "--mermaid", "--alt", "--caption", "--caption-content", "--label"],
   "update-figure": ["--path", "--image", "--mermaid", "--alt", "--caption", "--caption-content"],
   "update-media-references": ["--from", "--to"],
-  "insert-table": ["--at", "--cells", "--align", "--caption", "--caption-content", "--label"],
+  "insert-table": ["--at", "--cells", "--grid", "--align", "--caption", "--caption-content", "--label"],
   "insert-list": ["--at", "--list"],
   "update-list": ["--path", "--list"],
   "update-list-item-checked": ["--path", "--item", "--checked"],
@@ -444,7 +458,7 @@ export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "update-table-note": ["--path", "--at", "--text", "--content"],
   "remove-table-note": ["--path", "--at"],
   "move-table-note": ["--path", "--from", "--to"],
-  "update-table-cell": ["--path", "--text", "--content"],
+  "update-table-cell": ["--path", "--text", "--content", "--blocks"],
   "remove-block": ["--at"],
   "insert-target": ["--at", "--label"],
   "move-block": ["--from", "--to"],

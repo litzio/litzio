@@ -240,7 +240,7 @@ test("localized sample folders retain the supported feature set and canonical Co
       if ("content" in block && Array.isArray(block.content)) visit(block.content);
       if (block.block === "list") visitList(block);
       if (block.block === "figure") visit(block.caption.content);
-      if (block.block === "table") { if (block.caption) visit(block.caption); for (const row of block.rows) for (const cell of row.cells) visit(cell.content); }
+      if (block.block === "table") { if (block.caption) visit(block.caption); for (const row of block.rows) for (const cell of row.cells) visit(cell.content ?? []); }
     }
     for (const kind of ["strong", "emphasis", "link", "code", "math", "footnote", "citation"]) assert.ok(inline.some(item => item.kind === kind), kind);
     assert.ok(lists.some(list => list.ordered) && lists.some(list => !list.ordered));

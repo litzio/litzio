@@ -443,6 +443,8 @@ captions, target choices, accessible names and menu search follow the same templ
 
 Table cells and Figure/Table captions use the supported InlineContent contract. Core updateTableCell/insertTable accept text or inline content (CLI
 update-table-cell --content and insert-table --cells). A cell can hold an inline hard break.
+A [complex table](table-caption-v1.md#complex-tables-2015) takes the same grid as `inspect --format json` gives it:
+Core insertTable/updateTableCellBlocks (CLI insert-table --grid and update-table-cell --blocks) and shared authoring.
 Core updateFigure/insertFigure accept text or inline captions (CLI --caption-content).
 Figure content, caption and label may all be absent (a pending Figure). Pending/image
 transitions preserve the container, label and caption; pending Figures participate in the

@@ -170,7 +170,7 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
   const targetKey = JSON.stringify(target?.path);
   const block = file && target && file.document.blocks.find(block =>
     JSON.stringify(block.path) === targetKey || block.block === "table" && block.rows.some(row => row.cells.some(cell => JSON.stringify(cell.path) === targetKey)));
-  const cell = block && block.block === "table" && block.rows.flatMap((row, rowIndex) => row.cells.map((cell, column) => ({cell, row:rowIndex, column}))).find(value => JSON.stringify(value.cell.path) === targetKey);
+  const cell = block && block.block === "table" && block.rows.flatMap(row => row.cells.map(cell => ({cell, row:cell.path[1], column:cell.path[2]}))).find(value => JSON.stringify(value.cell.path) === targetKey);
   const location = block && (cell ? positions?.cells.find(position => position.table === JSON.stringify(block.path) && position.row === cell.row && position.column === cell.column)
     : positions?.blocks.find(position => position.key === JSON.stringify(block.path)));
   const unsupported = !!file && !!target && !block;

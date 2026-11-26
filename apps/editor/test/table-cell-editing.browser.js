@@ -227,6 +227,65 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(table).toHaveCount(3);
   await expect(table.last().locator('[data-table-note]')).toHaveText('a. Nominal value');
   await expect(table.last().locator('[data-table-cell] br')).toHaveCount(1);
+  // ADR-0024: a complex table shows its merged cells, header rows and cell blocks. In this version its
+  // cells are read-only (input never reaches them) and it has no row tools.
+  const complex = [dir, 'complex-table.md'].join(separator);
+  const complexBefore = await markdown(complex, 'complex-table.md');
+  await open(complex);
+  await expect(table.locator('th[colspan="2"]')).toHaveText('Range');
+  await expect(table.locator('td[rowspan="2"] > p')).toHaveText(['Output', 'rated']);
+  await expect(table.locator('td > ol > li')).toHaveText(['Peak', 'Mean']);
+  await expect(table.getByTestId('table-caption')).toContainText('Output limits');
+  await expect(table.locator('table[contenteditable="false"]')).toHaveCount(1);
+  await expect(table.locator('.table-row-handle, .table-column-handle')).toHaveCount(0);
+  // The table selected as a block, then a click in a cell and typing: the text must not replace the
+  // table, so Save and reopen keep its grid, caption and note.
+  const selectTable = async () => {
+    await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(node => {
+      let at = -1;
+      node.editor.state.doc.forEach((child, offset) => { if (child.type.name === 'table') at = offset; });
+      node.editor.chain().setNodeSelection(at).focus().run();
+    });
+    // The native cut reads the browser selection: wait until the engine's table selection is drawn in a focused editor.
+    await page.waitForFunction(() => {
+      const {view, state} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
+      return state.selection.node?.type.name === 'table' && view.hasFocus() && document.getSelection()?.containsNode(view.nodeDOM(state.selection.from), true);
+    });
+  };
+  await selectTable();
+  await cell('230 V').click();
+  await page.keyboard.type('240');
+  await page.keyboard.press('ControlOrMeta+s');
+  await open(complex);
+  await expect(table.locator('th[colspan="2"]')).toHaveText('Range');
+  result.selectedComplexTableKeepsTyping = await markdown(complex, 'complex-table.md') === complexBefore;
+  // Litzio's own clipboard moves the whole table: cut it, paste it after the closing paragraph,
+  // then save and reopen with its merged cells, header rows, cell blocks, caption and note.
+  const gridSource = source => source.slice(source.indexOf(':::{table}'), source.indexOf(':::\n', source.indexOf(':::{table}') + 1));
+  await selectTable();
+  await page.keyboard.press('ControlOrMeta+x');
+  await expect(table).toHaveCount(0);
+  await page.locator('[data-document-tab][data-active=true] .document-editor > p', {hasText: 'Closing paragraph.'}).click();
+  await page.keyboard.press('End');
+  await page.waitForFunction(() => {
+    const {$from} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection;
+    return $from.parent.textContent === 'Closing paragraph.' && $from.parentOffset === $from.parent.content.size;
+  });
+  await page.keyboard.press('ControlOrMeta+v');
+  await expect(table.locator('th[colspan="2"]')).toHaveText('Range');
+  const order = () => page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(node => {
+    const kinds = []; node.editor.state.doc.forEach(child => kinds.push(child.type.name)); return kinds.join(',');
+  });
+  await expect.poll(order).toBe('paragraph,paragraph,table');
+  const written = page.waitForResponse(response => response.url().split('?')[0].endsWith('/api/document') && response.request().method() === 'POST');
+  await page.getByRole('button', {name:'Save', exact:true}).click();
+  expect((await written).status()).toBe(200);
+  const moved = await markdown(complex, 'complex-table.md');
+  result.complexTableMoves = moved.indexOf('Closing paragraph.') < moved.indexOf(':::{table}') && gridSource(moved) === gridSource(complexBefore);
+  await open(complex);
+  await expect(table.locator('td[rowspan="2"] > p')).toHaveText(['Output', 'rated']);
+  await expect(table.locator('[data-table-note]')).toHaveText('a. Measured at rated load.');
+
   result.consoleErrors = problems;
   const failed = Object.entries(result).filter(([key, value]) => key !== 'consoleErrors' && value !== true);
   if (failed.length > 0 || problems.length > 0) throw new Error(`Table cell editing failed: ${JSON.stringify(result)}`);

@@ -91,7 +91,7 @@ function compare(name: string, { input, count }: Corpus): Counts {
   const baseline = LocalWriteBaseline.fromCanonical(source, original);
   const targets = getEditableDocument(original).blocks.flatMap((block): LocalWriteEdit[] => {
     if (block.block === "paragraph" && block.editable) return [{ kind: "paragraph", path: block.path, content: block.content }];
-    if (block.block === "table") return block.rows.flatMap(row =>
+    if (block.block === "table" && !block.grid) return block.rows.flatMap(row =>
       row.cells.filter(cell => cell.editable).map(cell => ({ kind: "cell", path: cell.path, content: cell.content })));
     return [];
   });

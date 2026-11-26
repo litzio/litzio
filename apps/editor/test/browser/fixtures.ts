@@ -347,7 +347,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
       nativeSource("# Pending Figures\n\nIntro.\n\nThe controller structure is shown in [Figure](#fig-pfc-control).\n\nStored reference: {numref}`fig-pfc-control`.\n\nAfter.\n") }],
     scenarios: ["pending-figure"],
   },
-  "table-cell-editing": { files: [...technical, fixture("mixed-table.md")], scenarios: ["table-cell-editing"] },
+  "table-cell-editing": { files: [...technical, fixture("mixed-table.md"), fixture("complex-table.md")], scenarios: ["table-cell-editing"] },
   "link-authoring": { files: [fixture("links.md")], scenarios: ["link-authoring"] },
   "reference-preview": { files: [fixture("reference-preview.md"), { name: "refs.bib", create: bibliography }, document("diagram.svg")], scenarios: ["reference-preview"] },
   "image-link-preview": { files: [

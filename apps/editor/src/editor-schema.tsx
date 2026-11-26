@@ -48,7 +48,7 @@ import { InlineMathView } from "./node-views/inline-math-view.tsx";
 import { LabelTargetView } from "./node-views/label-target-view.tsx";
 import { TableCaptionView, TableView } from "./node-views/table-view.tsx";
 import { EDIT_PROPERTIES, type DraftListener } from "./node-views/shared.ts";
-import { inTableCell, tableRows } from "./table-structure.ts";
+import { inTableCell, isComplexGrid, tableRows } from "./table-structure.ts";
 
 export type { DraftKind } from "./node-views/shared.ts";
 export { captionPlaceholderVisible } from "./node-views/shared.ts";
@@ -533,9 +533,13 @@ const TableGrid = Node.create({
   // As prosemirror-tables' TableView: attributes of the grid's own <table> (an inline width or
   // style) are view state, so changing them neither rereads nor redraws the grid.
   addNodeView() {
-    return () => {
+    return ({ node }) => {
       const dom = document.createElement("table");
-      return { dom, contentDOM: dom, ignoreMutation: (mutation: ViewMutationRecord) => mutation.type === "attributes" && mutation.target === dom };
+      // ADR-0024: in this version a complex grid's cells are read-only, so input never reaches them.
+      const lock = (grid: ProseMirrorNode) => { if (isComplexGrid(grid)) dom.contentEditable = "false"; else dom.removeAttribute("contenteditable"); };
+      lock(node);
+      return { dom, contentDOM: dom, ignoreMutation: (mutation: ViewMutationRecord) => mutation.type === "attributes" && mutation.target === dom,
+        update: (next: ProseMirrorNode) => { if (next.type !== node.type) return false; lock(next); return true; } };
     };
   },
 });
@@ -586,7 +590,8 @@ function cellAlignmentStyle(node: ProseMirrorNode): string {
 const TableRow = Node.create({
   name: "tableRow",
   allowGapCursor: false,
-  content: "tableCell+",
+  // A complex grid's row can be covered entirely by cells that start above it.
+  content: "tableCell*",
   parseHTML() {
     return [{ tag: "tr" }];
   },
@@ -595,12 +600,12 @@ const TableRow = Node.create({
   },
 });
 
-// A cell holds its content as blocks: one paragraph of inline content, including hard breaks.
-// Every cell spans one row and one column; the span attributes exist for TableMap and are never
-// read from pasted HTML.
+// A cell holds its content as blocks: one paragraph of inline content, including hard breaks, or in
+// a complex table (ADR-0024) paragraphs and lists. A complex table's cell spans rows and columns;
+// TableMap reads the spans, and they are never read from pasted HTML.
 const TableCell = Node.create({
   name: "tableCell",
-  content: "paragraph",
+  content: "(paragraph | bulletList | orderedList)+",
   isolating: true,
   addAttributes() {
     return { header: headerAttr, align: hiddenAttr(""), [TABLE_CELL_SOURCE_ATTR]: { default: "", rendered: false },
@@ -611,7 +616,8 @@ const TableCell = Node.create({
     return [{ tag: "th[data-table-cell]" }, { tag: "td[data-table-cell]" }];
   },
   renderHTML({ node }) {
-    return [node.attrs.header ? "th" : "td", { "data-table-cell": "", style: cellAlignmentStyle(node) }, 0];
+    const span = (name: "colspan" | "rowspan") => Number(node.attrs[name]) > 1 ? { [name]: String(node.attrs[name]) } : {};
+    return [node.attrs.header ? "th" : "td", { "data-table-cell": "", ...span("rowspan"), ...span("colspan"), style: cellAlignmentStyle(node) }, 0];
   },
 });
 

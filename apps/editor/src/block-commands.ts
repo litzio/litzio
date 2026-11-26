@@ -14,7 +14,7 @@ import { AUTHORABLE_ADMONITION_KINDS, admonitionAppearance, admonitionSearchTerm
 import { blockMoveTarget, blockMoveBlockedHint, reorderBlock } from "./block-reorder.ts";
 import { hangulJamo, searchJamo } from "./qwerty-hangul.ts";
 import { EDITOR_SHORTCUTS } from "./shortcuts.ts";
-import { forEachTableRow, tableCellOf, tableRows } from "./table-structure.ts";
+import { forEachTableRow, isComplexTable, tableCellOf, tableRows } from "./table-structure.ts";
 
 // Editor commands for block insert/delete and table rows/columns. Each command is one engine
 // transaction; Save maps the result to Core insertParagraph/insertHeading/insertEquation/
@@ -152,6 +152,8 @@ export const INSERT_COMMANDS: InsertCommand[] = [
 ];
 
 const isTable = (state: EditorState, index: number) => state.doc.maybeChild(index)?.type.name === "table";
+// Row, column and column-alignment commands keep a rectangular grid: not a complex table (ADR-0024).
+const isRectangularTable = (state: EditorState, index: number) => isTable(state, index) && !isComplexTable(state.doc.child(index));
 const isEditableAdmonition = (state: EditorState, index: number) => {
   const node = state.doc.maybeChild(index);
   return node?.type.name === "admonition";
@@ -190,14 +192,14 @@ export const BLOCK_COMMANDS: BlockCommand[] = [
     id: "table-row",
     get label() { return i18n.t("Add row below"); },
     applies: isTable,
-    enabled: isTable,
+    enabled: isRectangularTable,
     run: addTableRowBelow,
   },
   {
     id: "table-column",
     get label() { return i18n.t("Add column right"); },
     applies: isTable,
-    enabled: isTable,
+    enabled: isRectangularTable,
     run: addTableColumnRight,
   },
   {
@@ -743,7 +745,7 @@ export function addTableColumnRight(state: EditorState, index: number, target?: 
 
 /** The caret's cell and the table's shape, when the caret is inside the table at `index`. */
 function caretTable(state: EditorState, index: number, target?: TableCellAddress) {
-  const cell = isTable(state, index) ? tableCellAt(state, index, target) : undefined;
+  const cell = isRectangularTable(state, index) ? tableCellAt(state, index, target) : undefined;
   if (!cell) return undefined;
   const rows = tableRows(state.doc.child(index));
   return { ...cell, rows: rows.length, columns: rows[0].childCount, align: String(rows[0].child(cell.column).attrs.align ?? "") };

@@ -41,7 +41,8 @@ test("internally read a complex table and write stable canonical bytes with capt
     "</tr>", "</tbody>", "</table>", "", "a. Measured at full load.", "", "b. At sea level, see {cite}`alpha`.",
     ":::", "", "[^test]: In the test report.", "",
   ].join("\n");
-  assert.throws(() => core.parse(source), /Unsupported native content/);
+  // ADR-0024 step 3: native admission reads the grid and writes the same bytes.
+  assert.equal(core.serialize(core.parse(source)), source);
   const input = source.replace("<table>\n<thead>", "<TABLE>  \n<THEAD>")
     .replace('rowspan="2" style="text-align: right"', "STYLE='text-align:right;' ROWSPAN=02")
     .replace('data-myst="cite:t"', 'data-myst="cite"');
@@ -550,3 +551,99 @@ test("table notes round-trip as owned paragraphs and follow whole-table operatio
   assert.throws(() => core.insertTableNote(doc, [1], 4, "Out of bounds"), /index is out of range/);
   assert.throws(() => core.updateTableNote(doc, [1], 0, [{ kind: "footnote", label: "n" }]), /cannot contain an endnote/);
 });
+
+// ADR-0024 step 3: a complex grid read, edited and authored through the public API.
+const complexSource = core.serialize(core.parse([
+  "---", "litzio: 1", "---", "", "Before.", "", ":::{table} Limits", ":name: limits", "", "<table>", "<thead>",
+  "<tr>", '<th colspan="2"><p>Range</p></th>', "</tr>", "<tr>", "<th><p>Item</p></th>", "<th><p>Value</p></th>", "</tr>",
+  "</thead>", "<tbody>", "<tr>", '<td rowspan="2"><p>Output</p><p>rated</p></td>', "<td><p>230 V</p></td>", "</tr>",
+  "<tr>", "<td><ul><li>Peak</li><li>Mean</li></ul></td>", "</tr>", "</tbody>", "</table>", "", "a. Measured.", ":::", "",
+].join("\n")));
+
+test("complex table cells are read and edited at their start column through the public API", () => {
+  const document = core.parse(complexSource);
+  const table = core.getEditableDocument(document).blocks[1];
+  assert.ok(table.block === "table" && table.grid === "complex");
+  assert.equal(table.headerRows, 2);
+  assert.deepEqual(table.rows.map(row => row.cells.map(cell => [cell.path.join(","), cell.rowspan, cell.colspan, cell.text])), [
+    [["2,0,0", 1, 2, "Range"]], [["2,1,0", 1, 1, "Item"], ["2,1,1", 1, 1, "Value"]],
+    [["2,2,0", 2, 1, "Output\nrated"], ["2,2,1", 1, 1, "230 V"]], [["2,3,1", 1, 1, "Peak\nMean"]],
+  ]);
+  // inspect --format json carries the grid as complex table input; inline content only for one paragraph.
+  const nodes = core.machineNodes(core.getEditableDocument(document));
+  const tableNode = nodes.find(node => node.type === "table");
+  assert.deepEqual([tableNode?.grid, tableNode?.headerRows], ["complex", 2]);
+  const cells = nodes.filter(node => node.type === "cell");
+  assert.deepEqual(cells.map(cell => [cell.path.join(","), "content" in cell]), [["2,0,0", true], ["2,1,0", true], ["2,1,1", true], ["2,2,0", false], ["2,2,1", true], ["2,3,1", false]]);
+  assert.deepEqual(cells[5].blocks, [{ kind: "list", list: { ordered: false, items: [{ content: [{ kind: "text", text: "Peak" }] }, { content: [{ kind: "text", text: "Mean" }] }] } }]);
+
+  const edited = core.serialize(core.updateTableCell(document, [2, 2, 1], [{ kind: "strong", children: [{ kind: "text", text: "240 V" }] }]));
+  assert.equal(edited, complexSource.replace("<td><p>230 V</p></td>", "<td><p><strong>240 V</strong></p></td>"));
+  const blocks = core.serialize(core.updateTableCellBlocks(document, [2, 3, 1], [{ kind: "paragraph", content: [{ kind: "text", text: "Peak" }] },
+    { kind: "list", list: { ordered: true, start: 2, items: [{ content: [{ kind: "text", text: "Mean" }] }] } }]));
+  assert.match(blocks, /\n<td><p>Peak<\/p><ol start="2"><li>Mean<\/li><\/ol><\/td>\n/);
+  // A covered position is no cell, and a cell of several blocks needs block input.
+  assert.throws(() => core.updateTableCell(document, [2, 3, 0], "x"), /not where a cell starts/);
+  assert.throws(() => core.updateTableCell(document, [2, 2, 0], "x"), /replace its blocks/);
+  // Rectangular row, column and alignment operations cannot keep the grid; table notes still can.
+  for (const change of [() => core.insertTableRow(document, [2], 3), () => core.removeTableRow(document, [2], 3), () => core.moveTableRow(document, [2], 2, 3),
+    () => core.insertTableColumn(document, [2], 1), () => core.removeTableColumn(document, [2], 1), () => core.moveTableColumn(document, [2], 0, 1),
+    () => core.updateTableColumnAlignment(document, [2], 1, "right")]) {
+    assert.throws(change, (error: unknown) => error instanceof core.DocumentDiagnosticError && /merged cells, header rows or cell blocks/.test(error.message));
+  }
+  assert.match(core.serialize(core.insertTableNote(document, [2], 1, "b. Second.")), /\n\na\. Measured\.\n\nb\. Second\.\n:::\n$/);
+  assert.equal(core.serialize(document), complexSource);
+  // The quick Save leaves complex tables to the full Save.
+  const baseline = core.LocalWriteBaseline.fromCanonical(complexSource, document)!;
+  assert.deepEqual(baseline.write({ kind: "cell", path: [2, 2, 1], content: [{ kind: "text", text: "240 V" }] }), { reason: "complex-table" });
+});
+
+test("cell blocks move a table between pipe and HTML grids, and complex input round-trips through inspect", () => {
+  const pipe = nativeSource(":::{table}\n\n| A | B |\n| - | - |\n| 1 | 2 |\n:::\n");
+  const document = core.parse(pipe);
+  const twoParagraphs = core.updateTableCellBlocks(document, [1, 1, 0], [{ kind: "paragraph", content: [{ kind: "text", text: "x" }] }, { kind: "paragraph", content: [{ kind: "text", text: "y" }] }]);
+  const html = core.serialize(twoParagraphs);
+  assert.match(html, /\n<td><p>x<\/p><p>y<\/p><\/td>\n<td><p>2<\/p><\/td>\n/);
+  const back = core.updateTableCellBlocks(core.parse(html), [1, 1, 0], [{ kind: "paragraph", content: [{ kind: "text", text: "1" }] }]);
+  assert.equal(core.serialize(back), core.serialize(document));
+  const backBlock = core.getEditableDocument(back).blocks[0];
+  assert.ok(backBlock.block === "table" && backBlock.grid === undefined);
+  // An HTML grid that fits pipe cells reads as the pipe table its canonical write is.
+  const fitting = core.parse(html.replace("<td><p>x</p><p>y</p></td>", "<td><p>1</p></td>"));
+  const fittingBlock = core.getEditableDocument(fitting).blocks[0];
+  assert.ok(fittingBlock.block === "table" && fittingBlock.grid === undefined);
+  assert.equal(core.serialize(fitting), core.serialize(document));
+
+  // The inspect nodes of a complex table are its insertion input.
+  const nodes = core.machineNodes(core.getEditableDocument(core.parse(complexSource))).filter(node => node.path[0] === 2);
+  const rows: { cells: core.ComplexTableCellInput[] }[] = [];
+  for (const cell of nodes.filter(node => node.type === "cell")) {
+    (rows[cell.path[1]] ??= { cells: [] }).cells.push({ column: cell.column as number, rowspan: cell.rowspan as number, colspan: cell.colspan as number, blocks: cell.blocks as core.TableCellBlock[] });
+  }
+  for (let index = 0; index < rows.length; index++) rows[index] ??= { cells: [] };
+  const inserted = core.insertTable(core.parse(nativeSource("Start.\n")), 1, { grid: "complex", headerRows: nodes[0].headerRows as number, rows }, undefined, ["a. Measured."]);
+  const grid = (markdown: string) => markdown.slice(markdown.indexOf("<table>"), markdown.indexOf("</table>"));
+  assert.equal(grid(core.serialize(inserted)), grid(complexSource));
+  const empty = [{ kind: "paragraph" as const, content: [] }];
+  assert.throws(() => core.insertTable(core.parse(nativeSource("Start.\n")), 1, { grid: "complex", headerRows: 1,
+    rows: [{ cells: [{ colspan: 2, blocks: empty }] }, { cells: [{ blocks: empty }] }] }), /Uncovered position/);
+});
+
+test("complex grid authoring checks the expanded grid before it expands a span", () => {
+  const paragraph = [{ kind: "paragraph" as const, content: [] }];
+  const table = (headerRows: number, rows: { cells: object[] }[]) => core.documentAuthoringSchema.safeParse({ inputs: [{ key: "a", blocks: [{ kind: "table", grid: "complex", headerRows, rows }] }] });
+  assert.equal(table(1, [{ cells: [{ colspan: 2, blocks: paragraph }] }, { cells: [{ blocks: paragraph }, { blocks: paragraph }] }]).success, true);
+  // 300 rows of one 30-column cell would expand to 9,000 positions; the spans alone refuse it.
+  const wide = table(1, Array.from({ length: 300 }, () => ({ cells: [{ colspan: 30, blocks: paragraph }] })));
+  assert.match(JSON.stringify(wide.error?.issues), /grid width or table size limit/);
+  assert.match(JSON.stringify(table(1, [{ cells: [{ rowspan: 2, blocks: paragraph }] }, { cells: [] }]).error?.issues), /row group/);
+  assert.match(JSON.stringify(table(1, [{ cells: [{ blocks: paragraph }, { blocks: paragraph }] }, { cells: [{ blocks: paragraph }] }]).error?.issues), /Uncovered position in table row at \[1\]/);
+  assert.match(JSON.stringify(table(1, [{ cells: [{ colspan: 33, blocks: paragraph }] }]).error?.issues), /grid width or table size limit/);
+  // Cell blocks count toward the shared block budget.
+  const blocks = Array.from({ length: core.DOCUMENT_AUTHORING_LIMITS.blocks }, () => paragraph[0]);
+  assert.match(JSON.stringify(table(1, [{ cells: [{ blocks }] }]).error?.issues), /Too many blocks/);
+});
+
+function nativeSource(body: string): string {
+  return `---\nlitzio: 1\n---\n\n${body}`;
+}
