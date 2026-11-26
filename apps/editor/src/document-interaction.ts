@@ -17,6 +17,7 @@ import { freshBlockPath, TABLE_CELL_SOURCE_ATTR } from "./tiptap-document.ts";
 import { REDO_SHORTCUT, UNDO_SHORTCUT } from "./shortcuts.ts";
 import { canEditEndnoteAt } from "./endnotes.ts";
 import { fromTiptapContent, toTiptapContent } from "./tiptap-inline.ts";
+import { forEachTableRow, tableCellOf } from "./table-structure.ts";
 
 const FOOTNOTES_ATTR = "data-litzio-footnotes";
 
@@ -245,14 +246,15 @@ function atNestedDocumentEnd(view: EditorView): boolean {
 
 function tableTab(state: EditorState, backward: boolean, editable: boolean): Transaction | null {
   const { $from } = state.selection;
-  if ($from.depth < 3 || $from.parent.type.name !== "tableCell" || $from.node(1).type.name !== "table") return null;
+  const cell = tableCellOf($from);
+  if (!cell) return null;
   const cells: number[] = [];
   const start = $from.before(1);
   $from.node(1).descendants((node, pos) => { if (node.type.name === "tableCell") cells.push(start + pos + 2); });
   const index = cells.indexOf($from.start());
   const target = cells[index + (backward ? -1 : 1)];
   if (target !== undefined) return state.tr.setSelection(TextSelection.create(state.doc, target)).scrollIntoView();
-  if (!backward && editable) return addTableRowBelow(state, $from.index(0), { row: $from.index(1), column: 0 });
+  if (!backward && editable) return addTableRowBelow(state, $from.index(0), { row: cell.row, column: 0 });
   const edge = backward ? $from.before(1) : $from.after(1);
   const selection = TextSelection.findFrom(state.doc.resolve(edge), backward ? -1 : 1, true);
   return selection ? state.tr.setSelection(selection).scrollIntoView() : paragraphBeside(state, !backward);
@@ -285,17 +287,19 @@ function tableVertical(view: EditorView, down: boolean): Transaction | null {
     }
     return state.tr.setSelection(TextSelection.create(doc, caret)).scrollIntoView();
   };
-  const table = $cell.node(-1), target = $cell.index(-1) + (down ? 1 : -1);
+  const tablePos = $cell.before(1), table = $cell.node(1), target = $cell.index(-1) + (down ? 1 : -1);
   if (target < 0) {
-    const $table = doc.resolve($cell.before(-1)), before = Selection.findFrom($table, -1);
+    const $table = doc.resolve(tablePos), before = Selection.findFrom($table, -1);
     if (!before) return state.tr.setSelection(new GapCursor($table)).scrollIntoView();
     if (!(before instanceof TextSelection)) return state.tr.setSelection(before).scrollIntoView();
     return caretIn(before.$head.start(), before.$head.end());
   }
-  const row = table.child(target);
-  if (row.type.name === "tableCaption") return state.tr.setSelection(TextSelection.create(doc, $cell.after() + 1)).scrollIntoView();
-  let pos = $cell.start(-1);
-  for (let index = 0; index < target; index++) pos += table.child(index).nodeSize;
+  let pos = -1, row: PMNode | undefined;
+  forEachTableRow(table, tablePos, (node, at, index) => { if (index === target) { pos = at; row = node; } });
+  if (!row) {
+    table.forEach((child, offset) => { if (child.type.name === "tableCaption") pos = tablePos + 1 + offset; });
+    return state.tr.setSelection(TextSelection.create(doc, pos + 1)).scrollIntoView();
+  }
   const column = Math.min($cell.index(), row.childCount - 1);
   pos += 1;
   for (let index = 0; index < column; index++) pos += row.child(index).nodeSize;

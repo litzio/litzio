@@ -5,6 +5,7 @@ import { inlineContentText as inlineText, sameInlineContent as sameInline, isAdm
 import { defaultHeadingNumbering, referenceTemplatesError, NUMBERED_KINDS, type ReferenceTemplates } from "@litzio/core/numbering";
 import { figureCaptionContent, figureContentError } from "@litzio/core/figure";
 import { fromTiptapContent, type TiptapJSON } from "./tiptap-inline.ts";
+import { tableRowsJSON } from "./table-structure.ts";
 import {
   isNewBlockPath,
   pathKey,
@@ -667,7 +668,7 @@ type TableCellShape = { header: boolean; content: InlineContent[]; align: string
 
 /** The cell grid of a table node, excluding the caption and notes. */
 function tableCells(node: TiptapJSON): TableCellShape[][] {
-  return (node.content ?? []).filter(row => row.type !== "tableCaption" && row.type !== "tableNotes").map((row, rowIndex) => {
+  return tableRowsJSON(node).map((row, rowIndex) => {
     if (row.type !== "tableRow") throw new Error(`unsupported Tiptap node ${describeType(row)} in table`);
     return (row.content ?? []).map((cell, column) => {
       try {

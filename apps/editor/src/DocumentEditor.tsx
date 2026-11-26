@@ -76,6 +76,7 @@ import { documentEnd, runHistoryShortcut } from "./document-interaction.ts";
 import { EditorState, NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
 import type { Mark } from "@tiptap/pm/model";
 import type { SaveErrorLocation } from "./save-error.ts";
+import { forEachTableRow } from "./table-structure.ts";
 
 type BlockMenu = { kind: "insert" | "block" | "list-format"; index: number; top: number; left?: number; context?: boolean };
 type InlineMathDraft = { pos: number; path: string; marks: readonly Mark[]; deleted: boolean };
@@ -605,15 +606,11 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     let pos = 0;
     for (let i = 0; i < index; i++) pos += editor.state.doc.child(i).nodeSize;
     let target = pos;
-    if (cell && node.type.name === "table") {
-      const row = node.maybeChild(cell.row);
-      if (row?.maybeChild(cell.column)) {
-        target++;
-        for (let i = 0; i < cell.row; i++) target += node.child(i).nodeSize;
-        target++;
-        for (let i = 0; i < cell.column; i++) target += row.child(i).nodeSize;
-      }
-    }
+    if (cell && node.type.name === "table") forEachTableRow(node, pos, (row, rowPos, rowIndex) => {
+      if (rowIndex !== cell.row || !row.maybeChild(cell.column)) return;
+      target = rowPos + 1;
+      for (let i = 0; i < cell.column; i++) target += row.child(i).nodeSize;
+    });
     const selection = node.type.name === "figure" ? NodeSelection.create(editor.state.doc, pos)
       : node.isTextblock ? TextSelection.create(editor.state.doc, pos + 1)
       : node.type.name === "table" || cell ? TextSelection.near(editor.state.doc.resolve(target + 1))

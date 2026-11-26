@@ -48,6 +48,7 @@ import { InlineMathView } from "./node-views/inline-math-view.tsx";
 import { LabelTargetView } from "./node-views/label-target-view.tsx";
 import { TableCaptionView, TableView } from "./node-views/table-view.tsx";
 import { EDIT_PROPERTIES, type DraftListener } from "./node-views/shared.ts";
+import { tableRows } from "./table-structure.ts";
 
 export type { DraftKind } from "./node-views/shared.ts";
 export { captionPlaceholderVisible } from "./node-views/shared.ts";
@@ -885,8 +886,7 @@ export const LOCKED_STRUCTURE_REJECTION = "This view keeps every block as it is.
 /** The part of a top-level block that content editing keeps: identity, kind (heading level,
  * Admonition variant) and a table's row and column counts. List items may change. */
 function lockedShape(node: ProseMirrorNode): string {
-  const rows: number[] = [];
-  if (node.type.name === "table") node.forEach(child => { if (child.type.name === "tableRow") rows.push(child.childCount); });
+  const rows = node.type.name === "table" ? tableRows(node).map(row => row.childCount) : [];
   const kind = node.type.name === "heading" ? `:${node.attrs.level}`
     : node.type.name === "admonition" ? `:${node.attrs.variant}`
     : node.type.name === "table" ? `:${rows.join(",")}`

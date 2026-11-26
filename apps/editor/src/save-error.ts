@@ -3,6 +3,7 @@ import type { TiptapJSON } from "./tiptap-inline.ts";
 import { i18n, type MessageKey } from "./i18n.ts";
 import { isSessionPlaceholder } from "./tiptap-edits.ts";
 import { SaveContentError } from "../shared/save-error.ts";
+import { tableRowsJSON } from "./table-structure.ts";
 import type { SupportedEdits } from "../shared/document-protocol.ts";
 import { TABLE_CELL_SOURCE_ATTR } from "./tiptap-projection.ts";
 
@@ -92,7 +93,7 @@ function saveErrorLocation(error: SaveContentError, submitted?: TiptapJSON, edit
   // Snapshot table cells may have moved since opening. Look up their saved row,column identity.
   let cell = error.cell;
   if (!cell && node && target && "path" in target && target.path.length === 3) {
-    node.content?.forEach((row, rowIndex) => row.content?.forEach((value, column) => {
+    tableRowsJSON(node).forEach((row, rowIndex) => row.content?.forEach((value, column) => {
       if (value.attrs?.[TABLE_CELL_SOURCE_ATTR] === target.path.slice(1).join(",")) cell = { row: rowIndex, column };
     }));
   }

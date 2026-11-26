@@ -14,6 +14,7 @@ import { AUTHORABLE_ADMONITION_KINDS, admonitionAppearance, admonitionSearchTerm
 import { blockMoveTarget, blockMoveBlockedHint, reorderBlock } from "./block-reorder.ts";
 import { hangulJamo, searchJamo } from "./qwerty-hangul.ts";
 import { EDITOR_SHORTCUTS } from "./shortcuts.ts";
+import { forEachTableRow, tableCellOf, tableRows } from "./table-structure.ts";
 
 // Editor commands for block insert/delete and table rows/columns. Each command is one engine
 // transaction; Save maps the result to Core insertParagraph/insertHeading/insertEquation/
@@ -678,9 +679,7 @@ function addTableNote(state: EditorState, index: number): Transaction {
 
 /** Rows exclude the caption and notes, retaining the existing row/cell addresses. */
 export function tableRowCount(table: EditorState["doc"]): number {
-  let rows = 0;
-  table.forEach(child => { if (child.type.name === "tableRow") rows++; });
-  return rows;
+  return tableRows(table).length;
 }
 
 /** The caret's cell when it is inside the table at `index`. */
@@ -688,14 +687,13 @@ function tableCellAt(state: EditorState, index: number, target?: TableCellAddres
   if (target) {
     const table = state.doc.maybeChild(index);
     if (table?.type.name !== "table" || !Number.isInteger(target.row) || !Number.isInteger(target.column) ||
-      target.row < 0 || target.row >= tableRowCount(table) || target.column < 0 || target.column >= table.child(target.row).childCount) {
+      target.row < 0 || target.row >= tableRowCount(table) || target.column < 0 || target.column >= tableRows(table)[target.row].childCount) {
       throw new Error("invalid table cell target");
     }
     return target;
   }
   const { $from } = state.selection;
-  if ($from.depth < 3 || $from.index(0) !== index || $from.parent.type.name !== "tableCell") return undefined;
-  return { row: $from.index(1), column: $from.index(2) };
+  return $from.index(0) === index ? tableCellOf($from) : undefined;
 }
 
 function blockPos(state: EditorState, index: number): number {
@@ -712,12 +710,12 @@ function addedCell(state: EditorState, header: boolean, align = "") {
 /** Add an empty row below the caret's row, or below the last row; the caret moves into it. */
 export function addTableRowBelow(state: EditorState, index: number, target?: TableCellAddress): Transaction {
   if (!isTable(state, index)) throw new Error("invalid table index");
-  const table = state.doc.child(index);
+  const rows = tableRows(state.doc.child(index));
   const current = tableCellAt(state, index, target);
-  const row = (current?.row ?? tableRowCount(table) - 1) + 1;
-  const cells = Array.from({ length: table.child(0).childCount }, (_, column) => addedCell(state, false, table.child(0).child(column).attrs.align));
-  let at = blockPos(state, index) + 1;
-  for (let i = 0; i < row; i++) at += table.child(i).nodeSize;
+  const row = (current?.row ?? rows.length - 1) + 1;
+  const cells = Array.from({ length: rows[0].childCount }, (_, column) => addedCell(state, false, rows[0].child(column).attrs.align));
+  // Below the previous row: before the next row, or at the end of the last one.
+  const at = tableLayout(state.doc, index)[row - 1].pos + rows[row - 1].nodeSize;
   const tr = closeHistory(state.tr).insert(at, state.schema.nodes.tableRow.create(null, cells));
   // Empty cells are two positions wide: into the new row, past the cells before the caret's column.
   const caret = at + 2 + 2 * (current?.column ?? 0);
@@ -729,18 +727,15 @@ export function addTableColumnRight(state: EditorState, index: number, target?: 
   if (!isTable(state, index)) throw new Error("invalid table index");
   const table = state.doc.child(index);
   const current = tableCellAt(state, index, target);
-  const column = (current?.column ?? table.child(0).childCount - 1) + 1;
+  const column = (current?.column ?? tableRows(table)[0].childCount - 1) + 1;
   const tr = closeHistory(state.tr);
-  let rowPos = blockPos(state, index) + 1;
   let caret = 0;
-  table.forEach((row, _offset, rowIndex) => {
-    if (row.type.name !== "tableRow") return;
+  forEachTableRow(table, blockPos(state, index), (row, rowPos, rowIndex) => {
     let at = rowPos + 1;
     for (let i = 0; i < column; i++) at += row.child(i).nodeSize;
     const mapped = tr.mapping.map(at);
     tr.insert(mapped, addedCell(state, rowIndex === 0));
     if (rowIndex === (current?.row ?? 0)) caret = mapped + 1;
-    rowPos += row.nodeSize;
   });
   return tr.setSelection(TextSelection.create(tr.doc, caret)).scrollIntoView();
 }
@@ -749,22 +744,20 @@ export function addTableColumnRight(state: EditorState, index: number, target?: 
 function caretTable(state: EditorState, index: number, target?: TableCellAddress) {
   const cell = isTable(state, index) ? tableCellAt(state, index, target) : undefined;
   if (!cell) return undefined;
-  const table = state.doc.child(index);
-  return { ...cell, rows: tableRowCount(table), columns: table.child(0).childCount, align: String(table.child(0).child(cell.column).attrs.align ?? "") };
+  const rows = tableRows(state.doc.child(index));
+  return { ...cell, rows: rows.length, columns: rows[0].childCount, align: String(rows[0].child(cell.column).attrs.align ?? "") };
 }
 
 /** The start of each row, and of each cell in each row, of the table at `index`. */
 function tableLayout(doc: EditorState["doc"], index: number) {
-  let rowPos = 1;
-  for (let i = 0; i < index; i++) rowPos += doc.child(i).nodeSize;
+  let tablePos = 0;
+  for (let i = 0; i < index; i++) tablePos += doc.child(i).nodeSize;
   const rows: { pos: number; cells: number[] }[] = [];
-  doc.child(index).forEach(row => {
-    if (row.type.name !== "tableRow") return;
+  forEachTableRow(doc.child(index), tablePos, (row, rowPos) => {
     const cells: number[] = [];
     let cellPos = rowPos + 1;
     row.forEach(cell => { cells.push(cellPos); cellPos += cell.nodeSize; });
     rows.push({ pos: rowPos, cells });
-    rowPos += row.nodeSize;
   });
   return rows;
 }
@@ -774,13 +767,13 @@ export function moveTableRow(state: EditorState, index: number, by: -1 | 1, targ
   const caret = caretTable(state, index, target);
   const to = (caret?.row ?? 0) + by;
   if (!caret || caret.row < 1 || to < 1 || to >= caret.rows) throw new Error("invalid table row move");
-  const table = state.doc.child(index);
+  const rows = tableRows(state.doc.child(index));
   const layout = tableLayout(state.doc, index);
   const [upper, lower] = by < 0 ? [to, caret.row] : [caret.row, to];
   const offset = target ? layout[caret.row].cells[caret.column] - layout[caret.row].pos + 1 : state.selection.from - layout[caret.row].pos;
-  const tr = closeHistory(state.tr).replaceWith(layout[upper].pos, layout[lower].pos + table.child(lower).nodeSize, [table.child(lower), table.child(upper)]);
+  const tr = closeHistory(state.tr).replaceWith(layout[upper].pos, layout[lower].pos + rows[lower].nodeSize, [rows[lower], rows[upper]]);
   // The rows swap places, so the moved row starts where the upper row did, or right after the other one.
-  const start = by < 0 ? layout[upper].pos : layout[upper].pos + table.child(lower).nodeSize;
+  const start = by < 0 ? layout[upper].pos : layout[upper].pos + rows[lower].nodeSize;
   return tr.setSelection(Selection.near(tr.doc.resolve(start + offset))).scrollIntoView();
 }
 
@@ -789,18 +782,18 @@ export function moveTableColumn(state: EditorState, index: number, by: -1 | 1, t
   const caret = caretTable(state, index, target);
   const to = (caret?.column ?? 0) + by;
   if (!caret || to < 0 || to >= caret.columns) throw new Error("invalid table column move");
-  const table = state.doc.child(index);
+  const rows = tableRows(state.doc.child(index));
   const [left, right] = by < 0 ? [to, caret.column] : [caret.column, to];
   const layout = tableLayout(state.doc, index);
   const offset = target ? 1 : state.selection.from - layout[caret.row].cells[caret.column];
   // Swapping two cells keeps the row's size, so the positions of later rows stay valid.
   const tr = closeHistory(state.tr);
   layout.forEach(({ cells }, row) => {
-    const cell = table.child(row);
+    const cell = rows[row];
     tr.replaceWith(cells[left], cells[right] + cell.child(right).nodeSize, [cell.child(right), cell.child(left)]);
   });
   const cells = layout[caret.row].cells;
-  const start = by < 0 ? cells[left] : cells[left] + table.child(caret.row).child(right).nodeSize;
+  const start = by < 0 ? cells[left] : cells[left] + rows[caret.row].child(right).nodeSize;
   return tr.setSelection(Selection.near(tr.doc.resolve(start + offset))).scrollIntoView();
 }
 
@@ -809,7 +802,7 @@ export function removeTableRow(state: EditorState, index: number, target?: Table
   const caret = caretTable(state, index, target);
   if (!caret || caret.row < 1) throw new Error("only a body row can be removed");
   const { pos } = tableLayout(state.doc, index)[caret.row];
-  const tr = closeHistory(state.tr).delete(pos, pos + state.doc.child(index).child(caret.row).nodeSize);
+  const tr = closeHistory(state.tr).delete(pos, pos + tableRows(state.doc.child(index))[caret.row].nodeSize);
   return tr.setSelection(Selection.near(tr.doc.resolve(Math.min(pos, tr.doc.content.size)), -1)).scrollIntoView();
 }
 
@@ -817,12 +810,12 @@ export function removeTableRow(state: EditorState, index: number, target?: Table
 export function removeTableColumn(state: EditorState, index: number, target?: TableCellAddress): Transaction {
   const caret = caretTable(state, index, target);
   if (!caret || caret.columns <= 1) throw new Error("a table keeps at least one column");
-  const layout = tableLayout(state.doc, index);
+  const layout = tableLayout(state.doc, index), rows = tableRows(state.doc.child(index));
   const tr = closeHistory(state.tr);
   // From the last row up, so earlier positions stay valid.
   for (let row = layout.length - 1; row >= 0; row--) {
     const at = layout[row].cells[caret.column];
-    tr.delete(at, at + state.doc.child(index).child(row).child(caret.column).nodeSize);
+    tr.delete(at, at + rows[row].child(caret.column).nodeSize);
   }
   const at = tr.mapping.map(layout[caret.row].cells[caret.column]);
   return tr.setSelection(Selection.near(tr.doc.resolve(at), caret.column > 0 ? -1 : 1)).scrollIntoView();
