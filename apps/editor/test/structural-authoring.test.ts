@@ -394,7 +394,8 @@ test("a Save request with a structural change is never sent from content editing
 test("content editing keeps text, inline math in a cell, list items and captions", () => {
   const { editable, state, rejections, schema } = contentEditor(true);
   let next = state.apply(state.tr.insertText(" Fixed", topPos(state, 1) + 1 + "First paragraph".length));
-  next = next.apply(next.tr.insert(innerPos(next, "tableCell", 3), schema.nodes.inlineMath.create({ value: "x^2" })));
+  // Into the cell's paragraph.
+  next = next.apply(next.tr.insert(innerPos(next, "tableCell", 3) + 1, schema.nodes.inlineMath.create({ value: "x^2" })));
   next = next.apply(next.tr.insertText(" text", innerPos(next, "tableCaption") + "Caption".length));
   const list = next.doc.child(4);
   next = next.apply(next.tr.insert(topPos(next, 4) + list.nodeSize - 1,

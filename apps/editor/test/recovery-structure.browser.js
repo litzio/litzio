@@ -33,7 +33,7 @@ async (page, { openFolderPicker, openDocument, reloadDocument, screenshots }) =>
     });
     const inputs = [];
     editor.state.doc.descendants((child,pos) => {
-      if (child.type.name === 'tableCell') inputs.push({pos:pos+1,text:`Cell ${inputs.length+1}`});
+      if (child.type.name === 'tableCell') inputs.push({pos:pos+2,text:`Cell ${inputs.length+1}`});
       if (child.type.name === 'figure') inputs.push({pos:pos+1,text:'Pending figure caption'});
     });
     inputs.reverse().forEach(({pos,text})=>tr.insertText(text,tr.mapping.map(pos)));

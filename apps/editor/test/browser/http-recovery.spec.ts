@@ -118,8 +118,8 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
         {type:"equation",attrs:{latex:"x^2 + y^2 = z^2"}},
         {type:"table",content:[
           {type:"tableGrid",content:[
-            {type:"tableRow",content:[{type:"tableCell",attrs:{header:true},content:[{type:"text",text:"Header"}]}]},
-            {type:"tableRow",content:[{type:"tableCell",attrs:{header:false},content:[{type:"text",text:"Measured cell"}]}]},
+            {type:"tableRow",content:[{type:"tableCell",attrs:{header:true},content:[{type:"paragraph",content:[{type:"text",text:"Header"}]}]}]},
+            {type:"tableRow",content:[{type:"tableCell",attrs:{header:false},content:[{type:"paragraph",content:[{type:"text",text:"Measured cell"}]}]}]},
           ]},
           {type:"tableCaption",content:[{type:"text",text:"HTTP table caption"}]},
         ]},

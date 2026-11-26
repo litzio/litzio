@@ -38,7 +38,7 @@ function gridOf(table: TiptapJSON): TiptapJSON {
 
 function setCell(projection: TiptapJSON, row: number, cell: number, text: string, marks?: TiptapJSON["marks"]): TiptapJSON {
   const next = structuredClone(projection);
-  gridOf(tableOf(next)).content![row].content![cell].content = text ? [{ type: "text", text, ...(marks ? { marks } : {}) }] : [];
+  gridOf(tableOf(next)).content![row].content![cell].content![0].content = text ? [{ type: "text", text, ...(marks ? { marks } : {}) }] : [];
   return next;
 }
 
@@ -52,7 +52,7 @@ test("editable, empty and formatted cells round-trip through the single Tiptap s
     ["tableCell", "tableCell"],
   ]);
   assert.deepEqual(rows[1].content![1].attrs, { header: false, sourceCell: "1,1" });
-  assert.deepEqual(rows[2].content![1], { type: "tableCell", attrs: { header: false, sourceCell: "2,1" }, content: [] });
+  assert.deepEqual(rows[2].content![1], { type: "tableCell", attrs: { header: false, sourceCell: "2,1" }, content: [{ type: "paragraph", content: [] }] });
   const schema = getSchema(editorExtensions());
   assert.deepEqual(schema.nodeFromJSON(projection).toJSON(), schema.nodeFromJSON(schema.nodeFromJSON(projection).toJSON()).toJSON());
   assert.ok(schema.nodeFromJSON(projection).eq(schema.nodeFromJSON(projection)));
@@ -79,7 +79,7 @@ test("unsupported table grid changes are refused", () => {
   const changes: [string, (table: TiptapJSON) => void][] = [
     ["added row", (table) => { table.content!.push(structuredClone(table.content![2])); }],
     ["removed cell", (table) => { table.content![2].content!.pop(); }],
-    ["cell kind", (table) => { table.content![1].content![1] = { type: "tableCell", attrs: { header: false }, content: [] }; }],
+    ["cell kind", (table) => { table.content![1].content![1] = { type: "tableCell", attrs: { header: false }, content: [{ type: "paragraph", content: [] }] }; }],
     ["header flag", (table) => { table.content![2].content![0].attrs!.header = true; }],
     ["column alignment", (table) => { table.content![2].content![0].attrs!.align = "right"; }],
   ];
@@ -97,7 +97,8 @@ test("typing in a cell is allowed and undoable; Enter cannot change the table", 
   let rejected = 0;
   let state = EditorState.create({ schema, doc, plugins: [history(), structureGuardPlugin(baseline, () => rejected++)] });
   const cell = cellPosition(doc, 1, 0);
-  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, cell + 2)));
+  // After the cell's first character: into the cell, its paragraph and past "U".
+  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, cell + 3)));
   state = state.apply(state.tr.insertText("-typed"));
   assert.equal(cellText(state.doc, 1, 0), "U-typed");
   assert.equal(rejected, 0);

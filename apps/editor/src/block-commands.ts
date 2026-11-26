@@ -654,14 +654,14 @@ export function insertTableAfter(state: EditorState, index: number, slash?: Slas
   const node = table.create(
     { sourcePath: reuse ? target.attrs.sourcePath : allocateBlockPath("command") },
     [tableGrid.create(null, Array.from({ length: NEW_TABLE_ROWS }, (_, row) =>
-      tableRow.create(null, Array.from({ length: NEW_TABLE_COLUMNS }, () => tableCell.create({ header: row === 0 }))))),
+      tableRow.create(null, Array.from({ length: NEW_TABLE_COLUMNS }, () => tableCell.createAndFill({ header: row === 0 })!)))),
     state.schema.nodes.tableCaption.create()],
   );
   const at = reuse ? pos : pos + target.nodeSize;
   if (reuse) tr.replaceWith(pos, pos + target.nodeSize, node);
   else tr.insert(at, node);
-  // Inside the table, its grid, its first row and its first cell.
-  return tr.setSelection(TextSelection.create(tr.doc, at + 4)).setMeta(BLOCK_COMMAND_META, true).scrollIntoView();
+  // Inside the table, its grid, its first row, its first cell and that cell's paragraph.
+  return tr.setSelection(TextSelection.create(tr.doc, at + 5)).setMeta(BLOCK_COMMAND_META, true).scrollIntoView();
 }
 
 /** Append a note paragraph and put the caret inside it. */
@@ -704,7 +704,7 @@ function blockPos(state: EditorState, index: number): number {
 
 function addedCell(state: EditorState, header: boolean, align = "") {
   // An added cell has no snapshot position.
-  return state.schema.nodes.tableCell.create({ header, align });
+  return state.schema.nodes.tableCell.createAndFill({ header, align })!;
 }
 
 /** Add an empty row below the caret's row, or below the last row; the caret moves into it. */
@@ -717,8 +717,9 @@ export function addTableRowBelow(state: EditorState, index: number, target?: Tab
   // Below the previous row: before the next row, or at the end of the last one.
   const at = tableLayout(state.doc, index)[row - 1].pos + rows[row - 1].nodeSize;
   const tr = closeHistory(state.tr).insert(at, state.schema.nodes.tableRow.create(null, cells));
-  // Empty cells are two positions wide: into the new row, past the cells before the caret's column.
-  const caret = at + 2 + 2 * (current?.column ?? 0);
+  // An empty cell and its paragraph are four positions wide: into the new row, past the cells
+  // before the caret's column, into the cell and its paragraph.
+  const caret = at + 3 + 4 * (current?.column ?? 0);
   return tr.setSelection(TextSelection.create(tr.doc, caret)).scrollIntoView();
 }
 
@@ -735,7 +736,7 @@ export function addTableColumnRight(state: EditorState, index: number, target?: 
     for (let i = 0; i < column; i++) at += row.child(i).nodeSize;
     const mapped = tr.mapping.map(at);
     tr.insert(mapped, addedCell(state, rowIndex === 0));
-    if (rowIndex === (current?.row ?? 0)) caret = mapped + 1;
+    if (rowIndex === (current?.row ?? 0)) caret = mapped + 2;
   });
   return tr.setSelection(TextSelection.create(tr.doc, caret)).scrollIntoView();
 }
@@ -770,7 +771,7 @@ export function moveTableRow(state: EditorState, index: number, by: -1 | 1, targ
   const rows = tableRows(state.doc.child(index));
   const layout = tableLayout(state.doc, index);
   const [upper, lower] = by < 0 ? [to, caret.row] : [caret.row, to];
-  const offset = target ? layout[caret.row].cells[caret.column] - layout[caret.row].pos + 1 : state.selection.from - layout[caret.row].pos;
+  const offset = target ? layout[caret.row].cells[caret.column] - layout[caret.row].pos + 2 : state.selection.from - layout[caret.row].pos;
   const tr = closeHistory(state.tr).replaceWith(layout[upper].pos, layout[lower].pos + rows[lower].nodeSize, [rows[lower], rows[upper]]);
   // The rows swap places, so the moved row starts where the upper row did, or right after the other one.
   const start = by < 0 ? layout[upper].pos : layout[upper].pos + rows[lower].nodeSize;
@@ -785,7 +786,7 @@ export function moveTableColumn(state: EditorState, index: number, by: -1 | 1, t
   const rows = tableRows(state.doc.child(index));
   const [left, right] = by < 0 ? [to, caret.column] : [caret.column, to];
   const layout = tableLayout(state.doc, index);
-  const offset = target ? 1 : state.selection.from - layout[caret.row].cells[caret.column];
+  const offset = target ? 2 : state.selection.from - layout[caret.row].cells[caret.column];
   // Swapping two cells keeps the row's size, so the positions of later rows stay valid.
   const tr = closeHistory(state.tr);
   layout.forEach(({ cells }, row) => {
@@ -1001,7 +1002,7 @@ export function formattableSelection(state: EditorState): { from: number; to: nu
   const { $from, $to } = selection;
   const parent = $from.parent;
   const editableInlineParent = parent.type.name === "paragraph" ||
-    parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "heading" || parent.type.name === "tableCell" || parent.type.name === "figure" || parent.type.name === "tableCaption" || parent.type.name === "tableNote" || parent.type.name === "admonition";
+    parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "heading" || parent.type.name === "figure" || parent.type.name === "tableCaption" || parent.type.name === "tableNote" || parent.type.name === "admonition";
   if (!$from.sameParent($to) || !editableInlineParent) return null;
   return { from: selection.from, to: selection.to };
 }

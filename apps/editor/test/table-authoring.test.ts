@@ -71,7 +71,8 @@ function caretIn(state: EditorState, row: number, column: number, index = TABLE)
   for (let i = 0; i < row; i++) at += table.child(i).nodeSize;
   at += 1;
   for (let i = 0; i < column; i++) at += table.child(row).child(i).nodeSize;
-  return state.apply(state.tr.setSelection(TextSelection.create(state.doc, at + 1)));
+  // Into the cell and its paragraph.
+  return state.apply(state.tr.setSelection(TextSelection.create(state.doc, at + 2)));
 }
 
 const cellOf = (state: EditorState) => ({ row: state.selection.$from.index(2), column: state.selection.$from.index(3) });
@@ -246,13 +247,13 @@ test("a new table has a header row and two body rows of three columns, and saves
       assert.equal(saveEdits(saved.markdown, collectSupportedEdits(reopened.document, reopened.state.doc.toJSON() as TiptapJSON)).markdown, saved.markdown);
       // Save filled cells, then clear them while the table still has its insertion locator.
       const filled = structuredClone(next);
-      filled.content![1].content![0].content![0].content![0].content = [{ type: "text", text: "Draft" }];
+      filled.content![1].content![0].content![0].content![0].content![0].content = [{ type: "text", text: "Draft" }];
       const filledSaved = saveEdits(mixed, collectSupportedEdits(document, filled));
       assert.equal(saveEdits(mixed, collectSupportedEdits(document, next)).markdown, saved.markdown);
       // Clearing an opening-snapshot cell must produce the same persisted table.
       const openedFilled = editorState(filledSaved.markdown);
       const cleared = openedFilled.state.doc.toJSON() as TiptapJSON;
-      cleared.content![1].content![0].content![0].content![0].content = [];
+      cleared.content![1].content![0].content![0].content![0].content![0].content = [];
       assert.equal(saveEdits(filledSaved.markdown, collectSupportedEdits(openedFilled.document, cleared)).markdown, saved.markdown);
     }
   }
@@ -329,7 +330,7 @@ test("adding a row or column is one undo step and leaves nothing to save once un
 test("rows and columns are added, removed and moved only whole, and the header row stays first", () => {
   const baseline = toTiptapDocument(loadEditableDocument(mixed));
   // An added cell has no snapshot position.
-  const added = (header = false) => ({ type: "tableCell", attrs: { header }, content: [] });
+  const added = (header = false) => ({ type: "tableCell", attrs: { header }, content: [{ type: "paragraph", content: [] }] });
   // The table block's grid, which holds its rows.
   const tableOf = (projection: TiptapJSON) => projection.content![TABLE].content![0];
   const changes: [string, (table: TiptapJSON) => void][] = [

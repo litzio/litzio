@@ -366,7 +366,7 @@ export function insertReference(editor: Editor, range: { from: number; to: numbe
   const $to = state.doc.resolve(range.to);
   const parent = $from.parent;
   if (!$from.sameParent($to) || !(parent.type.name === "paragraph" ||
-      parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "heading" || parent.type.name === "tableCell" || parent.type.name === "figure" || parent.type.name === "tableCaption" || parent.type.name === "tableNote" || parent.type.name === "admonition")) return false;
+      parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "heading" || parent.type.name === "figure" || parent.type.name === "tableCaption" || parent.type.name === "tableNote" || parent.type.name === "admonition")) return false;
   const marks = (range.from === range.to ? state.storedMarks ?? $from.marks() : $from.marksAcross($to) ?? [])
     .filter((mark) => mark.type.name !== "link");
   const tr = state.tr;

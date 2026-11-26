@@ -176,7 +176,7 @@ test("technical document projects to one typed Tiptap document", () => {
   const rows = table?.content?.[0]?.content ?? [];
   assert.equal(rows.length, 3);
   assert.deepEqual(rows[0]?.content?.map((cell) => [cell.type, cell.attrs?.header]), [["tableCell", true], ["tableCell", true]]);
-  assert.deepEqual(rows[1]?.content?.[1], { type: "tableCell", attrs: { header: false, sourceCell: "1,1" }, content: [{ type: "text", text: "AC" }] });
+  assert.deepEqual(rows[1]?.content?.[1], { type: "tableCell", attrs: { header: false, sourceCell: "1,1" }, content: [{ type: "paragraph", content: [{ type: "text", text: "AC" }] }] });
 });
 
 test("projected technical document round-trips through the Tiptap schema without semantic edits", () => {
@@ -1761,7 +1761,7 @@ test("empty paragraph and empty heading saves are rejected", () => {
   });
   const table = loadEditableDocument(nativeSource("# Title\n\n| a | b |\n|--|--|\n| c | d |\n"));
   const broken = clone(toTiptapDocument(table));
-  broken.content![1].content![0].content![1].content![1].content = [{ type: "image" }];
+  broken.content![1].content![0].content![1].content![1].content![0].content = [{ type: "image" }];
   assert.throws(() => collectSupportedEdits(table, broken), (error: unknown) => {
     assert.ok(error instanceof SaveContentError);
     assert.match(error.message, /unsupported Tiptap node "image"/);
@@ -2050,7 +2050,7 @@ test("typed straight quotes save through the Editor adapter and Host and reload 
     { type: "text", text: '"READY"', marks: [{ type: "bold" }] },
     { type: "text", text: "." },
   ];
-  table.content![0].content![1].content![1].content = [{ type: "text", text: "it's \"on\"" }];
+  table.content![0].content![1].content![1].content![0].content = [{ type: "text", text: "it's \"on\"" }];
   let written = "";
   const saved = commitDocumentSave(() => input, (markdown) => { written = markdown; },
     { revision: documentRevision(input), ...collectSupportedEdits(editable, projected) });

@@ -48,7 +48,7 @@ import { InlineMathView } from "./node-views/inline-math-view.tsx";
 import { LabelTargetView } from "./node-views/label-target-view.tsx";
 import { TableCaptionView, TableView } from "./node-views/table-view.tsx";
 import { EDIT_PROPERTIES, type DraftListener } from "./node-views/shared.ts";
-import { tableRows } from "./table-structure.ts";
+import { inTableCell, tableRows } from "./table-structure.ts";
 
 export type { DraftKind } from "./node-views/shared.ts";
 export { captionPlaceholderVisible } from "./node-views/shared.ts";
@@ -595,11 +595,12 @@ const TableRow = Node.create({
   },
 });
 
-// Cells hold inline content, including hard breaks. Every cell spans one row and one column; the
-// span attributes exist for TableMap and are never read from pasted HTML.
+// A cell holds its content as blocks: one paragraph of inline content, including hard breaks.
+// Every cell spans one row and one column; the span attributes exist for TableMap and are never
+// read from pasted HTML.
 const TableCell = Node.create({
   name: "tableCell",
-  content: "(text | hardBreak | inlineMath | crossReference | footnoteReference | citation)*",
+  content: "paragraph",
   isolating: true,
   addAttributes() {
     return { header: headerAttr, align: hiddenAttr(""), [TABLE_CELL_SOURCE_ATTR]: { default: "", rendered: false },
@@ -673,10 +674,12 @@ const ParagraphHardBreak = Extension.create({
     const insert = (shift: boolean) => () => {
       const { state } = this.editor;
       if (!this.editor.isEditable || this.editor.view.composing) return false;
-      const parent = state.selection.$from.parent;
-      const editableInlineParent = parent.type.name === "paragraph" ||
+      const { $from } = state.selection;
+      const parent = $from.parent;
+      // A table cell's paragraph takes Shift+Enter breaks only, as a table note does.
+      const editableInlineParent = (parent.type.name === "paragraph" && (shift || !inTableCell($from))) ||
         parent.type.name === "quote" || parent.type.name === "footnoteDefinition" || parent.type.name === "admonition" ||
-        (shift && (parent.type.name === "tableCell" || parent.type.name === "tableNote"));
+        (shift && parent.type.name === "tableNote");
       // A selected inline math node is not replaced by a break.
       if (!editableInlineParent || state.selection instanceof NodeSelection) return true;
       // A break ends inline code; code is text only.

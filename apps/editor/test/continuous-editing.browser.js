@@ -283,9 +283,10 @@ async (page, { expect, showNotifications, openDocument }) => {
       await target.click();
     }
     else await target.click();
-    const type = ['paragraph', 'list item'].includes(name) ? 'paragraph'
+    // A table cell's text is in its paragraph.
+    const type = ['paragraph', 'list item', 'table cell'].includes(name) ? 'paragraph'
       : ['quote', 'admonition', 'heading'].includes(name) ? name : name === 'code' ? 'codeBlock'
-      : name === 'table cell' ? 'tableCell' : name === 'table caption' ? 'tableCaption'
+      : name === 'table caption' ? 'tableCaption'
       : name === 'endnote' ? 'footnoteDefinition' : 'figure';
     await page.waitForFunction(({type, text}) => {
       const {selection} = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state;
@@ -529,7 +530,7 @@ async (page, { expect, showNotifications, openDocument }) => {
 
   const firstCell = page.locator('[data-document-tab][data-active=true] .document-editor th').first();
   await firstCell.click();
-  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parent.type.name === 'tableCell');
+  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.node(-1).type.name === 'tableCell');
   await page.keyboard.press('Tab');
   assert(await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(el => el.editor.state.selection.$from.parent.textContent) === 'Right', 'Tab must move to next cell');
   await page.keyboard.press('Shift+Tab');

@@ -166,7 +166,7 @@ async (page, { openPath, expect }) => {
   await center.getByRole('button', { name:'Go to problem', exact:true }).click();
   // NotificationScope reveals the document before navigating on the next animation frame.
   // Observe that completed navigation, rather than the selection before its callback runs.
-  await expect.poll(() => engine.evaluate(el => el.editor.state.selection.$from.parent.type.name)).toBe('tableCell');
+  await expect.poll(() => engine.evaluate(el => el.editor.state.selection.$from.node(-1).type.name)).toBe('tableCell');
   await diagram('this is not Mermaid');
   await expect(center.getByTestId('mermaid-error')).toBeVisible();
   await expect(center).toHaveAttribute('data-severity', 'error');

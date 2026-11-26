@@ -1483,7 +1483,8 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-alpha"] > li::marker { c
 ol.list[data-list-delimiter=")"][data-list-style="lower-roman"] > li::marker { content: counter(list-item, lower-roman) ") "; }
 ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { content: counter(list-item, upper-roman) ") "; }
 
-.list .paragraph {
+.list .paragraph,
+.table [data-table-cell] > .paragraph {
   margin: 0;
 }
 
