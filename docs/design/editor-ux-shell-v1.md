@@ -187,7 +187,9 @@ Settings retains its existing Escape close behavior, including selecting the ori
 
 ## 문서 글자 수 (#2041)
 
-네이티브 문서의 탭 줄에서 **글자 수 보기**를 실행하면 공백 포함·제외 값이 버튼의 툴팁과 문서 알림에 표시된다. 명령은 기존 읽기 전용 Source 미리보기로 적용된 본문 스냅샷을 받아 [Core 집계](document-support-v1.md#문서-글자-수-2041)를 수행한다. 미리보기를 만들 수 없으면 같은 자리에 이유를 표시한다. 집계는 버튼을 실행할 때 시작한다. 전체화면에서는 탭 줄과 함께 버튼이 숨겨진다.
+네이티브 문서를 열고 명령 센터에서 **글자 수**를 실행하면 공용 대화상자가 열린다. 기존 읽기 전용 Source 미리보기로 현재 적용된 본문 스냅샷을 받아 [Core 집계](document-support-v1.md#문서-글자-수-2041)를 수행한다. 대화상자에 공백 포함·제외 값 또는 미리보기를 만들 수 없는 이유를 표시하고, 닫으면 결과를 버린다. 전체화면에서도 명령 센터로 실행할 수 있다.
+
+결과 대화상자 기준 화면(1920px) [라이트](assets/character-count-2041/dialog-1920-light.png) · [다크](assets/character-count-2041/dialog-1920-dark.png).
 
 ## Title strip and tab-row actions (#695)
 

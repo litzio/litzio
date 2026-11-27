@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { operationText, type Operation } from "../operation.ts";
 import { useEffect, useState, type ReactNode, type Ref } from "react";
-import { ArrowLeftRight, Check, Circle, Copy, Ellipsis, FileDiff, FilePenLine, LoaderCircle, Maximize, PanelRight, PanelRightOpen, RotateCcw, StretchHorizontal, TriangleAlert, CaseSensitive } from "lucide-react";
+import { ArrowLeftRight, Check, Circle, Copy, Ellipsis, FileDiff, FilePenLine, LoaderCircle, Maximize, PanelRight, PanelRightOpen, RotateCcw, StretchHorizontal, TriangleAlert } from "lucide-react";
 import { ChoiceGroup } from "@/components/ui/choice-group.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
@@ -57,8 +57,6 @@ type DocumentActionsProps = PluginFileMenuProps & {
   status: Operation;
   unsaved?: boolean;
   draftNotice?: string;
-  characterCountMessage?: string;
-  onCountCharacters?(): void;
   view: DocumentView;
   /** All views unavailable, e.g. no document or an operation in flight. */
   viewDisabled?: boolean;
@@ -87,7 +85,7 @@ type DocumentActionsProps = PluginFileMenuProps & {
 
 /** Actions and status of this tab row's active document. */
 export function DocumentActions({
-  documentPath, textMode, markdownText, hideViewControls, wide, onToggleWide, status, unsaved = false, draftNotice = "", characterCountMessage, onCountCharacters, view, viewDisabled, onViewChange, saveDisabled,
+  documentPath, textMode, markdownText, hideViewControls, wide, onToggleWide, status, unsaved = false, draftNotice = "", view, viewDisabled, onViewChange, saveDisabled,
   onSave, onCompare, compareDisabled, onReload, reloadDisabled, onCopyPath, fileActionsRef, pluginActions, onOpenPluginFile, onFullscreen,
   outline, onToggleOutline, outlineToggleRef, compact: groupCompact = false, onOpenRight, onMove, openRightDisabled, moveDisabled, onManageHighlights,
 }: DocumentActionsProps) {
@@ -146,13 +144,6 @@ export function DocumentActions({
             <FilePenLine aria-hidden="true" /><span className="draft-indicator-label" aria-hidden="true">{i18n.t("Unapplied draft")}</span>
           </TooltipTrigger>
           <TooltipContent side="bottom" data-testid="draft-indicator-description">{draftNotice}</TooltipContent>
-        </Tooltip> : null}
-        {onCountCharacters ? <Tooltip>
-          <TooltipTrigger closeOnClick={false} render={<Button type="button" size="icon-sm" variant="ghost"
-            aria-label={i18n.t("Count characters")} onClick={onCountCharacters} disabled={reloadDisabled} />}>
-            <CaseSensitive aria-hidden="true" />
-          </TooltipTrigger>
-          <TooltipContent side="bottom" data-testid="character-count-tooltip">{characterCountMessage || i18n.t("Count characters")}</TooltipContent>
         </Tooltip> : null}
           <Button type="button" variant={saveVariant} className="top-bar-save" data-save-state={saveState}
             aria-busy={saving || undefined} onClick={onSave} disabled={saveDisabled} data-testid="save"

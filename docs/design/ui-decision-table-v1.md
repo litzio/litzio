@@ -2,7 +2,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
-| 문서 글자 수를 확인한다 (#2041) | 문서 탭 줄의 저장 버튼 왼쪽 | ghost icon-sm Button·Lucide CaseSensitive·Tooltip·기존 문서 알림 | **글자 수 보기**를 실행하면 공백 포함·제외 값을 표시 | [문서 글자 수](editor-ux-shell-v1.md#문서-글자-수-2041) | 요청할 때 집계 |
+| 문서 글자 수를 확인한다 (#2041) | 명령 센터 → 결과 대화상자 | CommandCenter·Lucide CaseSensitive·공용 Dialog | **글자 수**를 실행하면 공백 포함·제외 값을 표시하고 닫을 때 결과를 버림 | [문서 글자 수](editor-ux-shell-v1.md#문서-글자-수-2041) | 요청할 때 집계 |
 | 열린 문서 안에서 글자를 찾는다 (#1982) | 문서 스크롤 영역(문서 탭·플러그인 문서 보기) 오른쪽 위에 뜨는 막대 | prosemirror-search decoration·Input(compact)·ghost icon-sm Button(aria-pressed 대소문자)·Lucide CaseSensitive/ChevronUp/ChevronDown/X·title 툴팁·`--shadow-overlay` | Ctrl/Cmd+F·명령 센터로 열기, 입력하는 대로 일치 표시와 `현재 / 전체`, Enter·F3 이동과 순환, Esc는 마지막 일치 자리로 caret·focus 복귀 | [문서에서 찾기](editor-ux-shell-v1.md#find-in-document-1982) | 입력 이름은 명령 센터처럼 placeholder와 접근성 이름(좁은 막대에 상시 이름표 없음). 일치 색은 경고 토큰 |
 | 문서에 단어별 강조 세트를 켠다 (#2020) | 문서 탭 줄의 형광펜 버튼과 메뉴, 설정의 "강조 세트" 분류 | ghost Button(켜지면 sm·색 점·세트 이름)·Tooltip·DropdownMenu(menuitemradio·menuitemcheckbox)·명령 센터 항목·ColorSwatches(강조색과 같은 radio 묶음)·Popover·Input·DangerConfirmation, 단어 표시는 ProseMirror inline decoration | 세트 고르기·끄기·이 폴더의 기본·세트 관리…, 문서별 선택이 폴더 기본보다 우선, 설정에서 세트·단어·색 정리. 편집에서 선택 도구 막대 "강조"(Popover의 색 radio·빼기), 강조된 단어 우클릭·Shift+F10은 본문 블록 메뉴(CommandMenu) 맨 위 강조 묶음(색 바꾸기는 두 번째 메뉴) | [강조 세트](editor-ux-shell-v1.md#highlight-sets-2020) | 이 기기의 보기 설정이라 Core 연산·CLI 없음(화면 언어 선례). 팔레트 8색은 링크 파랑·기본 선택 자주와 구별되는 자기 값 |
 | 링크로 이 문서의 블록을 연결한다 (#1956) | 기존 선택 영역의 링크 창 | Button·Input·FieldError·참조 삽입의 CommandMenu 행 | 문서 안 대상 고르기 → 검색·선택 → URL 갱신 → 적용 | [일반 링크](editor-ux-shell-v1.md#open-ordinary-links-725) | 후보는 링크 창 안에서 스크롤하며, 주소 입력과 검색을 각각 유지 |
