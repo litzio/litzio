@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getSchema } from "@tiptap/core";
 import { history, undoDepth } from "@tiptap/pm/history";
-import { parse, serializeChange } from "@litzio/core";
+import { parse, replaceAllText, serializeChange } from "@litzio/core";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { editorDocumentJSON, editorExtensions } from "../src/editor-schema.tsx";
 import { closeFindTransaction, findMatches, findStep, findTransaction, selectedFindText } from "../src/document-find.ts";
@@ -12,6 +12,47 @@ import { replaceFoundText } from "../src/document-replace.ts";
 import { saveEdits } from "../server/document-replay.ts";
 import { parseCommandArgs, replaceAllTextFor } from "../server/document-edit-commands.ts";
 import { loadEditableDocument, nativeSource } from "./helpers/document.ts";
+
+test("one-at-a-time replacement finishes without selecting text it inserted", () => {
+  let state = find(editorState(nativeSource("a a\n")), "a", true);
+  state = step(state, 1);
+  for (const expected of ["a aa", "aa aa"]) {
+    const change = replaceFoundText(state, "aa", false);
+    assert.ok(change);
+    state = state.apply(change.tr);
+    assert.equal(state.doc.textContent, expected);
+  }
+  assert.equal(findMatches(state).current, -1);
+  assert.deepEqual(findMatches(state).matches, []);
+  assert.equal(replaceFoundText(state, "aa", false)?.replaced, 0);
+});
+
+test("a caret inside the only non-overlapping match wraps to the highlighted range", () => {
+  let state = editorState(nativeSource("aaa\n"));
+  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 2)));
+  state = find(state, "aa", true);
+  assert.deepEqual(findMatches(state), { matches: [{ from: 1, to: 3 }], current: 0 });
+  assert.equal(replaceFoundText(state, "b", false)?.replaced, 1);
+});
+
+test("200-cell replace-all benchmark", { skip: process.env.LITZIO_REPLACE_BENCHMARK !== "1" }, () => {
+  const markdown = nativeSource("| motor |\n| --- |\n" + "| motor |\n".repeat(199));
+  const opening = parse(markdown);
+  const model = loadEditableDocument(markdown);
+  const state = find(editorState(markdown), "motor", true);
+  const startEditor = performance.now();
+  const change = replaceFoundText(state, "drive", true)!;
+  const candidate = collectSupportedEdits(model, editorDocumentJSON(state.apply(change.tr)));
+  const preview = saveEdits(markdown, candidate).markdown;
+  const editorMs = performance.now() - startEditor;
+  const startCli = performance.now();
+  const result = replaceAllText(opening, { from: "motor", to: "drive" });
+  const cli = serializeChange(opening, () => result.document);
+  const cliMs = performance.now() - startCli;
+  assert.equal(preview, cli);
+  assert.equal(result.replaced, 200);
+  assert.ok(Math.max(editorMs, cliMs) <= 500, `Editor preview ${editorMs.toFixed(1)} ms, CLI operation and write validation ${cliMs.toFixed(1)} ms`);
+});
 
 // Find (#1982) reuses prosemirror-search. These cases pin what Litzio relies on: which document
 // text it reaches, case handling, wrapping, and that finding never edits the document.

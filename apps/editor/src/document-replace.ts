@@ -2,7 +2,7 @@ import { closeHistory } from "@tiptap/pm/history";
 import { paragraphInlineContent } from "@litzio/core";
 import type { Mark } from "@tiptap/pm/model";
 import { TextSelection, type EditorState } from "@tiptap/pm/state";
-import { findMatches } from "./document-find.ts";
+import { findMatches, keepRemainingMatches } from "./document-find.ts";
 import { fromTiptapContent } from "./tiptap-inline.ts";
 
 /** Replace the ranges the find bar actually highlights in the current Editor snapshot. */
@@ -41,9 +41,14 @@ export function replaceFoundText(state: EditorState, replacement: string, all: b
     if (!paragraphInlineContent(content).length) return null;
   }
   if (!all && current >= 0) {
-    const next = matches.length > 1 ? matches[(current + 1) % matches.length] : undefined;
-    const from = next ? tr.mapping.map(next.from, 1) : tr.mapping.map(matches[current].to);
-    const to = next ? tr.mapping.map(next.to, -1) : from;
+    const end = tr.mapping.map(matches[current].to);
+    const remaining = matches.filter((_, index) => index !== current).map(({ from, to }) => ({
+      from: tr.mapping.map(from, 1), to: tr.mapping.map(to, -1),
+    }));
+    keepRemainingMatches(tr, remaining);
+    const next = remaining.find(match => match.from >= end) ?? remaining[0];
+    const from = next?.from ?? end;
+    const to = next?.to ?? end;
     tr.setSelection(TextSelection.create(tr.doc, from, to)).scrollIntoView();
   }
   return { tr, replaced };

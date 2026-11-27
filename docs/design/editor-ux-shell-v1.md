@@ -1255,7 +1255,11 @@ the field still shows each key at once, and Enter/F3 search first. Other matches
 links and references and the text colors in both themes.
 
 In Edit, **Replace in document** on the find bar or Ctrl/Cmd+H opens the replacement row.
-**Replace** changes the current match and advances. **Replace all** takes the highlighted ranges
+The current match comes from the same left-to-right, non-overlapping ranges used for highlighting.
+**Replace** changes the current match and moves to the first remaining match after the inserted
+text, wrapping to the first remaining match at the end of the document. Only the original matches
+remain in that pass. Changing the query or making a separate document edit starts a new pass.
+**Replace all** takes the currently highlighted ranges
 from left to right, applies them in one history event and reports how many actually changed.
 An empty replacement deletes the match. The new text inherits only marks shared by the entire
 match. The Host runs the existing Save preview validation on the proposed edit before it applies.
