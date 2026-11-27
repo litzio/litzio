@@ -469,7 +469,7 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   expect(await caption.getAttribute('data-number'), 'Clearing the label keeps the official number immediately').toBe('Table 1');
   const withoutMetadata = await save();
   expect(withoutMetadata).not.toContain(':::{table}');
-  expect(withoutMetadata).toMatch(/^\| --- \| --- \|$/m);
+  expect(withoutMetadata).toContain('\n| Header |\n| --- |\n| Cell |\n');
   await reloadDocument(page);
   expect(await caption.getAttribute('data-number'), 'Every table keeps its official number after Reload').toBe('Table 1');
   expect(await table.getByRole('button',{name:'Add caption',exact:true}).count()).toBe(0);
