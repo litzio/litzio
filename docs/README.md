@@ -193,6 +193,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [2026-11-25 큰 문서의 국소 정규 쓰기](spikes/2026-11-25-local-canonical-write.md) | Historical | 변경 블록과 이웃을 다시 읽는 후보의 동등성, 적격률 및 비용을 비교했다. 결론 미정. |
 | [2026-11-26 작업 탭 머리 영역 줄이기 세 시안](spikes/2026-11-26-compact-task-header.md) | Historical | 작업 탭 머리의 한 줄·두 줄·최소형 시안을 같은 조건에서 찍고 머리 높이와 본문 시작 위치를 비교했다. A(한 줄) 채택. |
 | [2026-11-26 강조 세트 화면 배치 두 시안](spikes/2026-11-26-highlight-sets.md) | Historical | 강조 세트를 탭 줄 버튼(A)과 ⋯ 하위 메뉴(B)로 고르는 두 시안, 문서 안 추가·우클릭·설정, 8색 팔레트 대비를 같은 조건에서 찍었다. 결론 미정. |
+| [2026-11-27 Rust로 만든 얇은 CLI의 호출 비용 절감](spikes/2026-11-27-rust-cli-client.md) | Historical | 설치판 CLI 호출 비용을 기동·번들 로드·가드·Host 왕복으로 나누고, 비서의 호출 수와 Host 전용 Rust 클라이언트의 절감을 쟀다. 결론 미정. |
 
 ## Verification
 
