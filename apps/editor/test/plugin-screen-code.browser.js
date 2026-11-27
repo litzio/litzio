@@ -261,7 +261,8 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
     const findInput = page.getByTestId('document-find-input');
     await expect(findInput).toBeFocused();
     expect((await findInput.boundingBox()).width).toBeGreaterThan(80);
-    const exitHint = page.getByRole('tooltip').filter({hasText:'Exit full screen (F11)'});
+    await exitFullscreen.hover();
+    const exitHint = page.locator('[data-slot="tooltip-content"][data-open]').filter({hasText:'Exit full screen (F11)'});
     await expect(exitHint).toBeVisible();
     const [exitBox, findBox, hintBox] = await Promise.all([exitFullscreen.boundingBox(), page.locator('.document-find').boundingBox(), exitHint.boundingBox()]);
     expect(findBox.x + findBox.width).toBeLessThanOrEqual(exitBox.x);
