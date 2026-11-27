@@ -48,6 +48,8 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   // The Activity bar marks the entry of the focused group's active screen tab.
   await expect(barEntry).toHaveAttribute('aria-current','page');
   const target = workspace.getByRole('button',{name:'Menu target',exact:true});
+  await page.keyboard.press('F11');
+  await expect(page.locator('.app-titlebar')).toBeHidden();
   await target.click({button:'right'});
   await expect(page.getByRole('menuitem',{name:'Run action'})).toBeVisible();
   const bounds = await page.getByRole('menu').boundingBox();
@@ -55,7 +57,11 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await page.getByRole('menuitem',{name:'Unavailable action'}).click({force:true});
   await expect(workspace.locator('output')).toHaveText('Ready');
   await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(page.locator('.app-titlebar')).toBeHidden();
   await expect(target).toBeFocused();
+  await page.keyboard.press('F11');
+  await expect(barEntry).toBeVisible();
   await target.press('ContextMenu');
   await expect(page.getByRole('menuitem',{name:'Run action'})).toBeVisible();
   const outside = await workspace.locator('output').boundingBox();
@@ -217,6 +223,10 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect(fullscreen).toBeVisible();
   await command('Measurements');
   await expect(workspace).toBeVisible();
+  await expect(exitFullscreen).toHaveCSS('opacity', '0');
+  await page.mouse.move(720, 0);
+  await expect(exitFullscreen).toHaveCSS('opacity', '1');
+  await page.mouse.move(720, 80);
   await expect(exitFullscreen).toHaveCSS('opacity', '0');
   await page.mouse.move(1416, 0);
   await expect(exitFullscreen).toHaveCSS('opacity', '1');

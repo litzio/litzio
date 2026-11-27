@@ -3493,12 +3493,14 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .app-shell--fullscreen .app-main { height: 100%; }
 .fullscreen-exit {
   position: fixed;
-  inset: 0 var(--space-4) auto auto;
+  inset: 0 0 auto;
   z-index: 5;
   app-region: no-drag;
   pointer-events: none;
 }
 .fullscreen-exit > button {
+  position: absolute;
+  inset: 0 var(--space-4) auto auto;
   opacity: 0;
   pointer-events: none;
   background: var(--id-color-surface);
