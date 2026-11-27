@@ -16,7 +16,7 @@ export function FullscreenExit({ onExit }: { onExit(): void }) {
       <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={label} aria-keyshortcuts="F11" onClick={onExit} />}>
         <Minimize aria-hidden="true" />
       </TooltipTrigger>
-      <TooltipContent side="bottom">{label} (F11)</TooltipContent>
+      <TooltipContent side="bottom" sideOffset={({ anchor }) => anchor.height}>{label} (F11)</TooltipContent>
     </Tooltip>
   </div>;
 }

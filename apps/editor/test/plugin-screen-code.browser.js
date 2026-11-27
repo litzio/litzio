@@ -261,8 +261,11 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
     const findInput = page.getByTestId('document-find-input');
     await expect(findInput).toBeFocused();
     expect((await findInput.boundingBox()).width).toBeGreaterThan(80);
-    const [exitBox, findBox] = await Promise.all([exitFullscreen.boundingBox(), page.locator('.document-find').boundingBox()]);
+    const exitHint = page.getByRole('tooltip').filter({hasText:'Exit full screen (F11)'});
+    await expect(exitHint).toBeVisible();
+    const [exitBox, findBox, hintBox] = await Promise.all([exitFullscreen.boundingBox(), page.locator('.document-find').boundingBox(), exitHint.boundingBox()]);
     expect(findBox.x + findBox.width).toBeLessThanOrEqual(exitBox.x);
+    expect(findBox.y + findBox.height).toBeLessThanOrEqual(hintBox.y);
     await page.screenshot({path:'tmp/2037/document-1440-dark-find.png'});
     await page.keyboard.press('Escape');
     await command('>Exit full screen', 'Exit full screen');
