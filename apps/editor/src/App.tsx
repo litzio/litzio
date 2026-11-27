@@ -22,7 +22,7 @@ import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { activeHighlightSet, chooseHighlightSet, relocateHighlightChoice, useHighlightState } from "./highlight-sets.ts";
 import { productName } from "../../../brand.ts";
-import { ASSISTANT_SHORTCUT, CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, FIND_SHORTCUT, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
+import { ASSISTANT_SHORTCUT, CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, FIND_SHORTCUT, REOPEN_TAB_SHORTCUT, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { useShellLayout } from "./shell/useShellLayout.ts";
 import { useTabFullscreen } from "./shell/useTabFullscreen.ts";
 import { FullscreenExit } from "./shell/FullscreenExit.tsx";
@@ -99,6 +99,13 @@ const desktop = typeof window === "undefined" ? undefined : window.litzioDesktop
 const hasVisiblePopup = (includeMenus = false) => [...globalThis.document.querySelectorAll(
   includeMenus ? '[role="dialog"], [aria-modal="true"], [role="menu"]' : '[role="dialog"], [aria-modal="true"]',
 )].some(element => element.getClientRects().length > 0);
+
+type ClosedTab =
+  | { kind: "file"; path: string }
+  | { kind: "screen"; plugin: string; screen: string; fileOpen?: Pick<ScreenFileOpen, "actionId" | "path"> }
+  | { kind: "settings" | "templates" };
+
+const CLOSED_TAB_LIMIT = 10;
 
 export function App() {
   return <NotificationProvider><EditorApp /></NotificationProvider>;
@@ -220,6 +227,9 @@ function EditorApp() {
     return current ? openScreen(current.screen, { request: ++nextFileOpen.current, actionId: current.action.id, path }) : false;
   };
 
+  const reopenPluginFileRef = useRef(openPluginFile);
+  reopenPluginFileRef.current = openPluginFile;
+
   const focusedGroup = navigation.groups.find(group => group.id === navigation.focused)!;
   const activeId = focusedGroup.active;
   const exitedEmpty = useRef(false);
@@ -293,6 +303,12 @@ function EditorApp() {
   }, [refreshRecovery, tabs.length]);
   const nextId = useRef(0);
   const focusAfterClose = useRef(false);
+  const closedTabs = useRef<ClosedTab[]>([]);
+  const reopeningTab = useRef(false);
+  function rememberClosedTab(tab: ClosedTab): void {
+    closedTabs.current.push(tab);
+    if (closedTabs.current.length > CLOSED_TAB_LIMIT) closedTabs.current.shift();
+  }
   const [operation, setOperation] = useState<Operation | "">("loading");
   const operationRef = useRef(true);
   // Pending reads belong to their destination group and captured Host, not the window lock.
@@ -565,7 +581,10 @@ function EditorApp() {
     const closingGroup = navigation.groups.find(group => group.tabs.includes(id));
     if (closingGroup) cancelOpen(closingGroup.id);
     const closing = latestTabs.current.find(tab => tab.id === id);
-    if (closing) markStartupOverride(closing.path);
+    if (closing && closingGroup) {
+      rememberClosedTab({ kind: "file", path: closing.path });
+      markStartupOverride(closing.path);
+    }
     void sessions.current.get(id)?.discardRecovery()?.then(deleted => {
       if (!deleted) setError({ key: "The tab closed, but its local recovery record could not be deleted. Review it on the start screen and try Delete record again." });
     });
@@ -720,13 +739,22 @@ function EditorApp() {
     return `./${renamed.slice(directory.length).replaceAll("\\", "/")}`;
   };
   function closeTab(id: string, protectedTabs?: { id: string; session: EditorSession }[]): boolean {
-    if (viewTabs.some(tab => tab.id === id)) {
+    if (!navigation.groups.some(group => group.tabs.includes(id))) return false;
+    const viewTab = viewTabs.find(tab => tab.id === id);
+    if (viewTab) {
       if (busy || continuation) return false;
+      if (viewTab.pdf) rememberClosedTab({ kind: "file", path: viewTab.pdf });
+      if (viewTab.screen) {
+        const { fileOpen, screen } = viewTab;
+        rememberClosedTab({ kind: "screen", plugin: screen.plugin, screen: screen.id,
+          fileOpen: fileOpen && { actionId: fileOpen.actionId, path: fileOpen.path } });
+      }
       setViewTabs(previous => previous.filter(tab => tab.id !== id));
       navigate({ type: "close", id }); focusAfterClose.current = true; return true;
     }
     if (id === "settings" || id === "templates") {
       if (busy || continuation) return false;
+      rememberClosedTab({ kind: id });
       if (id === "settings") setHighlightUpdate(false);
       navigate({ type: "close", id }); focusAfterClose.current = true; return true;
     }
@@ -786,25 +814,28 @@ function EditorApp() {
     return () => window.removeEventListener("keydown", scrollDocumentFromShell);
   }, []);
 
-  async function openFile(path: string, openedNotice = "", group = navigation.focused, client = getHostClient(), guard?: {signal: AbortSignal; check(): void}): Promise<string | null> {
+  async function openFile(path: string, openedNotice = "", group = navigation.focused, client = getHostClient(), guard?: {signal: AbortSignal; check(): void}, reopening = false): Promise<string | null> {
     guard?.check();
     client.assertCurrent();
     const requestedPath = unquotePath(path);
     if (!requestedPath) return i18n.t("Enter a Markdown file path.");
-    if (/\.pdf$/i.test(requestedPath)) {
-      if (busy || continuation) return i18n.t("Wait for the current operation to finish.");
-      const root = openedFolderPaths.find(root => folderChain(root, requestedPath).length > 0);
-      if (!root) return i18n.t("The created file is outside the opened folders.");
+    const pdf = /\.pdf$/i.test(requestedPath);
+    const pdfRoot = pdf ? openedFolderPaths.find(root => folderChain(root, requestedPath).length > 0) : undefined;
+    const openPdf = (root: string) => {
       const id = viewTabs.find(tab => tab.pdf === requestedPath)?.id ?? `pdf-${++nextId.current}`;
       setViewTabs(previous => previous.some(tab => tab.id === id) ? previous : [...previous, { id, client, root, pdf: requestedPath, label: splitDocumentPath(requestedPath).name }]);
       placeTab(id, group);
-      return "";
-    }
-    if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
+    };
+    if (pdf) {
+      if (busy || continuation) return i18n.t("Wait for the current operation to finish.");
+      if (!pdfRoot) return i18n.t(reopening ? "Open the PDF’s folder before reopening it." : "The created file is outside the opened folders.");
+      if (!reopening) { openPdf(pdfRoot); return ""; }
+    } else if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
     if (operationRef.current || fileOperationPending || sessions.current.get(navigation.groups.find(item => item.id === group)?.active ?? "")?.busyRef.current || continuation) return i18n.t("Wait for the current operation to finish.");
-    markStartupOverride(requestedPath);
+    if (!pdf) markStartupOverride(requestedPath);
     const existing = openedTab(tabs, requestedPath);
     if (existing) {
+      if (reopening) focusAfterClose.current = true;
       placeTab(existing.id, group);
       setError("");
       setNotice(openedNotice);
@@ -818,10 +849,22 @@ function EditorApp() {
     pendingOpens.current.set(group, pending); refreshOpens();
     setError("");
     try {
+      if (pdfRoot) {
+        const response = await client.request(`/api/file-preview?${new URLSearchParams({ root: pdfRoot, path: requestedPath })}`, {
+          method: "HEAD", signal: pending.controller.signal,
+        });
+        if (pending.controller.signal.aborted || pendingOpens.current.get(group) !== pending) return null;
+        client.assertCurrent();
+        if (!response.ok) return i18n.t("The PDF is missing or unavailable: {{path}}", { path: requestedPath });
+        focusAfterClose.current = true;
+        openPdf(pdfRoot);
+        return "";
+      }
       const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, folders.rootOf(requestedPath), pending.controller.signal);
       if (pending.controller.signal.aborted || pendingOpens.current.get(group) !== pending) return null;
       guard?.check();
       if ("start" in next) throw new UiError({ key: "The Host did not return a document." });
+      if (reopening) focusAfterClose.current = true;
       acceptFile(next, client, group);
       void offerRecovery(next, client);
       setNotice(openedNotice);
@@ -843,6 +886,58 @@ function EditorApp() {
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
+  async function reopenClosedTab(): Promise<void> {
+    if (busy || operationRef.current || continuation || reopeningTab.current) return;
+    const tab = closedTabs.current.pop();
+    if (!tab) return;
+    reopeningTab.current = true;
+    setError("");
+    try {
+      if (tab.kind === "file") {
+        const message = await openFile(tab.path, "", navigation.focused, getHostClient(), undefined, true);
+        if (message) setError(message);
+      } else if (tab.kind === "screen") {
+        const screen = screens.find(screen => screen.plugin === tab.plugin && screen.id === tab.screen);
+        if (!screen || !screenCatalog || hostConnection.getScreenClient() !== screenCatalog.client) {
+          setError({ key: "The plugin screen is unavailable. Check that its plugin is enabled." });
+          return;
+        }
+        if (tab.fileOpen) {
+          const { actionId, path } = tab.fileOpen;
+          const action = viewFileActions([screen], path).find(entry => entry.action.id === actionId);
+          const chain = openedFolderPaths.map(root => folderChain(root, path)).find(chain => chain.length);
+          if (action) {
+            // A file action can also originate in a document tab opened without Explorer.
+            const root = chain?.[0] ?? splitDocumentPath(path).directory;
+            const listing = await requestFolder(root, chain?.at(-1), false, screenCatalog.client);
+            if (!listing.entries.some(entry => entry.path === path) ||
+                (chain && !foldersRef.current.trees.some(tree => tree.root === root))) {
+              setError({ key: "The file is missing or unavailable: {{path}}", values: { path } });
+              return;
+            }
+            focusAfterClose.current = true;
+            if (reopenPluginFileRef.current(action, path)) return;
+            focusAfterClose.current = false;
+          }
+          setError({ key: "The plugin file action is unavailable: {{path}}", values: { path } });
+          return;
+        } else if (!openScreen(screen)) {
+          setError({ key: "The plugin screen is unavailable. Check that its plugin is enabled." });
+          return;
+        }
+        focusAfterClose.current = true;
+      } else if (tab.kind === "settings") {
+        focusAfterClose.current = true;
+        openSettingsTab();
+      } else openTemplateGallery();
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      reopeningTab.current = false;
+      refreshShell();
+    }
+  }
+
   async function createFile(path: string, target?: { client: HostClient; root?: string }): Promise<string> {
     if (operationRef.current || busy || continuation) return i18n.t("Wait for the current operation to finish.");
     operationRef.current = true;
@@ -1002,12 +1097,15 @@ function EditorApp() {
       return;
     }
     const closeShortcut = desktop && CLOSE_TAB_SHORTCUT.matches(event);
-    if (!closeShortcut && (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey ||
+    const reopenShortcut = desktop && REOPEN_TAB_SHORTCUT.matches(event);
+    if (!closeShortcut && !reopenShortcut && (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey ||
         (event.key.toLowerCase() !== "s" && event.code !== "KeyS"))) return;
     event.preventDefault();
     if (globalThis.document.querySelector('[data-slot="dialog-content"]') || folderDialog || newDialog || newFolderDialog || reloadDialog || openRefusal || continuation || recoveryReview || saveComparison) return;
     if (closeShortcut) {
       if (activeId && !event.repeat) closeTab(activeId);
+    } else if (reopenShortcut) {
+      if (!event.repeat) void reopenClosedTab();
     } else if (!settingsFocused) void save();
   };
   useEffect(() => {
@@ -1164,6 +1262,10 @@ function EditorApp() {
     });
   };
   const commandItems: CommandCenterItem[] = [
+    { id: "reopen-closed-tab", kind: "command", label: i18n.t("Reopen closed tab"), icon: RotateCcw,
+      shortcut: desktop ? REOPEN_TAB_SHORTCUT.label : undefined, takesFocus: true,
+      disabled: busy || Boolean(continuation) || reopeningTab.current || !closedTabs.current.length,
+      keywords: ["restore tab", "닫은 탭"], run: () => void reopenClosedTab() },
     { id: "fullscreen", kind: "command", label: i18n.t(fullscreen ? "Exit full screen" : "View full screen"),
       icon: fullscreen ? Minimize : Maximize, shortcut: "F11", disabled: fullscreenChanging || !fullscreen && (!activeId || fileOperationPending),
       keywords: ["fullscreen", "전체화면"], run: () => { if (fullscreen) setTabFullscreen(false); else enterFullscreen(); } },

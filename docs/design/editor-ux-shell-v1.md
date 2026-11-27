@@ -142,6 +142,14 @@ Single-group mode retains the previous window/header bounds and CSS size limits.
 
 The tab context menu offers Close, Close Others, Close to the Left and Close to the Right. These actions use the clicked tab and its group. Empty ranges are disabled. Clean tabs close immediately. Each unsaved tab keeps its own Save, Don’t save and Cancel decision, with the remaining review count. Desktop Ctrl+W closes the focused group’s active tab, including while editing. A modal dialog or an empty group blocks it. In a browser Ctrl+W belongs to the browser. See the [light menu](assets/tab-close-1940/after-light.png), [dark menu](assets/tab-close-1940/after-dark.png) and [leftmost tab](assets/tab-close-1940/after-disabled.png).
 
+### Reopen closed tab (#2040)
+
+Desktop Ctrl+Shift+T and the Command Center's **Reopen closed tab** command open the most recently closed tab. [Chrome reserves Ctrl+Shift+T for reopening its own tabs](https://support.google.com/chrome/answer/157179?hl=en). Use Command Center in the browser. A window remembers up to ten successful closes across its groups, including tabs closed after Save or Don't save. Cancelled and refused closes leave the history alone. Reloading or restarting clears the history.
+
+Reopen uses the ordinary open paths for documents, PDF, plugin screens, Settings and Template gallery. Documents are read from disk, and a plugin file action opens the same screen with a fresh request for the same file. If a file or plugin is unavailable, the window shows the reason and ends the attempt. A further invocation tries the previous entry. Reopening while a tab is full screen keeps that view active.
+
+Command Center captures: [1440 light](assets/reopen-tab-2040/1440-light.png), [1440 dark](assets/reopen-tab-2040/1440-dark.png), [1920 light](assets/reopen-tab-2040/1920-light.png) and [1920 dark](assets/reopen-tab-2040/1920-dark.png).
+
 Open to the right is available in tab context menus, document File actions, Explorer
 document context menus and Command Center. It targets the right group, creating it
 when necessary. Move to other group is available from tab/File menus and Command
