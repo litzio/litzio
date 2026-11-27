@@ -254,8 +254,59 @@ async (page, { openPath, reloadDocument, assertSavedSource, expect, screenshots 
     await configure('en', 'light');
   }
 
-  await replaceAll.click();
+  let releasePreview;
+  const previewPending = new Promise(resolve => { releasePreview = resolve; });
+  let finishPreview;
+  const previewFinished = new Promise(resolve => { finishPreview = resolve; });
+  let previewRequests = 0;
+  const pausePreview = async route => {
+    previewRequests++;
+    try {
+      await previewPending;
+      await route.continue();
+    } finally {
+      finishPreview();
+    }
+  };
+  await page.route('**/api/document-source', pausePreview);
+  try {
+    await replaceAll.click();
+    await expect(receipt).toHaveText('Replacing…');
+    await expect(replaceAll).toHaveAttribute('aria-busy', 'true');
+    await expect(replaceAll).toBeDisabled();
+    await expect(replaceOne).toBeDisabled();
+    await expect(input).not.toBeEditable();
+    await expect(replacement).not.toBeEditable();
+    await expect.poll(() => previewRequests).toBe(1);
+    await replacement.press('Enter');
+    check(previewRequests === 1, 'Enter in the replacement field started a duplicate preview');
+    if (screenshots) {
+      // Keep the same paused operation visible while checking the two theme palettes.
+      const themeBefore = await page.locator('html').getAttribute('data-theme');
+      try {
+        for (const theme of ['light', 'dark']) {
+          await page.locator('html').evaluate((root, value) => { root.dataset.theme = value; }, theme);
+          for (const width of [1440, 1920]) {
+            await page.setViewportSize({width, height: width === 1920 ? 1080 : 900});
+            await page.screenshot({path: `tmp/document-find-captures/replace-busy-${theme}-${width}.png`,
+              mask: [page.getByTestId('status'), page.locator('.app-sidebar')], maskColor: theme === 'dark' ? '#202124' : '#f5f5f5'});
+          }
+        }
+      } finally {
+        await page.locator('html').evaluate((root, value) => {
+          if (value === null) delete root.dataset.theme;
+          else root.dataset.theme = value;
+        }, themeBefore);
+        await page.setViewportSize({width: 1440, height: 900});
+      }
+    }
+  } finally {
+    releasePreview();
+    if (previewRequests) await previewFinished;
+    await page.unroute('**/api/document-source', pausePreview);
+  }
   await expect(receipt).toHaveText('Replacements: 2');
+  await expect(replaceAll).not.toHaveAttribute('aria-busy', 'true');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+z');
   await expect(editor.getByText('A Motor starts the drive.')).toBeVisible();

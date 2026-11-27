@@ -1261,6 +1261,8 @@ text, wrapping to the first remaining match at the end of the document. Only the
 remain in that pass. Changing the query or making a separate document edit starts a new pass.
 **Replace all** takes the currently highlighted ranges
 from left to right, applies them in one history event and reports how many actually changed.
+While the Save preview runs, **Replace all** is busy and the find bar shows **Replacing…** with the shared progress status. Search and replacement controls wait for the result.
+Replacing matches across many table cells can take several seconds (3,151 ms for a 200-cell table on Windows, including Editor transaction and Save preview computation).
 An empty replacement deletes the match. The new text inherits only marks shared by the entire
 match. The Host runs the existing Save preview validation on the proposed edit before it applies.
 If the editor changes during validation or any replacement would break the document structure,
@@ -1279,6 +1281,11 @@ Replacement row captures: [1440 light](assets/document-replace-2039/replace-ligh
 [1440 dark](assets/document-replace-2039/replace-dark-1440.png) ·
 [1920 light](assets/document-replace-2039/replace-light-1920.png) ·
 [1920 dark](assets/document-replace-2039/replace-dark-1920.png).
+
+Save preview in progress: [1440 light](assets/document-replace-2039/replace-busy-light-1440.png) ·
+[1440 dark](assets/document-replace-2039/replace-busy-dark-1440.png) ·
+[1920 light](assets/document-replace-2039/replace-busy-light-1920.png) ·
+[1920 dark](assets/document-replace-2039/replace-busy-dark-1920.png).
 
 ## Highlight sets (#2020)
 

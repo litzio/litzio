@@ -6,6 +6,7 @@ import { useEditorState } from "@tiptap/react";
 import { CaseSensitive, ChevronDown, ChevronUp, Replace, X } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
+import { Status } from "@/components/ui/status.tsx";
 import { i18n } from "./i18n.ts";
 import { closeFindTransaction, findActive, findMatches, findStep, findTransaction, selectedFindText } from "./document-find.ts";
 import { documentContentBounds } from "./document-scroll.ts";
@@ -39,7 +40,7 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [replacement, setReplacement] = useState("");
   const [replaceResult, setReplaceResult] = useState<{ count: number } | { error: string }>();
-  const [checking, setChecking] = useState(false);
+  const [checking, setChecking] = useState<"one" | "all" | null>(null);
   const replacementRequest = useRef<AbortController | null>(null);
   const canReplace = !!validateReplacement;
   const [focusRequest, setFocusRequest] = useState(0);
@@ -55,7 +56,7 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
   const cancelReplacement = useCallback(() => {
     replacementRequest.current?.abort();
     replacementRequest.current = null;
-    setChecking(false);
+    setChecking(null);
     setReplaceResult(undefined);
   }, []);
   useEffect(() => {
@@ -112,6 +113,7 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
   }, [editor, frame, reveal, cancel, cancelReplacement]);
 
   const move = useCallback((direction: 1 | -1) => {
+    if (replacementRequest.current) return;
     flush();
     if (!findActive(editor.state)) return;
     const before = frame?.viewport.scrollTop ?? 0;
@@ -120,6 +122,7 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
   }, [editor, frame, reveal, flush]);
 
   const openFind = useCallback(() => {
+    if (replacementRequest.current) return;
     const seed = selectedFindText(editor.state);
     const value = seed || text;
     if (seed) setText(seed);
@@ -140,9 +143,10 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
   }, [editor, cancel, cancelReplacement]);
 
   const applyReplacement = async (all: boolean) => {
+    if (replacementRequest.current) return;
     flush();
     const state = editor.state;
-    if (!validateReplacement || !editor.isEditable || editor.view.composing || isInputHeld(state) || replacementRequest.current) return;
+    if (!validateReplacement || !editor.isEditable || editor.view.composing || isInputHeld(state)) return;
     const request = new AbortController();
     replacementRequest.current = request;
     setReplaceResult(undefined);
@@ -150,7 +154,7 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
       const change = replaceFoundText(state, replacement, all);
       if (!change) throw new Error(i18n.t("The replacement would change the document structure."));
       if (change.tr.docChanged) {
-        setChecking(true);
+        setChecking(all ? "all" : "one");
         const candidate = change.tr.doc.toJSON() as TiptapJSON;
         candidate.attrs = editorDocumentJSON(state).attrs;
         await validateReplacement(candidate, request.signal);
@@ -169,7 +173,7 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
     } finally {
       if (replacementRequest.current === request) {
         replacementRequest.current = null;
-        setChecking(false);
+        setChecking(null);
       }
     }
   };
@@ -231,13 +235,13 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
         if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); close(); }
       }}>
       <div className="document-find-row">
-        {canReplace ? <Button type="button" variant="ghost" size="icon-sm" aria-expanded={replaceOpen}
+        {canReplace ? <Button type="button" variant="ghost" size="icon-sm" aria-expanded={replaceOpen} disabled={!!checking}
           aria-label={i18n.t("Replace in document")} title={`${i18n.t("Replace in document")} (${REPLACE_SHORTCUT.label})`}
           onClick={() => { cancelReplacement(); setReplaceOpen(!replaceOpen); }}>
           <Replace aria-hidden="true" />
         </Button> : null}
         <Input ref={input} className="document-find-input h-[var(--size-control-compact)]" value={text} aria-label={i18n.t("Find in document")} placeholder={i18n.t("Find")}
-          aria-invalid={none || undefined} spellCheck={false} data-testid="document-find-input"
+          aria-invalid={none || undefined} readOnly={!!checking} spellCheck={false} data-testid="document-find-input"
           onChange={event => { setText(event.target.value); search(event.target.value, caseSensitive, true); }}
           onKeyDown={event => {
             if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
@@ -247,17 +251,17 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
         <span className="document-find-count type-helper" aria-live="polite" data-none={none || undefined} data-testid="document-find-count">
           {position}{none ? <span className="sr-only"> {i18n.t("No results")}</span> : null}
         </span>
-        <Button type="button" variant="ghost" size="icon-sm" aria-pressed={caseSensitive} data-testid="document-find-case"
+        <Button type="button" variant="ghost" size="icon-sm" aria-pressed={caseSensitive} disabled={!!checking} data-testid="document-find-case"
           aria-label={i18n.t("Match case")} title={i18n.t("Match case")}
           onClick={() => { setCaseSensitive(!caseSensitive); search(text, !caseSensitive); }}>
           <CaseSensitive aria-hidden="true" />
         </Button>
-        <Button type="button" variant="ghost" size="icon-sm" disabled={!count.total} data-testid="document-find-previous"
+        <Button type="button" variant="ghost" size="icon-sm" disabled={!!checking || !count.total} data-testid="document-find-previous"
           aria-label={i18n.t("Previous match")} title={`${i18n.t("Previous match")} (Shift+Enter, ${FIND_PREVIOUS_SHORTCUT.label})`}
           onClick={() => move(-1)}>
           <ChevronUp aria-hidden="true" />
         </Button>
-        <Button type="button" variant="ghost" size="icon-sm" disabled={!count.total} data-testid="document-find-next"
+        <Button type="button" variant="ghost" size="icon-sm" disabled={!!checking || !count.total} data-testid="document-find-next"
           aria-label={i18n.t("Next match")} title={`${i18n.t("Next match")} (Enter, ${FIND_NEXT_SHORTCUT.label})`}
           onClick={() => move(1)}>
           <ChevronDown aria-hidden="true" />
@@ -270,20 +274,20 @@ export const DocumentFindBar = forwardRef<DocumentFindHandle, {
       {canReplace && replaceOpen ? <>
         <div className="document-find-row document-replace-row">
           <Input className="document-find-input h-[var(--size-control-compact)]" value={replacement}
-            aria-label={i18n.t("Replacement text")} placeholder={i18n.t("Replacement text")} spellCheck={false}
+            aria-label={i18n.t("Replacement text")} placeholder={i18n.t("Replacement text")} readOnly={!!checking} spellCheck={false}
             onChange={event => { cancelReplacement(); setReplacement(event.target.value); }}
             onKeyDown={event => {
               if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
               event.preventDefault();
               void applyReplacement(false);
             }} />
-          <Button type="button" variant="outline" size="sm" disabled={checking || count.held || count.current < 0}
+          <Button type="button" variant="outline" size="sm" disabled={!!checking || count.held || count.current < 0}
             onClick={() => void applyReplacement(false)}>{i18n.t("Replace")}</Button>
-          <Button type="button" variant="outline" size="sm" disabled={checking || count.held || !count.total}
+          <Button type="button" variant="outline" size="sm" disabled={!!checking || count.held || !count.total} aria-busy={checking === "all" || undefined}
             onClick={() => void applyReplacement(true)}>{i18n.t("Replace all")}</Button>
         </div>
         <div className="document-replace-result type-helper" role="status" data-error={replaceResult && "error" in replaceResult || undefined}>
-          {replaceResult && ("error" in replaceResult
+          {checking === "all" ? <Status tone="progress" variant="plain" label={i18n.t("Replacing…")} /> : replaceResult && ("error" in replaceResult
             ? i18n.t("Could not replace text. {{reason}}", { reason: replaceResult.error })
             : i18n.t("Replacements: {{count}}", { count: replaceResult.count }))}
         </div>
