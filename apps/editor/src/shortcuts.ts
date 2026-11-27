@@ -39,6 +39,7 @@ export const COMMAND_CENTER_SHORTCUT = shortcut("Slash", "/", 191);
 export const ASSISTANT_SHORTCUT = shortcut("KeyY", "Y", 89, true);
 export const LINK_SHORTCUT = shortcut("Quote", "'", 222);
 export const CLOSE_TAB_SHORTCUT = shortcut("KeyW", "W", 87);
+export const REOPEN_TAB_SHORTCUT = shortcut("KeyT", "T", 84, true);
 export const SAVE_SHORTCUT = shortcut("KeyS", "S", 83);
 /** Find in document while a document view has focus; elsewhere the browser keeps its own Find. */
 export const FIND_SHORTCUT = shortcut("KeyF", "F", 70);
