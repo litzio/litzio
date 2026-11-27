@@ -1,0 +1,530 @@
+[
+ {
+  "character": "\t",
+  "after": "[\\r\\n]",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": "\t",
+  "before": "[\\r\\n]",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": "\t",
+  "inConstruct": [
+   "codeFencedLangGraveAccent",
+   "codeFencedLangTilde"
+  ]
+ },
+ {
+  "character": "\r",
+  "inConstruct": [
+   "codeFencedLangGraveAccent",
+   "codeFencedLangTilde",
+   "codeFencedMetaGraveAccent",
+   "codeFencedMetaTilde",
+   "destinationLiteral",
+   "headingAtx"
+  ]
+ },
+ {
+  "character": "\n",
+  "inConstruct": [
+   "codeFencedLangGraveAccent",
+   "codeFencedLangTilde",
+   "codeFencedMetaGraveAccent",
+   "codeFencedMetaTilde",
+   "destinationLiteral",
+   "headingAtx"
+  ]
+ },
+ {
+  "character": "\r",
+  "before": "[\\r\\n]",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": "\r",
+  "after": "\\r",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": "\n",
+  "before": "\\n",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": "\n",
+  "after": "[\\r\\n]",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": " ",
+  "after": "[\\r\\n]",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": " ",
+  "before": "[\\r\\n]",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": " ",
+  "inConstruct": [
+   "codeFencedLangGraveAccent",
+   "codeFencedLangTilde"
+  ]
+ },
+ {
+  "character": "!",
+  "after": "\\[",
+  "inConstruct": "phrasing",
+  "notInConstruct": [
+   "autolink",
+   "destinationLiteral",
+   "destinationRaw",
+   "reference",
+   "titleQuote",
+   "titleApostrophe"
+  ]
+ },
+ {
+  "character": "\"",
+  "inConstruct": "titleQuote"
+ },
+ {
+  "atBreak": true,
+  "character": "#"
+ },
+ {
+  "character": "#",
+  "inConstruct": "headingAtx",
+  "after": "(?:[\r\n]|$)"
+ },
+ {
+  "character": "&",
+  "after": "[#A-Za-z]",
+  "inConstruct": [
+   "codeFencedLangGraveAccent",
+   "codeFencedLangTilde",
+   "codeFencedMetaGraveAccent",
+   "codeFencedMetaTilde",
+   "destinationLiteral",
+   "destinationRaw",
+   "phrasing",
+   "titleApostrophe",
+   "titleQuote"
+  ]
+ },
+ {
+  "character": "'",
+  "inConstruct": "titleApostrophe"
+ },
+ {
+  "character": "(",
+  "inConstruct": "destinationRaw"
+ },
+ {
+  "before": "\\]",
+  "character": "(",
+  "inConstruct": "phrasing",
+  "notInConstruct": [
+   "autolink",
+   "destinationLiteral",
+   "destinationRaw",
+   "reference",
+   "titleQuote",
+   "titleApostrophe"
+  ]
+ },
+ {
+  "atBreak": true,
+  "before": "\\d+",
+  "character": ")"
+ },
+ {
+  "character": ")",
+  "inConstruct": "destinationRaw"
+ },
+ {
+  "atBreak": true,
+  "character": "*",
+  "after": "(?:[ \t\r\n*])"
+ },
+ {
+  "character": "*",
+  "inConstruct": "phrasing",
+  "notInConstruct": [
+   "autolink",
+   "destinationLiteral",
+   "destinationRaw",
+   "reference",
+   "titleQuote",
+   "titleApostrophe"
+  ]
+ },
+ {
+  "atBreak": true,
+  "character": "+",
+  "after": "(?:[ \t\r\n])"
+ },
+ {
+  "atBreak": true,
+  "character": "-",
+  "after": "(?:[ \t\r\n-])"
+ },
+ {
+  "atBreak": true,
+  "before": "\\d+",
+  "character": ".",
+  "after": "(?:[ \t\r\n]|$)"
+ },
+ {
+  "atBreak": true,
+  "character": "<",
+  "after": "[!/?A-Za-z]"
+ },
+ {
+  "character": "<",
+  "after": "[!/?A-Za-z]",
+  "inConstruct": "phrasing",
+  "notInConstruct": [
+   "autolink",
+   "destinationLiteral",
+   "destinationRaw",
+   "reference",
+   "titleQuote",
+   "titleApostrophe"
+  ]
+ },
+ {
+  "character": "<",
+  "inConstruct": "destinationLiteral"
+ },
+ {
+  "character": "<",
+  "before": "[( ]",
+  "inConstruct": "destinationRaw"
+ },
+ {
+  "atBreak": true,
+  "character": "="
+ },
+ {
+  "atBreak": true,
+  "character": ">"
+ },
+ {
+  "character": ">",
+  "inConstruct": "destinationLiteral"
+ },
+ {
+  "atBreak": true,
+  "character": "["
+ },
+ {
+  "character": "[",
+  "inConstruct": "phrasing",
+  "notInConstruct": [
+   "autolink",
+   "destinationLiteral",
+   "destinationRaw",
+   "reference",
+   "titleQuote",
+   "titleApostrophe"
+  ]
+ },
+ {
+  "character": "[",
+  "inConstruct": [
+   "label",
+   "reference"
+  ]
+ },
+ {
+  "character": "\\",
+  "after": "[\\r\\n]",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": "]",
+  "inConstruct": [
+   "label",
+   "reference"
+  ]
+ },
+ {
+  "atBreak": true,
+  "character": "_"
+ },
+ {
+  "character": "_",
+  "inConstruct": "phrasing",
+  "notInConstruct": [
+   "autolink",
+   "destinationLiteral",
+   "destinationRaw",
+   "reference",
+   "titleQuote",
+   "titleApostrophe"
+  ]
+ },
+ {
+  "atBreak": true,
+  "character": "`"
+ },
+ {
+  "character": "`",
+  "inConstruct": [
+   "codeFencedLangGraveAccent",
+   "codeFencedMetaGraveAccent"
+  ]
+ },
+ {
+  "character": "`",
+  "inConstruct": "phrasing",
+  "notInConstruct": [
+   "autolink",
+   "destinationLiteral",
+   "destinationRaw",
+   "reference",
+   "titleQuote",
+   "titleApostrophe"
+  ]
+ },
+ {
+  "atBreak": true,
+  "character": "~"
+ },
+ {
+  "character": "<",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": ">",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0000",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0001",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0002",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0003",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0004",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0005",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0006",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0007",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\b",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\t",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\n",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u000b",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\f",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\r",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u000e",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u000f",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0010",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0011",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0012",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0013",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0014",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0015",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0016",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0017",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0018",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u0019",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u001a",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u001b",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u001c",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u001d",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u001e",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": "\u001f",
+  "inConstruct": "autolink"
+ },
+ {
+  "character": " ",
+  "inConstruct": "autolink"
+ },
+ {
+  "atBreak": true,
+  "character": "-",
+  "after": "\\x2d"
+ },
+ {
+  "character": "[",
+  "inConstruct": [
+   "label",
+   "phrasing",
+   "reference"
+  ]
+ },
+ {
+  "character": "~",
+  "inConstruct": "phrasing",
+  "notInConstruct": [
+   "autolink",
+   "destinationLiteral",
+   "destinationRaw",
+   "reference",
+   "titleQuote",
+   "titleApostrophe"
+  ]
+ },
+ {
+  "character": "\r",
+  "inConstruct": "tableCell"
+ },
+ {
+  "character": "\n",
+  "inConstruct": "tableCell"
+ },
+ {
+  "atBreak": true,
+  "character": "|",
+  "after": "[\t :-]"
+ },
+ {
+  "character": "|",
+  "inConstruct": "tableCell"
+ },
+ {
+  "atBreak": true,
+  "character": ":",
+  "after": "-"
+ },
+ {
+  "atBreak": true,
+  "character": "-",
+  "after": "[:|-]"
+ },
+ {
+  "character": "\r",
+  "inConstruct": "mathFlowMeta"
+ },
+ {
+  "character": "\n",
+  "inConstruct": "mathFlowMeta"
+ },
+ {
+  "character": "$",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": "$",
+  "inConstruct": "mathFlowMeta"
+ },
+ {
+  "atBreak": true,
+  "character": "$",
+  "after": "\\$"
+ },
+ {
+  "character": "@",
+  "inConstruct": "phrasing",
+  "after": "[\\p{L}\\p{N}_{]",
+  "unicode": true
+ },
+ {
+  "character": "{",
+  "inConstruct": "phrasing"
+ },
+ {
+  "character": ":",
+  "atBreak": true
+ }
+]

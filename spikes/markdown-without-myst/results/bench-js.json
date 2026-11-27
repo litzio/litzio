@@ -1,0 +1,65 @@
+{
+ "node": "v24.22.3",
+ "runs": 9,
+ "unit": "ms (median)",
+ "synthetic-2300": {
+  "bytes": 159168,
+  "blocks": 2300,
+  "core": {
+   "MyST parse only (internal)": 126.3,
+   "parse (public: + admission + preflight)": 436.3,
+   "read model (getEditableDocument)": 4.2,
+   "serialize (public: canonical write + guards)": 294.5
+  },
+  "directive": {
+   "bytes": 157328,
+   "remark parse → mdast": 179.9,
+   "mdast → model": 1.1,
+   "read total": 183.6,
+   "model → mdast": 0.8,
+   "mdast → Markdown": 51.9,
+   "write total": 47.7,
+   "guarded write (write + re-read + compare)": 259.3
+  },
+  "external": {
+   "bytes": 155718,
+   "remark parse → mdast": 164.8,
+   "mdast → model": 4.7,
+   "read total": 161.7,
+   "model → mdast": 2,
+   "mdast → Markdown": 49.9,
+   "write total": 48.7,
+   "guarded write (write + re-read + compare)": 247
+  }
+ },
+ "synthetic-5000": {
+  "bytes": 348438,
+  "blocks": 5000,
+  "core": {
+   "MyST parse only (internal)": 323.7,
+   "parse (public: + admission + preflight)": 1004.2,
+   "read model (getEditableDocument)": 8.3,
+   "serialize (public: canonical write + guards)": 694.5
+  },
+  "directive": {
+   "bytes": 344438,
+   "remark parse → mdast": 440.4,
+   "mdast → model": 1.6,
+   "read total": 449.1,
+   "model → mdast": 1.6,
+   "mdast → Markdown": 111.8,
+   "write total": 108.4,
+   "guarded write (write + re-read + compare)": 584
+  },
+  "external": {
+   "bytes": 340938,
+   "remark parse → mdast": 391,
+   "mdast → model": 8.6,
+   "read total": 418.6,
+   "model → mdast": 2.7,
+   "mdast → Markdown": 102.7,
+   "write total": 107.5,
+   "guarded write (write + re-read + compare)": 572.3
+  }
+ }
+}

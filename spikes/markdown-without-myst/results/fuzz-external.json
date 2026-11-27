@@ -1,0 +1,384 @@
+{
+ "profile": "external",
+ "seed": 20261127,
+ "iterations": 10000,
+ "counts": {
+  "different": 4983,
+  "same": 4756,
+  "core-refused": 150,
+  "read-refused": 111
+ },
+ "differences": {
+  "/caption/content/#/role (cite→cite:t)": 4541,
+  "/block": 263,
+  "/rows/#/cells/#/content/#/role (cite→cite:t)": 29,
+  "/content/#/role (cite→cite:t)": 62,
+  "/rows/#/cells/#/content/#/kind": 2,
+  "/content/#/children/#/role (cite→cite:t)": 9,
+  "/items/#/content/#/role (cite→cite:t)": 15,
+  "/caption/#/role (cite→cite:t)": 8,
+  "/content/#/text": 17,
+  "/rows/#/cells/#/content/#/text": 1,
+  "/content/#/kind": 9,
+  "/label": 1,
+  "/content/#/children/#/children/#/role (cite→cite:t)": 1,
+  "/content/#/keys/#": 1,
+  "/content/#/children/#/text": 2,
+  "/items/#/content/#/text": 3,
+  "/rows/#/cells/#/content/#/keys/#": 2,
+  "/content/#/children/#/keys/#": 4,
+  "/content/#/children/#/children/#/text": 1,
+  "/caption/content/#/children/#/children/#/role (cite→cite:t)": 1,
+  "/items/#/content/#/children/#/role (cite→cite:t)": 5,
+  "/rows/#/cells/#/content/#/children/#/role (cite→cite:t)": 1,
+  "/caption/content/#/text": 2,
+  "/caption/#/text": 1,
+  "/caption/content/#/kind": 1,
+  "/items/#/content/#/kind": 1
+ },
+ "documentsWithUnwritable": 5540,
+ "unwritable": {
+  "paragraph:label-prefix": 4979,
+  "admonition:admonition-kind": 4850,
+  "table:label-prefix": 4987,
+  "heading:label-prefix": 155,
+  "quote:label-prefix": 22,
+  "admonition:label-prefix": 134,
+  "list(ordered):citation-narrative-group": 18,
+  "paragraph:citation-narrative-group": 44,
+  "heading:citation-after-word": 11,
+  "figure(image):label-prefix": 72,
+  "figure(image):citation-narrative-group": 14,
+  "target:citation-after-word": 2,
+  "heading:citation-narrative-group": 28,
+  "list(ordered):citation-after-word": 3,
+  "list(ordered):label-prefix": 51,
+  "admonition:citation-narrative-group": 29,
+  "list:label-prefix": 9,
+  "list(checklist):label-prefix": 15,
+  "table:citation-narrative-group": 76,
+  "footnote:label-prefix": 33,
+  "quote:citation-narrative-group": 5,
+  "footnote:citation-narrative-group": 6,
+  "figure(none):label-prefix": 18,
+  "list(checklist):citation-narrative-group": 3,
+  "paragraph:citation-after-word": 8,
+  "quote:citation-after-word": 1,
+  "list:citation-narrative-group": 1,
+  "admonition:citation-after-word": 5,
+  "table:citation-after-word": 10,
+  "target:label-prefix": 7,
+  "figure(none):citation-narrative-group": 7,
+  "list:citation-after-word": 2,
+  "list(checklist):citation-after-word": 1,
+  "target:citation-narrative-group": 2,
+  "figure(none):citation-after-word": 2
+ },
+ "problems": [
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "read-refused",
+   "category": "attributes",
+   "detail": "Error: attributes: image attributes"
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/9/block: \"equation\" ≠ \"paragraph\""
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/9/block: \"equation\" ≠ \"paragraph\""
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/26/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {ref} reference to \"fig-free\" needs a sec- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/26/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/12/rows/2/cells/1/content/2/role: \"cite\" ≠ \"cite:t\""
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/26/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: label-prefix: {numref} reference to \"tab-fixed\" needs a fig-/tbl- label",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  }
+ ]
+}

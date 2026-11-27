@@ -1,0 +1,85 @@
+{
+ "node": "v24.22.3",
+ "runs": 9,
+ "unit": "ms, median",
+ "in-scope-2300": {
+  "blocks": 2300,
+  "mystBytes": 531188,
+  "markdownBytes": 522758,
+  "1 MyST (Core, JS)": {
+   "read": 326.5,
+   "convert": 20.1,
+   "write": 1115.5,
+   "public parse (read + admission + write preflight)": 1333.7,
+   "note": "write is Core's canonical write, which always re-parses and compares its output"
+  },
+  "2 remark (JS)": {
+   "read": 506.1,
+   "convert": 21.4,
+   "write": 259.4,
+   "write (mdast → Markdown only)": 273.5,
+   "guarded write": 867.8
+  },
+  "3 Rust native": {
+   "blocks": 2300,
+   "bytes": 522758,
+   "convert": 3.3,
+   "guarded write": 399.2,
+   "read": 349.6,
+   "write": 64.9
+  },
+  "4 Rust WASM (Node)": {
+   "read": 299.9,
+   "convert": 13.6,
+   "write": 88.8,
+   "guarded write": 407.9
+  },
+  "checks": {
+   "2 = 3 Markdown bytes": true,
+   "2 = 4 Markdown bytes": true,
+   "1 = 2 model": true,
+   "2 = 3 model": true,
+   "2 = 4 model": true
+  }
+ },
+ "in-scope-5000": {
+  "blocks": 5000,
+  "mystBytes": 1180488,
+  "markdownBytes": 1162777,
+  "1 MyST (Core, JS)": {
+   "read": 736,
+   "convert": 41.7,
+   "write": 2563.3,
+   "public parse (read + admission + write preflight)": 3038.6,
+   "note": "write is Core's canonical write, which always re-parses and compares its output"
+  },
+  "2 remark (JS)": {
+   "read": 1343.7,
+   "convert": 40.2,
+   "write": 601,
+   "write (mdast → Markdown only)": 575.5,
+   "guarded write": 2151
+  },
+  "3 Rust native": {
+   "blocks": 5000,
+   "bytes": 1162777,
+   "convert": 17.1,
+   "guarded write": 1557.3,
+   "read": 1431.4,
+   "write": 145.2
+  },
+  "4 Rust WASM (Node)": {
+   "read": 1270.6,
+   "convert": 32.1,
+   "write": 189.8,
+   "guarded write": 1449.5
+  },
+  "checks": {
+   "2 = 3 Markdown bytes": true,
+   "2 = 4 Markdown bytes": true,
+   "1 = 2 model": true,
+   "2 = 3 model": true,
+   "2 = 4 model": true
+  }
+ }
+}

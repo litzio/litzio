@@ -1,0 +1,25 @@
+{
+  "name": "spike-markdown-without-myst",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "hast-util-from-html": "2.0.3",
+    "mdast-util-gfm-footnote": "2.1.0",
+    "mdast-util-gfm-strikethrough": "2.0.1",
+    "mdast-util-gfm-table": "2.0.1",
+    "mdast-util-gfm-task-list-item": "2.0.1",
+    "mdast-util-to-markdown": "2.2.4",
+    "micromark-extension-gfm-footnote": "2.1.0",
+    "micromark-extension-gfm-strikethrough": "2.1.0",
+    "micromark-extension-gfm-table": "2.1.2",
+    "micromark-extension-gfm-task-list-item": "2.1.0",
+    "micromark-util-decode-string": "2.0.1",
+    "remark-directive": "4.0.0",
+    "remark-frontmatter": "5.0.0",
+    "remark-math": "6.0.0",
+    "remark-parse": "11.0.0",
+    "remark-stringify": "11.0.0",
+    "unified": "11.0.5",
+    "yaml": "2.9.1"
+  }
+}

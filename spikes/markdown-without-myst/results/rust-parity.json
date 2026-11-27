@@ -1,0 +1,99 @@
+{
+ "markdownRs": "1.0.0",
+ "report": {
+  "directive": {
+   "documents": 1028,
+   "sameStructure": 791,
+   "asciiDocuments": 961,
+   "samePositions": 652,
+   "differences": {
+    "/type (directive)": 160,
+    "/value": 77
+   },
+   "positionDifferences": {
+    "list end": 2,
+    "listItem end": 2,
+    "text start": 85,
+    "paragraph end": 2,
+    "text end": 4,
+    "link end": 1,
+    "table end": 2,
+    "tableRow end": 2,
+    "tableCell end": 2
+   }
+  },
+  "external": {
+   "documents": 1024,
+   "sameStructure": 1023,
+   "asciiDocuments": 958,
+   "samePositions": 816,
+   "differences": {
+    "/value": 1
+   },
+   "positionDifferences": {
+    "list end": 11,
+    "listItem end": 11,
+    "footnoteDefinition end": 4,
+    "text start": 125,
+    "paragraph end": 3,
+    "text end": 5,
+    "link end": 1,
+    "table end": 2,
+    "tableRow end": 2,
+    "tableCell end": 2
+   }
+  },
+  "repository .md": {
+   "documents": 217,
+   "sameStructure": 208,
+   "asciiDocuments": 33,
+   "samePositions": 24,
+   "differences": {
+    "/value": 6,
+    "": 1,
+    "/spread": 2
+   },
+   "positionDifferences": {
+    "list end": 9,
+    "listItem end": 9,
+    "footnoteDefinition end": 1
+   }
+  }
+ },
+ "examples": {
+  "directive": [
+   "apps/editor/test/browser/fixtures/authoring.md: /children/3/type: \"containerDirective\" ≠ \"paragraph\"",
+   "apps/editor/test/browser/fixtures/basic-blocks.md: /children/2/type: \"containerDirective\" ≠ \"paragraph\"",
+   "apps/editor/test/browser/fixtures/bibliography.md: /children/2/children/0/value: \"Claim \" ≠ \"Claim :cite[article].\"",
+   "apps/editor/test/browser/fixtures/citations.md: /children/2/children/1/children/0/type: \"textDirective\" ≠ \"text\"",
+   "apps/editor/test/browser/fixtures/continuous-editing.md: /children/6/type: \"containerDirective\" ≠ \"paragraph\"",
+   "apps/editor/test/browser/fixtures/links.md: /children/4/children/0/value: \"See \" ≠ \"See :eq[eq-a] and \"",
+   "apps/editor/test/browser/fixtures/list-inline.md: /children/3/children/8/value: \", \" ≠ \", :cite[Alpha], :eq[eq-a].\"",
+   "apps/editor/test/browser/fixtures/math.md: /children/4/children/0/value: \"See \" ≠ \"See :eq[eq-a] here.\"",
+   "apps/editor/test/browser/fixtures/panel-lists.md: /children/3/type: \"containerDirective\" ≠ \"paragraph\"",
+   "apps/editor/test/browser/fixtures/quiet-document-long.md: /children/5/type: \"containerDirective\" ≠ \"paragraph\"",
+   "apps/editor/test/browser/fixtures/quiet-document-wrap.md: /children/6/type: \"containerDirective\" ≠ \"paragraph\"",
+   "apps/editor/test/browser/fixtures/quiet-document.md: /children/3/type: \"containerDirective\" ≠ \"paragraph\""
+  ],
+  "external": [
+   "generated:heading | alone | \"# h\": /children/1/children/0/value: \"# h\" ≠ \"h\""
+  ],
+  "repository .md": [
+   "docs/design/editing-session-save-v1.md: /children/149/children/0/value: \"#1201 Core comparison foundation\" ≠ \"1201 Core comparison foundation\"",
+   "docs/design/editor-ux-shell-v1.md: /children/91/children/6: {\"type\":\"tableRow\",\"children\":[{\"type\":\"tableCell\",\"children\":[{\"type\":\"text\",\"value\":\"#1994: the wi ≠ undefined",
+   "docs/reviews/1462-spike-block-identity.md: /children/0/children/0/value: \"#1462 검증 실험 ②: 교정 후 원본 대응과 텍스트 블록 ID\" ≠ \"1462 검증 실험 ②: 교정 후 원본 대응과 텍스트 블록 ID\"",
+   "docs/reviews/1462-spike-evidence-match.md: /children/0/children/0/value: \"#1462 검증 실험 ①: 독립 PDF 텍스트 증거와 리치오 문서 대응\" ≠ \"1462 검증 실험 ①: 독립 PDF 텍스트 증거와 리치오 문서 대응\"",
+   "docs/reviews/design-consolidation-2026-10-26.md: /children/27/children/0/value: \"#318 claim recheck\" ≠ \"318 claim recheck\"",
+   "docs/reviews/editor-visual-language-history-2026-10-30.md: /children/181/children/0/value: \"#217 verification and captures\" ≠ \"217 verification and captures\"",
+   "docs/reviews/filesystem-host-boundary-history-2026-11.md: /children/4/children/9/spread: false ≠ true",
+   "docs/reviews/folder-dialog-2026-10-26.md: /children/7/children/0/value: \"#522 구현 작업 계획 (2026-10-26)\" ≠ \"522 구현 작업 계획 (2026-10-26)\"",
+   "docs/reviews/plugin-screen-code-1592.md: /children/28/children/3/spread: false ≠ true"
+  ]
+ },
+ "positionExamples": [
+  "\"# h\" js 5:1 rust 5:2",
+  "\"# h\" js 5:1 rust 5:2",
+  "\"# h\\nb\" js 5:1 rust 5:2",
+  "\"# h\\nb\" js 5:1 rust 5:2"
+ ]
+}

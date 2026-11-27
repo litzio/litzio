@@ -1,0 +1,25 @@
+{
+ "files": 217,
+ "core": {
+  "native-metadata": 3,
+  "accepted": 186,
+  "native-content": 28
+ },
+ "directive": {
+  "accepted": 187,
+  "html": 8,
+  "image": 13,
+  "reference-link": 2,
+  "nesting": 7,
+  "stableAfterOwnWrite": 185
+ },
+ "external": {
+  "accepted": 187,
+  "html": 7,
+  "table": 1,
+  "image": 13,
+  "reference-link": 2,
+  "nesting": 7,
+  "stableAfterOwnWrite": 185
+ }
+}

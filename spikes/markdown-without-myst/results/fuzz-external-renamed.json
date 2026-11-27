@@ -1,0 +1,391 @@
+{
+ "profile": "external-renamed",
+ "seed": 20261127,
+ "iterations": 10000,
+ "counts": {
+  "different": 5055,
+  "same": 4712,
+  "core-refused": 150,
+  "read-refused": 83
+ },
+ "differences": {
+  "/caption/content/#/role (cite→cite:t)": 4508,
+  "/block": 243,
+  "/rows/#/cells/#/content/#/role (cite→cite:t)": 32,
+  "/content/#/role (cite→cite:t)": 70,
+  "/content/#/children/#/text": 3,
+  "/caption/content/#/label": 1,
+  "/rows/#/cells/#/content/#/kind": 9,
+  "/content/#/kind": 44,
+  "/content/#/children/#/role (cite→cite:t)": 11,
+  "/content/#/label": 10,
+  "/content/#/children/#/kind": 13,
+  "/items/#/content/#/role (cite→cite:t)": 18,
+  "/caption/content/#/kind": 4,
+  "/caption/#/role (cite→cite:t)": 8,
+  "/rows/#/cells/#/content/#/label": 6,
+  "/items/#/content/#/kind": 7,
+  "/rows/#/cells/#/content/#/children/#/kind": 2,
+  "/content/#/text": 24,
+  "/rows/#/cells/#/content/#/text": 2,
+  "/content/#/children/#/children/#/role (cite→cite:t)": 2,
+  "/items/#/content/#/label": 1,
+  "/rows/#/cells/#/content/#/children/#/role (cite→cite:t)": 2,
+  "/content/#/keys/#": 2,
+  "/items/#/content/#/text": 4,
+  "/rows/#/cells/#/content/#/keys/#": 2,
+  "/caption/#/children/#/role (cite→cite:t)": 1,
+  "/caption/#/label": 1,
+  "/caption/content/#/children/#/kind": 2,
+  "/content/#/children/#/keys/#": 4,
+  "/content/#/children/#/children/#/text": 1,
+  "/caption/content/#/children/#/children/#/role (cite→cite:t)": 1,
+  "/items/#/content/#/children/#/role (cite→cite:t)": 6,
+  "/caption/content/#/children/#/role (cite→cite:t)": 1,
+  "/content/#/children/#/children/#/kind": 2,
+  "/caption/content/#/text": 3,
+  "/caption/#/kind": 1,
+  "/caption/#/text": 1,
+  "/items/#/content/#/children/#/kind": 1,
+  "/content/#/children/#/label": 1,
+  "/caption/#/children/#/kind": 1
+ },
+ "documentsWithUnwritable": 5052,
+ "unwritable": {
+  "paragraph:citation-narrative-group": 4791,
+  "admonition:admonition-kind": 4850,
+  "table:citation-after-word": 40,
+  "list(ordered):citation-narrative-group": 22,
+  "paragraph:citation-after-word": 32,
+  "heading:citation-after-word": 24,
+  "figure(image):citation-narrative-group": 15,
+  "target:citation-after-word": 2,
+  "heading:citation-narrative-group": 29,
+  "quote:citation-after-word": 2,
+  "list(ordered):citation-after-word": 11,
+  "admonition:citation-narrative-group": 31,
+  "table:citation-narrative-group": 92,
+  "quote:citation-narrative-group": 6,
+  "footnote:citation-narrative-group": 6,
+  "list(checklist):citation-narrative-group": 4,
+  "list:citation-narrative-group": 1,
+  "admonition:citation-after-word": 15,
+  "figure(image):citation-after-word": 5,
+  "figure(none):citation-narrative-group": 8,
+  "list:citation-after-word": 2,
+  "list(checklist):citation-after-word": 4,
+  "target:citation-narrative-group": 2,
+  "footnote:citation-after-word": 1,
+  "figure(none):citation-after-word": 3
+ },
+ "problems": [
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "read-refused",
+   "category": "attributes",
+   "detail": "Error: attributes: image attributes"
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/9/block: \"equation\" ≠ \"paragraph\""
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/28/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/10/block: \"admonition\" ≠ \"quote\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/12/rows/2/cells/1/content/2/role: \"cite\" ≠ \"cite:t\""
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/26/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  },
+  {
+   "status": "different",
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\"",
+   "unwritableDetail": [
+    "Error: citation-narrative-group: cite:t with 2 keys",
+    "Error: admonition-kind: no alert name for caution"
+   ]
+  }
+ ]
+}

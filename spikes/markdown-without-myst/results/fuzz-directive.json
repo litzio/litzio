@@ -1,0 +1,20 @@
+{
+ "profile": "directive",
+ "seed": 20261127,
+ "iterations": 10000,
+ "counts": {
+  "same": 9849,
+  "core-refused": 150,
+  "read-refused": 1
+ },
+ "differences": {},
+ "documentsWithUnwritable": 0,
+ "unwritable": {},
+ "problems": [
+  {
+   "status": "read-refused",
+   "category": "list",
+   "detail": "Error: list: partial or numbered checklist"
+  }
+ ]
+}

@@ -1,0 +1,237 @@
+{
+ "profile": "external",
+ "native": {
+  "documents": 39,
+  "status": {
+   "same": 33,
+   "different": 5,
+   "core-refused": 1
+  },
+  "failures": {
+   "different": 5
+  },
+  "differences": {
+   "/content/#/role (cite→cite:t)": 3,
+   "/content/#/children/#/role (cite→cite:t)": 1,
+   "/caption/content/#/role (cite→cite:t)": 1
+  },
+  "documentsWithUnwritable": 4,
+  "unwritable": {
+   "paragraph:citation-narrative-group": 1,
+   "paragraph:label-prefix": 2,
+   "table(complex):label-prefix": 1,
+   "admonition:admonition-kind": 1,
+   "table:label-prefix": 1
+  },
+  "blocks": {
+   "heading": {
+    "total": 83,
+    "differing": 0
+   },
+   "paragraph": {
+    "total": 140,
+    "differing": 6
+   },
+   "admonition": {
+    "total": 26,
+    "differing": 0
+   },
+   "quote": {
+    "total": 7,
+    "differing": 0
+   },
+   "table": {
+    "total": 27,
+    "differing": 3
+   },
+   "footnote": {
+    "total": 13,
+    "differing": 3
+   },
+   "equation": {
+    "total": 19,
+    "differing": 0
+   },
+   "figure(image)": {
+    "total": 16,
+    "differing": 1
+   },
+   "list(ordered)": {
+    "total": 8,
+    "differing": 0
+   },
+   "list": {
+    "total": 11,
+    "differing": 1
+   },
+   "code": {
+    "total": 6,
+    "differing": 0
+   },
+   "figure(mermaid)": {
+    "total": 3,
+    "differing": 0
+   },
+   "target": {
+    "total": 7,
+    "differing": 0
+   },
+   "table(complex)": {
+    "total": 2,
+    "differing": 0
+   },
+   "divider": {
+    "total": 1,
+    "differing": 0
+   },
+   "list(checklist)": {
+    "total": 1,
+    "differing": 0
+   },
+   "figure(none)": {
+    "total": 1,
+    "differing": 0
+   }
+  }
+ },
+ "nativeRefused": [
+  "apps/editor/test/browser/fixtures/blocked-markdown.md: NativeDocumentError: Unsupported native content: paragraph"
+ ],
+ "generated": {
+  "documents": 987,
+  "status": {
+   "same": 987
+  },
+  "failures": {},
+  "differences": {},
+  "documentsWithUnwritable": 0,
+  "unwritable": {},
+  "blocks": {
+   "paragraph": {
+    "total": 526,
+    "differing": 0
+   },
+   "heading": {
+    "total": 66,
+    "differing": 0
+   },
+   "table": {
+    "total": 105,
+    "differing": 0
+   },
+   "figure(image)": {
+    "total": 58,
+    "differing": 0
+   },
+   "admonition": {
+    "total": 58,
+    "differing": 0
+   },
+   "list": {
+    "total": 58,
+    "differing": 0
+   },
+   "list(ordered)": {
+    "total": 58,
+    "differing": 0
+   },
+   "quote": {
+    "total": 58,
+    "differing": 0
+   },
+   "footnote": {
+    "total": 58,
+    "differing": 0
+   }
+  }
+ },
+ "synthetic": {
+  "documents": 3,
+  "status": {
+   "same": 3
+  },
+  "failures": {},
+  "differences": {},
+  "documentsWithUnwritable": 0,
+  "unwritable": {},
+  "blocks": {
+   "paragraph": {
+    "total": 4940,
+    "differing": 0
+   },
+   "list": {
+    "total": 380,
+    "differing": 0
+   },
+   "heading": {
+    "total": 760,
+    "differing": 0
+   },
+   "figure(image)": {
+    "total": 380,
+    "differing": 0
+   },
+   "equation": {
+    "total": 380,
+    "differing": 0
+   },
+   "table": {
+    "total": 380,
+    "differing": 0
+   },
+   "footnote": {
+    "total": 380,
+    "differing": 0
+   }
+  }
+ },
+ "problems": [
+  {
+   "name": "apps/editor/test/browser/fixtures/bibliography.md",
+   "status": "different",
+   "differing": {
+    "paragraph": 3,
+    "table": 1,
+    "footnote": 1
+   },
+   "detail": "/blocks/1/content/1/role: \"cite\" ≠ \"cite:t\""
+  },
+  {
+   "name": "apps/editor/test/browser/fixtures/citations.md",
+   "status": "different",
+   "differing": {
+    "paragraph": 1,
+    "table": 1,
+    "footnote": 1
+   },
+   "detail": "/blocks/1/content/1/children/0/role: \"cite\" ≠ \"cite:t\""
+  },
+  {
+   "name": "apps/editor/test/browser/fixtures/list-inline.md",
+   "status": "different",
+   "differing": {
+    "paragraph": 1
+   },
+   "detail": "/blocks/2/content/9/role: \"cite\" ≠ \"cite:t\""
+  },
+  {
+   "name": "apps/editor/test/browser/fixtures/reference-preview.md",
+   "status": "different",
+   "differing": {
+    "paragraph": 1,
+    "list": 1,
+    "table": 1,
+    "footnote": 1
+   },
+   "detail": "/blocks/3/content/1/role: \"cite\" ≠ \"cite:t\""
+  },
+  {
+   "name": "spike:feature-matrix",
+   "status": "different",
+   "differing": {
+    "figure(image)": 1
+   },
+   "detail": "/blocks/27/caption/content/1/role: \"cite\" ≠ \"cite:t\""
+  }
+ ]
+}

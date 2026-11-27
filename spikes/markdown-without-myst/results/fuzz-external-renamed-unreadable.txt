@@ -1,0 +1,340 @@
+<!-- Error: attributes: image attributes -->
+---
+litzio: 1
+---
+
+# Converter Control
+
+The converter regulates the **DC-link voltage** and *phase current*.
+
+See [Figure](#fig-control) and @eq-current.
+
+## Control Structure
+
+> [!WARNING]
+> The current controller parameters must be calibrated before operation.
+
+## Control Diagram
+
+::: {#fig-control}
+
+![](https://example.org/<x>.png){fig-alt="{style=lower-alpha}"}
+
+Control block diagram of the grid-connected converter.
+
+:::
+
+## Current Reference
+
+The current reference is calculated from the active power command.
+
+$$i^{\ast} = \frac{P^{\ast}}{V_{\mathrm{rms}}}$$ {#eq-current}
+
+The rated current follows from [Equation](#eq-current).
+
+## Ratings
+
+| Port | Type |
+| ---- | ---- |
+| U    | AC   |
+| P    | DC   |
+
+
+=====
+
+<!-- Error: attributes: image attributes -->
+---
+litzio: 1
+title: Feature matrix
+status: draft
+numbering:
+  headings: true
+  figure: Fig. %s
+template:
+  name: Sample report
+  description: Synthetic feature coverage
+bibliography:
+  - refs/sample.bib
+---
+
+# Intro with $x^2$ and `code` {#sec-intro}
+
+Text with ~~removed **bold**~~, H<sub>2</sub>O, x<sup>*n*+1</sup>, ***both***, a [titled link](https://example.org/a_\(b\) "Title text") and a [fragment](#sec-intro).
+
+Literal colons: Note:see, 10:30, a :b and ratio 3:4, tilde \~one\~ and \~\~two\~\~ as text, pipes | and \*stars\*, under_score, \[brackets], #hash, \<angle>, & entity, 50% done, ``code with ` tick``, $$a\$b$$ and \$5.
+
+Line one\
+line two with trailing hard break before text.
+
+> [!NOTE]
+
+> [!ATTENTION]
+> Attention body.
+
+> [!CAUTION]
+> Danger body.
+
+> [!ERROR]
+> Error body.
+
+> [!HINT]
+> Hint body.
+
+> [!IMPORTANT]
+> Important body.
+
+> [!SEEALSO]
+> See also body.
+
+>
+
+---
+
+::: {.lower-alpha}
+
+3) Third clause
+4) Fourth clause
+
+   ::: {.upper-roman}
+
+   1. Nested roman
+
+   :::
+
+:::
+
+::: {.lower-alpha}
+
+1) Separate list
+
+:::
+
+1. Decimal list
+
+2) Decimal paren
+
+* [ ] open task
+* [x] done task
+  * [ ] nested task
+
+Between lists.
+
+* Bullet after checklist
+*
+* Third
+
+````python
+print("```")
+````
+
+````
+plain ``` fence
+````
+
+$$y = \frac{1}{2}$$ {#eq-A-B}
+
+::: {#eq-empty}
+
+$$
+$$
+
+:::
+
+$$x$$ {#eq-fixed enumerator="7a"}
+
+::: {#fig-free .unnumbered}
+
+![](images/plot.png){fig-alt="Plot alt text"}
+
+Free figure caption with @alpha.
+
+:::
+
+::: {#fig-fixed enumerator="2b"}
+
+![](./x.md.png){fig-alt="{"}
+
+Fixed figure.
+
+:::
+
+::: {#fig-pending}
+
+:::
+
+| Left | Center |   Right |
+| :--- | :----: | ------: |
+| a\|b | x<br>y | @eq-A-B |
+| `c`  |   $m$  | [^fn-a] |
+
+: Fixed table with *mark* {#tbl-tab-fixed enumerator="T-1"}
+
+::: {.unnumbered .table}
+
+| H |
+| - |
+| v |
+
+Note paragraph one.
+
+Note with @sec-intro.
+
+:::
+
+Footnote call[^fn-a] and[^Fn-B].
+
+[^fn-a]: First note.
+
+[^Fn-B]: Second note with $k$.
+
+
+=====
+
+<!-- Error: attributes: image attributes -->
+---
+litzio: 1
+title: Feature matrix
+status: draft
+numbering:
+  headings: true
+  figure: Fig. %s
+template:
+  name: Sample report
+  description: Synthetic feature coverage
+bibliography:
+  - refs/sample.bib
+---
+
+# Intro with $x^2$ and `code` {#sec-intro}
+
+Text with ~~removed **bold**~~, H<sub>2</sub>O, x<sup>*n*+1</sup>, ***both***, a [titled link](https://example.org/a_\(b\) "Title text") and a [fragment](#sec-intro).
+
+Literal colons: Note:see, 10:30, a :b and ratio 3:4, tilde \~one\~ and \~\~two\~\~ as text, pipes | and \*stars\*, under_score, \[brackets], #hash, \<angle>, & entity, 50% done, ``code with ` tick``, $$a\$b$$ and \$5.
+
+Line one\
+line two with trailing hard break before text.
+
+> [!NOTE]
+
+> [!ATTENTION]
+> Attention body.
+
+> [!CAUTION]
+> Danger body.
+
+> [!ERROR]
+> Error body.
+
+> [!HINT]
+> Hint body.
+
+> [!IMPORTANT]
+> Important body.
+
+> [!SEEALSO]
+> See also body.
+
+>
+
+> Quote with *emphasis*.
+
+---
+
+::: {.lower-alpha}
+
+3) Third clause
+4) Fourth clause
+
+   ::: {.upper-roman}
+
+   1. Nested roman
+
+   :::
+
+:::
+
+::: {.lower-alpha}
+
+1) Separate list
+
+:::
+
+1. Decimal list
+
+2) Decimal paren
+
+* [ ] open task
+* [x] done task
+  * [ ] nested task
+
+Between lists.
+
+* Bullet after checklist
+*
+* Third
+
+````python
+print("```")
+````
+
+````
+plain ``` fence
+````
+
+$$y = \frac{1}{2}$$ {#eq-A-B}
+
+::: {#eq-empty}
+
+$$
+$$
+
+:::
+
+$$z = 1$$ {#eq-fixed enumerator="7a"}
+
+::: {#fig-free .unnumbered}
+
+![](images/plot.png){fig-alt="Plot alt text"}
+
+Free figure caption with @alpha.
+
+:::
+
+::: {#fig-x.y enumerator="2b"}
+
+![](images/fixed.png)
+
+Fixed figure.
+
+:::
+
+::: {#fig-pending}
+
+![](https://example.org.png){fig-alt="{style=lower-alpha}"}
+
+:::
+
+| Left | Center |   Right |
+| :--- | :----: | ------: |
+| a\|b | x<br>y | @eq-A-B |
+| `c`  |   $m$  | [^fn-a] |
+
+: Fixed table with *mark* {#tbl-tab-fixed enumerator="T-1"}
+
+::: {.unnumbered .table}
+
+| H |
+| - |
+| v |
+
+Note paragraph one.
+
+Note with @sec-intro.
+
+:::
+
+Footnote call[^fn-a] and[^Fn-B].
+
+[^fn-a]: First note.
+
+[^Fn-B]: Second note with $k$.
