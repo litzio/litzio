@@ -711,7 +711,7 @@ test("new Equation inserts save and reload through Core semantics", () => {
   const edits = collectSupportedEdits(editable, next);
   assert.deepEqual(edits.inserts, [{ block: "equation", latex: "x^2 + 1" }]);
   const saved = saveEdits(nativeSource("Intro\n"), edits);
-  assert.equal(saved.markdown, nativeSource("Intro\n\n```{math}\nx^2 + 1\n```\n"));
+  assert.equal(saved.markdown, nativeSource("Intro\n\n$$\nx^2 + 1\n$$\n"));
   assert.deepEqual(loadEditableDocument(saved.markdown).blocks.map(block => block.block), ["paragraph", "equation"]);
   assert.equal(loadEditableDocument(saved.markdown).blocks[1]?.block, "equation");
   const equation = loadEditableDocument(saved.markdown).blocks[1];
@@ -2055,7 +2055,7 @@ test("typed straight quotes save through the Editor adapter and Host and reload 
   const saved = commitDocumentSave(() => input, (markdown) => { written = markdown; },
     { revision: documentRevision(input), ...collectSupportedEdits(editable, projected) });
   assert.equal(written, saved.markdown);
-  assert.equal(written, nativeSource("# User's guide\n\nDon't panic. The state is **\"READY\"**.\n\n:::{table}\n\n| Key   | Value     |\n| ----- | --------- |\n| state | it's \"on\" |\n:::\n"));
+  assert.equal(written, nativeSource("# User's guide\n\nDon't panic. The state is **\"READY\"**.\n\n| Key | Value |\n| --- | --- |\n| state | it's \"on\" |\n"));
   const reloaded = loadEditableDocument(written);
   assert.equal(serialize(parse(saved.markdown)), saved.markdown);
   assert.deepEqual(normalizedDocument(toTiptapDocument(reloaded)), projected);

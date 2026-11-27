@@ -225,7 +225,7 @@ test("updateTableCell writes header and body cell text through canonical Markdow
   const header = updateTableCell(original, [TABLE, 0, 0], "Port name");
   const edited = updateTableCell(header, [TABLE, 1, 1], "AC-side");
   const markdown = serialize(edited);
-  assert.match(markdown, /:::\{table\}\n\n\| Port name \| Type +\|\n\| -+ \| -+ \|\n\| U +\| AC-side \|\n\| P +\| DC +\|\n:::\n$/);
+  assert.match(markdown, /\n\| Port name \| Type \|\n\| --- \| --- \|\n\| U \| AC-side \|\n\| P \| DC \|\n$/);
   assert.equal(serialize(parse(markdown)), markdown);
   assert.deepEqual(cells(parse(markdown), TABLE).map((row) => row.map((cell) => cell.text)),
     [["Port name", "Type"], ["U", "AC-side"], ["P", "DC"]]);
@@ -320,13 +320,10 @@ test("insertTable writes a header row and body rows of plain text through canoni
   const markdown = serialize(next);
   assert.equal(markdown, String.raw`# Title
 
-:::{table}
-
-| Port | Type   |
-| ---- | ------ |
-| U    | AC     |
-|      | a \| b |
-:::
+| Port | Type |
+| --- | --- |
+| U | AC |
+| | a \| b |
 
 Text.
 `);
@@ -341,7 +338,7 @@ Text.
 test("insertTableRow adds an empty body row below the header or any body row", () => {
   const document = parse("| A | B |\n| --- | --- |\n| x | y |\n");
   const markdown = serialize(insertTableRow(insertTableRow(document, [0], 1), [0], 3));
-  assert.equal(markdown, ":::{table}\n\n| A | B |\n| - | - |\n|   |   |\n| x | y |\n|   |   |\n:::\n");
+  assert.equal(markdown, "| A | B |\n| --- | --- |\n| | |\n| x | y |\n| | |\n");
   assert.equal(serialize(parse(markdown)), markdown);
   assert.deepEqual(texts(parse(markdown), 0), [["A", "B"], ["", ""], ["x", "y"], ["", ""]]);
   // A new row's cells are editable, so they can be filled right away.
@@ -353,7 +350,7 @@ test("insertTableColumn adds an empty column, header cell included, at any posit
   const first = insertTableColumn(document, [0], 0);
   const last = insertTableColumn(first, [0], 3);
   const markdown = serialize(last);
-  assert.equal(markdown, ":::{table}\n\n|   | A | B     |   |\n| - | - | ----- | - |\n|   | x | **y** |   |\n:::\n");
+  assert.equal(markdown, "| | A | B | |\n| --- | --- | --- | --- |\n| | x | **y** | |\n");
   assert.equal(serialize(parse(markdown)), markdown);
   assert.deepEqual(cells(parse(markdown), 0), [
     [{ text: "", header: true, editable: true }, { text: "A", header: true, editable: true }, { text: "B", header: true, editable: true }, { text: "", header: true, editable: true }],
@@ -413,7 +410,7 @@ test("table rows and columns move and remove supported cells with column alignme
 test("updateTableColumnAlignment sets or clears a column's alignment on every row", () => {
   const document = parse("| A | B |\n| --- | :-: |\n| x | y |\n");
   const markdown = serialize(updateTableColumnAlignment(updateTableColumnAlignment(document, [0], 0, "right"), [0], 1, null));
-  assert.equal(markdown, ":::{table}\n\n|  A | B |\n| -: | - |\n|  x | y |\n:::\n");
+  assert.equal(markdown, "| A | B |\n| ---: | --- |\n| x | y |\n");
   const block = getEditableDocument(parse(markdown)).blocks[0];
   assert.deepEqual(block.block === "table" && block.rows.map(row => row.cells.map(cell => cell.align)), [["right", undefined], ["right", undefined]]);
 });
@@ -460,8 +457,8 @@ test("table captions and labels survive cell, grid and alignment edits, and can 
   document = updateTableCaption(document, [0], "");
   assert.match(serialize(document), /:::\{table\}\n:name: tbl-values/);
   document = updateLabel(document, [0], "");
-  assert.equal(document.children[0].kind, "table");
-  assert.match(serialize(document), /^:::\{table\}\n\n/);
+  assert.equal(getEditableDocument(document).blocks[0].block, "table");
+  assert.match(serialize(document), /^\| B \| A \|\n\| ---: \| :--- \|\n/);
   assert.doesNotMatch(serialize(document), /tbl-values/);
   // Label-only tables must not recurse when first adding or changing the label.
   assert.match(serialize(updateLabel(plain, [0], "tbl-only")), /:name: tbl-only/);

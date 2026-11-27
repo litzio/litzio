@@ -1342,8 +1342,10 @@ function newLabelIdentifier(document: MystDocument, kind: "Equation" | "Figure" 
 function assertLabelRoundTrip(document: MystDocument, index: number, label: string, failure: string): void {
   const result = roundTripFor(document, failure);
   const { markdown, reparsed } = result;
+  const original = document.children[index];
   const reloaded = reparsed.children[bodyIndex(document, index)];
-  if (reloaded?.type !== document.children[index].type || (reloaded.label ?? "") !== label || repeatRoundTrip(result).markdown !== markdown) {
+  const sameBlockKind = reloaded && (reloaded.type === original.type || (tableOf(original) && tableOf(reloaded)));
+  if (!sameBlockKind || (reloaded.label ?? "") !== label || repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", failure);
   }
 }

@@ -1,8 +1,29 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 575288a3086db3a0542797bee3bbad952f284e53..5c0845ac18f6c940fac4a8683f1b91cedf0926aa 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -2,7 +2,7 @@ import type { Root } from 'myst-spec';
+ import type { Plugin } from 'unified';
+ import type { VFile } from 'vfile';
+ import type { PageFrontmatter } from 'myst-frontmatter';
+-export declare function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter): VFile;
++export declare function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter, { tablePipeAlign }?: { tablePipeAlign?: boolean }): VFile;
+ declare const plugin: Plugin<[PageFrontmatter?], Root, VFile>;
+ export default plugin;
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 66fa25c52a0d15ee520c6446009321a29782612c..e546ed5202811ca26b81c8f00b75084e12ba1107 100644
+index 66fa25c52a0d15ee520c6446009321a29782612c..42132618d52c6a3520fdf48b2a977bab1dfdccf1 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -14,6 +14,17 @@ export function writeMd(file, node, frontmatter) {
+@@ -8,12 +8,23 @@ import { roleHandlers } from './roles.js';
+ import { addFrontmatter, runValidators, unsupportedHandlers } from './utils.js';
+ const FOOTNOTE_HANDLER_KEYS = ['footnoteDefinition', 'footnoteReference'];
+ const TABLE_HANDLER_KEYS = ['table', 'tableRow', 'tableCell'];
+-export function writeMd(file, node, frontmatter) {
++export function writeMd(file, node, frontmatter, { tablePipeAlign } = {}) {
+     const handlers = {
+         ...directiveHandlers,
          ...roleHandlers,
          ...referenceHandlers,
          ...miscHandlers,
@@ -20,20 +41,35 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..e546ed5202811ca26b81c8f00b75084e
      };
      const handlerKeys = [
          ...Object.keys(handlers),
-@@ -25,6 +36,8 @@ export function writeMd(file, node, frontmatter) {
+@@ -25,11 +36,15 @@ export function writeMd(file, node, frontmatter) {
      const options = {
          fences: true,
          rule: '-',
-+        bulletOther: '-',
++        bullet: '-',
++        bulletOther: '*',
++        listItemIndent: 'one',
 +        join: [(left, right) => left.type === 'list' && right.type === 'list' && right.ordered ? 1 : undefined],
          handlers: {
              ...handlers,
              ...unsupported,
+         },
+-        extensions: [gfmFootnoteToMarkdown(), gfmTableToMarkdown()],
++        extensions: [gfmFootnoteToMarkdown(), gfmTableToMarkdown({ tablePipeAlign })],
+     };
+     const validators = { ...directiveValidators, ...miscValidators };
+     runValidators(node, validators, file);
 diff --git a/src/index.ts b/src/index.ts
-index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..bd910793dabad1f7e818a7f5bceafd25341762d5 100644
+index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..ad0f407544a11523251a77a2abb841580437bef1 100644
 --- a/src/index.ts
 +++ b/src/index.ts
-@@ -21,6 +21,17 @@ export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter)
+@@ -15,12 +15,23 @@ import type { PageFrontmatter } from 'myst-frontmatter';
+ const FOOTNOTE_HANDLER_KEYS = ['footnoteDefinition', 'footnoteReference'];
+ const TABLE_HANDLER_KEYS = ['table', 'tableRow', 'tableCell'];
+ 
+-export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter) {
++export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter, { tablePipeAlign }: { tablePipeAlign?: boolean } = {}) {
+   const handlers = {
+     ...directiveHandlers,
      ...roleHandlers,
      ...referenceHandlers,
      ...miscHandlers,
@@ -51,13 +87,21 @@ index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..bd910793dabad1f7e818a7f5bceafd25
    };
    const handlerKeys = [
      ...Object.keys(handlers),
-@@ -32,6 +43,9 @@ export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter)
+@@ -32,11 +43,16 @@ export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter)
    const options: Options = {
      fences: true,
      rule: '-',
-+    bulletOther: '-',
++    bullet: '-',
++    bulletOther: '*',
++    listItemIndent: 'one',
 +    // Ordered delimiters are semantic; a style line separates same-delimiter siblings.
 +    join: [(left, right) => left.type === 'list' && right.type === 'list' && right.ordered ? 1 : undefined],
      handlers: {
        ...handlers,
        ...unsupported,
+     },
+-    extensions: [gfmFootnoteToMarkdown(), gfmTableToMarkdown()],
++    extensions: [gfmFootnoteToMarkdown(), gfmTableToMarkdown({ tablePipeAlign })],
+   };
+   const validators = { ...directiveValidators, ...miscValidators };
+   runValidators(node, validators, file);

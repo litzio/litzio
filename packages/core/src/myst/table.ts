@@ -220,7 +220,7 @@ export function setTableNoteParagraphs(block: MystNode, paragraphs: MystNode[]):
 }
 
 /**
- * The top-level block for every authored table: a `{table}` directive, even without caption or label.
+ * The internal container for authored tables, including metadata added by later edits.
  */
 export function tableBlockNode(table: MystNode, caption: InlineContent[], label: string, identifier?: string, enumerator?: string, enumerated?: boolean, notes: MystNode[] = []): MystNode {
   return {

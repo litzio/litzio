@@ -20,10 +20,10 @@ import { cloneDocument, type MystDocument, type MystNode } from "./tree.ts";
 const LOSS = "Document contains semantic content that cannot be preserved in canonical Markdown";
 // Ask the pinned upstream citation rule which literal @ positions need protection.
 // Do not duplicate its key grammar, preceding-character or URL-context rules.
-const citationTokenizer = createTokenizer({ extensions: { smartquotes: false } });
-const citationRules = citationTokenizer.inline.ruler.getRules("");
-citationTokenizer.inline.ruler.disable("citation");
-const nonCitationRules = new Set(citationTokenizer.inline.ruler.getRules(""));
+const writerTokenizer = createTokenizer({ extensions: { smartquotes: false } });
+const citationRules = writerTokenizer.inline.ruler.getRules("");
+writerTokenizer.inline.ruler.disable("citation");
+const nonCitationRules = new Set(writerTokenizer.inline.ruler.getRules(""));
 const citationRule = citationRules.find(rule => !nonCitationRules.has(rule))!;
 
 /** Canonical serialization would lose semantics; `detail` names the node and reason. */
@@ -213,10 +213,10 @@ function parsedRoundTrip(markdown: string, complexTables: boolean): RoundTrip {
   return { markdown, reparsed, fingerprint: semanticFingerprint(reparsed) };
 }
 
-/** Write one flow node with myst-to-md, for a directive whose body Litzio writes itself. */
-function render(value: MystNode): string {
+/** Write one prepared flow node with myst-to-md. */
+function render(value: MystNode, tablePipeAlign = true): string {
   const file = new VFile();
-  writeMd(file, { type: "root", children: [value] } as never);
+  writeMd(file, { type: "root", children: [value] } as never, undefined, { tablePipeAlign });
   assertNoSerializationDiagnostics(file);
   return String(file.result ?? "").trimEnd();
 }
@@ -340,6 +340,15 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
       }
       node.type = "html";
       node.value = source;
+    } else if (node.type === "math" && typeof node.value === "string" &&
+        Object.keys(node).every(key => key === "type" || key === "value" || key === "position")) {
+      const source = `$$\n${node.value}\n$$`;
+      // A blank line or an early closing fence in LaTeX can end dollar math.
+      const tokens = writerTokenizer.parse(source, {});
+      if (tokens.length === 1 && tokens[0].type === "math_block" && tokens[0].content === node.value) {
+        node.type = "html";
+        node.value = source;
+      }
     }
     if (node.type === "admonition" && node.children?.length === 0) {
       node.type = "html";
@@ -350,8 +359,20 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     if (isTableDirective(node)) {
       const caption = tableCaptionParagraph(node);
       const table = tableOf(node)!;
+      if (table.headerRows === undefined && node.children!.length === 1 &&
+          node.label === undefined && node.identifier === undefined &&
+          node.enumerator === undefined && node.enumerated === undefined) {
+        const lines = render(table, false).split("\n");
+        // The unpadded writer emits one hyphen per delimiter cell. Keep three
+        // for GitHub's documented table syntax, preserving alignment colons.
+        lines[1] = lines[1].replaceAll("-", "---");
+        node.type = "html";
+        node.value = lines.join("\n");
+        delete node.children;
+        return;
+      }
       const grid = table.headerRows === undefined ? render(table) : writeTableHtml(table, path);
-      const body = [grid, ...tableNoteParagraphs(node).map(render)].join("\n\n");
+      const body = [grid, ...tableNoteParagraphs(node).map(note => render(note))].join("\n\n");
       const title = caption ? render(caption) : "";
       if (/[\r\n]/.test(title)) throw new SemanticLossError("table caption must fit on one line", { code: "line-break", path,
         action: "Remove line breaks from the table caption." });
@@ -365,7 +386,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     if (mermaidFigure) {
       const source = node.children![0].value as string;
       const caption = (node.children ?? []).filter(child => child.type === "caption")
-        .flatMap(child => child.children ?? []).map(render).join("\n\n");
+        .flatMap(child => child.children ?? []).map(paragraph => render(paragraph)).join("\n\n");
       const codeFence = "`".repeat(Math.max(3, ...[...source.matchAll(/`+/g)].map(match => match[0].length + 1)));
       const body = `${codeFence}{mermaid}\n${source}\n${codeFence}${caption ? `\n\n${caption}` : ""}`;
       const fence = ":".repeat(Math.max(3, ...[...body.matchAll(/^ *(:{3,})/gm)].map(match => match[1].length + 1)));
@@ -379,7 +400,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     // subfigures still goes to myst-to-md and fails closed. The full guard still applies.
     if (isFigure(node) && !node.subcontainer && (node.children ?? []).length <= 1 &&
         (node.children ?? []).every(child => child.type === "caption")) {
-      const caption = (node.children ?? []).flatMap(child => child.children ?? []).map(render).join("\n\n");
+      const caption = (node.children ?? []).flatMap(child => child.children ?? []).map(paragraph => render(paragraph)).join("\n\n");
       const fence = ":".repeat(Math.max(3, ...[...caption.matchAll(/^(:{3,})/gm)].map(match => match[1].length + 1)));
       node.type = "html";
       node.value = `${fence}{figure}\n${node.label ? `:name: ${node.label}\n` : ""}${node.enumerator !== undefined ? `:enumerator: ${node.enumerator}\n` : ""}${node.enumerated !== undefined ? `:enumerated: ${node.enumerated}\n` : ""}${caption ? `\n${caption}\n` : ""}${fence}`;
@@ -412,7 +433,7 @@ function isDollarMath(node: MystNode, previous: MystNode | undefined): boolean {
 
 function escapeText(text: MystNode, inLink: boolean): MystNode[] {
   const value = String(text.value);
-  const state = new citationTokenizer.inline.State(value, citationTokenizer, {}, []);
+  const state = new writerTokenizer.inline.State(value, writerTokenizer, {}, []);
   const result: MystNode[] = [];
   let start = 0;
   for (let index = 0; index < value.length; index++) {

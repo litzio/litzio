@@ -12,14 +12,14 @@ The converter regulates the **DC-link voltage** and *phase current*.
 
 The control system consists of:
 
-*   DC-link voltage controller
-*   AC current controller
-*   PLL
+- DC-link voltage controller
+- AC current controller
+- PLL
 
 ## Current Reference
 
 The current reference is calculated from the active power command.
 
-```{math}
+$$
 i^{\ast} = \frac{P^{\ast}}{V_{\mathrm{rms}}}
-```
+$$

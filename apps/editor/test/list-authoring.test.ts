@@ -95,7 +95,7 @@ test("list item split, indent, outdent and kind change save as the edited list a
       ] },
     }]);
     const disk = saveFile(dir, markdown, state, editable);
-    assert.equal(disk, nativeSource("# Steps\n\n1.  Wire\n\n    *   Check \\*\\*x\\*\\*\n2.  Power\n\nClose\n\nDone.\n"));
+    assert.equal(disk, nativeSource("# Steps\n\n1. Wire\n\n   - Check \\*\\*x\\*\\*\n2. Power\n\nClose\n\nDone.\n"));
     assert.equal(serialize(parse(disk)), disk);
     assert.deepEqual(loadEditableDocument(disk).blocks.map((block) => block.block), ["heading", "list", "paragraph", "paragraph"]);
   } finally {
@@ -120,10 +120,10 @@ test("new lists and empty items save from insertion", () => {
     assert.deepEqual(collectSupportedEdits(editable, editorDocumentJSON(written)).inserts, [
       { block: "list", list: { ordered: true, start: 1, items: [{ content: text("First") }] } },
     ]);
-    assert.equal(saveFile(dir, markdown, written, editable), nativeSource("Intro.\n\n1.  First\n"));
+    assert.equal(saveFile(dir, markdown, written, editable), nativeSource("Intro.\n\n1. First\n"));
 
     const withEmptyItem = run(written, splitListItem(written.schema.nodes.listItem));
-    assert.equal(saveFile(dir, markdown, withEmptyItem, editable), nativeSource("Intro.\n\n1.  First\n2.\n"));
+    assert.equal(saveFile(dir, markdown, withEmptyItem, editable), nativeSource("Intro.\n\n1. First\n2.\n"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -149,12 +149,12 @@ test("a checklist opens with its check states, saves a changed check and new unc
       { content: text("Close"), checked: false },
     ] } }]);
     const disk = saveFile(dir, markdown, state, editable);
-    assert.equal(disk, nativeSource("Intro.\n\n*   [x] Wire\n    *   [x] Input\n*   [x] Power\n*   [ ] Close\n"));
+    assert.equal(disk, nativeSource("Intro.\n\n- [x] Wire\n  - [x] Input\n- [x] Power\n- [ ] Close\n"));
     assert.deepEqual(loadEditableDocument(disk).blocks[1], { block: "list", path: [2], ...edits![0].list });
 
     const inserted = editorState(nativeSource("Intro.\n")).state;
     const checklist = inserted.apply(insertListAfter(inserted, 0, "checklist"));
-    assert.equal(saveFile(dir, nativeSource("Intro.\n"), checklist, loadEditableDocument(nativeSource("Intro.\n"))), nativeSource("Intro.\n\n*   [ ]\n"));
+    assert.equal(saveFile(dir, nativeSource("Intro.\n"), checklist, loadEditableDocument(nativeSource("Intro.\n"))), nativeSource("Intro.\n\n- [ ]\n"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

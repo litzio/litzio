@@ -288,7 +288,7 @@ test("a Markdown fragment is read all or nothing", () => {
 
 test("canonical write keeps its bytes for colon fences, block breaks and comments inside other syntax", () => {
   // Pasting adds no writer rule: these bytes are what canonical write already produced.
-  for (const body of ["# ::: heading\n", ":::{table}\n\n| A   |\n| --- |\n| ::: |\n:::\n", ":::{note}\n**::: body**\n:::\n",
+  for (const body of ["# ::: heading\n", "| A |\n| --- |\n| ::: |\n", ":::{note}\n**::: body**\n:::\n",
     "H{sub}`::: example`\n", "[:::x](https://e.com)\n", "x :::\n", "**a** :::b\n", ":::{table} ::: Caption\n\n| A |\n| - |\n| x |\n:::\n",
     "# +++ heading\n", "# % heading\n", "**+++** x\n", "**% x**\n", "a % b +++ c (l)=\n", "(lab)= x\n", "cost \\$5 here\n"]) {
     assert.equal(serialize(parse(native(body))), native(body), body);
@@ -568,8 +568,23 @@ test("empty labeled equations retain identity and numbering through notation cha
     assert.deepEqual(core.targetNumbers(core.getEditableDocument(core.insertEquation(empty, 2, "y")).blocks.map(core.blockTargets)), [{ equation: 1 }, { equation: 2 }]);
     if (label) assertStableEmpty(core.updateLabel(core.parse(assertStableEmpty(empty)), [1], "renamed"));
     const filled = core.updateEquationLatex(core.parse(assertStableEmpty(empty)), [1], "", "x^2");
-    assert.match(assertStableEmpty(filled), /```\{math\}/);
+    assert.match(assertStableEmpty(filled), label ? /```\{math\}/ : /\$\$\nx\^2\n\$\$/);
     assert.equal(assertStableEmpty(core.updateEquationLatex(filled, [1], "x^2", "")), assertStableEmpty(empty));
+  }
+});
+
+test("display math uses dollar fences when they preserve the complete LaTeX", () => {
+  for (const [latex, body] of [
+    ["a\nb", "$$\na\nb\n$$\n"],
+    ["a\n\nb", "```{math}\na\n\nb\n```\n"],
+    ["a $$\nb", "```{math}\na $$\nb\n```\n"],
+  ]) {
+    const document = core.insertEquation(core.createDocument(), 1, latex);
+    const markdown = core.serialize(document);
+    assert.equal(markdown, native(body));
+    const reopened = core.parse(markdown);
+    assert.deepEqual(core.getEditableDocument(reopened), core.getEditableDocument(document));
+    assert.equal(core.serialize(reopened), markdown);
   }
 });
 
@@ -691,7 +706,7 @@ test("structured authoring preserves keyed zero/multiple targets in the canonica
   ] });
   const snapshot = parse(result.source);
   assert.equal(serialize(snapshot), result.source);
-  assert.match(result.source, /\n\*   \[ \] Todo\n\*   \[x\] Done\n/);
+  assert.match(result.source, /\n- \[ \] Todo\n- \[x\] Done\n/);
   assert.equal(result.documentRevision, createHash("sha256").update(result.source).digest("hex"));
   assert.equal(result.documentHash, result.documentRevision);
   assert.deepEqual(result.inputs.map(item => [item.key, item.targets.length]), [["z-first", 2], ["__proto__", 0], ["a-last", 7]]);

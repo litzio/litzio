@@ -318,7 +318,7 @@ Korean captions therefore start `그림 1. ` / `표 1. `; Table captions remain 
 Unless explicitly unnumbered under the [shared visibility rule](#fixed-numbers-720),
 every table receives an official Core number (#584), including a table with no caption or Label. Its empty caption surface displays that number; adding/removing
 caption or Label does not renumber this table or later tables. The [table format
-contract](table-caption-v1.md) defines GFM input normalization to numbered directives.
+contract](table-caption-v1.md) defines when a table is written as a plain grid or a directive.
 
 This intentionally differs from MyST: installed `myst-transforms` 1.3.51 `getCaptionLabel`
 uses `getDefaultNumberedReferenceTemplate(kind)` (for example `Figure %s:`), ignoring the
