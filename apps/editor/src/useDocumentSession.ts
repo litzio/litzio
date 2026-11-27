@@ -18,7 +18,7 @@ import { chooseHostImage, rollbackAsset } from "./image-assets.ts";
 import { createOutlineStore, type OutlineItem } from "./outline.ts";
 import { SaveDisplayError, type SaveErrorLocation } from "./save-error.ts";
 import type { DocumentView } from "./shell/TopBar.tsx";
-import { collectSupportedEdits } from "./tiptap-document.ts";
+import { collectSupportedEdits, type TiptapJSON } from "./tiptap-document.ts";
 import { createDocumentSessionLifetime, messageOf, createDocumentRequests } from "./document-session.ts";
 import { saveLiveEditor, type ProvisionalSave } from "./editor-save.ts";
 import { useLocalWriteVerification } from "./useLocalWriteVerification.ts";
@@ -441,6 +441,11 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       if (!isCurrent() || !editorRef.current || !document || busy) throw new Error("Editor is not ready");
       return structuredClone({ path: openedPathRef.current, revision: sourceRevision.current, base: sessionBase.current,
         ...collectSupportedEdits(document, editorRef.current.getDocument()) });
+    },
+    validateReplacement(candidate: TiptapJSON, signal: AbortSignal) {
+      if (!isCurrent() || busyRef.current) throw new Error("Editor is not ready");
+      return requestSource({ path: openedPathRef.current, revision: sourceRevision.current, base: sessionBase.current,
+        ...collectSupportedEdits(document, candidate) }, signal);
     },
     getSnapshot, initialEditorSnapshot, editorRef, document, bibliography, openedPath, headingNumbering, referenceTemplates, outlineStore, editorGeneration, isCurrent,
     imageRenameRevision: () => sourceRevision.current,

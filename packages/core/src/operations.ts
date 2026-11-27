@@ -14,6 +14,7 @@ import {
   insertInlineBreak,
   inlineContentText,
   inlineContentToNodes,
+  literalSearchPattern,
   projectInlineContent,
   footnoteLabelError,
   type InlineContent,
@@ -58,16 +59,22 @@ import { assertBodyIndex, cloneDocument, getNode, type MystDocument, type MystNo
 
 const TEXT_BLOCKS = new Set(["paragraph", "heading"]);
 
-export function replaceText(document: MystDocument, from: string, to: string): MystDocument {
+export function replaceText(document: MystDocument, from: string, to: string, { caseSensitive = true } = {}): MystDocument {
   if (from.length === 0) {
     throw new DocumentDiagnosticError("invalid-operation", "replaceText requires a non-empty search string");
   }
   const next = cloneDocument(document);
-  const block = findTextBlock(next, from);
+  const pattern = caseSensitive ? undefined : new RegExp(literalSearchPattern(from), "iu");
+  const contains = (text: string) => pattern?.test(text) ?? text.includes(from);
+  const block = findTextBlock(next, contains);
   if (!block) {
     throw new DocumentDiagnosticError("invalid-operation", `replaceText could not find paragraph or heading text: ${from}`);
   }
-  if (!replaceInTextNodes(block, from, to) && toText(block) === from) {
+  const replace = (text: string) => pattern
+    ? text.replaceAll(new RegExp(pattern.source, "giu"), () => to)
+    : text.replaceAll(from, to);
+  const blockText = toText(block);
+  if (!replaceInTextNodes(block, contains, replace) && (pattern ? pattern.exec(blockText)?.[0] === blockText : blockText === from)) {
     block.children = [{ type: "text", value: to }];
   }
   return finishTextEdit(document, next, block);
@@ -1375,7 +1382,7 @@ export function updateNodeTextAtPath(
   }
   const next = cloneDocument(document);
   const node = getNode(next, path);
-  if (replaceInTextNodes(node, from, to)) {
+  if (replaceInTextNodes(node, text => text.includes(from), text => text.replaceAll(from, to))) {
     return finishTextEdit(document, next, node);
   }
   if (typeof node.value === "string" && node.value.includes(from)) {
@@ -1621,25 +1628,25 @@ export function removeBlock(document: MystDocument, index: number): MystDocument
   return next;
 }
 
-function findTextBlock(node: MystNode, from: string): MystNode | undefined {
-  if (TEXT_BLOCKS.has(node.type) && toText(node).includes(from)) {
+function findTextBlock(node: MystNode, contains: (text: string) => boolean): MystNode | undefined {
+  if (TEXT_BLOCKS.has(node.type) && contains(toText(node))) {
     return node;
   }
   for (const child of node.children ?? []) {
-    const found = findTextBlock(child, from);
+    const found = findTextBlock(child, contains);
     if (found) return found;
   }
   return undefined;
 }
 
-function replaceInTextNodes(node: MystNode, from: string, to: string): boolean {
-  if (node.type === "text" && typeof node.value === "string" && node.value.includes(from)) {
-    node.value = node.value.replaceAll(from, to);
+function replaceInTextNodes(node: MystNode, contains: (text: string) => boolean, replace: (text: string) => string): boolean {
+  if (node.type === "text" && typeof node.value === "string" && contains(node.value)) {
+    node.value = replace(node.value);
     return true;
   }
   let replaced = false;
   for (const child of node.children ?? []) {
-    if (replaceInTextNodes(child, from, to)) replaced = true;
+    if (replaceInTextNodes(child, contains, replace)) replaced = true;
   }
   return replaced;
 }

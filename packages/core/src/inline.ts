@@ -5,6 +5,11 @@ import type { MystNode } from "./myst/tree.ts";
 import { canonicalCitation, citationContentError, type CitationContent } from "./citation.ts";
 import { citationToNode, projectCitation } from "./myst/citation-nodes.ts";
 
+/** Escape a literal search for Unicode matching without changing offsets in the original text. */
+export function literalSearchPattern(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** Reference roles authored as inline content: {eq} for Equations, {numref} for Figures and
  * Tables, and {ref} for sections, through the `(label)=` target before their heading. */
 export type ReferenceRole = "eq" | "numref" | "ref";

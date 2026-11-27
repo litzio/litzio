@@ -42,6 +42,48 @@ process.env.LITZIO_ASSISTANT_CWD = path.join(fixtures, "assistant");
 after(() => rmSync(fixtures, { recursive: true, force: true }));
 const fixture = path.join(fixtures, "document.md");
 
+test("replace-text exposes case options, counts committed changes, and leaves zero-match files byte-identical", () => {
+  const file = path.join(fixtures, "replace-all.md");
+  const source = nativeSource("# Motor notes\n\n\nA mo**to**r and MOTOR.\n");
+  writeFileSync(file, source);
+  const command = ["replace-text", file, "--from", "Motor", "--to", "drive", "--all"];
+  const preview = run([...command, "--ignore-case", "--dry-run", "--format", "json"]);
+  assert.equal(preview.status, 0, preview.stderr);
+  const output = JSON.parse(preview.stdout);
+  assert.equal(output.replaced, 3);
+  assert.equal(readFileSync(file, "utf8"), source);
+
+  const committed = run(command);
+  assert.equal(committed.status, 0, committed.stderr);
+  assert.equal(committed.stdout, "Replaced 1 match.\n");
+  assert.equal(readFileSync(file, "utf8"), nativeSource("# drive notes\n\nA mo**to**r and MOTOR.\n"));
+
+  writeFileSync(file, source);
+  const zero = run(["replace-text", file, "--from", "absent", "--to", "drive", "--all"]);
+  assert.equal(zero.status, 0, zero.stderr);
+  assert.equal(zero.stdout, "Replaced 0 matches.\n");
+  assert.equal(readFileSync(file, "utf8"), source);
+
+  const batch = path.join(fixtures, "replace-all-batch.json");
+  writeFileSync(batch, JSON.stringify([{ command: "replace-text", from: "absent", to: "drive", all: true, "ignore-case": true }]));
+  assert.equal(run(["apply-batch", file, "--operations", batch]).status, 0);
+  assert.equal(readFileSync(file, "utf8"), source);
+
+  const single = run(["replace-text", file, "--from", "MOTOR", "--to", "drive", "--ignore-case"]);
+  assert.equal(single.status, 0, single.stderr);
+  assert.equal(single.stdout, "");
+  assert.match(readFileSync(file, "utf8"), /^# drive notes$/m);
+  assert.match(readFileSync(file, "utf8"), /mo\*\*to\*\*r and MOTOR\./);
+
+  const beforeRefusal = nativeSource("# Motor\n\nA Motor.\n");
+  writeFileSync(file, beforeRefusal);
+  const refusal = run(["replace-text", file, "--from", "Motor", "--to", "", "--all"]);
+  assert.equal(refusal.status, 1);
+  assert.equal(refusal.stdout, "");
+  assert.match(refusal.stderr, /empty heading/);
+  assert.equal(readFileSync(file, "utf8"), beforeRefusal);
+});
+
 test("inspect appends both counts without changing the file or revision", () => {
   const file = path.join(fixtures, "character-count.md");
   const source = nativeSource("Hello world.\n");

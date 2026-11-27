@@ -2,12 +2,57 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getSchema } from "@tiptap/core";
 import { history, undoDepth } from "@tiptap/pm/history";
+import { parse, replaceAllText, serializeChange } from "@litzio/core";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { editorDocumentJSON, editorExtensions } from "../src/editor-schema.tsx";
 import { closeFindTransaction, findMatches, findStep, findTransaction, selectedFindText } from "../src/document-find.ts";
 import { DocumentFind } from "../src/document-find.ts";
-import { appliedDocument, toTiptapDocument } from "../src/tiptap-document.ts";
+import { appliedDocument, collectSupportedEdits, toTiptapDocument } from "../src/tiptap-document.ts";
+import { replaceFoundText } from "../src/document-replace.ts";
+import { saveEdits } from "../server/document-replay.ts";
+import { parseCommandArgs, replaceAllTextFor } from "../server/document-edit-commands.ts";
 import { loadEditableDocument, nativeSource } from "./helpers/document.ts";
+
+test("one-at-a-time replacement finishes without selecting text it inserted", () => {
+  let state = find(editorState(nativeSource("a a\n")), "a", true);
+  state = step(state, 1);
+  for (const expected of ["a aa", "aa aa"]) {
+    const change = replaceFoundText(state, "aa", false);
+    assert.ok(change);
+    state = state.apply(change.tr);
+    assert.equal(state.doc.textContent, expected);
+  }
+  assert.equal(findMatches(state).current, -1);
+  assert.deepEqual(findMatches(state).matches, []);
+  assert.equal(replaceFoundText(state, "aa", false)?.replaced, 0);
+});
+
+test("a caret inside the only non-overlapping match wraps to the highlighted range", () => {
+  let state = editorState(nativeSource("aaa\n"));
+  state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 2)));
+  state = find(state, "aa", true);
+  assert.deepEqual(findMatches(state), { matches: [{ from: 1, to: 3 }], current: 0 });
+  assert.equal(replaceFoundText(state, "b", false)?.replaced, 1);
+});
+
+test("200-cell replace-all benchmark", { skip: process.env.LITZIO_REPLACE_BENCHMARK !== "1" }, () => {
+  const markdown = nativeSource("| motor |\n| --- |\n" + "| motor |\n".repeat(199));
+  const opening = parse(markdown);
+  const model = loadEditableDocument(markdown);
+  const state = find(editorState(markdown), "motor", true);
+  const startEditor = performance.now();
+  const change = replaceFoundText(state, "drive", true)!;
+  const candidate = collectSupportedEdits(model, editorDocumentJSON(state.apply(change.tr)));
+  const preview = saveEdits(markdown, candidate).markdown;
+  const editorMs = performance.now() - startEditor;
+  const startCli = performance.now();
+  const result = replaceAllText(opening, { from: "motor", to: "drive" });
+  const cli = serializeChange(opening, () => result.document);
+  const cliMs = performance.now() - startCli;
+  assert.equal(preview, cli);
+  assert.equal(result.replaced, 200);
+  assert.ok(Math.max(editorMs, cliMs) <= 500, `Editor preview ${editorMs.toFixed(1)} ms, CLI operation and write validation ${cliMs.toFixed(1)} ms`);
+});
 
 // Find (#1982) reuses prosemirror-search. These cases pin what Litzio relies on: which document
 // text it reaches, case handling, wrapping, and that finding never edits the document.
@@ -26,10 +71,10 @@ const source = nativeSource([
   "[^n]: Endnote juliet.",
 ].join("\n\n") + "\n");
 
-function editorState() {
+function editorState(markdown = source) {
   const extensions = editorExtensions();
   const schema = getSchema(extensions);
-  const doc = schema.nodeFromJSON(toTiptapDocument(loadEditableDocument(source)));
+  const doc = schema.nodeFromJSON(toTiptapDocument(loadEditableDocument(markdown)));
   const plugins = DocumentFind.config.addProseMirrorPlugins!.call({} as never) as EditorState["plugins"];
   return EditorState.create({ schema, doc, plugins: [...plugins, history()] });
 }
@@ -90,4 +135,40 @@ test("a single-line selection seeds the search text", () => {
   assert.equal(selectedFindText(state.apply(state.tr.setSelection(TextSelection.create(state.doc, start.from, start.to)))), "Heading alpha");
   const across = TextSelection.create(state.doc, start.from, findMatches(find(state, "bravo")).matches[0]!.to);
   assert.equal(selectedFindText(state.apply(state.tr.setSelection(across))), "", "a selection across blocks is not a search text");
+});
+
+test("Find ranges and Core replace-all produce identical saved bytes", () => {
+  const markdown = nativeSource([
+    "# motor Heading",
+    "İ motor MOTOR mo**to**r **motor model** [motor one](https://example.test) `motor()`.",
+    "Partial [early motor late](https://example.test) and motor [right](https://example.test).",
+    "A mo$x^2$tor and mo[^n]tor keep their inline boundaries.",
+    "A mo\\\ntor keeps its hard break.",
+    "- motor drive\n  - motor control",
+    "> MOTOR quote",
+    ":::{note}\nmotor callout\n:::",
+    ":::{table} Motor readings\n\n| motor | Other |\n| --- | --- |\n| Motor speed | motor current |\n\nmotor note\n:::",
+    ':::{table} motor grid\n\n<table><thead><tr><th colspan="2"><p>motor</p></th></tr></thead><tbody><tr><td><p>motor</p></td><td><p>other</p></td></tr></tbody></table>\n:::',
+    ":::{figure} ./diagram.svg\n:name: fig-motor\n\nmotor caption\n:::",
+    "```python\nmotor = 'MOTOR'\n```",
+    "aaaa and aaaa.",
+    "[^n]: motor endnote.",
+  ].join("\n\n") + "\n");
+  const original = parse(markdown);
+  const model = loadEditableDocument(markdown);
+  for (const [from, to, caseSensitive] of [
+    ["motor", "drive", false], ["motor", "$&", true], ["motor", "motor", false],
+    ["motor right", "drive", true], ["aa", "a", true], ["motor()", "drive()", false],
+  ] as const) {
+    const state = find(editorState(markdown), from, caseSensitive);
+    const change = replaceFoundText(state, to, true);
+    assert.ok(change, from);
+    const next = state.apply(change.tr);
+    const { flags } = parseCommandArgs("replace-text", ["fixture.md", "--all", "--from", from, "--to", to,
+      ...(caseSensitive ? [] : ["--ignore-case"])]);
+    const result = replaceAllTextFor(original, flags);
+    const editorMarkdown = saveEdits(markdown, collectSupportedEdits(model, editorDocumentJSON(next))).markdown;
+    assert.equal(change.replaced, result.replaced, from);
+    assert.equal(editorMarkdown, serializeChange(original, () => result.document), from);
+  }
 });

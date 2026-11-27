@@ -3120,7 +3120,7 @@ h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-
   top: calc(var(--find-top) + var(--space-2));
   right: calc(var(--find-right) + var(--space-3) + var(--space-2));
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-1);
   max-width: calc(var(--find-width) - var(--space-3) - var(--space-4));
   padding: var(--space-1);
@@ -3131,7 +3131,13 @@ h6.heading[data-heading-number] { --heading-number-column: var(--heading-number-
   color: var(--id-color-text);
   pointer-events: auto;
 }
+.document-find-row { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
 .document-find .document-find-input { flex: 0 1 var(--layout-find-input-width); min-width: 0; }
+.document-replace-row { padding-inline-start: calc(var(--size-control-compact) + var(--space-1)); }
+.document-find .document-replace-row .document-find-input { flex: 1 1 0; }
+.document-replace-result { inline-size: 0; min-inline-size: 100%; overflow-wrap: anywhere; color: var(--id-color-text-muted); }
+.document-replace-result:empty { position: absolute; }
+.document-replace-result[data-error] { color: var(--id-color-danger); }
 .document-find-count { flex: none; min-width: var(--size-control); padding-inline: var(--space-1); text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .document-find-count[data-none] { color: var(--id-color-danger); }
 .document-find [data-slot="button"][aria-pressed="true"] {

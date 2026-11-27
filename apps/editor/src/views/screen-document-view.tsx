@@ -122,6 +122,13 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
       assertDocumentViewPath(body.path, current.roots);
       return createDocumentRequests(current.client).requestSave(body);
     },
+    requestSource: (body, signal) => {
+      const current = scopeRef.current;
+      if (!current) throw new Error("DocumentView requires a plugin screen's Host and opened folders.");
+      current.client.assertCurrent();
+      assertDocumentViewPath(body.path, current.roots);
+      return createDocumentRequests(current.client).requestSource(body, signal);
+    },
     onChange: editChanged,
     onSave: save => saved.current?.(save),
   }) : undefined, [file, edit, inherited]);
@@ -249,6 +256,7 @@ export function DocumentViewSnapshot({ view, onGeometry }: {
             document={opened.current!.document} bibliography={file.bibliography}
             documentPath={file.path} onStructuralReject={reject} onReadingLayout={setPositions} onNotice={setNotice}
             {...session ? {
+              validateReplacement: session.validateReplacement,
               onDirtyChange: (dirty: boolean) => session.dirty(dirty),
               onAppliedEdit: () => session.edited(),
               onBlockLeave: () => void session.flush(),

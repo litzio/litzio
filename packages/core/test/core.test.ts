@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { toText } from "myst-common";
+import { parse as parseNative, replaceAllText, serialize as serializeNative } from "../src/index.ts";
 import {
   insertParagraph,
   insertHeading,
@@ -24,6 +25,30 @@ const INSERTED_TEXT = "Inserted block.";
 
 const source = readFileSync(new URL("./fixtures/document.md", import.meta.url), "utf8");
 const technicalSource = readFileSync(new URL("./fixtures/technical-document.md", import.meta.url), "utf8");
+
+test("replaceAllText counts leftmost literal changes and preserves marks common to the match", () => {
+  const original = parseNative("---\nlitzio: 1\n---\n\n**MOTor** mo*to*r and motor$x$motor. aaaa.\n");
+  const { document, replaced } = replaceAllText(original, { from: "motor", to: "$&", caseSensitive: false });
+  assert.equal(replaced, 4);
+  const markdown = serializeNative(document);
+  const block = serializeNative(parseNative(markdown));
+  assert.equal(block, markdown);
+  assert.match(markdown, /\*\*\\?\$&\*\*/);
+  assert.doesNotMatch(markdown, /\*to\*/);
+  const overlap = replaceAllText(document, { from: "aaa", to: "x" });
+  assert.equal(overlap.replaced, 1);
+  assert.match(serializeNative(overlap.document), /xa\./);
+  const noMatch = replaceAllText(document, { from: "missing", to: "x" });
+  assert.equal(noMatch.replaced, 0);
+  assert.equal(noMatch.document, document);
+});
+
+test("replaceAllText refuses an empty required heading without changing the original", () => {
+  const markdown = "---\nlitzio: 1\n---\n\n# Motor\n\nA Motor.\n";
+  const original = parseNative(markdown);
+  assert.throws(() => replaceAllText(original, { from: "Motor", to: "" }), /empty heading/);
+  assert.equal(serializeNative(original), markdown);
+});
 
 test("Core can parse a real document", () => {
   const document = parse(source);

@@ -1238,11 +1238,11 @@ scrollbar, and does not move the document. Ctrl/Cmd+F in the bar selects its tex
 single-line selection in the document becomes the search text. In Source, text-mode tabs and
 everywhere outside those areas Ctrl/Cmd+F keeps the browser's own Find (Desktop has none).
 
-[prosemirror-search](https://github.com/ProseMirror/prosemirror-search) finds plain text, without
-regular expressions or whole words, in every document text block: paragraphs, headings, list items,
-table cells, captions, table notes, callouts, endnote definitions and code blocks. Case is ignored
-until **Match case** is on. Rendered atoms (equation and inline-math LaTeX, references, citations)
-and generated numbers (heading, caption and reference numbers) are not document text and are not found.
+[prosemirror-search](https://github.com/ProseMirror/prosemirror-search) finds literal text in each
+document text block: paragraphs, headings, list items, table cells, captions, table notes, quotes,
+callouts, endnote definitions and code blocks. A match can span formatting changes in a block.
+Inline atoms and hard breaks interrupt matches. Generated numbers and equation source are excluded.
+Case is ignored until **Match case** is on, using Unicode case matching on the original offsets.
 
 Matches are view decorations and the current match is the editor selection: finding changes no
 document content, dirty state, Undo history, save edit or recovery snapshot. The count shows
@@ -1258,14 +1258,40 @@ IME composition updates the results without taking focus from the field. When on
 the field still shows each key at once, and Enter/F3 search first. Other matches use
 `--id-color-surface-warning` with a `--id-color-warning` outline and the current match a
 `--id-color-warning` face with `--id-color-paper` text, apart from the accent selection, the blue
-links and references and the text colors in both themes. Find is an Editor interaction without a
-CLI counterpart; Replace and multi-document search are not part of it.
+links and references and the text colors in both themes.
+
+In Edit, **Replace in document** on the find bar or Ctrl/Cmd+H opens the replacement row.
+The current match comes from the same left-to-right, non-overlapping ranges used for highlighting.
+**Replace** changes the current match and moves to the first remaining match after the inserted
+text, wrapping to the first remaining match at the end of the document. Only the original matches
+remain in that pass. Changing the query or making a separate document edit starts a new pass.
+**Replace all** takes the currently highlighted ranges
+from left to right, applies them in one history event and reports how many actually changed.
+While the Save preview runs, **Replace all** is busy and the find bar shows **Replacing…** with the shared progress status. Search and replacement controls wait for the result.
+Replacing matches across many table cells can take several seconds (3,151 ms for a 200-cell table on Windows, including Editor transaction and Save preview computation).
+An empty replacement deletes the match. The new text inherits only marks shared by the entire
+match. The Host runs the existing Save preview validation on the proposed edit before it applies.
+If the editor changes during validation or any replacement would break the document structure,
+the command leaves the draft unchanged. Complex table cells keep their grid, spans and block
+structure. Editable plugin document views use their existing content-only guards and Save behavior.
+Read views offer Find. [CLI replace-text --all](filesystem-host-boundary-v1.md#cli-text-replacement-2039)
+uses the same replacement rules on a saved file.
 
 Captures (synthetic document, persistent Chrome): [before · 1440 light](assets/document-find-1982/before-1440-light.png) ·
 [1440 light](assets/document-find-1982/after-1440-light.png) · [1920×1080 light](assets/document-find-1982/after-1920-light.png) ·
 [1440 dark, Korean](assets/document-find-1982/after-1440-dark-ko.png) · [640 light](assets/document-find-1982/after-640-light.png) ·
 [640 dark, Korean](assets/document-find-1982/after-640-dark-ko.png) · [no match](assets/document-find-1982/no-results-1440-light.png) ·
 [table cell](assets/document-find-1982/table-cell-1440-light.png) · [plugin document view](assets/document-find-1982/document-view-1440-light.png).
+
+Replacement row captures: [1440 light](assets/document-replace-2039/replace-light-1440.png) ·
+[1440 dark](assets/document-replace-2039/replace-dark-1440.png) ·
+[1920 light](assets/document-replace-2039/replace-light-1920.png) ·
+[1920 dark](assets/document-replace-2039/replace-dark-1920.png).
+
+Save preview in progress: [1440 light](assets/document-replace-2039/replace-busy-light-1440.png) ·
+[1440 dark](assets/document-replace-2039/replace-busy-dark-1440.png) ·
+[1920 light](assets/document-replace-2039/replace-busy-light-1920.png) ·
+[1920 dark](assets/document-replace-2039/replace-busy-dark-1920.png).
 
 ## Highlight sets (#2020)
 

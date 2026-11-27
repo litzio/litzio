@@ -81,6 +81,7 @@ const NativeDocumentTab = memo(function NativeDocumentTab({ client, settingsDisa
         <div hidden={session.view === "source"}>
           <EditorVisibility value={active && session.view !== "source"}>
             <DocumentEditor key={session.editorGeneration} ref={session.editorRef} readOnly={session.view === "read"}
+              validateReplacement={session.validateReplacement}
               settingsExpanded={settingsExpanded} onSettingsExpandedChange={setSettingsExpanded} settingsDisabled={settingsDisabled || session.busy}
               document={session.document} bibliography={session.bibliography} initialSnapshot={session.initialEditorSnapshot} documentPath={session.openedPath} {...session.editorCallbacks} />
           </EditorVisibility>

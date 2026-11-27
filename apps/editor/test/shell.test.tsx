@@ -82,7 +82,7 @@ import { ACCENT_COLORS, ACCENT_COLOR_KEY, readAccentColor, writeAccentColor, rea
 import { filterInsertCommands } from "../src/block-commands.ts";
 import { FileText } from "lucide-react";
 import { filterCommandCenterItems, type CommandCenterItem } from "../src/shell/command-center.ts";
-import { CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, FIND_NEXT_SHORTCUT, FIND_PREVIOUS_SHORTCUT, FIND_SHORTCUT, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, SAVE_SHORTCUT, UNDO_SHORTCUT, REDO_SHORTCUT, shortcutLabel } from "../src/shortcuts.ts";
+import { CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, FIND_NEXT_SHORTCUT, FIND_PREVIOUS_SHORTCUT, FIND_SHORTCUT, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, REPLACE_SHORTCUT, SAVE_SHORTCUT, UNDO_SHORTCUT, REDO_SHORTCUT, shortcutLabel } from "../src/shortcuts.ts";
 import { KeyboardShortcutGroups, keyboardShortcutGroups } from "../src/shell/KeyboardShortcutsDialog.tsx";
 import { SelectionToolbar } from "../src/SelectionToolbar.tsx";
 import { extensions, flattenExtensions, getExtensionField, type Editor } from "@tiptap/core";
@@ -140,7 +140,8 @@ test("displayed shortcuts match existing bindings on Windows and macOS", () => {
       Object.defineProperty(globalThis, "navigator", {configurable:true, value:{platform:mac ? "MacIntel" : "Win32", userAgent:"test"}});
       const registered = registeredBindings();
       // Shell handlers use these shared definitions outside the engine keymap.
-      for (const shortcut of [CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, SAVE_SHORTCUT, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, FIND_SHORTCUT, FIND_NEXT_SHORTCUT, FIND_PREVIOUS_SHORTCUT]) registered.add(normalizeBinding(shortcut.binding));
+      for (const shortcut of [CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, SAVE_SHORTCUT, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT,
+        FIND_SHORTCUT, REPLACE_SHORTCUT, FIND_NEXT_SHORTCUT, FIND_PREVIOUS_SHORTCUT]) registered.add(normalizeBinding(shortcut.binding));
       for (const group of keyboardShortcutGroups()) for (const entry of group.entries) for (const shortcut of entry.shortcuts) {
         assert.equal(shortcut.label, shortcutLabel(shortcut.binding, mac));
         assert.ok(registered.has(normalizeBinding(shortcut.binding)), `Unregistered ${mac ? "macOS" : "Windows"} guide binding: ${shortcut.binding}`);
@@ -153,7 +154,7 @@ test("displayed shortcuts match existing bindings on Windows and macOS", () => {
 
 test("the guide retains the curated Litzio editing commands", () => {
   const labels = new Set(keyboardShortcutGroups().flatMap(group => group.entries.map(entry => entry.label)));
-  for (const label of ["Command center", "Save", "Find in document", "Undo", "Redo", "New block", "Apply properties", "Line break",
+  for (const label of ["Command center", "Save", "Find in document", "Replace in document", "Undo", "Redo", "New block", "Apply properties", "Line break",
     "Heading level / list indent", "Bullet list", "Numbered list", "Code block", "Go to document end",
     "Bold", "Italic", "Strikethrough", "Inline code", "Link", "Subscript", "Superscript", "Next / previous cell"] as const) {
     assert.ok(labels.has(label), `Missing curated command: ${label}`);

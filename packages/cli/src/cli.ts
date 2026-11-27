@@ -1,4 +1,4 @@
-import { snapshotSection, changeFor, serializeChange, parseCommandArgs, isEditCommand, flag, optionalFlag, machineNodes, applyDocumentBatch } from "../../../apps/editor/server/document-edit-commands.ts";
+import { snapshotSection, changeFor, serializeChange, parseCommandArgs, isEditCommand, flag, optionalFlag, machineNodes, applyDocumentBatch, replaceAllTextFor } from "../../../apps/editor/server/document-edit-commands.ts";
 import { executeCompareOperation } from "../../../apps/editor/server/document-compare.ts";
 import { executeFolderTrash } from "../../../apps/editor/server/file-operations.ts";
 import { osTrashAvailable, trashFile } from "../../../apps/editor/server/os-trash.ts";
@@ -307,10 +307,13 @@ const COMMANDS: CommandSpec[] = [
     name: "replace-text",
     group: "Edit — text and content",
     summary: "Replace text in the first matching paragraph or heading",
-    usage: `${brand.cliCommand} replace-text <file> --from <text> --to <text>`,
+    usage: `${brand.cliCommand} replace-text <file> --from <text> --to <text> [--all] [--ignore-case]`,
     details: ["Select only the first matching paragraph or heading by rendered text, not throughout the document.",
       "Replace all matches within that block's individual text nodes.",
       "Matches crossing formatting/text-node boundaries may be left unchanged, still exiting 0 (e.g. a**bc**d, --from abc).",
+      "Use --all to replace every non-overlapping match within each editable text block, including across formatting.",
+      "Case is matched by default in both modes; use --ignore-case to ignore it.",
+      "With --all, the result includes the replacement count. Zero replacements leave the file untouched.",
       "Use update-node-text instead when you know the path; it also substitutes within individual text nodes.",
       "For formatted content, replace the whole block with structured --content: update-heading or update-quote.",
       "For a paragraph in apply-batch, insert-block --content for the new paragraph first, then remove-block on the old one.",
@@ -943,7 +946,7 @@ function main(argv: string[]): number {
   const bibliographyRoot = optionalFlag(flags, "--bibliography-root");
 
   /** Apply one Core operation and write the result only over the file as it was read. */
-  function edit(path: string, change: (document: Document) => Document): number {
+  function edit(path: string, change: (document: Document) => Document, result: EditResult = { command }): number {
     // Both checks use the source the change was made to, never a later read.
     const source = readFile(path);
     const revision = textRevision(source);
@@ -952,12 +955,22 @@ function main(argv: string[]): number {
     }
     const original = parse(source);
     const references = unresolvedReferences(original);
-    return finishEdit(path, serializeChange(original, change), revision, { command }, dryRun, format, references, bibliographyRoot);
+    const changed = change(original);
+    const markdown = result.replaced === 0 ? source : serializeChange(original, () => changed);
+    return finishEdit(path, markdown, revision, result, dryRun, format, references, bibliographyRoot);
   }
 
   if (command === "apply-batch") {
-    const { markdown, revision, applied, references } = applyBatch(file, flag(flags, "--operations"), ifRevision);
-    return finishEdit(file, markdown, revision, { command, applied }, dryRun, format, references, bibliographyRoot);
+    const { markdown, revision, applied, references, unchanged } = applyBatch(file, flag(flags, "--operations"), ifRevision);
+    return finishEdit(file, markdown, revision, { command, applied }, dryRun, format, references, bibliographyRoot, unchanged);
+  }
+  if (command === "replace-text" && flags.includes("--all")) {
+    const result: EditResult = { command };
+    return edit(file, document => {
+      const replacement = replaceAllTextFor(document, flags);
+      result.replaced = replacement.replaced;
+      return replacement.document;
+    }, result);
   }
   if (isEditCommand(command)) {
     return edit(file, changeFor(command, flags));
@@ -987,13 +1000,14 @@ function main(argv: string[]): number {
   }
 }
 
-type EditResult = { command: string; applied?: number };
+type EditResult = { command: string; applied?: number; replaced?: number };
 type Preview = EditResult & { dryRun: true; revision: string; markdown: string;
   originalWarnings: ReturnType<typeof unresolvedReferences> };
 
 /** The only edit write boundary. Preview never enters file-commit's mutation path. */
 function finishEdit(file: string, markdown: string, revision: string, result: EditResult,
-  dryRun: boolean, format: OutputFormat, references: ReturnType<typeof unresolvedReferences>, bibliographyRoot?: string): number {
+  dryRun: boolean, format: OutputFormat, references: ReturnType<typeof unresolvedReferences>, bibliographyRoot?: string,
+  unchanged = false): number {
   if (dryRun) {
     const resultRevision = textRevision(markdown);
     const document = parse(markdown);
@@ -1003,15 +1017,18 @@ function finishEdit(file: string, markdown: string, revision: string, result: Ed
     if (status === 0) warnLiteralSyntax(references);
     return status;
   }
-  const citations = resourceReport(parse(markdown), file, bibliographyRoot);
-  commitFile(file, markdown, revision);
-  for (const diagnostic of citations.readiness.diagnostics) {
-    if (diagnostic.severity === "warning") process.stderr.write(`warning: ${diagnostic.code}${diagnostic.source ? ` ${quote(diagnostic.source)}` : ""}${diagnostic.key ? ` key=${quote(diagnostic.key)}` : ""}${diagnostic.field ? ` field=${quote(diagnostic.field)}` : ""}\n`);
+  if (!unchanged && result.replaced !== 0) {
+    const citations = resourceReport(parse(markdown), file, bibliographyRoot);
+    commitFile(file, markdown, revision);
+    for (const diagnostic of citations.readiness.diagnostics) {
+      if (diagnostic.severity === "warning") process.stderr.write(`warning: ${diagnostic.code}${diagnostic.source ? ` ${quote(diagnostic.source)}` : ""}${diagnostic.key ? ` key=${quote(diagnostic.key)}` : ""}${diagnostic.field ? ` field=${quote(diagnostic.field)}` : ""}\n`);
+    }
+    warnLiteralSyntax(references);
   }
-  warnLiteralSyntax(references);
   if (result.command === "apply-batch" && format === "json") {
     process.stdout.write(`${JSON.stringify({ ok: true, ...result, revision: textRevision(markdown) })}\n`);
   }
+  if (result.replaced !== undefined) process.stdout.write(`Replaced ${result.replaced} ${result.replaced === 1 ? "match" : "matches"}.\n`);
   return 0;
 }
 
@@ -1053,7 +1070,10 @@ function checkDocument(document: Document, file: string, format: OutputFormat, p
       citations,
     })}\n`);
   } else {
-    if (preview) process.stdout.write(`dry run; nothing was written\nrevision: ${preview.revision}\n`);
+    if (preview) {
+      process.stdout.write(`dry run; nothing was written\nrevision: ${preview.revision}\n`);
+      if (preview.replaced !== undefined) process.stdout.write(`Replacements: ${preview.replaced}\n`);
+    }
     process.stdout.write(`${summarize(document)}\n`);
     process.stdout.write(formatCitations(citations));
     process.stdout.write(formatNumbering(numbering));

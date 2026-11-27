@@ -3,6 +3,7 @@ import type { DocumentFileResponse, LocalWriteStatus, SavedBlock, SaveRequest, S
 import type { DocumentEditorHandle } from "../DocumentEditor.tsx";
 import { admitContentEdits, saveLiveEditor, type ProvisionalSave } from "../editor-save.ts";
 import type { SaveDisplayError } from "../save-error.ts";
+import { collectSupportedEdits, type TiptapJSON } from "../tiptap-document.ts";
 
 export type ContentEditState = ScreenDocumentEditState["state"];
 
@@ -18,6 +19,7 @@ export function createContentEditSession(options: {
   continues?: readonly string[];
   editor(): DocumentEditorHandle | null;
   requestSave(body: SaveRequest): Promise<SaveResponse>;
+  requestSource?(body: SaveRequest, signal: AbortSignal): Promise<string>;
   /** State, revision or error changed. */
   onChange(): void;
   onSave(save: { previousRevision: string; revision: string; blocks?: SavedBlock[] }): void;
@@ -77,6 +79,12 @@ export function createContentEditSession(options: {
   return {
     get state() { return state; },
     get revision() { return latest; },
+    validateReplacement(candidate: TiptapJSON, signal: AbortSignal) {
+      if (disposed || held || !options.requestSource) throw new Error("Editor is not ready");
+      const edits = collectSupportedEdits(snapshot.document, candidate);
+      admitContentEdits(edits, snapshot.document, candidate);
+      return options.requestSource({ path: snapshot.path, revision: latest, base, ...edits }, signal);
+    },
     get pendingLocalWrite() { return pending?.revision; },
     settle(previous: string, result: Exclude<LocalWriteStatus, { state: "pending" }>): "reload" | undefined {
       if (disposed || state === "saving" || latest !== previous || pending?.revision !== previous) return;

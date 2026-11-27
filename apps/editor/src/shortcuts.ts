@@ -43,6 +43,7 @@ export const REOPEN_TAB_SHORTCUT = shortcut("KeyT", "T", 84, true);
 export const SAVE_SHORTCUT = shortcut("KeyS", "S", 83);
 /** Find in document while a document view has focus; elsewhere the browser keeps its own Find. */
 export const FIND_SHORTCUT = shortcut("KeyF", "F", 70);
+export const REPLACE_SHORTCUT = shortcut("KeyH", "H", 72);
 /** Next/previous match while Find in document is open. */
 export const FIND_NEXT_SHORTCUT = editorShortcut("F3");
 export const FIND_PREVIOUS_SHORTCUT = editorShortcut("Shift-F3");

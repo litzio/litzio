@@ -149,6 +149,7 @@ type DocumentEditorProps = ReadingCallbacks & {
   /** Edit only the content inside the opening top-level blocks: the structure guard keeps every
    * block, and block, table-shape, property, title and settings authoring is hidden. Fixed for the editor's lifetime. */
   contentOnly?: boolean;
+  validateReplacement?(candidate: TiptapJSON, signal: AbortSignal): Promise<unknown>;
   /** Input waits (a plugin document view's change before its write, #1995); the editor stays editable. */
   inputHeld?: boolean;
   /** The top-level block holding the selection changed (index of the block left). */
@@ -187,7 +188,7 @@ type DocumentEditorProps = ReadingCallbacks & {
 };
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(function DocumentEditor(
-  { readOnly = false, preview = false, contentOnly = false, inputHeld = false, onBlockLeave, comparison, showHeadingLevels = !readOnly && !contentOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, highlights = true, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
+  { readOnly = false, preview = false, contentOnly = false, validateReplacement, inputHeld = false, onBlockLeave, comparison, showHeadingLevels = !readOnly && !contentOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, highlights = true, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
   ref,
 ) {
   useTranslation();
@@ -1152,7 +1153,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         <BibliographyContent ref={bibliographyControls} editor={editor} bibliography={bibliography} documentPath={documentPath ?? ""}>
           <EditorContent className={comparison ? "visual-engine-content" : undefined} editor={editor} />
           {!comparison ? <ReadingPreview editor={editor} host={host} documentPath={documentPath} /> : null}
-          {!comparison ? <DocumentFindBar ref={findBar} editor={editor} visible={visible} /> : null}
+          {!comparison ? <DocumentFindBar ref={findBar} editor={editor} visible={visible}
+            validateReplacement={readOnly ? undefined : validateReplacement} /> : null}
         </BibliographyContent>
       </ImageRenameContext.Provider></DocumentPathContext.Provider>
       {visible && !comparison ? <BlockHandles
