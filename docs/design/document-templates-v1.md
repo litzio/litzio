@@ -205,9 +205,12 @@ There is no new undo service or shared editor history.
 Before launching Codex, the Host prepends `<assistant cwd>/bin/<CLI identity>` to that child's
 PATH. A private launcher invokes this Host's CLI with its runtime: source CLI
 and tsx for source runs, bundled `cli.mjs` for distributed HTTP, explicitly supplied
-bundled CLI and Electron RunAsNode for packaged Desktop. The Windows launcher uses
-a runtime-directory junction and JS arguments so Unicode installation paths do not
-enter batch source. It works independently of optional Desktop CLI integration.
+bundled CLI and Electron RunAsNode for packaged Desktop. The launcher reaches the
+runtime through a runtime-directory junction, so Unicode installation paths do not
+enter batch source. When the CLI entry lies inside the runtime folder (the installed
+app's bundled CLI), the launcher starts it through that junction in one process;
+other launches relay JS-held paths and arguments through a second runtime start.
+It works independently of optional Desktop CLI integration.
 CLI/runtime-specific subdirectories prevent Desktop and HTTP Hosts sharing a cwd
 from replacing one another's launcher. Parent process, system/user PATH and registry are untouched; no executable is
 selected from another installation's PATH. It does not connect CLI to a live Host,

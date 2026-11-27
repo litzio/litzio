@@ -5,7 +5,7 @@ import { assistantCliEnvironment, hostCli } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync, chmodSync, mkdirSync, symlinkSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync, chmodSync, mkdirSync, symlinkSync, linkSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1915,4 +1915,29 @@ test("pasted images use ACP image bytes and retained Host attachments survive re
   assert.equal(restored.reference(image.path, result.id)?.pastedImage, true, "restored references retain the presentation marker");
   restored.remove(result.id);
   assert.equal(existsSync(image.path), false);
+});
+
+test("assistant CLI launchers keep absolute and non-ASCII paths out of the launcher and pass arguments and exit codes", t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-assistant-launcher-한글-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  // An installed layout: the CLI entry lives inside the runtime's own folder.
+  const app = path.join(root, "설치 app"), entry = path.join(app, "resources", "cli", "cli.mjs");
+  const runtime = path.join(app, path.basename(process.execPath));
+  mkdirSync(path.dirname(entry), { recursive: true });
+  try { linkSync(process.execPath, runtime); } catch { copyFileSync(process.execPath, runtime); }
+  writeFileSync(entry, "process.stdout.write(JSON.stringify(process.argv.slice(2))); process.exitCode = 7;\n");
+  const outside = path.join(root, "외부.mjs");
+  writeFileSync(outside, "process.stdout.write(JSON.stringify(process.argv.slice(2))); process.exitCode = 5;\n");
+  for (const [cli, code] of [[{ bin: runtime, args: [entry] }, 7], [{ bin: runtime, args: [outside] }, 5]] as const) {
+    const env = assistantCliEnvironment(path.join(root, "비서"), { bin: cli.bin, args: [...cli.args] });
+    const launcher = env.LITZIO_ASSISTANT_CLI!;
+    const text = readFileSync(launcher, "utf8");
+    assert.match(text, /^[\x00-\x7f]*$/, "launcher source is ASCII");
+    assert.equal(text.includes(root) || /[A-Za-z]:\|"\//.test(text), false, "launcher source holds no absolute path");
+    const run = process.platform === "win32"
+      ? spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `""${launcher}" 한글 "a b""`], { env, encoding: "utf8", windowsHide: true, windowsVerbatimArguments: true })
+      : spawnSync(launcher, ["한글", "a b"], { env, encoding: "utf8" });
+    assert.equal(run.status, code, run.stderr);
+    assert.deepEqual(JSON.parse(run.stdout), ["한글", "a b"]);
+  }
 });
