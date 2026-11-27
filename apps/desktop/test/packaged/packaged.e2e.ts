@@ -351,6 +351,11 @@ test("tab full screen follows the native window and restores its prior state", a
     await page.keyboard.press("Control+w");
     await expect(active).not.toContainText("Second full-screen tab");
     await expect(page.locator(".app-titlebar")).toBeHidden();
+    await page.keyboard.press("Control+Shift+T");
+    await expect(active).toContainText("Second full-screen tab");
+    await expect.poll(async () => (await nativeState()).fullscreen).toBe(true);
+    await page.keyboard.press("Control+w");
+    await expect(active).not.toContainText("Second full-screen tab");
     await page.keyboard.press("Control+w");
     await expect(page.getByTestId("document-start")).toBeVisible();
     await expect.poll(async () => (await nativeState()).fullscreen).toBe(false);

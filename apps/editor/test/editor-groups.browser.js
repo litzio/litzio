@@ -259,6 +259,11 @@ async (page, { openPath, openDocument, waitForActivePath, activeDocument, expect
   await unsaved.getByRole('button',{name:"Don't save",exact:true}).click();
   await expect(groups()).toHaveCount(1);
   check(await activeDocument(page).getAttribute('data-document-tab') === bid && (await state(bid,'groupEditorB')).same, 'Empty-group close lost the surviving session');
+  await command('Reopen closed tab');
+  await waitForActivePath(page,a);
+  await expect(activeDocument(page).locator('.document-editor')).not.toContainText('Group A ');
+  await page.getByRole('button',{name:'Close technical-1.md',exact:true}).click();
+  await expect(activeDocument(page)).toHaveAttribute('data-document-tab',bid);
   // The existing Explorer document menu also opens a previously unopened file to the right.
   const c = file('technical-3.md');
   await page.getByTestId('sidebar').locator(`[role="treeitem"][data-path=${JSON.stringify(c)}]`).click({button:'right'});
