@@ -46,6 +46,7 @@ export { ADMONITION_VARIANTS, isAdmonitionVariant } from "./myst/admonition.ts";
 export { paragraphInlineContent, paragraphLeadingSpaceLength } from "./inline.ts";
 /** Paragraph offset length of inline content, as used by split and hard break offsets. */
 export { inlineContentLength, inlineContentText, sameInlineContent } from "./inline.ts";
+export { groupInlineLeaves, orderInlineMarks, type InlineMark, type InlineLeaf } from "./inline-group.ts";
 export type { FigureContent } from "./figure.ts";
 export { LIST_STYLES } from "./list.ts";
 export type { ListContent, ListItemContent, ListStyle, ListDelimiter } from "./list.ts";

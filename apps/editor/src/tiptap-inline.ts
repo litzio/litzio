@@ -1,4 +1,4 @@
-import type { InlineContent, ReferenceRole } from "@litzio/core";
+import { groupInlineLeaves, orderInlineMarks, type InlineContent, type InlineLeaf, type InlineMark, type ReferenceRole } from "@litzio/core";
 import { citationContentError, type CitationContent, type CitationRole } from "@litzio/core/citation";
 
 export type TiptapMark = {
@@ -57,7 +57,7 @@ export function fromTiptapContent(doc: TiptapJSON): InlineContent[] {
     throw new Error("Tiptap paragraph content must be an array");
   }
 
-  return group(paragraph.content.map((node, index) => fromTiptapInline(node, index)));
+  return groupInlineLeaves(paragraph.content.map((node, index) => fromTiptapInline(node, index)));
 }
 
 function toTiptapInline(content: InlineContent[], marks: Marks): TiptapJSON[] {
@@ -96,18 +96,15 @@ function toTiptapInline(content: InlineContent[], marks: Marks): TiptapJSON[] {
   return nodes;
 }
 
-type Mark = { key: string; wrap: (children: InlineContent[]) => InlineContent };
-type Leaf = { item: InlineContent; marks: Mark[] };
-
 // Tie-break order when marks cover the same run.
-const BOLD: Mark = { key: "bold", wrap: (children) => ({ kind: "strong", children }) };
-const ITALIC: Mark = { key: "italic", wrap: (children) => ({ kind: "emphasis", children }) };
-const STRIKE: Mark = { key: "strike", wrap: (children) => ({ kind: "delete", children }) };
-const SUBSCRIPT: Mark = { key: "subscript", wrap: (children) => ({ kind: "subscript", children }) };
-const SUPERSCRIPT: Mark = { key: "superscript", wrap: (children) => ({ kind: "superscript", children }) };
-const SIMPLE_MARKS: Record<string, Mark> = { bold: BOLD, italic: ITALIC, strike: STRIKE, subscript: SUBSCRIPT, superscript: SUPERSCRIPT };
+const BOLD: InlineMark = { key: "strong", wrap: (children) => ({ kind: "strong", children }) };
+const ITALIC: InlineMark = { key: "emphasis", wrap: (children) => ({ kind: "emphasis", children }) };
+const STRIKE: InlineMark = { key: "delete", wrap: (children) => ({ kind: "delete", children }) };
+const SUBSCRIPT: InlineMark = { key: "subscript", wrap: (children) => ({ kind: "subscript", children }) };
+const SUPERSCRIPT: InlineMark = { key: "superscript", wrap: (children) => ({ kind: "superscript", children }) };
+const SIMPLE_MARKS: Record<string, InlineMark> = { bold: BOLD, italic: ITALIC, strike: STRIKE, subscript: SUBSCRIPT, superscript: SUPERSCRIPT };
 
-function fromTiptapInline(node: TiptapJSON, index: number): Leaf {
+function fromTiptapInline(node: TiptapJSON, index: number): InlineLeaf {
   if (!isTiptapJSON(node) || (node.type !== "text" && node.type !== "hardBreak" && node.type !== "inlineMath" &&
       node.type !== "crossReference" && node.type !== "footnoteReference" && node.type !== "citation")) {
     throw new Error(`unsupported Tiptap node ${describeType(node)} at paragraph child ${index}`);
@@ -137,7 +134,7 @@ function fromTiptapInline(node: TiptapJSON, index: number): Leaf {
     throw new Error(`Tiptap marks at paragraph child ${index} must be an array`);
   }
 
-  const marks: Mark[] = [];
+  const marks: InlineMark[] = [];
   const seen = new Set<string>();
   let code = false;
   for (const mark of node.marks ?? []) {
@@ -174,12 +171,11 @@ function fromTiptapInline(node: TiptapJSON, index: number): Leaf {
     : node.type === "citation" ? { kind: "citation", role: node.attrs!.role as CitationRole, keys: [...node.attrs!.keys as string[]] }
     : code ? { kind: "code", value: node.text! }
     : { kind: "text", text: node.text! };
-  const order = Object.keys(SIMPLE_MARKS);
-  return { item, marks: marks.sort((a, b) => rank(a, order) - rank(b, order)) };
+  return { item, marks: orderInlineMarks(marks) };
 }
 
 /** Only the target is document semantics; target/rel/class are Tiptap presentation. */
-function linkMark(mark: TiptapMark, index: number): Mark {
+function linkMark(mark: TiptapMark, index: number): InlineMark {
   const href = mark.attrs?.href;
   const title = mark.attrs?.title;
   if (typeof href !== "string" || href.length === 0) {
@@ -193,51 +189,6 @@ function linkMark(mark: TiptapMark, index: number): Mark {
     key: `link ${JSON.stringify([target.url, target.title ?? null])}`,
     wrap: (children) => ({ kind: "link", ...target, children }),
   };
-}
-
-function rank(mark: Mark, order: string[]): number {
-  const index = order.indexOf(mark.key);
-  return index < 0 ? order.length : index;
-}
-
-/**
- * Rebuild nested InlineContent from flat Tiptap marks: the mark covering the longest
- * run is outermost, so `**a [b](u) c**` and `[**a** b](u)` keep one strong / one link.
- * A contiguous run of the same link target is one link, as it is in the editor.
- */
-function group(leaves: Leaf[]): InlineContent[] {
-  const result: InlineContent[] = [];
-  let index = 0;
-  while (index < leaves.length) {
-    const leaf = leaves[index];
-    if (leaf.marks.length === 0) {
-      result.push(leaf.item);
-      index++;
-      continue;
-    }
-    let best = leaf.marks[0];
-    let end = index;
-    for (const mark of leaf.marks) {
-      let next = index;
-      while (next < leaves.length && leaves[next].marks.some((other) => other.key === mark.key)) next++;
-      // Never cut a link: a bold/italic run ends before a link that continues past it.
-      if (!mark.key.startsWith("link ")) {
-        while (next > index && next < leaves.length && sharedLink(leaves[next - 1], leaves[next])) next--;
-      }
-      if (next > end) {
-        best = mark;
-        end = next;
-      }
-    }
-    const inner = leaves.slice(index, end).map((item) => ({ ...item, marks: item.marks.filter((mark) => mark.key !== best.key) }));
-    result.push(best.wrap(group(inner)));
-    index = end;
-  }
-  return result;
-}
-
-function sharedLink(left: Leaf, right: Leaf): boolean {
-  return left.marks.some((mark) => mark.key.startsWith("link ") && right.marks.some((other) => other.key === mark.key));
 }
 
 function isTiptapJSON(value: unknown): value is TiptapJSON {
