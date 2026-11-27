@@ -42,6 +42,21 @@ process.env.LITZIO_ASSISTANT_CWD = path.join(fixtures, "assistant");
 after(() => rmSync(fixtures, { recursive: true, force: true }));
 const fixture = path.join(fixtures, "document.md");
 
+test("inspect appends both counts without changing the file or revision", () => {
+  const file = path.join(fixtures, "character-count.md");
+  const source = nativeSource("Hello world.\n");
+  writeFileSync(file, source);
+  const json = run(["inspect", file, "--format", "json"]);
+  assert.equal(json.status, 0, json.stderr);
+  const result = JSON.parse(json.stdout);
+  assert.equal(result.revision, textRevision(source));
+  assert.deepEqual(result.characterCount, { withSpaces: 12, withoutSpaces: 11 });
+  const text = run(["inspect", file]);
+  assert.equal(text.status, 0, text.stderr);
+  assert.match(text.stdout, /Characters \(with spaces\): 12\r?\nCharacters \(without spaces\): 11\r?\n$/);
+  assert.equal(readFileSync(file, "utf8"), source);
+});
+
 test("read-only CLI commands run without a reset lease while writers still refuse a blocked guard", () => {
   const blockedGuard = path.join(fixtures, "guard-is-a-file");
   writeFileSync(blockedGuard, "blocked");
@@ -1703,7 +1718,8 @@ test("inspect prints Core editable targets", () => {
     if (quotedParagraph?.block === "paragraph") {
       assert.equal(
         quoted.stdout,
-        `status: absent\ntitle: absent\n1 paragraph inlineEditable=${quotedParagraph.editable} text=${JSON.stringify(quotedParagraph.text)}\nnumbering: automatic\n`,
+        `status: absent\ntitle: absent\n1 paragraph inlineEditable=${quotedParagraph.editable} text=${JSON.stringify(quotedParagraph.text)}\nnumbering: automatic\n` +
+        "Characters (with spaces): 38\nCharacters (without spaces): 32\n",
       );
       assert.equal(quoted.stdout.includes("\n\n"), false);
     }

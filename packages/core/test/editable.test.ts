@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { countDocumentCharacters } from "@litzio/core";
 import {
   getEditableDocument,
   parse,
@@ -144,4 +145,38 @@ test("formatted caption exposes supported inline content", () => {
   if (formattedCaption?.block !== "figure") return;
   assert.equal(formattedCaption.caption.editable, true);
   assert.deepEqual(formattedCaption.caption.content, [{ kind: "strong", children: [{ kind: "text", text: "bold caption" }] }]);
+});
+
+test("counts visible body content and excludes metadata and generated marks", () => {
+  const source = [
+    "---", "litzio: 1", "title: Ignore this title", "---", "",
+    "# Heading", "", "A [link](https://example.com) `code` $ignored$[^note]", "",
+    "- first", "  - child", "",
+    "```text", "a b", "c", "```", "",
+    "```{figure} image.png", ":alt: ignore alt", "", "Figure caption", "```", "",
+    "```{table} Table caption", "", "| H | I |", "| --- | --- |", "| J | K |", "", "Table note", "```", "",
+    "$$", "ignored", "$$", "",
+    "[^note]: End note", "",
+  ].join("\n");
+  const body = [
+    "Heading", "A link code ", "first", "child", "a b\nc", "Figure caption",
+    "Table caption", "H", "I", "J", "K", "Table note", "End note",
+  ].join("");
+  assert.deepEqual(countDocumentCharacters(getEditableDocument(parse(source))), {
+    withSpaces: body.length, withoutSpaces: body.replace(/\s/g, "").length,
+  });
+});
+
+test("counts graphemes across formatting and separates whitespace from visible letters", () => {
+  const model = getEditableDocument(parse("---\nlitzio: 1\n---\n\nplaceholder\n"));
+  const block = model.blocks[0]!;
+  assert.equal(block.block, "paragraph");
+  block.content = [
+    { kind: "text", text: "ᄒ" },
+    { kind: "strong", children: [{ kind: "text", text: "ᅡᆫ" }] },
+    { kind: "text", text: "\u00a0👨‍👩‍👧‍👦\t\r\n" },
+    { kind: "break" },
+    { kind: "text", text: "x" },
+  ];
+  assert.deepEqual(countDocumentCharacters(model), { withSpaces: 7, withoutSpaces: 3 });
 });
