@@ -1677,7 +1677,7 @@ Tab-owned Save/Source work retains the existing ability to open Settings diagnos
 and have restart refused by the live pending-work guard.
 
 Command Center provides keyboard entry. Tab-row arrows/Home/End switch between
-Settings and documents; Tab enters its close control and category navigation.
+Settings and documents. Tab reaches its close control, the tab actions menu and category navigation.
 Delete or the close button closes the tab and focuses the neighboring tab.
 Escape from Settings content or its tab closes it, selects the still-open task
 from which Settings was entered, and returns focus to the connected opener (or
