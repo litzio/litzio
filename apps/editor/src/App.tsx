@@ -9,6 +9,7 @@ import { viewFileActions, type OpenPluginFile } from "./views/view-file-actions.
 import { matchesFileAction } from "../shared/plugin-file-actions.ts";
 import { ViewWorkspace } from "./views/ViewWorkspace.tsx";
 import type { ViewScreen } from "./views/view-api.ts";
+import { DocumentCharacterCountDialog, type DocumentCharacterCountHandle } from "./shell/DocumentCharacterCountDialog.tsx";
 import type { ScreenFileOpen } from "@litzio/plugin-sdk";
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
 import type { ViewTab } from "./views/view-page.ts";
@@ -70,7 +71,7 @@ import darkIcon from "@brand-dark-icon";
 import { CommandCenter } from "./shell/CommandCenter.tsx";
 import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
-import { MessageSquare, Maximize, Minimize, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Highlighter, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Search, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal, X } from "lucide-react";
+import { CaseSensitive, MessageSquare, Maximize, Minimize, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Highlighter, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Search, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal, X } from "lucide-react";
 import type {
   EditorFileResponse,
   DocumentStartResponse,
@@ -146,6 +147,7 @@ function EditorApp() {
   };
   const [commandQuery, setCommandQuery] = useState<string | null>(null);
   const commandReturnFocus = useRef<HTMLElement | null>(null);
+  const characterCountDialog = useRef<DocumentCharacterCountHandle>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory>("appearance");
   const shortcutsReturnFocus = useRef<HTMLElement | null>(null);
@@ -1261,6 +1263,9 @@ function EditorApp() {
     });
   };
   const commandItems: CommandCenterItem[] = [
+    ...(nativeSession ? [{ id: "character-count", kind: "command" as const, label: i18n.t("Character count"),
+      icon: CaseSensitive, takesFocus: true, disabled: busy || Boolean(continuation),
+      keywords: ["characters", "글자 수"], run: () => characterCountDialog.current?.show(nativeSession.appliedSource, commandReturnFocus.current) }] : []),
     { id: "reopen-closed-tab", kind: "command", label: i18n.t("Reopen closed tab"), icon: RotateCcw,
       shortcut: desktop ? REOPEN_TAB_SHORTCUT.label : undefined, takesFocus: true,
       disabled: busy || Boolean(continuation) || reopeningTab.current || !closedTabs.current.length,
@@ -1669,6 +1674,7 @@ function EditorApp() {
         onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /> : null}
       <NotificationSource items={[...pendingOpens.current].map(([group, pending]) => ({ id: `open-${group}`, severity: "info" as const, message: `${i18n.t("Opening…")} ${pending.path}`, render: () => <><p>{i18n.t("Opening…")} {pending.path}</p><Button variant="ghost" size="sm" onClick={() => cancelOpen(group)}>{i18n.t("Cancel")}</Button></> }))} />
       <NotificationSource items={themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error", message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []} />
+      <DocumentCharacterCountDialog ref={characterCountDialog} />
       <CommandCenter open={commandQuery !== null} initialQuery={commandQuery ?? ""} items={commandItems}
         returnFocus={commandReturnFocus} onClose={() => setCommandQuery(null)} />
       <KeyboardShortcutsDialog open={shortcutsOpen} returnFocus={shortcutsReturnFocus} onClose={() => setShortcutsOpen(false)} />

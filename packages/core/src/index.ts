@@ -34,6 +34,7 @@ export { readMarkdownFragment, type MarkdownFragment } from "./myst/fragment.ts"
 export type { NativeDocumentErrorCode } from "./myst/native.ts";
 export { writeIssueOf, DocumentDiagnosticError } from "./write-error.ts";
 export type { WriteIssue, WriteIssueCode } from "./write-error.ts";
+export { countDocumentCharacters, type CharacterCount } from "./character-count.ts";
 export type { EditableDocument, EditableBlock, EditableComplexTableCell } from "./editable.ts";
 export { tableCellAtPath } from "./editable.ts";
 export type { TableCellBlock, ComplexTableInput, ComplexTableCellInput } from "./table.ts";

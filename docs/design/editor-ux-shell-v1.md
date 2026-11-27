@@ -185,6 +185,12 @@ The activity bar, Explorer, title strip, tab rows, Assistant and document naviga
 
 Settings retains its existing Escape close behavior, including selecting the originating tab when it is still open. Escape in a menu or dialog follows that surface's dismissal rules. The full-screen shortcut handles F11 only. The window notification center remains available with the same producers and actions.
 
+## 문서 글자 수 (#2041)
+
+네이티브 문서를 열고 명령 센터에서 **글자 수**를 실행하면 공용 대화상자가 열린다. 기존 읽기 전용 Source 미리보기로 현재 적용된 본문 스냅샷을 받아 [Core 집계](document-support-v1.md#문서-글자-수-2041)를 수행한다. 대화상자에 공백 포함·제외 값 또는 미리보기를 만들 수 없는 이유를 표시하고, 닫으면 결과를 버린다. 전체화면에서도 명령 센터로 실행할 수 있다.
+
+결과 대화상자 기준 화면(1920px) [라이트](assets/character-count-2041/dialog-1920-light.png) · [다크](assets/character-count-2041/dialog-1920-dark.png).
+
 ## Title strip and tab-row actions (#695)
 
 The shared title strip is always exactly one `--layout-header-row` (40px): brand,
