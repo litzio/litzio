@@ -5,7 +5,7 @@ type PluginRequest = Record<string, unknown>;
 /** Returns the Host request for `tokens`, or undefined when the arguments match no accepted form. */
 type ActionParser = (tokens: string[]) => PluginRequest | undefined;
 
-const PLUGINS_USAGE = "plugins list|file-actions <path>|install <directory-or-id>|install <github-url> [--track release|branch]|source-plugins <github-url>|scaffold [directory] --id <id> [--template greet|screen|chart]|validate <directory>|register <directory-or-github-url>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|check-updates [id]|update <id>|settings <id> --file <json-file> --host <origin> --json";
+const PLUGINS_USAGE = "plugins list|file-actions <path>|install <directory-or-id>|install <github-url> [--track release|branch]|source-plugins <github-url>|scaffold [directory] --id <id> [--template greet|screen|chart]|validate <directory>|register <directory-or-github-url>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|check-updates [id]|update <id>|storage-show <id>|storage-clear <id>|settings <id> --file <json-file> --host <origin> --json";
 const readJson = (file: string): unknown => JSON.parse(readFileSync(file, "utf8"));
 
 function parseOperationInvoke(tokens: string[]): PluginRequest {
@@ -74,6 +74,8 @@ const pluginActions: Record<string, ActionParser> = {
   update: idRequest,
   unregister: idRequest,
   "check-updates": ([, action, id, ...rest]) => rest.length === 0 ? { action, ...(id ? { id } : {}) } : undefined,
+  "storage-show": idRequest,
+  "storage-clear": idRequest,
   "secret-status": idRequest,
   "secret-delete": ([, action, id, name, ...rest]) => rest.length === 0 && name !== undefined ? { action, id, name } : undefined,
   settings: tokens => {

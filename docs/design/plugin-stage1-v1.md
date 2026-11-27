@@ -135,6 +135,18 @@ export function activate(context) {
 
 `skills`는 `{id,directory}` 배열이다. artifact 내부 YAML frontmatter의 name/description이 있는 SKILL.md를 읽고 plugin별 namespace로 비서 스킬 디렉터리에 설치한다. 다른 plugin의 스킬과 겹치지 않는다. disable/reload/제거/Host 종료 시 소유한 스킬을 정리한다. 화면 코드 manifest에서도 이 경로를 사용할 수 있다. SKILL.md는 UTF-8(BOM 허용), LF·CRLF·혼합 줄바꿈을 받는다. 시작의 `---` 줄 사이에는 YAML mapping과 비어 있지 않은 문자열 `name`, `description`이 필요하다. 따옴표는 선택이고 본문 최소 길이는 없다. 원본 name은 표시용이며 manifest skills.id나 디렉터리 마지막 이름과 같을 필요가 없다. skills.id는 소문자 영문자로 시작하는 소문자 영숫자·단일 하이픈 연결 형식이다. 설치 name은 `litzio-plugin-<plugin id의 점을 --로 치환>---<skills.id>`이며 64자 이하여야 한다. 초과하면 plugin id 또는 skills.id를 줄인다. 검증 오류는 artifact 상대 SKILL.md 경로, 실패 필드와 기대 형식을 돌려준다.
 
+## 플러그인 저장소
+
+SDK 0.22.0은 플러그인 저장소와 `PluginStorage`, `JsonValue` 타입을 제공한다.
+
+SDK의 `PluginContext.storage`와 화면의 `storage`는 같은 Host의 같은 플러그인 ID에 속한다. 둘 다 `get(key): Promise<JsonValue | undefined>`, `set(key, value): Promise<void>`, `delete(key): Promise<void>`를 제공한다. 없는 키는 `undefined`이며 저장된 `null`과 구별한다. 없는 키를 지워도 성공한다. 값은 JSON이고, 계정별로 구분하려면 플러그인이 키 이름을 정한다. 비밀값은 `secrets`에 둔다.
+
+Host는 daemon 데이터 폴더의 `plugin-storage`에 ID별 UTF-8 JSON 파일을 두고 한 파일을 원자적으로 교체한다. 키는 비어 있지 않아야 하며, 최대 128개다. 키는 UTF-8 128바이트, 인코딩된 JSON 값은 64 KiB, 파일 전체는 1 MiB까지 허용한다. 한도 오류는 현재 개수 또는 바이트 수와 한도를 밝힌다. 잘못된 입력과 파일 손상은 `PluginPublicError`의 code/message로 알리고 기존 파일을 보존한다. 플러그인 ID별로 작업을 순서대로 처리하며 같은 키는 마지막 성공한 쓰기가 남는다.
+
+저장소는 탭 닫기, 앱·daemon 재시작, reload, 업데이트, 비활성화, 제거 뒤에도 유지된다. 같은 ID로 다시 설치하면 이어 쓴다. child는 Host를 통해 자기 ID의 저장소를 사용한다. 활성화 후보는 읽을 수 있고, 전환이 성공한 뒤부터 쓸 수 있다. 기존 인스턴스에 이미 접수된 작업은 수명 계약대로 마친다. 여러 daemon이 같은 데이터 폴더를 공유하는 경우는 #1933 범위다.
+
+`plugins storage-show <id>`는 ID와 저장 내용(`storage`)을 반환하고, `plugins storage-clear <id>`는 해당 ID의 내용을 지운다. 두 명령은 제거된 ID에도 적용되며, `storage-clear`로 손상된 파일을 명시적으로 지울 수 있다. 명시적 `--host`로 `POST /api/plugins`의 동명 action을 호출하며 Host 공용 receipt를 받는다.
+
 ## 수명과 공용 작업
 
 설정의 [플러그인 추가…]와 `plugins register <폴더>`는 Host 전용 복사본을 검증하고 비활성 상태로 등록한다. 처음 켤 때 목록의 registrationId를 확인하고 등록 단위를 신뢰한다. 등록 교체·제거 후 재추가에는 다시 확인한다. `plugins install <폴더 또는 제작 ID>`는 복사본의 검증·등록·신뢰·활성을 하나의 Host 작업으로 수행한다. 비서 관리도 같은 작업을 사용하며 활동에는 metadata만 남긴다.

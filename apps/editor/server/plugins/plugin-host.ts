@@ -6,7 +6,7 @@ import { PluginSettingsError } from "../../shared/plugin-settings-error.ts";
 import { PluginArtifactChangedError } from "../../shared/plugin-artifact-error.ts";
 import { PLUGIN_OPERATION_UNAVAILABLE, type PluginActivation, type PluginActivationFailure } from "../../shared/plugin-activation.ts";
 import { AssistantSkillValidationError, PluginAssistantSkills, validateAssistantSkills } from "./assistant-skills.ts";
-import { PLUGIN_REGISTRATION_CHANGED } from "@litzio/plugin-sdk";
+import { PLUGIN_REGISTRATION_CHANGED, PluginPublicError, type OperationReceipt } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigestAsync } from "./artifact-digest.mjs";
 import { InstalledArtifacts } from "./installed-artifacts.ts";
@@ -27,6 +27,9 @@ import { hostPaths } from "../host-paths.ts";
 import { describeError } from "../daemon-log.ts";
 
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
+import { PluginStorageStore } from "./plugin-storage.ts";
+
+type StorageInput = { id?: string; plugin?: string; method?: unknown; key?: unknown; value?: unknown };
 
 
 type ManifestIssue = { path: PropertyKey[]; code: string; message: string; issues?: ManifestIssue[] };
@@ -165,6 +168,7 @@ export class PluginHost {
   private closed = false;
   private disabling = new Set<string>();
   private secrets: PluginSecretStore;
+  private readonly storage: PluginStorageStore;
   private redactionSecrets = new Map<string, Map<string, string>>();
   private secretValues(id: string) { return [...(this.redactionSecrets.get(id)?.values() ?? [])]; }
   private rememberSecret(id: string, name: string, value: string) {
@@ -181,7 +185,7 @@ export class PluginHost {
   private slowActivationMs?: number;
   private readonly log?: PluginHostLogging["log"];
   private readonly warn: NonNullable<PluginHostLogging["warn"]>;
-  constructor(private file = hostPaths().settingsFile("plugins"), options: PluginHostLogging & { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; github?: GitHubSource; slowActivationMs?: number } = {}) {
+  constructor(private file = hostPaths().settingsFile("plugins"), options: PluginHostLogging & { access?: FileAccess; authoringDirectory?: string; assistantDirectory?: string; storageDirectory?: string; secrets?: PluginSecretStore; cli?: PluginCli | null; github?: GitHubSource; slowActivationMs?: number } = {}) {
     this.log = options.log;
     this.warn = options.warn ?? console.warn;
     this.slowActivationMs = options.slowActivationMs;
@@ -192,6 +196,7 @@ export class PluginHost {
     this.authoringDirectory = options.authoringDirectory ?? hostPaths().plugins;
     this.access = options.access ?? LOCAL_FILE_ACCESS;
     this.secrets = options.secrets ?? new WindowsPluginSecretStore(`${file}.secrets`);
+    this.storage = new PluginStorageStore(options.storageDirectory ?? hostPaths().pluginStorage);
     this.installed = readPluginRegistrations(file) ?? {};
   }
   /** Check without creating anything, including when the data directory does not exist yet. */
@@ -440,9 +445,13 @@ export class PluginHost {
     if (attempt) attempt.stage = "secrets";
     const secrets = await this.runtimeSecrets(id, manifest);
     let candidate: PluginInstance | undefined;
+    let storageWritable = false;
     try {
       if (attempt) attempt.stage = "process";
-      candidate = await startPluginProcess(artifact.entry, manifest, structuredClone(record.settings), secrets, exited => {
+      candidate = await startPluginProcess(artifact.entry, manifest, structuredClone(record.settings), secrets, (method, key, value) => {
+        if (method !== "get" && !storageWritable) throw new PluginPublicError("storage_unavailable", "Storage writes require an active plugin.");
+        return this.storageEntry(id, method, key, value);
+      }, exited => {
         if (!candidate || this.processes.get(id) !== candidate) return;
         this.loaded.delete(id); this.errors.set(id, { error: "Plugin process failed; reload to recover" });
         if (this.log) void exited.then(exit => this.log?.(`plugin process ${exit ? "exited" : "failed"} plugin=${id}${exitDetails(exit)}`));
@@ -463,6 +472,7 @@ export class PluginHost {
       this.redactionSecrets.set(id, new Map(Object.entries(secrets)));
       this.processes.set(id, candidate);
       this.loaded.set(id, { manifest, instance: candidate, pending: new Set(), screens });
+      storageWritable = true;
       this.disabling.delete(id);
       this.errors.delete(id);
       // Remaining calls belong to the previous process even after routing switches.
@@ -808,10 +818,48 @@ export class PluginHost {
       return { ...publicOperationError(error, op.effect, secrets), receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
-  invoke(action: string, args: { template?: "greet" | "screen" | "chart"; id?: string; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string; source?: string; track?: GitHubTrack } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
+  private storageEntry(id: string, method: unknown, key: unknown, value: unknown) {
+    if (method !== "get" && method !== "set" && method !== "delete") {
+      throw new PluginPublicError("storage_invalid_action", "Storage action must be get, set or delete.");
+    }
+    return this.storage.run(id, method, key, value);
+  }
+
+  private async invokeStorage(action: "screen-storage" | "storage-show" | "storage-clear", input: StorageInput) {
+    const screen = action === "screen-storage";
+    const id = screen ? input.plugin : input.id;
+    const effect = action === "storage-show" || screen && input.method === "get" ? "read" : "write";
+    const receipt = (outcome: OperationReceipt["outcome"]): OperationReceipt => ({
+      requestId: randomUUID(), operation: screen ? "plugins.screen-storage" : `plugins.${action}`, version: 1, scope: "host", outcome,
+    });
+    try {
+      if (typeof id !== "string" || !/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(id)) {
+        throw new PluginPublicError("storage_invalid_plugin", "Supply a valid plugin ID.");
+      }
+      if (screen) {
+        const live = this.loaded.get(id);
+        if (this.disabling.has(id) || !live?.manifest.contributes.screens.some(screen => screen.entry)) {
+          throw new PluginPublicError("storage_unavailable", "Storage requires an active plugin screen.");
+        }
+        const result = await this.storageEntry(id, input.method, input.key, input.value);
+        return { result, receipt: receipt("success") };
+      }
+      if (action === "storage-show") {
+        const storage = await this.storage.run(id, "show");
+        return { id, storage, receipt: receipt("success") };
+      }
+      await this.storage.run(id, "clear");
+      return { id, receipt: receipt("success") };
+    } catch (error) {
+      return { ...publicOperationError(error, effect), receipt: receipt("failure") };
+    }
+  }
+
+  invoke(action: string, args: StorageInput & { template?: "greet" | "screen" | "chart"; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string; source?: string; track?: GitHubTrack } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("Plugin Host is closing"));
     if (action === "screen-invoke") return this.invokeOperation(args.operation!, args.input, undefined, args.plugin);
     if (action === "invoke") return this.invokeOperation(args.operation!, args.input);
+    if (action === "screen-storage" || action === "storage-show" || action === "storage-clear") return this.invokeStorage(action, args);
     pluginManagementSchema.parse({ action, ...args });
     if (action === "list") return this.list().then(plugins => ({ plugins }));
     const github = this.github.forOperation();

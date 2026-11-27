@@ -5,16 +5,28 @@ import { Notice } from "../ui/primitives.tsx";
 import type { HostClient } from "../host-client.ts";
 import { saveScreenDocument, type ScreenDocumentInput } from "./screen-document.ts";
 import { DocumentViewScope } from "./screen-document-view.tsx";
-import type { ScreenConfirmInput, ScreenFileOpen, ScreenOpenDocumentResult, ScreenPickedPath, ScreenPickPathInput } from "@litzio/plugin-sdk";
+import { preparePluginStorageValue, validatePluginStorageKey, type JsonValue, type PluginStorage, type ScreenConfirmInput, type ScreenFileOpen, type ScreenOpenDocumentResult, type ScreenPickedPath, type ScreenPickPathInput } from "@litzio/plugin-sdk";
 import { useScreenPathPicker } from "./screen-path-picker.tsx";
 import { useScreenConfirmation } from "./screen-confirmation.tsx";
 import { isScreenPath } from "./screen-path.ts";
 type ScreenProps = { React: typeof React; ui: typeof ui; invoke(operation: string, input?: unknown): Promise<unknown>;
+  storage: PluginStorage;
   fileOpen?: ScreenFileOpen;
   confirm(input: ScreenConfirmInput): Promise<boolean>;
   pickPath(input: ScreenPickPathInput): Promise<ScreenPickedPath | null>;
   openDocument(input: {path: string}): Promise<ScreenOpenDocumentResult>;
   saveDocument(input: ScreenDocumentInput): Promise<Awaited<ReturnType<typeof saveScreenDocument>> & {opening?: ScreenOpenDocumentResult}> };
+
+async function requestPlugin(client: HostClient, body: Record<string, unknown>, signal?: AbortSignal) {
+  signal?.throwIfAborted(); client.assertCurrent();
+  const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, signal, body: JSON.stringify(body) });
+  const reply = await response.json();
+  if (!response.ok || reply.error || reply.receipt?.outcome !== "success") {
+    throw Object.assign(new Error(reply.message ?? reply.error ?? `HTTP ${response.status}`), { code: reply.code, errorKind: reply.errorKind, inputIssues: reply.inputIssues, receipt: reply.receipt });
+  }
+  return reply.result;
+}
+
 export class ScreenBoundary extends React.Component<{ children: React.ReactNode; resetKey?: string; closing?: boolean }, { error?: Error }> {
   state: { error?: Error } = {};
   static getDerivedStateFromError(error: Error) { return { error }; }
@@ -43,13 +55,21 @@ export function PluginScreenCode({ code, owner, client, roots, fileOpen, onOpen 
     }).catch(error => { if (!disposed) setError(String(error?.stack ?? error)); }).finally(() => URL.revokeObjectURL(url));
     return () => { disposed = true; controller.abort(); };
   }, [code, client, owner]);
-  const invoke = React.useCallback(async (operation: string, input: unknown = {}) => {
-    const signal = lifetime.current?.signal;
-    signal?.throwIfAborted(); client.assertCurrent();
-    const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, signal, body: JSON.stringify({ action: "screen-invoke", plugin: owner, operation: `${owner}.${operation}`, input }) });
-    const reply = await response.json();
-    if (!response.ok || reply.error || reply.receipt?.outcome !== "success") throw Object.assign(new Error(reply.message ?? reply.error ?? `HTTP ${response.status}`), { code: reply.code, errorKind: reply.errorKind, inputIssues: reply.inputIssues, receipt: reply.receipt });
-    return reply.result;
+  const invoke = React.useCallback((operation: string, input: unknown = {}) =>
+    requestPlugin(client, { action: "screen-invoke", plugin: owner, operation: `${owner}.${operation}`, input }, lifetime.current?.signal), [client, owner]);
+  const storage = React.useMemo<PluginStorage>(() => {
+    const request = async (method: "get" | "set" | "delete", key: string, value?: JsonValue) => {
+      validatePluginStorageKey(key);
+      const body = { action: "screen-storage", plugin: owner, method, key,
+        ...(method === "set" ? { value: preparePluginStorageValue(value) } : {}) };
+      // Cleanup can write after the tab's read/invoke lifetime has ended.
+      return requestPlugin(client, body, method === "get" ? lifetime.current?.signal : undefined);
+    };
+    return Object.freeze({
+      get: (key: string) => request("get", key),
+      async set(key: string, value: JsonValue) { await request("set", key, value); },
+      async delete(key: string) { await request("delete", key); },
+    });
   }, [client, owner]);
   const openDocument = React.useCallback(async ({path}: {path: string}): Promise<ScreenOpenDocumentResult> => {
     const signal = lifetime.current?.signal;
@@ -73,5 +93,5 @@ export function PluginScreenCode({ code, owner, client, roots, fileOpen, onOpen 
     catch (cause) { opening = {status:"refused",path:receipt.path,message:String((cause as Error).message ?? cause)}; }
     return {...receipt, opening};
   }, [client, openDocument]);
-  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <DocumentViewScope.Provider value={{ client, roots }}><Screen React={React} ui={ui} invoke={invoke} saveDocument={saveDocument} confirm={confirm} pickPath={pickPath} openDocument={openDocument} fileOpen={fileOpen} />{dialog}{confirmation}</DocumentViewScope.Provider> : null;
+  return error ? <Notice tone="error"><pre style={{ whiteSpace: "pre-wrap" }}>{error}</pre></Notice> : Screen ? <DocumentViewScope.Provider value={{ client, roots }}><Screen React={React} ui={ui} invoke={invoke} storage={storage} saveDocument={saveDocument} confirm={confirm} pickPath={pickPath} openDocument={openDocument} fileOpen={fileOpen} />{dialog}{confirmation}</DocumentViewScope.Provider> : null;
 }

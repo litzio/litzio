@@ -2,6 +2,9 @@ import { z } from "zod";
 import { compileSchema } from "./schema.ts";
 import { compileOperationInputSchema } from "@litzio/core/operation-input";
 import { documentAuthoringSchema } from "@litzio/core";
+import type { PluginStorage } from "./plugin-storage.ts";
+export { PLUGIN_STORAGE_LIMITS, preparePluginStorageValue, validatePluginStorageKey, type PluginStorage, type JsonValue } from "./plugin-storage.ts";
+export { PluginPublicError } from "./public-error.ts";
 export { compileSchema } from "./schema.ts";
 export { compileOperationInputSchema } from "@litzio/core/operation-input";
 export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DocumentAuthoringError, type DocumentAuthoringInput, type AuthoredDocument } from "@litzio/core";
@@ -17,7 +20,7 @@ export { mergeParagraphWithPrevious, splitParagraph, updateHeadingLevel, machine
   updateTableCellBlocks, tableCellAtPath, type TableCellBlock, type ComplexTableInput, type ComplexTableCellInput, type EditableComplexTableCell,
   ADMONITION_VARIANTS, type AdmonitionVariant } from "@litzio/core";
 
-export const SDK_VERSION = "0.21.0";
+export const SDK_VERSION = "0.22.0";
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
 const operation = z.strictObject({ id, version: z.number().int().positive().default(1), effect: z.enum(["read","write"]).default("read"), scope: z.enum(["host","folder"]).default("host"), assistant: z.boolean().default(false), inputSchema: schema.default({}), outputSchema: schema.default({}) });
@@ -86,7 +89,7 @@ export type PluginStatus={available:boolean;message:string};
 export const statusSchema=z.strictObject({available:z.boolean(),message:z.string()});
 /** Shell-free launch descriptor for this Host's official CLI. Append command arguments. */
 export type PluginCli = Readonly<{ bin: string; args: readonly string[] }>;
-export type PluginContext={cli?:PluginCli;secrets?:Readonly<Record<string,string>>;settings:Readonly<Record<string,unknown>>;platform:string;env:Readonly<Record<string,string|undefined>>;isDirectory(path:string):boolean};
+export type PluginContext={cli?:PluginCli;secrets?:Readonly<Record<string,string>>;settings:Readonly<Record<string,unknown>>;storage:PluginStorage;platform:string;env:Readonly<Record<string,string|undefined>>;isDirectory(path:string):boolean};
 export type PluginInstance={operations:Record<string,(input:unknown)=>unknown|Promise<unknown>>;status():PluginStatus|Promise<PluginStatus>;dispose():void|Promise<void>};
 export type PluginModule={activate(context:PluginContext):PluginInstance|Promise<PluginInstance>};
 export type OperationReceipt={requestId:string;operation:string;version:number;scope:string;outcome:"success"|"refused"|"failure"|"uncertain"};
@@ -125,10 +128,6 @@ export const PLUGIN_ERROR_KINDS = ["auth", "forbidden", "not_found", "unavailabl
 export type PluginErrorKind = typeof PLUGIN_ERROR_KINDS[number];
 export function pluginErrorKind(value: unknown): PluginErrorKind {
   return PLUGIN_ERROR_KINDS.includes(value as PluginErrorKind) ? value as PluginErrorKind : "failed";
-}
-/** Explicit opt-in to publishing a caller-correctable failure. Never include secrets or internal paths. */
-export class PluginPublicError extends Error {
-  constructor(public readonly code: string, message: string) { super(message); this.name = "PluginPublicError"; }
 }
 export class PluginOperationError extends Error {
   constructor(public readonly kind: PluginErrorKind) { super("Plugin request failed"); }

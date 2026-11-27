@@ -164,6 +164,23 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(observer.getByTestId('activity-bar').getByRole('button', { name: 'Drive fixture', exact: true })).toBeVisible();
   await observer.getByTestId('activity-bar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
   await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
+  const storageScreen = observer.getByTestId("view-workspace").filter({ visible: true });
+  await storageScreen.getByRole("button", { name: "Prepare storage" }).click();
+  await expect(storageScreen.locator("output")).toHaveText("Handler draft");
+  const storageReply = method => observer.waitForResponse(response => {
+    if (!response.url().endsWith("/api/plugins") || response.request().method() !== "POST") return false;
+    const body = response.request().postDataJSON();
+    return body.action === "screen-storage" && body.method === method;
+  });
+  const savedOnClose = Promise.all(["set", "delete"].map(async method => {
+    const response = await storageReply(method);
+    expect((await response.json()).receipt.outcome).toBe("success");
+  }));
+  await observer.getByRole("button", { name: "Close Drive fixture", exact: true }).click();
+  await savedOnClose;
+  await observer.getByTestId("activity-bar").getByRole("button", { name: "Drive fixture", exact: true }).click();
+  await storageScreen.getByRole("button", { name: "Read saved view" }).click();
+  await expect(storageScreen.locator("output")).toHaveText("Saved on close");
   const readSnapshot = async value => {
     const screen = observer.getByTestId("view-workspace").filter({ visible: true });
     await screen.getByRole("button", { name: "Read installed value" }).click();
@@ -438,6 +455,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(observer.getByText('Updated runtime fixture', { exact: true })).toBeVisible();
   await page.bringToFront();
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
+  const stored = pluginFixture.cli(["plugins", "storage-show", "fixture.drive"]);
+  expect(stored.id).toBe("fixture.drive");
+  expect(stored.storage).toEqual({ view: "Saved on close" });
+  expect(pluginFixture.cli(["plugins", "storage-clear", "fixture.drive"]).receipt.outcome).toBe("success");
+  expect(pluginFixture.cli(["plugins", "storage-show", "fixture.drive"]).storage).toEqual({});
   await expect(observer.getByText('Updated runtime fixture', { exact: true })).not.toBeVisible();
   await returnToObserver();
   await expect(observer.getByTestId('activity-bar').getByRole('button', { name: 'Drive fixture', exact: true })).toHaveCount(0);
