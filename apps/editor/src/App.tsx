@@ -9,6 +9,7 @@ import { viewFileActions, type OpenPluginFile } from "./views/view-file-actions.
 import { matchesFileAction } from "../shared/plugin-file-actions.ts";
 import { ViewWorkspace } from "./views/ViewWorkspace.tsx";
 import type { ViewScreen } from "./views/view-api.ts";
+import { countDocumentCharacters, getEditableDocument, parse } from "@litzio/core";
 import type { ScreenFileOpen } from "@litzio/plugin-sdk";
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
 import type { ViewTab } from "./views/view-page.ts";
@@ -1404,6 +1405,22 @@ function EditorApp() {
               status={operation || (owner?.assetPending ? "adding-image" : owner?.busy ? owner.status : pendingOpens.current.has(group.id) ? "opening" : owner?.status ?? "ready")}
               unsaved={owner?.documentDirty || owner?.draftActive}
               draftNotice={owner?.draftNotice}
+              characterCountMessage={owner?.kind === "native" && typeof owner.noticeCause === "object" &&
+                owner.noticeCause && "key" in owner.noticeCause &&
+                (owner.noticeCause.key === "Document characters: {{withSpaces}} with spaces, {{withoutSpaces}} without spaces" ||
+                  owner.noticeCause.key === "Could not count document characters: {{reason}}") ? owner.notice : undefined}
+              onCountCharacters={owner?.kind === "native" ? async () => {
+                try {
+                  const source = await owner.appliedSource();
+                  if (!owner.isCurrent()) return;
+                  const count = countDocumentCharacters(getEditableDocument(parse(source)));
+                  const format = new Intl.NumberFormat(i18n.resolvedLanguage);
+                  owner.setNotice({ key: "Document characters: {{withSpaces}} with spaces, {{withoutSpaces}} without spaces",
+                    values: { withSpaces: format.format(count.withSpaces), withoutSpaces: format.format(count.withoutSpaces) } });
+                } catch (cause) {
+                  if (owner.isCurrent()) owner.setNotice({ key: "Could not count document characters: {{reason}}", values: { reason: messageOf(cause) } });
+                }
+              } : undefined}
               textMode={owner?.kind === "text"}
               markdownText={owner?.kind === "text" && owner.markdown}
               view={owner?.view ?? "visual"}

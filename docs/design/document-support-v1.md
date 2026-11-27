@@ -463,6 +463,14 @@ CLI `inspect --format json`의 `nodes`는 Core `getEditableDocument`의 인라�
 
 `text`는 기존 표시·요약 소비자를 위해 유지한다. `content`가 구조 보존과 재작성의 입력이며 `text`에서 서식이나 원자를 추론하지 않는다. 인라인 서식, 첨자, 수식, 코드, 링크, 참조, 미주 표시는 Core 타입 그대로다. 경로는 해당 revision의 locator다. 번호 등 파생 표시 필드는 저장 의미가 아니다. JSON 투영은 Core 공용 `machineNodes`를 CLI·Host·SDK가 함께 사용한다. 비서의 `read_document`는 원문과 revision을 반환하며 별도의 의미 투영을 만들지 않는다. 비서가 JSON 구조를 필요로 하면 같은 CLI를 사용한다.
 
+## 문서 글자 수 (#2041)
+
+Core `countDocumentCharacters(readModel)`은 문서 본문의 grapheme 수를 반환한다. 본문 제목·문단·인용·콜아웃, 중첩 목록, 표 셀·캡션·주석, 그림 캡션, 미주 본문, 인라인·블록 코드를 포함한다. 링크는 표시 문구를 센다. 문서 설정과 frontmatter 제목 등 메타데이터, URL·대체 텍스트·레이블, 인라인·블록 수식, Mermaid 원문, 자동 번호와 인용·참조 마커는 제외한다.
+
+서식 조각을 이어서 grapheme을 나눈다. 조합형 한글과 결합 이모지는 각각 한 글자다. Unicode `White_Space`로 구성된 grapheme은 공백 포함 값에만 센다. 탭·NBSP·본문 줄바꿈이 포함되며 CRLF는 하나로 센다. 블록과 셀 사이에 공백을 추가하지 않는다.
+
+`litzio inspect <file>`은 기존 텍스트 출력 뒤에 `Characters (with spaces)`와 `Characters (without spaces)`를 표시한다. JSON은 기존 revision에 대응하는 `characterCount: { withSpaces, withoutSpaces }`를 추가한다.
+
 ## 문서 검토 상태
 
 선택 frontmatter `status`는 문자열 `draft`, `review`, `approved`만 받는다. 빈 값·빈 문자열·다른 값·비문자열은 `native-metadata`로 거부한다. 생략한 문서는 상태 없는 보통 문서다. 상태는 문서가 소유하는 표시이며 편집·저장·연산을 제한하지 않는다. 정규 직렬화는 기존 metadata 키 순서·주석을 유지한다. 새 `status`는 기존 키 뒤에 추가하며 이미 있는 값은 제자리에서 바꾸고 제거는 그 키만 지운다. 공식 작성 입력의 키 순서는 `litzio`, `title`(있으면), `status`(있으면)다. 상태가 없는 문서의 출력은 바뀌지 않는다.

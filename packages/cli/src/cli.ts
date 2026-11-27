@@ -18,6 +18,7 @@ import {
   getEditableDocument,
   ADMONITION_VARIANTS,
   inspectDocument,
+  countDocumentCharacters,
   parse,
   sectionMarker,
   blockTargets,
@@ -282,6 +283,7 @@ const COMMANDS: CommandSpec[] = [
     details: [
       "Inspect semantic blocks and editable targets.",
       "JSON nodes expose Core InlineContent as content (table caption as caption, note paragraphs as notes, list items as items). text is a readable summary. JSON includes revision: the SHA-256 of the original UTF-8 text read for this inspect.",
+      "Reports body character counts with and without spaces (JSON: characterCount).",
       ...REVISION_NOTE,
       "",
       "Editability fields describe the current semantic projection.",
@@ -1178,7 +1180,12 @@ function commandHelp(name: string): string {
 function inspectFile(file: string, bibliographyRoot?: string): string {
   const document = parse(readFile(file));
   const editable = getEditableDocument(document);
-  return `status: ${editable.status ?? "absent"}\ntitle: ${editable.title === undefined ? "absent" : quote(editable.title)}\n${formatInspect(editable)}\n${formatNumbering(numberingReport(editable.blocks))}${formatCitations(resourceReport(document, file, bibliographyRoot))}`;
+  return `status: ${editable.status ?? "absent"}\ntitle: ${editable.title === undefined ? "absent" : quote(editable.title)}\n${formatInspect(editable)}\n${formatNumbering(numberingReport(editable.blocks))}${formatCitations(resourceReport(document, file, bibliographyRoot))}${formatCharacterCount(editable)}`;
+}
+
+function formatCharacterCount(document: ReturnType<typeof getEditableDocument>): string {
+  const count = countDocumentCharacters(document);
+  return `Characters (with spaces): ${count.withSpaces}\nCharacters (without spaces): ${count.withoutSpaces}\n`;
 }
 
 function inspectFileJson(file: string, bibliographyRoot?: string): string {
@@ -1194,6 +1201,7 @@ function inspectFileJson(file: string, bibliographyRoot?: string): string {
     nodes: machineNodes(editable),
     numbering: numberingReport(editable.blocks),
     citations: resourceReport(document, file, bibliographyRoot),
+    characterCount: countDocumentCharacters(editable),
   })}\n`;
 }
 

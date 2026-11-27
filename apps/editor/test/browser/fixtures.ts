@@ -101,7 +101,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "foreign.md", create: () => "# 일반 Markdown\n\n**서식이 아닌 텍스트**와 <kbd>Ctrl</kbd>\n\n| Header |\n| --- |\n| Cell |\n\n![Diagram](diagram.svg)\n\n- [x] Done\n\n$x+1$ and note[^a].\n\n[^a]: Footnote.\n" },
     { name: "notes.txt", create: () => "일반 텍스트 파일\n탭과 공백, 줄바꿈을 그대로 편집합니다.\n" },
     { name: "native.md", create: () => nativeSource("Native stays Core-backed.\n") },
-  ], scenarios: ["text-mode"] },
+  ], scenarios: ["text-mode", "document-character-count"] },
   "selection-toolbar": { files: [{ name: "overlays.md", create: () => nativeSource(
     // Keep the anchor below the initial viewport even with the full-width narrow document,
     // so scrolling can place it at the bottom edge without clamping scrollTop to zero.
