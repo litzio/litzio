@@ -59,16 +59,20 @@ Windows에서 profile·cache를 생략하면 공식 기본 위치를 사용한�
 
 Desktop·HTTP/Vite Host·실행 CLI가 프로세스 수명 동안 고유 actor lease를 등록한다. 일반 CLI의 순수 help/version과 읽기 전용 check·inspect·compare·local-write-statistics는 참여하지 않는다.
 
-- Windows: writer는 PID·역할을 담은 고유 actor 파일을 먼저 쓰고(`actor-<pid>-<role>-<uuid>.json`), 그 파일을 공유 없이 연 채로 유지한다(libuv `UV_FS_O_EXLOCK`). 등록에 OS 조회가 없다. 열기가 다른 프로그램 때문에 실패해도 파일만으로 등록한다. 열린 핸들은 살아 있다는 증거로만 쓴다. 핸들이 없다고 종료로 판정하지 않는다(네트워크 홈의 연결 끊김 등으로 핸들이 닫힐 수 있다).
+- Windows: writer는 PID·역할과 자기 시작 시각의 근사값(`Date.now() - process.uptime()`)을 담은 고유 actor 파일(`actor-<pid>-<role>-<uuid>.json`)을 먼저 쓴다. 그다음 그 파일을 공유 없이 연 채로 유지한다(libuv `UV_FS_O_EXLOCK`). 등록에 OS 조회가 없다. 열기가 다른 프로그램 때문에 실패해도 파일만으로 등록한다. 열린 핸들은 살아 있다는 증거로만 쓴다. 핸들이 없다고 종료로 판정하지 않는다(네트워크 홈의 연결 끊김 등으로 핸들이 닫힐 수 있다).
 - 초기화의 판정:
   1. 파일을 읽지 못하면(공유 위반) 살아 있는 writer로 보고 거부한다.
   2. 생성 identity 기록이면(다른 플랫폼, 이전 판) 그 identity로 판정한다.
-  3. 그 밖(Windows 기록, 비었거나 깨진 기록)은 파일 이름의 PID로 판정한다. PID가 없으면 회수한다. PID가 있으면 이때만 그 PID의 OS 생성 시각을 조회한다. 그 프로세스가 actor 파일 생성 시각보다 2초 넘게 뒤에 생겼으면 재사용된 PID로 보고 회수한다. 그 밖에는 거부하며, 생성 시각을 얻지 못하거나 비교할 수 없어도 거부한다. 파일 이름은 고유하므로 Windows 파일 생성 시각의 이름 재사용 보존(tunneling)이 적용되지 않는다.
-  - 시계: writer 시작과 파일 생성 사이에 시스템 시계가 2초 넘게 뒤로 바뀌면 살아 있는 writer를 재사용된 PID로 오판할 수 있다. 시작 직후 1초 안팎의 구간에 그런 시계 변경이 겹쳐야 하는 드문 경우다. 시계가 앞으로 바뀌거나, writer가 끝난 뒤 시계가 바뀌면 거부 쪽으로 떨어진다.
+  3. 그 밖의 기록(Windows 기록, 비었거나 깨진 기록)은 파일 이름의 PID로 판정한다.
+     - PID가 없으면 내용과 관계없이 회수한다.
+     - PID가 살아 있으면 이때만 그 PID의 OS 생성 시각을 조회한다. 기록한 시작 근사값보다 5초 넘게 뒤에 생긴 프로세스이면 재사용된 PID로 보고 회수한다.
+     - 그 밖에는 거부한다. 시작 근사값이 없거나 깨진 경우, 생성 시각 조회가 실패하거나 비교할 수 없는 경우도 모두 거부한다.
+     - 파일 시스템의 파일 생성 시각은 쓰지 않는다. 네트워크·FAT 등에서는 없거나 믿을 수 없고, 바꿀 수 있기 때문이다.
+  - 시작 근사값은 OS 생성 시각보다 수십 ms 늦다. writer가 시작한 순간부터 기록을 쓰기까지의 짧은 구간에 시스템 시계가 5초 넘게 뒤로 바뀌면, 살아 있는 writer를 재사용된 PID로 오판할 수 있다. 이것이 남는 위험이다. 시계가 앞으로 바뀌거나 기록 뒤에 바뀌면 거부 쪽으로 떨어진다.
 - 그 밖의 플랫폼: writer가 PID/OS 생성 identity를 기록한다. 초기화는 PID가 없으면 OS 조회 없이, 있으면 생성 identity로 판정하므로 재사용된 PID는 회수한다.
 - 같은 계정의 다른 채널·이전 판과 gate를 함께 쓴다. 이 판의 초기화는 두 형식을 모두 판정한다. Windows 기록에는 `started`가 없다. 그래서 이전 판의 초기화는 살아 있든 끝났든 이 기록을 잘못된 owner로 보고 거부한다. 이전 판에서 초기화하려면 이 판으로 초기화해 끝난 기록을 먼저 회수해야 한다.
 
-읽기는 초기화와 겹쳐도 저장 데이터를 변경하지 않으며, 쓰기 명령의 guard 획득 실패는 우회하지 않고 직접 파일 편집 후 `litzio check` 검사를 안내하며 실행 승인을 권하지 않는다. writer는 먼저 등록하고 exclusive 존재를 확인한다. 초기화는 exclusive를 먼저 만든 뒤 기존 actor를 검사하므로 새 writer와의 시작 경쟁도 둘 중 하나가 거부된다. 검사 중 해제되어 사라진 actor는 넘어간다. 다른 프로세스를 죽이지 않는다. 종료된 writer의 고유 actor 파일만 회수하며, 일반 기동 때는 정리하지 않는다. 강제 종료(TerminateProcess·`taskkill /F`·시간 초과 kill)는 release를 건너뛰어 파일을 남긴다. 등록 중 어느 단계에서 끝났든(빈 파일, 내용만 쓴 파일, 열린 뒤 확인 전) 남은 파일은 이름의 PID로 판정되므로 다음 초기화가 회수한다. 중단된 exclusive, 알 수 없는 기록, Host 하위 프로세스 종료 실패 marker는 자동 회수하지 않고 검사할 위치를 보고한다. gate 자체를 포함하거나 home·현재 cwd·설치 실행 파일·사용자 문서/OS 데이터 root를 포함하는 삭제 대상은 거부한다.
+읽기는 초기화와 겹쳐도 저장 데이터를 변경하지 않으며, 쓰기 명령의 guard 획득 실패는 우회하지 않고 직접 파일 편집 후 `litzio check` 검사를 안내하며 실행 승인을 권하지 않는다. writer는 먼저 등록하고 exclusive 존재를 확인한다. 초기화는 exclusive를 먼저 만든 뒤 기존 actor를 검사하므로 새 writer와의 시작 경쟁도 둘 중 하나가 거부된다. 검사 중 해제되어 사라진 actor는 넘어간다. 다른 프로세스를 죽이지 않는다. 종료된 writer의 고유 actor 파일만 회수하며, 일반 기동 때는 정리하지 않는다. 강제 종료(TerminateProcess·`taskkill /F`·시간 초과 kill)는 release를 건너뛰어 파일을 남긴다. 등록 중 어느 단계에서 끝났든(빈 파일, 내용만 쓴 파일, 열린 뒤 확인 전) 남은 파일은 이름의 PID가 없으므로 다음 초기화가 회수한다. 중단된 exclusive, 알 수 없는 기록, Host 하위 프로세스 종료 실패 marker는 자동 회수하지 않고 검사할 위치를 보고한다. gate 자체를 포함하거나 home·현재 cwd·설치 실행 파일·사용자 문서/OS 데이터 root를 포함하는 삭제 대상은 거부한다.
 
 Vite도 문서·asset middleware가 수락한 promise를 SSR module loading부터 추적한다. listener 종료 이벤트는 서비스 종료와 수락된 handler의 settle까지 기다린 뒤 lease를 해제한다. 종료 중 새 Host 서비스를 초기화하지 않으며 `server.close()`도 같은 정리를 기다린다. Vite 내부 restart가 listener를 닫는 경로에도 같은 lease 보호가 적용된다. 이미 수락된 파일 변경은 소켓 단절로 취소됐다고 간주하지 않는다.
 
@@ -87,7 +91,7 @@ Desktop 경로:
 
 - [파일 fixture](../../apps/desktop/test/reset-storage.test.ts): override·모든 데이터 분류·빈 폴더 옵션·중첩 삭제·외부 문서/artifact·junction·실패/잔존 결과. 정상 startup의 실제 templates/settings/skills/sample loader로 초기화 후와 깨끗한 최초 실행 결과를 비교한다. 실제 AI 호출은 없다.
   custom Desktop profile과 별도 OS 앱 데이터의 무관한 logs ancestor junction도 검사한다. 수정 전에는 불필요한 경로 preflight로 전체 거부됐고, 수정 후 현행 profile·Host base·assistant cwd의 canary는 제거하면서 외부 로그와 junction을 보존한다. 기존 위험 root/junction 사전 거부 검사는 유지한다. 새 subprocess·전수 조합 없이 기존 파일 검사에 한 대표 사례를 추가했으며 Windows 단독 약 20ms다. home과 APPDATA/XDG를 fixture로 격리해 실제 사용자 앱 데이터는 사용하지 않는다.
-- [gate fixture](../../apps/desktop/test/reset-guard.test.ts): 여러 actor 역할·새 writer·PID 세대·중단된 exclusive와 종료 실패 보호. 손상된 optional-cleanup SystemRoot에서도 필수 OS identity 확인이 되고 호출자 환경은 바꾸지 않는지 확인한다. Windows에서는 실제 자식 프로세스로 다음을 확인한다. 연 actor는 그 PID의 OS 조회 없이 초기화를 막는다. 등록의 세 단계(빈 파일 생성 뒤, 내용을 쓴 뒤 열기 전, 연 뒤 확인 전)에서 멈춘 writer는 살아 있는 동안 초기화를 막는다. 강제 종료하면 파일이 남고 다음 초기화가 회수한다. 핸들이 없는 기록의 판정은 주입한 생성 시각으로 확인한다. 파일보다 늦게 생긴 PID는 회수하고, 더 이른 생성 시각, 얻지 못한 생성 시각, 비교할 수 없는 identity는 거부한다. 잠금이 강제되지 않아도 살아 있는 writer는 보호된다. 자식 프로세스 4개가 필요하다. 종료와 OS 핸들 정리는 인메모리로 대체할 수 없다. Windows 로컬에서 합계 약 3초다.
+- [gate fixture](../../apps/desktop/test/reset-guard.test.ts): 여러 actor 역할·새 writer·PID 세대·중단된 exclusive와 종료 실패 보호. 손상된 optional-cleanup SystemRoot에서도 필수 OS identity 확인이 되고 호출자 환경은 바꾸지 않는지 확인한다. Windows에서는 실제 자식 프로세스로 다음을 확인한다. 연 actor는 그 PID의 OS 조회 없이 초기화를 막는다. 등록의 세 단계(빈 파일 생성 뒤, 내용을 쓴 뒤 열기 전, 연 뒤 확인 전)에서 멈춘 writer는 살아 있는 동안 초기화를 막는다. 강제 종료하면 파일이 남고 다음 초기화가 회수한다. 살아 있는 다른 프로세스가 PID를 재사용한 기록은 회수한다. 잠금 없는 살아 있는 writer는 파일 생성 시각을 과거로 바꿔도 거부된다. 주입한 생성 시각으로는 다음을 확인한다. 시작 근사값보다 늦게 생긴 PID는 회수한다. 여유 안의 생성 시각, 알 수 없거나 비교할 수 없는 생성 시각, 조회 실패(ENOENT 포함), 비었거나 깨진 기록, 시작 근사값이 없거나 깨진 기록은 거부하고 기록을 남긴다. 종료된 PID의 기록은 조회 없이 회수한다. 자식 프로세스 6개가 필요하다. 종료와 OS 핸들 정리는 인메모리로 대체할 수 없다. Windows 로컬에서 합계 약 3초다.
 - [CLI fixture](../../packages/cli/test/app-reset.test.ts): 공용 작업 호출·검토 revision/명시 확인·live/불명확 owner 거부와 최초 설정 복원. 임시 경로만 삭제한다.
 - [main 연결](../../apps/desktop/test/window-startup.test.ts): 실제 main 코드를 격리 port로 실행해 sender·계획·미저장 작업·늦은 unload 거부와 helper 취소를 확인한다. 실제 앱/OS 파일을 조작하지 않는다.
 - [helper fixture](../../apps/desktop/test/reset-helper.test.ts): 실제 자식 프로세스에서 부모 종료 전 데이터 보존, 종료 후 삭제·receipt·재실행을 확인한다. 세 subprocess(가짜 부모, 실제 source helper, 즉시 종료하는 재실행 표식)가 필요하며 인메모리 mock으로 process-exit/IPC 경계를 증명할 수 없다. 별도 helper 한 개로 IPC 유실 뒤 취소 기록을 존중하는지도 검사한다. 취소 파일 확인 전 canary 삭제 실패를 재현한 뒤 수정했고 두 검사가 통과했다. Windows 단독 실행 관측 약 2초, 다른 검사 병렬 실행 중 약 6초. 폴더·secret은 합성이며 외부 서비스 호출은 없다.

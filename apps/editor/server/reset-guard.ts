@@ -14,9 +14,10 @@ let ownStart: string | undefined;
 /** libuv's UV_FS_O_EXLOCK (include/uv/win.h, "EXCLUSIVE SHARING MODE"): CreateFile with share mode 0.
  * Node passes it through to libuv but does not export it in fs.constants. */
 const UV_FS_O_EXLOCK = (fs.constants as Record<string, number | undefined>).UV_FS_O_EXLOCK ?? 0x10000000;
-/** A process created this long after an actor file was created cannot be its writer (PID reuse).
- * The margin only absorbs a small backward system clock step between writer start and file creation. */
-const REUSE_MARGIN_MS = 2_000;
+/** A process the OS created this long after the writer's recorded start cannot be that writer (PID reuse).
+ * The recorded start trails the OS creation time by tens of milliseconds; the margin also absorbs a small
+ * backward system clock step between the writer's start and its record. */
+const REUSE_MARGIN_MS = 5_000;
 
 const errorCode = (error: unknown) => (error as NodeJS.ErrnoException).code;
 function unlinkIfPresent(file: string) {
@@ -55,28 +56,32 @@ export class ResetGuard {
     return () => { if (!released) { fs.unlinkSync(file); released = true; } };
   }
   /** Publish the record, then hold it open without sharing for the process lifetime. The open handle only
-   * proves a live writer; an openable file is judged by its PID at reset. The record has no `started`,
-   * so older resets refuse it as invalid instead of reclaiming it by identity mismatch. */
+   * proves a live writer; an openable record is judged by its PID and recorded start at reset. The record
+   * has no `started`, so older resets refuse it as invalid instead of reclaiming it by identity mismatch. */
   private publishLease(file: string, role: ActorRole, flag: number) {
     fs.mkdirSync(this.directory, { recursive: true });
-    fs.writeFileSync(file, JSON.stringify({ pid: process.pid, role, lease: "open-handle" }), { flag: "wx", mode: 0o600 });
+    fs.writeFileSync(file, JSON.stringify({ pid: process.pid, role, lease: "open-handle", approxStart: Date.now() - process.uptime() * 1000 }), { flag: "wx", mode: 0o600 });
     let fd: number | undefined;
     try { fd = fs.openSync(file, fs.constants.O_RDONLY | flag); }
     catch (error) { if (errorCode(error) !== "EBUSY") { unlinkIfPresent(file); throw error; } } // Another program has it open.
     let released = false;
     return () => { if (!released) { released = true; if (fd !== undefined) fs.closeSync(fd); unlinkIfPresent(file); } };
   }
-  /** Judge an actor record without a usable creation identity by the PID in its unique filename. */
-  private judgeByFilename(name: string, file: string): void {
+  /** Judge a record without a creation identity by the PID in its unique filename. Only an exited PID, or a
+   * process the OS created well after the writer's recorded start, is reclaimed; anything unverifiable refuses. */
+  private requireReclaimable(name: string, owner: { approxStart?: unknown } | null | undefined): void {
     const [, digits, role] = /^actor-(\d+)-(?:(desktop|host|cli)-)?/.exec(name) ?? [];
     const pid = Number(digits);
     if (!Number.isSafeInteger(pid) || pid < 1) throw new Error("Invalid reset guard owner; inspect the guard directory.");
     if (exited(pid)) return;
-    const birth = fs.statSync(file).birthtimeMs;
-    const created = creationMs(this.identify(pid));
-    if (created !== undefined && created > birth + REUSE_MARGIN_MS) return; // The PID now belongs to a later process.
-    if (created === undefined && exited(pid)) return;
-    throw new Error(`Close ${role ?? "the writer"} (PID ${pid}) before resetting. No process was stopped.`);
+    const writer = `${role ?? "the writer"} (PID ${pid})`;
+    const recorded = owner?.approxStart;
+    if (typeof recorded !== "number" || !Number.isFinite(recorded) || recorded <= 0) throw new Error(`Close ${writer} before resetting. No process was stopped.`);
+    let created;
+    try { created = creationMs(this.identify(pid)); }
+    catch (error) { throw new Error(`Cannot verify ${writer} (${(error as Error).message}); no process was stopped and no data was deleted.`); }
+    if (created !== undefined && created > recorded + REUSE_MARGIN_MS) return; // The PID now belongs to a later process.
+    throw new Error(`Close ${writer} before resetting. No process was stopped.`);
   }
   actor(role: ActorRole): () => void {
     const file = path.join(this.directory, `actor-${process.pid}-${role}-${randomUUID()}.json`);
@@ -116,14 +121,12 @@ export class ResetGuard {
           }
           throw new Error(`Cannot read reset guard owner ${name} (${errorCode(error) ?? "unknown"}); inspect the guard directory.`);
         }
-        let owner: Partial<Owner> | undefined;
+        let owner: (Partial<Owner> & { approxStart?: unknown }) | null | undefined;
         try { owner = JSON.parse(bytes); } catch { /* Interrupted before its content was written. */ }
-        try {
-          if (owner && Number.isSafeInteger(owner.pid) && owner.pid! > 0 && typeof owner.started === "string" && owner.started) {
-            // Identity record: the OS creation identity distinguishes a reused PID; processStart answers an exited PID without an OS query.
-            if (this.identify(owner.pid!) === owner.started) throw new Error(`Close ${owner.role} (PID ${owner.pid}) before resetting. No process was stopped.`);
-          } else this.judgeByFilename(name, actorFile);
-        } catch (error) { if (errorCode(error) === "ENOENT") continue; throw error; }
+        if (owner && Number.isSafeInteger(owner.pid) && owner.pid! > 0 && typeof owner.started === "string" && owner.started) {
+          // Identity record: the OS creation identity distinguishes a reused PID; processStart answers an exited PID without an OS query.
+          if (this.identify(owner.pid!) === owner.started) throw new Error(`Close ${owner.role} (PID ${owner.pid}) before resetting. No process was stopped.`);
+        } else this.requireReclaimable(name, owner);
         // Actor filenames are unique and never reused, so dead generations can be removed.
         unlinkIfPresent(actorFile);
       }

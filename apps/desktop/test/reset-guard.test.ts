@@ -3,7 +3,8 @@ import { test } from "node:test";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync, execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { ResetGuard } from "../../editor/server/reset-guard.ts";
 import { processStart } from "../../editor/server/daemon-state.ts";
@@ -105,28 +106,67 @@ test("a writer killed at any registration step blocks reset while alive and is r
   }
 });
 
-test("a record without an open handle is judged by its filename PID's creation time", t => {
+const ticks = (ms: number) => String(BigInt(Math.round(ms * 10_000)) + 621_355_968_000_000_000n);
+
+test("a record without an open handle is reclaimed only for an exited PID or a process created after the writer's recorded start", t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-reset-guard-pid-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   // The parent of this test process is alive; its record has lost (or never had) the exclusive open.
-  const ticks = (ms: number) => String(BigInt(Math.round(ms * 10_000)) + 621_355_968_000_000_000n);
-  const record = () => {
-    const file = path.join(root, `actor-${process.ppid}-host-${Math.random().toString(16).slice(2)}.json`);
-    fs.writeFileSync(file, JSON.stringify({ pid: process.ppid, role: "host", lease: "open-handle" }));
-    return fs.statSync(file).birthtimeMs;
-  };
-  const resetWith = (creation: (birth: number) => string | undefined) => {
-    const birth = record();
-    return () => new ResetGuard(root, pid => pid === process.pid ? "reset" : creation(birth), 0).exclusive()();
-  };
-  for (const creation of [(birth: number) => ticks(birth - 5_000), () => undefined, () => "boot-id:1234"]) {
-    assert.throws(resetWith(creation), new RegExp(`Close host \\(PID ${process.ppid}\\)`), "an older, unknown or incomparable creation refuses");
-    for (const name of actorFiles(root)) fs.unlinkSync(path.join(root, name));
+  const pid = process.ppid, start = Date.now() - 60_000;
+  const record = (content: string) => fs.writeFileSync(path.join(root, `actor-${pid}-host-${randomUUID()}.json`), content);
+  const reset = (creation: () => string | undefined) => () => new ResetGuard(root, owner => owner === process.pid ? "reset" : creation(), 0).exclusive()();
+  const valid = JSON.stringify({ pid, role: "host", lease: "open-handle", approxStart: start });
+  const later = () => ticks(start + 600_000);
+  const refusals: [string, () => string | undefined, string][] = [
+    [valid, () => ticks(start - 20), "the writer itself"],
+    [valid, () => ticks(start + 4_000), "a creation within the margin"],
+    [valid, () => undefined, "an unknown creation"],
+    [valid, () => "boot-id:1234", "an incomparable identity"],
+    [valid, () => { throw Object.assign(new Error("creation query unavailable"), { code: "ENOENT" }); }, "a failed creation query"],
+    ["", later, "an empty record"],
+    ["{", later, "a damaged record"],
+    [JSON.stringify({ pid, role: "host", lease: "open-handle" }), later, "no recorded start"],
+    [JSON.stringify({ pid, role: "host", lease: "open-handle", approxStart: "soon" }), later, "a malformed recorded start"],
+  ];
+  for (const [content, creation, why] of refusals) {
+    record(content);
+    assert.throws(reset(creation), new RegExp(`(Close|Cannot verify) host \\(PID ${pid}\\)`), why);
+    const [left] = actorFiles(root);
+    assert.ok(left, `${why}: the record is kept`); fs.unlinkSync(path.join(root, left));
   }
-  resetWith(birth => ticks(birth + 60_000))();
-  assert.deepEqual(fs.readdirSync(root), [], "a process created after the record reuses the PID");
-  // Without an enforced exclusive open, a live writer in this process is still protected.
-  const done = new ResetGuard(root, pid => pid === process.pid ? "reset" : undefined, 0).actor("desktop");
-  assert.throws(() => new ResetGuard(root, () => ticks(0), 0).exclusive(), /Close desktop \(PID/);
-  done(); assert.deepEqual(fs.readdirSync(root), []);
+  record(valid); reset(later)();
+  assert.deepEqual(fs.readdirSync(root), [], "a process created after the writer's start reuses the PID");
+  const exitedPid = spawnSync(process.execPath, ["-e", "0"]).pid;
+  fs.writeFileSync(path.join(root, `actor-${exitedPid}-cli-${randomUUID()}.json`), "");
+  reset(() => assert.fail("an exited PID needs no creation query"))();
+  assert.deepEqual(fs.readdirSync(root), [], "an exited PID's record is reclaimed whatever its content");
+});
+
+test("real processes: a reused PID is reclaimed and a moved file creation time does not affect a live writer", { skip: process.platform !== "win32" }, async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-reset-guard-real-"));
+  const children: ReturnType<typeof spawn>[] = [];
+  t.after(async () => {
+    for (const child of children) if (child.exitCode === null && child.signalCode === null) { const exited = once(child, "exit"); child.kill(); await exited; }
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const guard = new ResetGuard(root, pid => pid === process.pid ? "reset" : processStart(pid));
+  // An unrelated live process now holds the PID of a writer that started ten minutes ago.
+  const unrelated = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { windowsHide: true, stdio: "ignore" });
+  children.push(unrelated); await once(unrelated, "spawn");
+  fs.writeFileSync(path.join(root, `actor-${unrelated.pid}-cli-${randomUUID()}.json`), JSON.stringify({ pid: unrelated.pid, role: "cli", lease: "open-handle", approxStart: Date.now() - 600_000 }));
+  guard.exclusive()();
+  assert.deepEqual(fs.readdirSync(root), []);
+  // A live writer without an enforced open, whose record's creation time is moved far into the past.
+  const source = new URL("../../editor/server/reset-guard.ts", import.meta.url).href;
+  const writer = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e",
+    `const { ResetGuard } = await import(${JSON.stringify(source)}); new ResetGuard(${JSON.stringify(root)}, undefined, 0).actor("cli"); process.stdout.write("ready"); setInterval(() => {}, 1000);`],
+  { windowsHide: true, stdio: ["ignore", "pipe", "inherit"] });
+  children.push(writer); await once(writer.stdout!, "data");
+  const [record] = actorFiles(root);
+  execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `[IO.File]::SetCreationTimeUtc($env:RECORD, [datetime]'2000-01-01')`], { env: { ...process.env, RECORD: path.join(root, record!) }, windowsHide: true });
+  assert.equal(new Date(fs.statSync(path.join(root, record!)).birthtimeMs).getUTCFullYear(), 2000);
+  assert.throws(() => guard.exclusive(), new RegExp(`Close cli \\(PID ${writer.pid}\\)`));
+  const exited = once(writer, "exit"); writer.kill(); await exited;
+  guard.exclusive()();
+  assert.deepEqual(fs.readdirSync(root), []);
 });
