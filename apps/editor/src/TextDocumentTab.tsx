@@ -149,7 +149,7 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
   } }}>
     <ExternalChangeNotice session={session} onReveal={() => onReveal(id)} onCompare={onCompare} />
     <MessageArea onReveal={() => session.input.current?.focus()} notice="" onNoticeExpired={() => {}} error={session.status === "save-conflict" ? "" : session.error} errorCause={session.errorCause} warnings={session.recoveryError ? [{ id: "text-recovery", message: session.recoveryError }] : []} />
-    <DocumentScroll className="text-document-scroll" role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
+    <DocumentScroll className="text-document-scroll" role="tabpanel" tabIndex={-1} id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
       data-document-tab={id} data-active={focused ? "true" : "false"} data-visible={active ? "true" : "false"} data-group-index={groupIndex}
       style={{ "--editor-group-index": groupIndex } as CSSProperties} onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>
       <div className="text-document document-column" data-view={session.view}>

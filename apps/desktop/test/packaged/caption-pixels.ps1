@@ -46,7 +46,8 @@ try {
     # The center of the painted border, plus one reference outside native controls.
     $y = [int][Math]::Floor(($capture.bottom - $capture.border / 2) * $scale)
     $left = [int][Math]::Ceiling(($capture.captionLeft + 2) * $scale) - $cropX
-    $right = [int][Math]::Floor(($capture.width - 2) * $scale) - $cropX
+    $rightInset = if ($capture.rightInset) { $capture.rightInset } else { 2 }
+    $right = [int][Math]::Floor(($capture.width - $rightInset) * $scale) - $cropX
     if ($right - $left -lt 30) { throw 'No native caption span was sampled' }
     $expected = [string]::Join(',', $capture.rgb)
     $reference = $bitmap.GetPixel([int][Math]::Floor(($capture.captionLeft - 8) * $scale) - $cropX, $y)

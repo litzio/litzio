@@ -404,6 +404,10 @@ and press at the bottom edge), double-click maximize, non-default Windows displa
 rendered light/dark symbols and taskbar/Alt+Tab presentation. CI screen pixels do not establish
 real-user Windows acceptance or all display-scale behavior.
 
+## Native tab full screen (#2037)
+
+The Editor requests native full screen through the existing trusted renderer bridge. The main process uses the owning BrowserWindow's native full-screen API and reports enter/leave changes to the Editor, including changes initiated outside the renderer. The Windows taskbar and native caption overlay are out of the content area in full screen. Leaving restores the normal or maximized window state and the integrated caption controls.
+
 ## Plugin source folder (#1928)
 
 Settings → Plugins offers **Open plugin folder** / **플러그인 폴더 열기** at the end of the

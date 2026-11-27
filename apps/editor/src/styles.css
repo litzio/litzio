@@ -3482,6 +3482,50 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .task-header-trailing { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-width: 0; }
 @media (max-width: 640px) { .task-header-heading { flex-basis: 100%; } }
 
+.app-shell.app-shell--fullscreen {
+  --shell-sidebar: 0px;
+  --shell-panel: 0px;
+  --fullscreen-exit-inset: calc(var(--size-control-compact) + var(--space-4));
+  display: block;
+}
+.app-shell--fullscreen > :is(.app-titlebar, .activity-bar, .sidebar, .assistant-panel, .document-panel),
+.app-shell--fullscreen .app-header { display: none; }
+.app-shell--fullscreen .app-main { height: 100%; }
+.fullscreen-exit {
+  position: fixed;
+  inset: 0 var(--space-4) auto auto;
+  z-index: 5;
+  app-region: no-drag;
+  pointer-events: none;
+}
+.fullscreen-exit > button {
+  opacity: 0;
+  pointer-events: none;
+  background: var(--id-color-surface);
+  color: var(--id-color-text);
+}
+.fullscreen-exit::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--space-1);
+  pointer-events: auto;
+}
+.fullscreen-exit:is(:hover, [data-preview]) > button,
+.fullscreen-exit > button:focus-visible { opacity: 1; pointer-events: auto; }
+.fullscreen-exit > button:hover { background: var(--id-color-surface-hover); }
+.app-shell--fullscreen .task-header { padding-inline-end: calc(var(--space-6) + var(--fullscreen-exit-inset)); }
+.app-shell--fullscreen .pdf-toolbar { padding-inline-end: calc(var(--space-2) + var(--fullscreen-exit-inset)); }
+.app-shell--fullscreen .document-find { margin-inline-end: var(--fullscreen-exit-inset); max-width: calc(var(--find-width) - var(--space-3) - var(--space-4) - var(--fullscreen-exit-inset)); }
+.shell-notifications[data-fullscreen] { --layout-activity-bar-width: calc(var(--size-control-compact) + var(--space-2)); }
+.shell-notifications[data-fullscreen] .notification-center {
+  --notification-list-offset: var(--space-2);
+  top: auto;
+  bottom: var(--space-4);
+  left: var(--space-2);
+}
+@media print { .fullscreen-exit { display: none; } }
+
 /* Shared controls; document blocks and handles remain immediate. */
 :where([data-slot="button"]:not(.document-editor *), .sidebar-folder-header,
 .sidebar-tree-item, .document-outline-item, .document-tab, .command-center-result,

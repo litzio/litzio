@@ -70,6 +70,9 @@ export type DesktopBridge = {
   reconnectDaemon(): Promise<HostConnection>;
   /** OS folder action capability; only Host-listed roots can be synchronized. */
   setOpenedFolders(roots: string[]): Promise<void>;
+  fullScreen?(): Promise<boolean>;
+  setFullScreen?(enabled: boolean): Promise<boolean>;
+  onFullScreen?(listener: (enabled: boolean) => void): () => void;
   openFolderInExplorer(folder: string): Promise<void>;
   /** Main chooses and creates the app's log directory; no renderer-supplied path. */
   openLogFolder(): Promise<void>;

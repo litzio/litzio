@@ -274,6 +274,92 @@ test("started without a document, it opens none; the sample opens with its figur
   }
 });
 
+test("tab full screen follows the native window and restores its prior state", async () => {
+  const { folder, file } = documentFolder("tab-full-screen");
+  const second = path.join(folder, "second.md");
+  writeFileSync(second, "# Second full-screen tab\n");
+  const { app, page } = await launch(profile("tab-full-screen"), [file]);
+  try {
+    await openFile(page, second);
+    const nativeState = () => app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0]!;
+      return { fullscreen: window.isFullScreen(), maximized: window.isMaximized(), bounds: window.getBounds() };
+    });
+    const overlayVisible = () => page.evaluate(() => (navigator as Navigator & { windowControlsOverlay: { visible: boolean } }).windowControlsOverlay.visible);
+    const assertNoCaptionPaint = async (state: string) => {
+      // Electron's JS overlay rectangle can still report the configured 39px.
+      // Compare composed pixels over the native caption area using the existing Windows capture.
+      const handle = await app.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows()[0]!;
+        window.show();
+        window.focus();
+        return window.getNativeWindowHandle().readBigUInt64LE().toString();
+      });
+      await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isFocused())).toBe(true);
+      await page.mouse.move(300, 200);
+      const geometry = await page.evaluate(async () => {
+        const probe = document.createElement("div");
+        probe.id = "caption-probe";
+        probe.style.cssText = "position: fixed; inset: 0 0 auto; height: 40px; z-index: 999; background: rgb(20, 86, 140); pointer-events: none;";
+        document.body.append(probe);
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        return { width: innerWidth, height: innerHeight, captionLeft: innerWidth - 136, rightInset: 14, bottom: 20, border: 1, rgb: [20, 86, 140] };
+      });
+      try {
+        const sample = JSON.parse(execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-File",
+          fileURLToPath(new URL("caption-pixels.ps1", import.meta.url))], {
+          input: JSON.stringify({ ...geometry, handle, output: path.join(work, `fullscreen-${state}-caption.png`) }),
+          encoding: "utf8", timeout: 15_000, windowsHide: true,
+        }));
+        assert.deepEqual(sample.reference, geometry.rgb, "the test surface is visible on screen");
+        assert.deepEqual(sample.mismatches, [], "no native caption paint covers the full-screen content");
+      } finally {
+        await page.evaluate(() => document.getElementById("caption-probe")?.remove());
+      }
+    };
+    const normal = await nativeState();
+    const active = page.locator('[data-document-tab][data-active="true"]');
+    await page.keyboard.press("F11");
+    await expect.poll(async () => (await nativeState()).fullscreen).toBe(true);
+    await expect(page.getByRole("button", { name: "Exit full screen" })).toHaveCSS("opacity", "1");
+    await expect(page.locator(".app-titlebar")).toBeHidden();
+    await assertNoCaptionPaint("normal");
+    await expect(active).toContainText("Second full-screen tab");
+    await page.keyboard.press("Control+Tab");
+    await expect(active).not.toContainText("Second full-screen tab");
+    await page.keyboard.press("Control+Shift+Tab");
+    await expect(active).toContainText("Second full-screen tab");
+    await page.keyboard.press("F11");
+    await expect.poll(nativeState).toEqual(normal);
+    await expect(page.locator(".app-titlebar")).toBeVisible();
+    await expect.poll(overlayVisible).toBe(true);
+
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.maximize());
+    await expect.poll(async () => (await nativeState()).maximized).toBe(true);
+    await page.getByRole("button", { name: "File actions", exact: true }).click();
+    await page.getByRole("menuitem", { name: "View full screen" }).click();
+    await expect.poll(async () => (await nativeState()).fullscreen).toBe(true);
+    await expect(page.locator(".app-titlebar")).toBeHidden();
+    await assertNoCaptionPaint("maximized");
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setFullScreen(false));
+    await expect(page.locator(".app-titlebar")).toBeVisible();
+    await expect.poll(async () => (await nativeState()).maximized).toBe(true);
+    await expect.poll(overlayVisible).toBe(true);
+
+    await page.keyboard.press("F11");
+    await expect(page.locator(".app-titlebar")).toBeHidden();
+    await page.keyboard.press("Control+w");
+    await expect(active).not.toContainText("Second full-screen tab");
+    await expect(page.locator(".app-titlebar")).toBeHidden();
+    await page.keyboard.press("Control+w");
+    await expect(page.getByTestId("document-start")).toBeVisible();
+    await expect.poll(async () => (await nativeState()).fullscreen).toBe(false);
+    await expect(page.locator(".app-titlebar")).toBeVisible();
+  } finally {
+    await closeApp(app);
+  }
+});
+
 test("a .md argument opens; edits save to disk and reopen", async () => {
   const { file } = documentFolder("argument");
   const userData = profile("argument");

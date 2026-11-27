@@ -14,7 +14,7 @@ const navigationOverlayLayout = () => `(width < ${getComputedStyle(globalThis.do
  * the Sidebar, Document panel and Assistant, their widths and the layout DOM refs.
  * `fileOperationPending` joins the overlaid Assistant in making the rest of the shell inert.
  */
-export function useShellLayout({ fileOperationPending }: { fileOperationPending: boolean }) {
+export function useShellLayout({ fileOperationPending, fullscreen }: { fileOperationPending: boolean; fullscreen: boolean }) {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [sidebarSize, setSidebarSize] = usePanelWidth("sidebar");
   const [documentPanelSize, setDocumentPanelSize] = usePanelWidth("document-panel");
@@ -35,7 +35,7 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
   };
   const sidebarToggle = useRef<HTMLButtonElement>(null);
   const sidebarFocus = useRef<"sidebar" | null>(null);
-  const closeSidebar = () => { sidebarFocus.current = "sidebar"; setSidebarOpen(false); };
+  const closeSidebar = () => { if (!fullscreen) { sidebarFocus.current = "sidebar"; setSidebarOpen(false); } };
   useEffect(() => {
     const media = matchMedia(navigationOverlayLayout());
     const change = () => {
@@ -43,11 +43,13 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
       setAssistantOverlay(media.matches);
       setSidebarOpen(media.matches ? false : dockedSidebarOpen.current);
     };
+    if (fullscreen) return;
+    if (media.matches !== assistantOverlay) change();
     media.addEventListener("change", change);
     return () => media.removeEventListener("change", change);
-  }, []);
+  }, [fullscreen, assistantOverlay]);
   useEffect(() => {
-    if (!sidebarOverlay || !sidebarOpen || assistantOpen) return;
+    if (fullscreen || !sidebarOverlay || !sidebarOpen || assistantOpen) return;
     const outside = (event: PointerEvent) => {
       const target = event.target;
       // Portalled menus/dialogs belong to their own focus boundary, including Explorer actions.
@@ -57,7 +59,7 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
     };
     window.addEventListener("pointerdown", outside);
     return () => window.removeEventListener("pointerdown", outside);
-  }, [sidebarOverlay, sidebarOpen, assistantOpen]);
+  }, [fullscreen, sidebarOverlay, sidebarOpen, assistantOpen]);
   useLayoutEffect(() => {
     const target = sidebarFocus.current === "sidebar" ? sidebarToggle.current : null;
     sidebarFocus.current = null;
@@ -86,11 +88,11 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
   const notificationSlot = useRef<HTMLSpanElement>(null);
   // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
   useLayoutEffect(() => {
-    if (!(assistantOpen && assistantOverlay) && !fileOperationPending) return;
+    if (!(assistantOpen && assistantOverlay && !fullscreen) && !fileOperationPending) return;
     const elements = globalThis.document.querySelectorAll<HTMLElement>(".activity-bar, .sidebar, .app-main, .app-titlebar, .document-panel, .notification-center");
     elements?.forEach(element => { element.inert = true; });
     return () => elements?.forEach(element => { element.inert = false; });
-  }, [assistantOpen, assistantOverlay, fileOperationPending]);
+  }, [assistantOpen, assistantOverlay, fileOperationPending, fullscreen]);
 
   // Resolve when an overlay closes: a viewport change can replace its original opener.
   function shellReturnFocus(preferred: HTMLElement | null): HTMLElement | true {
@@ -100,23 +102,26 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
 
   // The overlaid Document panel starts below the sticky header, whose height changes when
   // a message appears; it never covers Save, File actions or the Outline toggle.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = header.current;
     const title = titlebar.current;
     if (!element || !title) return;
-    const observer = new ResizeObserver(() => {
+    const measure = () => {
       shell.current?.style.setProperty("--app-titlebar-height", `${title.offsetHeight}px`);
       // Automatic notification cards start below the same header, outside the shell history boundary.
       for (const target of [shell.current, notifications.current]) target?.style.setProperty("--app-header-height", `${title.offsetHeight + element.offsetHeight}px`);
-    });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(element);
     observer.observe(title);
     return () => observer.disconnect();
-  }, []);
+  }, [fullscreen]);
 
   // The notification button stays outside the shell history boundary, placed over its Activity bar slot.
   // The slot moves when the window height changes or the bar scrolls in a very short window.
   useLayoutEffect(() => {
+    if (fullscreen) return;
     const slot = notificationSlot.current, bar = slot?.closest<HTMLElement>(".activity-bar");
     if (!slot || !bar) return;
     const place = () => {
@@ -134,7 +139,7 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
     bar.addEventListener("scroll", place, { passive: true });
     window.addEventListener("resize", place);
     return () => { observer.disconnect(); bar.removeEventListener("scroll", place); window.removeEventListener("resize", place); };
-  }, []);
+  }, [fullscreen]);
 
   // Entering overlay closes it; returning to docked restores the explicit choice or default.
   useEffect(() => {
@@ -143,9 +148,11 @@ export function useShellLayout({ fileOperationPending }: { fileOperationPending:
       setPanelOverlay(query.matches);
       setPanelOpen(query.matches ? false : dockedPanelOpen.current ?? true);
     };
+    if (fullscreen) return;
+    if (query.matches !== panelOverlay) change();
     query.addEventListener("change", change);
     return () => query.removeEventListener("change", change);
-  }, []);
+  }, [fullscreen, panelOverlay]);
 
   return {
     assistantOpen, setAssistantOpen, assistantOverlay, assistantSize, setAssistantSize, assistantReturn, closeAssistant, toggleAssistant,

@@ -179,6 +179,87 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect(workspace.locator('tbody tr').first().locator('td').last()).toHaveCSS('text-align','right');
   expect(await workspace.locator('.view-table-scroll').evaluate(n=>Math.abs(n.getBoundingClientRect().width-n.closest('.screen-data-table').getBoundingClientRect().width))).toBeLessThan(1);
   const select = workspace.getByRole('combobox',{name:'Display'});
+  const fullscreen = page.locator('.app-shell--fullscreen');
+  const exitFullscreen = page.getByRole('button', {name:'Exit full screen',exact:true});
+  const command = async (name, label = name) => {
+    await page.keyboard.press('Control+/');
+    const search = page.getByRole('combobox', {name:'Search documents and commands'});
+    await search.fill(name);
+    await page.getByRole('option', {name:label,exact:true}).click();
+    await expect(search).toBeHidden();
+  };
+  await page.getByRole('button', {name:'Tab actions',exact:true}).click();
+  await page.getByRole('menuitem', {name:'View full screen',exact:true}).click();
+  await expect(exitFullscreen).toHaveCSS('opacity', '1');
+  for (const part of ['.activity-bar', '.sidebar', '.app-titlebar', '.app-header']) {
+    await expect(page.locator(part)).toBeHidden();
+  }
+  await expect.poll(() => workspace.evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    return [rect.left, rect.top, rect.right - innerWidth, rect.bottom - innerHeight];
+  })).toEqual([0, 0, 0, 0]);
+  await select.press('ArrowDown');
+  await select.press('Escape');
+  await expect(fullscreen).toBeVisible();
+  await workspace.getByRole('button', {name:'Clear measurements',exact:true}).click();
+  const fullscreenConfirmation = page.getByRole('dialog', {name:'Clear measurements?'});
+  await expect(fullscreenConfirmation).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(fullscreenConfirmation).toBeHidden();
+  await expect(fullscreen).toBeVisible();
+  await command('>Settings', 'Settings');
+  await expect(page.getByTestId('settings-dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(workspace).toBeVisible();
+  await expect(fullscreen).toBeVisible();
+  await command('a.md');
+  await expect(page.locator('.tiptap:visible')).toContainText('unsaved-screen-fixture');
+  await expect(fullscreen).toBeVisible();
+  await command('Measurements');
+  await expect(workspace).toBeVisible();
+  await expect(exitFullscreen).toHaveCSS('opacity', '0');
+  await page.mouse.move(1416, 0);
+  await expect(exitFullscreen).toHaveCSS('opacity', '1');
+  await exitFullscreen.click();
+  await expect(page.locator('.app-header')).toBeVisible();
+
+  if (screenshots) {
+    const capture = async (width, theme, panel, shown = true) => {
+      await page.setViewportSize({width, height:width === 1920 ? 1080 : 900});
+      await page.evaluate(theme => { document.documentElement.dataset.theme = theme; return document.fonts.ready; }, theme);
+      await page.mouse.move(width - 24, 80);
+      await expect(exitFullscreen).toHaveCSS('opacity', '0');
+      if (shown) await page.screenshot({path:`tmp/2037/${panel}-${width}-${theme}.png`});
+      await page.mouse.move(width - 24, 0);
+      await expect(exitFullscreen).toHaveCSS('opacity', '1');
+      await page.screenshot({path:`tmp/2037/${panel}-${width}-${theme}-exit.png`});
+      await page.mouse.move(0, 80);
+    };
+    await command('>View full screen','View full screen');
+    for (const width of [1920, 1440]) {
+      for (const theme of ['light', 'dark']) await capture(width, theme, 'plugin');
+    }
+    await capture(640, 'dark', 'plugin', false);
+    await command('a.md');
+    await expect(page.locator('.tiptap:visible')).toBeVisible();
+    for (const width of [1920, 1440]) {
+      for (const theme of ['light', 'dark']) await capture(width, theme, 'document');
+    }
+    await command('>Find in document', 'Find in document');
+    await expect(page.locator('.document-find')).toBeVisible();
+    await page.mouse.move(1416, 0);
+    const findInput = page.getByTestId('document-find-input');
+    await expect(findInput).toBeFocused();
+    expect((await findInput.boundingBox()).width).toBeGreaterThan(80);
+    const [exitBox, findBox] = await Promise.all([exitFullscreen.boundingBox(), page.locator('.document-find').boundingBox()]);
+    expect(findBox.x + findBox.width).toBeLessThanOrEqual(exitBox.x);
+    await page.screenshot({path:'tmp/2037/document-1440-dark-find.png'});
+    await page.keyboard.press('Escape');
+    await command('>Exit full screen', 'Exit full screen');
+    await barEntry.click();
+    await page.setViewportSize({width:1440,height:1000});
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+  }
   expect(await select.evaluate(n=>n.getBoundingClientRect().height)).toBe(await workspace.getByRole('textbox',{name:'Threshold'}).evaluate(n=>n.getBoundingClientRect().height));
   await select.selectOption('recent'); await expect(select).toHaveValue('recent');
   const confirmTrigger=workspace.getByRole('button',{name:'Clear measurements',exact:true});
@@ -700,6 +781,13 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect(workspace.getByRole('button',{name:'Pick pdf',exact:true})).toBeVisible();
   const output=workspace.locator('output'), field=workspace.getByRole('textbox',{name:'Action path'});
   const dialog=page.getByRole('dialog');
+  await command('>View full screen', 'View full screen');
+  await workspace.getByRole('button',{name:'Pick pdf',exact:true}).click();
+  await expect(dialog).toHaveAccessibleName('Choose PDF');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(fullscreen).toBeVisible();
+  await command('>Exit full screen', 'Exit full screen');
   await workspace.getByRole('button',{name:'Pick pdf',exact:true}).click();
   await expect(dialog).toHaveAccessibleName('Choose PDF');
   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(output).toHaveText('null');
