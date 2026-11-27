@@ -194,6 +194,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [2026-11-26 작업 탭 머리 영역 줄이기 세 시안](spikes/2026-11-26-compact-task-header.md) | Historical | 작업 탭 머리의 한 줄·두 줄·최소형 시안을 같은 조건에서 찍고 머리 높이와 본문 시작 위치를 비교했다. A(한 줄) 채택. |
 | [2026-11-26 강조 세트 화면 배치 두 시안](spikes/2026-11-26-highlight-sets.md) | Historical | 강조 세트를 탭 줄 버튼(A)과 ⋯ 하위 메뉴(B)로 고르는 두 시안, 문서 안 추가·우클릭·설정, 8색 팔레트 대비를 같은 조건에서 찍었다. 결론 미정. |
 | [2026-11-27 Rust로 만든 얇은 CLI의 호출 비용 절감](spikes/2026-11-27-rust-cli-client.md) | Historical | 설치판 CLI 호출 비용을 기동·번들 로드·가드·Host 왕복으로 나누고, 비서의 호출 수와 Host 전용 Rust 클라이언트의 절감을 쟀다. 결론 미정. |
+| [2026-11-27 MyST 없이 CommonMark·GFM과 리치오 확장으로 문서 의미 담기](spikes/2026-11-27-markdown-without-myst.md) | Historical | remark 계열의 지시문 프로필과 외부 관례 프로필로 Core 의미 보존·속도·markdown-rs 일치와 Rust 부분 파이프라인을 쟀다. 결론 미정. |
 
 ## Verification
 
