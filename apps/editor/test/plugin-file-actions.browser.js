@@ -15,6 +15,12 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots, waitForExpl
     await fileMenu(name).click();
     await expect(action("Convert document")).toBeVisible();
   };
+  const closeTab = name => page.getByRole("button", { name: `Close ${name}`, exact: true }).click();
+  const reopenCommand = async () => {
+    await page.keyboard.press("Control+/");
+    await page.getByRole("combobox", { name: "Search documents and commands" }).fill(">reopen closed tab");
+    return page.getByRole("option", { name: "Reopen closed tab", exact: true });
+  };
   const configure = async (language, theme) => {
     await page.getByTestId("activity-bar").locator("[data-open-settings]").click();
     await page.getByTestId("theme").selectOption(theme);
@@ -121,8 +127,45 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots, waitForExpl
   await expect(output).toHaveText("Message.eml");
   await expect(tab(mail.name)).toHaveAttribute("aria-selected", "true");
 
+  await closeTab("Outline.md");
+  await closeTab("Preview.pdf");
+  await closeTab(mail.name);
+
+  await (await reopenCommand()).click();
+  await expect(output).toHaveAttribute("title", await message.getAttribute("data-path"));
+  await expect(tab(mail.name)).toHaveAttribute("aria-selected", "true");
+  await (await reopenCommand()).click();
+  await expect(tab("Preview.pdf")).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".pdf-viewer .textLayer").first().getByText("Selectable PDF text", { exact: true })).toBeVisible();
+  await (await reopenCommand()).click();
+  await expect(tab("Outline.md")).toHaveAttribute("aria-selected", "true");
+
+  // A disabled screen must stop the first reopen attempt even with an older tab available.
+  await closeTab("Outline.md");
+  await closeTab(converter.name);
   expect(cli(["plugins", "disable", converter.id]).receipt.outcome).toBe("success");
   await expect(page.getByTestId("activity-bar").getByRole("button", { name: converter.name, exact: true })).toHaveCount(0);
+  await (await reopenCommand()).click();
+  await expect(page.getByText("The plugin screen is unavailable. Check that its plugin is enabled.", { exact: true }).first()).toBeAttached();
+  await expect(tab(converter.name)).toHaveCount(0);
+  await expect(tab("Outline.md")).toHaveCount(0);
+  await (await reopenCommand()).click();
+  await expect(tab("Outline.md")).toHaveAttribute("aria-selected", "true");
+
+  // A missing PDF must fail before adding a dead tab or consuming the older entry.
+  await closeTab("Outline.md");
+  await closeTab("Preview.pdf");
+  await page.route("**/api/file-preview?**", route => route.request().method() === "HEAD"
+    ? route.fulfill({ status: 404 }) : route.continue());
+  await (await reopenCommand()).click();
+  await expect(page.getByText(/The PDF is missing or unavailable/).first()).toBeAttached();
+  await expect(tab("Preview.pdf")).toHaveCount(0);
+  await expect(tab("Outline.md")).toHaveCount(0);
+  await page.unroute("**/api/file-preview?**");
+  await (await reopenCommand()).click();
+  await expect(tab("Outline.md")).toHaveAttribute("aria-selected", "true");
+  await pdf.click();
+  await expect(tab("Preview.pdf")).toHaveAttribute("aria-selected", "true");
   expect(cli(["plugins", "file-actions", docx]).fileActions).toEqual([]);
   await tab("Preview.pdf").click();
   await expect(fileMenu("File actions")).toHaveCount(0);
