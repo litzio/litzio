@@ -141,6 +141,8 @@ SDK 0.22.0은 플러그인 저장소와 `PluginStorage`, `JsonValue` 타입을 �
 
 SDK의 `PluginContext.storage`와 화면의 `storage`는 같은 Host의 같은 플러그인 ID에 속한다. 둘 다 `get(key): Promise<JsonValue | undefined>`, `set(key, value): Promise<void>`, `delete(key): Promise<void>`를 제공한다. 없는 키는 `undefined`이며 저장된 `null`과 구별한다. 없는 키를 지워도 성공한다. 값은 JSON이고, 계정별로 구분하려면 플러그인이 키 이름을 정한다. 비밀값은 `secrets`에 둔다.
 
+SDK의 화면·handler 저장소 API는 자기 플러그인 ID만 다룬다. 현재 HTTP Host는 호출자를 인증하지 않으므로([ADR-0016](../adr/0016-shared-local-daemon-host.md), [#1145](https://github.com/litzio/litzio/issues/1145)), `screen-invoke`와 마찬가지로 이 ID 분리는 악의적인 화면 코드나 같은 PC의 다른 호출자를 막는 보안 경계가 아니다.
+
 Host는 daemon 데이터 폴더의 `plugin-storage`에 ID별 UTF-8 JSON 파일을 두고 한 파일을 원자적으로 교체한다. 키는 비어 있지 않아야 하며, 최대 128개다. 키는 UTF-8 128바이트, 인코딩된 JSON 값은 64 KiB, 파일 전체는 1 MiB까지 허용한다. 한도 오류는 현재 개수 또는 바이트 수와 한도를 밝힌다. 잘못된 입력과 파일 손상은 `PluginPublicError`의 code/message로 알리고 기존 파일을 보존한다. 플러그인 ID별로 작업을 순서대로 처리하며 같은 키는 마지막 성공한 쓰기가 남는다.
 
 저장소는 탭 닫기, 앱·daemon 재시작, reload, 업데이트, 비활성화, 제거 뒤에도 유지된다. 같은 ID로 다시 설치하면 이어 쓴다. child는 Host를 통해 자기 ID의 저장소를 사용한다. 활성화 후보는 읽을 수 있고, 전환이 성공한 뒤부터 쓸 수 있다. 기존 인스턴스에 이미 접수된 작업은 수명 계약대로 마친다. 여러 daemon이 같은 데이터 폴더를 공유하는 경우는 #1933 범위다.
