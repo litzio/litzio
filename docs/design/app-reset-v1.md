@@ -1,7 +1,7 @@
 # Complete app reset (#1285)
 
 - Status: Implemented
-- Last verified: 2026-11-16 — 현재 계약·코드와 삭제된 기능의 잔재를 정적으로 대조했다. 제품·브라우저·Desktop·AI 실행 재검증 없음.
+- Last verified: 2026-11-27 — #2047의 gate 등록 방식을 gate·CLI·Vite·helper 검사와 격리 폴더의 실제 CLI 종료 재현으로 확인했다. 브라우저·Desktop UI·AI 실행 재검증 없음.
 - Scope: 로컬 Desktop profile과 Litzio 소유 Host 데이터 초기화. 외부 서비스·외부 브라우저·공급자 계정은 삭제하지 않는다.
 - Authority: [#1285](https://github.com/litzio/litzio/issues/1285)의 소유자 결정, [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0016](../adr/0016-shared-local-daemon-host.md). 관련 현재 계약은 [Desktop distribution](desktop-distribution-v1.md), [HTTP Host](http-host-v1.md), [Editing session and Save](editing-session-save-v1.md)다.
 
@@ -57,7 +57,13 @@ Windows에서 profile·cache를 생략하면 공식 기본 위치를 사용한�
 
 [ResetGuard](../../apps/editor/server/reset-guard.ts)의 상태 소유자는 같은 OS 계정이다. 기본 위치는 Host base 밖의 `~/.litzio-reset-guard`; 검증은 `LITZIO_RESET_DIR`로 격리한다. 같은 계정의 여러 채널·설치본이 Host base/daemon override와 무관하게 참여해야 하므로 기존 한 채널의 daemon lock이나 한 profile의 작업 요약만으로 대체할 수 없다. gate는 문서 세션이나 범용 persistence가 아니라 초기화와 writer 수명 사이의 좁은 배타 제어다.
 
-Desktop·HTTP/Vite Host·실행 CLI가 PID/OS 생성 identity를 가진 actor lease를 등록한다. 일반 CLI의 순수 help/version과 읽기 전용 check·inspect·compare는 참여하지 않는다. 읽기는 초기화와 겹쳐도 저장 데이터를 변경하지 않으며, 쓰기 명령의 guard 획득 실패는 우회하지 않고 직접 파일 편집 후 `litzio check` 검사를 안내하며 실행 승인을 권하지 않는다. writer는 먼저 등록하고 exclusive 존재를 확인한다. 초기화는 exclusive를 먼저 만든 뒤 기존 actor를 검사하므로 새 writer와의 시작 경쟁도 둘 중 하나가 거부된다. 다른 프로세스를 죽이지 않는다. dead PID 세대의 고유 actor 파일만 회수한다. 중단된 exclusive, 알 수 없는 기록, Host 하위 프로세스 종료 실패 marker는 자동 회수하지 않고 검사할 위치를 보고한다. gate 자체를 포함하거나 home·현재 cwd·설치 실행 파일·사용자 문서/OS 데이터 root를 포함하는 삭제 대상은 거부한다.
+Desktop·HTTP/Vite Host·실행 CLI가 프로세스 수명 동안 고유 actor lease를 등록한다. 일반 CLI의 순수 help/version과 읽기 전용 check·inspect·compare·local-write-statistics는 참여하지 않는다.
+
+- Windows: writer가 actor 파일을 공유 없이 연 채로 유지한다(libuv `UV_FS_O_EXLOCK`). 초기화가 그 파일을 읽지 못하면(공유 위반) 살아 있는 writer로 보고 거부한다. 읽히면 핸들이 닫힌 것이다. 해제했거나 어떤 방식으로든 종료한 프로세스이므로(OS가 핸들을 닫는다) 회수한다. PID를 보지 않으므로 PID 재사용과 무관하며 writer 등록에 OS 조회가 없다. writer가 등록 직후 같은 파일을 다시 열어 거부되는지 확인한다. 잠금이 확인되지 않으면 아래 생성 identity 방식으로 등록한다. 다른 프로그램이 잠시 파일을 열고 있어도 초기화는 거부 쪽으로 떨어진다.
+- 그 밖의 플랫폼과 위 fallback: PID/OS 생성 identity를 기록한다. 초기화는 PID가 없으면 OS 조회 없이, 있으면 생성 identity로 판정하므로 재사용된 PID는 회수한다.
+- 같은 계정의 다른 채널·이전 판과 gate를 함께 쓴다. 초기화는 두 형식을 모두 판정한다. 열린 핸들 형식의 기록 값은 어떤 생성 identity와도 같지 않다. 그래서 이전 판의 초기화는 살아 있는 writer는 읽기 실패로 거부하고, 종료된 writer는 회수한다.
+
+읽기는 초기화와 겹쳐도 저장 데이터를 변경하지 않으며, 쓰기 명령의 guard 획득 실패는 우회하지 않고 직접 파일 편집 후 `litzio check` 검사를 안내하며 실행 승인을 권하지 않는다. writer는 먼저 등록하고 exclusive 존재를 확인한다. 초기화는 exclusive를 먼저 만든 뒤 기존 actor를 검사하므로 새 writer와의 시작 경쟁도 둘 중 하나가 거부된다. 검사 중 해제되어 사라진 actor는 넘어간다. 다른 프로세스를 죽이지 않는다. 종료된 writer의 고유 actor 파일만 회수하며, 일반 기동 때는 정리하지 않는다. 강제 종료(TerminateProcess·`taskkill /F`·시간 초과 kill)는 release를 건너뛰어 파일을 남기므로 다음 초기화가 회수한다. 중단된 exclusive, 알 수 없는 기록, Host 하위 프로세스 종료 실패 marker는 자동 회수하지 않고 검사할 위치를 보고한다. gate 자체를 포함하거나 home·현재 cwd·설치 실행 파일·사용자 문서/OS 데이터 root를 포함하는 삭제 대상은 거부한다.
 
 Vite도 문서·asset middleware가 수락한 promise를 SSR module loading부터 추적한다. listener 종료 이벤트는 서비스 종료와 수락된 handler의 settle까지 기다린 뒤 lease를 해제한다. 종료 중 새 Host 서비스를 초기화하지 않으며 `server.close()`도 같은 정리를 기다린다. Vite 내부 restart가 listener를 닫는 경로에도 같은 lease 보호가 적용된다. 이미 수락된 파일 변경은 소켓 단절로 취소됐다고 간주하지 않는다.
 
@@ -76,7 +82,7 @@ Desktop 경로:
 
 - [파일 fixture](../../apps/desktop/test/reset-storage.test.ts): override·모든 데이터 분류·빈 폴더 옵션·중첩 삭제·외부 문서/artifact·junction·실패/잔존 결과. 정상 startup의 실제 templates/settings/skills/sample loader로 초기화 후와 깨끗한 최초 실행 결과를 비교한다. 실제 AI 호출은 없다.
   custom Desktop profile과 별도 OS 앱 데이터의 무관한 logs ancestor junction도 검사한다. 수정 전에는 불필요한 경로 preflight로 전체 거부됐고, 수정 후 현행 profile·Host base·assistant cwd의 canary는 제거하면서 외부 로그와 junction을 보존한다. 기존 위험 root/junction 사전 거부 검사는 유지한다. 새 subprocess·전수 조합 없이 기존 파일 검사에 한 대표 사례를 추가했으며 Windows 단독 약 20ms다. home과 APPDATA/XDG를 fixture로 격리해 실제 사용자 앱 데이터는 사용하지 않는다.
-- [gate fixture](../../apps/desktop/test/reset-guard.test.ts): 여러 actor 역할·새 writer·PID 세대·중단된 exclusive와 종료 실패 보호. 손상된 optional-cleanup SystemRoot에서도 필수 OS identity 확인이 되고 호출자 환경은 바꾸지 않는지 확인한다.
+- [gate fixture](../../apps/desktop/test/reset-guard.test.ts): 여러 actor 역할·새 writer·PID 세대·중단된 exclusive와 종료 실패 보호. 손상된 optional-cleanup SystemRoot에서도 필수 OS identity 확인이 되고 호출자 환경은 바꾸지 않는지 확인한다. Windows에서는 실제 자식 프로세스가 연 actor가 초기화를 막는지 확인한다. 이때 그 PID의 OS 조회는 하지 않는다. 그 자식을 강제 종료하면 파일이 남고 다음 초기화가 회수하는지도 확인한다. 살아 있는 PID를 가진 닫힌 핸들 기록은 회수하고, 잠금이 강제되지 않는 열기는 생성 identity로 떨어진다. 자식 프로세스 하나가 필요하다. 종료 이벤트와 OS 핸들 정리는 인메모리로 대체할 수 없다.
 - [CLI fixture](../../packages/cli/test/app-reset.test.ts): 공용 작업 호출·검토 revision/명시 확인·live/불명확 owner 거부와 최초 설정 복원. 임시 경로만 삭제한다.
 - [main 연결](../../apps/desktop/test/window-startup.test.ts): 실제 main 코드를 격리 port로 실행해 sender·계획·미저장 작업·늦은 unload 거부와 helper 취소를 확인한다. 실제 앱/OS 파일을 조작하지 않는다.
 - [helper fixture](../../apps/desktop/test/reset-helper.test.ts): 실제 자식 프로세스에서 부모 종료 전 데이터 보존, 종료 후 삭제·receipt·재실행을 확인한다. 세 subprocess(가짜 부모, 실제 source helper, 즉시 종료하는 재실행 표식)가 필요하며 인메모리 mock으로 process-exit/IPC 경계를 증명할 수 없다. 별도 helper 한 개로 IPC 유실 뒤 취소 기록을 존중하는지도 검사한다. 취소 파일 확인 전 canary 삭제 실패를 재현한 뒤 수정했고 두 검사가 통과했다. Windows 단독 실행 관측 약 2초, 다른 검사 병렬 실행 중 약 6초. 폴더·secret은 합성이며 외부 서비스 호출은 없다.
