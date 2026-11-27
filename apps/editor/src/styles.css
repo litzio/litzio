@@ -3515,6 +3515,7 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 }
 .fullscreen-exit:is(:hover, [data-preview]) > button,
 .fullscreen-exit > button:focus-visible { opacity: 1; pointer-events: auto; }
+.fullscreen-exit[data-preview] > button,
 .fullscreen-exit > button:hover { background: var(--id-color-surface-hover); }
 .app-shell--fullscreen .task-header { padding-inline-end: calc(var(--space-6) + var(--fullscreen-exit-inset)); }
 .app-shell--fullscreen .pdf-toolbar { padding-inline-end: calc(var(--space-2) + var(--fullscreen-exit-inset)); }

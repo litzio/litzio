@@ -2381,7 +2381,7 @@ export const ko: Record<keyof typeof en, string> = {
   "File actions": "파일 작업",
   "Tab actions": "탭 작업",
   "View full screen": "전체화면으로 보기",
-  "Exit full screen": "전체화면 나가기",
+  "Exit full screen": "전체화면 끝내기",
   "Close tab": "탭 닫기",
   "Outline": "개요",
   "Document navigation": "문서 탐색",

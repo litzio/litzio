@@ -187,6 +187,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   const select = workspace.getByRole('combobox',{name:'Display'});
   const fullscreen = page.locator('.app-shell--fullscreen');
   const exitFullscreen = page.getByRole('button', {name:'Exit full screen',exact:true});
+  const exitHint = page.locator('[data-slot="tooltip-content"][data-open]').filter({hasText:'Exit full screen (F11)'});
   const command = async (name, label = name) => {
     await page.keyboard.press('Control+/');
     const search = page.getByRole('combobox', {name:'Search documents and commands'});
@@ -197,6 +198,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await page.getByRole('button', {name:'Tab actions',exact:true}).click();
   await page.getByRole('menuitem', {name:'View full screen',exact:true}).click();
   await expect(exitFullscreen).toHaveCSS('opacity', '1');
+  await expect(exitHint).toBeVisible();
   for (const part of ['.activity-bar', '.sidebar', '.app-titlebar', '.app-header']) {
     await expect(page.locator(part)).toBeHidden();
   }
@@ -224,6 +226,7 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await command('Measurements');
   await expect(workspace).toBeVisible();
   await expect(exitFullscreen).toHaveCSS('opacity', '0');
+  await expect(exitHint).toBeHidden();
   await page.mouse.move(720, 0);
   await expect(exitFullscreen).toHaveCSS('opacity', '1');
   await page.mouse.move(720, 80);
@@ -234,12 +237,24 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
   await expect(page.locator('.app-header')).toBeVisible();
 
   if (screenshots) {
+    await page.setViewportSize({width:1920, height:1080});
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => { document.documentElement.dataset.theme = theme; return document.fonts.ready; }, theme);
+      await page.mouse.move(720, 80);
+      await page.keyboard.press('F11');
+      await expect(exitHint).toBeVisible();
+      await expect(exitHint).toHaveCSS('opacity', '1');
+      await page.screenshot({path:`tmp/2037/plugin-1920-${theme}-exit.png`});
+      await page.keyboard.press('F11');
+      await expect(fullscreen).toBeHidden();
+    }
     const capture = async (width, theme, panel, shown = true) => {
       await page.setViewportSize({width, height:width === 1920 ? 1080 : 900});
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; return document.fonts.ready; }, theme);
       await page.mouse.move(width - 24, 80);
       await expect(exitFullscreen).toHaveCSS('opacity', '0');
       if (shown) await page.screenshot({path:`tmp/2037/${panel}-${width}-${theme}.png`});
+      if (width === 1920 && panel === 'plugin') return;
       await page.mouse.move(width - 24, 0);
       await expect(exitFullscreen).toHaveCSS('opacity', '1');
       await page.screenshot({path:`tmp/2037/${panel}-${width}-${theme}-exit.png`});
@@ -262,7 +277,6 @@ async (page, {expect, screenshots, openFolderPicker, openPath, pluginFixture, wi
     await expect(findInput).toBeFocused();
     expect((await findInput.boundingBox()).width).toBeGreaterThan(80);
     await exitFullscreen.hover();
-    const exitHint = page.locator('[data-slot="tooltip-content"][data-open]').filter({hasText:'Exit full screen (F11)'});
     await expect(exitHint).toBeVisible();
     const [exitBox, findBox, hintBox] = await Promise.all([exitFullscreen.boundingBox(), page.locator('.document-find').boundingBox(), exitHint.boundingBox()]);
     expect(findBox.x + findBox.width).toBeLessThanOrEqual(exitBox.x);

@@ -171,7 +171,7 @@ Derived screens, a third group and divider dragging remain outside phase 1.
 
 ## Tab full screen (#2037)
 
-The window shows its focused tab full screen through the tab row's ellipsis, Command Center, or F11. Command Center, F11 and the exit button at the top right return to the shell. The button appears for 2.5 seconds on entry, then at the top edge on pointer hover or keyboard focus. The web editor hides its shell in the page. Browser-owned F11 stays with the browser when it takes the keystroke. [Desktop uses native window full screen](desktop-distribution-v1.md#native-tab-full-screen-2037).
+The window shows its focused tab full screen through the tab row's ellipsis, Command Center, or F11. Command Center, F11 and the exit button at the top right return to the shell. On entry, the button shows its hover surface and F11 tooltip for 2.5 seconds. Afterward, top-edge hover or keyboard focus reveals the button. The web editor hides its shell in the page. Browser-owned F11 stays with the browser when it takes the keystroke. [Desktop uses native window full screen](desktop-distribution-v1.md#native-tab-full-screen-2037).
 
 The activity bar, Explorer, title strip, tab rows, Assistant and document navigation panel are hidden. Tabs and panels stay mounted, preserving their sessions, scroll and layout choices. Only the focused tab is visible, including in a split window. Command Center can select another open tab, and Desktop also supports Ctrl+Tab and Ctrl+Shift+Tab in full screen. Closing a tab follows the existing confirmation and selection rules. Closing the final tab restores the start surface and the shell.
 
