@@ -1,0 +1,19 @@
+[package]
+name = "litzio-rs"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Spike only: Host-calling commands of the litzio CLI, nothing that needs local Core.
+[dependencies]
+# Blocking HTTP/1.1 client; TLS features off (local Host over http only in this spike).
+ureq = { version = "2", default-features = false }
+# preserve_order keeps object keys in Host order so output matches JSON.stringify.
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

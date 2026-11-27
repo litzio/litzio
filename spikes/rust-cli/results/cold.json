@@ -1,0 +1,58 @@
+[
+  {
+    "restart": 1,
+    "hostReadyMs": 1449,
+    "first": "desktop-shim",
+    "desktop-shim": 835.7,
+    "rust": 36.1
+  },
+  {
+    "restart": 2,
+    "hostReadyMs": 1434,
+    "first": "rust",
+    "rust": 114.3,
+    "desktop-shim": 735.2
+  },
+  {
+    "restart": 3,
+    "hostReadyMs": 1438,
+    "first": "desktop-shim",
+    "desktop-shim": 830.7,
+    "rust": 30.1
+  },
+  {
+    "restart": 4,
+    "hostReadyMs": 1435,
+    "first": "rust",
+    "rust": 117.5,
+    "desktop-shim": 752
+  },
+  {
+    "restart": 5,
+    "hostReadyMs": 1562,
+    "first": "desktop-shim",
+    "desktop-shim": 839.1,
+    "rust": 29.2
+  },
+  {
+    "restart": 6,
+    "hostReadyMs": 1535,
+    "first": "rust",
+    "rust": 116.7,
+    "desktop-shim": 736.9
+  },
+  {
+    "restart": 7,
+    "hostReadyMs": 1398,
+    "first": "desktop-shim",
+    "desktop-shim": 820.8,
+    "rust": 31.5
+  },
+  {
+    "restart": 8,
+    "hostReadyMs": 1470,
+    "first": "rust",
+    "rust": 121,
+    "desktop-shim": 740.7
+  }
+]
