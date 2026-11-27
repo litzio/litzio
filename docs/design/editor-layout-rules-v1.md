@@ -260,6 +260,10 @@ The focused tab begins at the window edges. The hidden shell contributes no grid
 
 The existing notification button moves to the lower left and the automatic card and manual popover open beside it. They use their usual edge insets and remain outside the editing history boundary.
 
+The captures show the [full-width plugin at 1920×1080](assets/tab-fullscreen-2037/plugin-1920-light-exit.png),
+[document Find beside the exit control](assets/tab-fullscreen-2037/document-1440-dark-find.png), and the
+[640px dark layout](assets/tab-fullscreen-2037/plugin-640-dark-exit.png).
+
 ## Activity bar notifications (#1994)
 
 The owner approved the window notification button in the Activity bar's bottom app
