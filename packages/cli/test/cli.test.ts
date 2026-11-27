@@ -1718,7 +1718,8 @@ test("inspect prints Core editable targets", () => {
     if (quotedParagraph?.block === "paragraph") {
       assert.equal(
         quoted.stdout,
-        `status: absent\ntitle: absent\n1 paragraph inlineEditable=${quotedParagraph.editable} text=${JSON.stringify(quotedParagraph.text)}\nnumbering: automatic\n`,
+        `status: absent\ntitle: absent\n1 paragraph inlineEditable=${quotedParagraph.editable} text=${JSON.stringify(quotedParagraph.text)}\nnumbering: automatic\n` +
+        "Characters (with spaces): 38\nCharacters (without spaces): 32\n",
       );
       assert.equal(quoted.stdout.includes("\n\n"), false);
     }
