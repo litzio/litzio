@@ -254,12 +254,22 @@ uses nowrap, with the existing local scroller, edge fades and measured handles.
 It introduces no new document gutters or control sizes. Settings uses the existing
 select row; the table block menu separates its View checkbox from mutation groups.
 
+## Tab full screen (#2037)
+
+The focused tab begins at the window edges. The hidden shell contributes no grid width, header height, dividers or shadows. Document content retains its normal width preference and insets. The top-right exit overlay uses the shared compact ghost icon Button, Lucide Minimize and a Tooltip naming F11. It takes no row. The shared task header reserves its inline slot only during full screen. PDF controls and the document Find bar also clear the overlay.
+
+The existing notification button moves to the lower left and the automatic card and manual popover open beside it. They use their usual edge insets and remain outside the editing history boundary.
+
+The captures show the [full-width plugin at 1920×1080](assets/tab-fullscreen-2037/plugin-1920-light-exit.png),
+[document Find beside the exit control](assets/tab-fullscreen-2037/document-1440-dark-find.png), and the
+[640px dark layout](assets/tab-fullscreen-2037/plugin-640-dark-exit.png).
+
 ## Activity bar notifications (#1994)
 
 The owner approved the window notification button in the Activity bar's bottom app
 group, directly above Settings (order: Notifications, Settings, Color mode, Desktop
 menu, connection status), so the button and its cards are read in one place. It is a
-fixed place in the always-visible bar, never above document content; no document strip,
+fixed place in the normal shell's bar, clear of document content. [Tab full screen](#tab-full-screen-2037) uses the lower-left window edge. No document strip,
 scroll-height reservation, minimum-height change or title-strip slot is introduced. The
 same window-scoped button remains available for documents, plugin screens and Settings.
 When a low window folds screen entries into More, the button stays in the bottom group.

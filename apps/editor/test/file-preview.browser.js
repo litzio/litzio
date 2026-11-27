@@ -139,6 +139,18 @@ async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
   await page.getByRole('tab',{name:/^document\.md/,selected:true}).press('ArrowRight');
   const pdf = page.locator('.pdf-viewer');
   await expect(pdf.locator('.textLayer').first()).toContainText('Selectable PDF text');
+  await page.keyboard.press('F11');
+  await expect(page.getByRole('button',{name:'Exit full screen'})).toHaveCSS('opacity','1');
+  await expect(page.locator('.app-titlebar')).toBeHidden();
+  await expect(pdf.getByRole('button',{name:'Zoom in',exact:true})).toBeEnabled();
+  await page.keyboard.press('F11');
+  await expect(page.getByRole('tab',{name:'reading.pdf',selected:true})).toBeVisible();
+  await page.getByRole('button',{name:'Tab actions',exact:true}).click();
+  await page.getByRole('menuitem',{name:'View full screen',exact:true}).click();
+  await expect(page.locator('.app-titlebar')).toBeHidden();
+  await expect(pdf.locator('.textLayer').first()).toContainText('Selectable PDF text');
+  await page.keyboard.press('F11');
+  await expect(page.getByRole('tab',{name:'reading.pdf',selected:true})).toBeVisible();
   await expect(pdf.getByRole('spinbutton',{name:'Page',exact:true})).toHaveValue('1');
   // Text-only PDFs miss decoder asset failures: require the CCITT image's black center.
   await expect.poll(() => pdf.locator('canvas').first().evaluate(canvas => {

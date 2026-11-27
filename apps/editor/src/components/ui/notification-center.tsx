@@ -40,8 +40,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
  * Keep the history boundary outside the shell. The button is placed over its reserved Activity bar
  * slot (coordinates set by the shell); only automatic cards use panel geometry.
  */
-export function ShellNotificationCenter({ ref, panelWidth, documentPanelWidth, onKeyDown }: { ref?: Ref<HTMLDivElement>; panelWidth: string; documentPanelWidth?: number; onKeyDown?: KeyboardEventHandler<HTMLDivElement> }) {
-  return <div ref={ref} className="shell-notifications" onKeyDown={onKeyDown} style={{ "--notification-panel-width": panelWidth, "--document-panel-width": documentPanelWidth ? `${documentPanelWidth}px` : undefined } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
+export function ShellNotificationCenter({ ref, fullscreen, panelWidth, documentPanelWidth, onKeyDown }: { ref?: Ref<HTMLDivElement>; fullscreen?: boolean; panelWidth: string; documentPanelWidth?: number; onKeyDown?: KeyboardEventHandler<HTMLDivElement> }) {
+  return <div ref={ref} className="shell-notifications" data-fullscreen={fullscreen || undefined} onKeyDown={onKeyDown} style={{ "--notification-panel-width": panelWidth, "--document-panel-width": documentPanelWidth ? `${documentPanelWidth}px` : undefined } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
 }
 
 /** Callbacks read the latest source render, while registry updates follow observable content. */

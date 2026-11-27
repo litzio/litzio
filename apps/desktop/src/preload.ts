@@ -28,6 +28,13 @@ const bridge: DesktopBridge = {
   checkDaemon: () => ipcRenderer.invoke("desktop:daemon-check"),
   reconnectDaemon: () => ipcRenderer.invoke("desktop:daemon-reconnect"),
   setOpenedFolders: roots => ipcRenderer.invoke("desktop:opened-folders", roots),
+  fullScreen: () => ipcRenderer.invoke("desktop:full-screen"),
+  setFullScreen: enabled => ipcRenderer.invoke("desktop:set-full-screen", enabled),
+  onFullScreen(listener) {
+    const handler = (_event: unknown, enabled: boolean) => listener(enabled);
+    ipcRenderer.on("desktop:full-screen-changed", handler);
+    return () => { ipcRenderer.removeListener("desktop:full-screen-changed", handler); };
+  },
   providerSessionLog: (id, provider, action) => ipcRenderer.invoke("desktop:provider-session-log", id, provider, action),
   openFolderInExplorer: folder => ipcRenderer.invoke("desktop:open-folder", folder),
   openLogFolder: () => ipcRenderer.invoke("desktop:open-log-folder"),

@@ -167,10 +167,20 @@ async (page, { openPath, expect }) => {
   // NotificationScope reveals the document before navigating on the next animation frame.
   // Observe that completed navigation, rather than the selection before its callback runs.
   await expect.poll(() => engine.evaluate(el => el.editor.state.selection.$from.node(-1).type.name)).toBe('tableCell');
+  if (await toggle().getAttribute('aria-expanded') === 'true') await toggle().click();
+  await expect(center.locator('.notification-popover')).toHaveCount(0);
+  await page.keyboard.press('F11');
+  await expect(page.locator('.app-header')).toBeHidden();
   await diagram('this is not Mermaid');
   await expect(center.getByTestId('mermaid-error')).toBeVisible();
   await expect(center).toHaveAttribute('data-severity', 'error');
   await expect(toggle()).toContainText('2');
+  const fullScreenCard = await center.locator('.notification-auto > ul').boundingBox();
+  const fullScreenBell = await toggle().boundingBox();
+  expect(fullScreenBell.x).toBe(8);
+  expect(fullScreenCard.x).toBe(fullScreenBell.x + fullScreenBell.width + 8);
+  await page.keyboard.press('F11');
+  await expect(page.getByTestId('save')).toBeVisible();
   await toggle().click();
   await diagram('graph LR\n  A --> B');
   await expect(center.getByTestId('mermaid-error')).toHaveCount(0);

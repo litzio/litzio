@@ -169,6 +169,14 @@ group through the existing Host validation and recovery precedence. No stored-da
 migration, Core semantic operation or CLI surface is needed for this editor interaction.
 Derived screens, a third group and divider dragging remain outside phase 1.
 
+## Tab full screen (#2037)
+
+The window shows its focused tab full screen through the tab row's ellipsis, Command Center, or F11. Command Center, F11 and the exit button at the top right return to the shell. On entry, the button shows its hover surface and F11 tooltip for 2.5 seconds. Afterward, top-edge hover or keyboard focus reveals the button. The web editor hides its shell in the page. Browser-owned F11 stays with the browser when it takes the keystroke. [Desktop uses native window full screen](desktop-distribution-v1.md#native-tab-full-screen-2037).
+
+The activity bar, Explorer, title strip, tab rows, Assistant and document navigation panel are hidden. Tabs and panels stay mounted, preserving their sessions, scroll and layout choices. Only the focused tab is visible, including in a split window. Command Center can select another open tab, and Desktop also supports Ctrl+Tab and Ctrl+Shift+Tab in full screen. Closing a tab follows the existing confirmation and selection rules. Closing the final tab restores the start surface and the shell.
+
+Settings retains its existing Escape close behavior, including selecting the originating tab when it is still open. Escape in a menu or dialog follows that surface's dismissal rules. The full-screen shortcut handles F11 only. The window notification center remains available with the same producers and actions.
+
 ## Title strip and tab-row actions (#695)
 
 The shared title strip is always exactly one `--layout-header-row` (40px): brand,
@@ -1519,7 +1527,7 @@ App Settings has no document-settings entry. The inline document disclosure and 
 ## Activity bar (#671 / #1817)
 
 The owner decisions are recorded in [#671](https://github.com/litzio/litzio/issues/671) and
-[#1812](https://github.com/litzio/litzio/issues/1812). The Activity bar (**작업 막대**) is always visible
+[#1812](https://github.com/litzio/litzio/issues/1812). The Activity bar (**작업 막대**) is visible outside [tab full screen](#tab-full-screen-2037)
 at the window's left edge, from below the title strip to the bottom, at `--layout-activity-bar-width`
 (72px; 48px with names hidden) in every window width and Explorer state. Explorer opens beside it.
 
@@ -1669,7 +1677,7 @@ Tab-owned Save/Source work retains the existing ability to open Settings diagnos
 and have restart refused by the live pending-work guard.
 
 Command Center provides keyboard entry. Tab-row arrows/Home/End switch between
-Settings and documents; Tab enters its close control and category navigation.
+Settings and documents. Tab reaches its close control, the tab actions menu and category navigation.
 Delete or the close button closes the tab and focuses the neighboring tab.
 Escape from Settings content or its tab closes it, selects the still-open task
 from which Settings was entered, and returns focus to the connected opener (or

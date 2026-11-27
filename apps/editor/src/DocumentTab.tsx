@@ -68,7 +68,7 @@ const NativeDocumentTab = memo(function NativeDocumentTab({ client, settingsDisa
       saveError={session.saveFailure ? { failure: session.saveFailure, locations: session.saveLocations,
         onReveal(index) { onReveal(id); requestAnimationFrame(() => session.revealSaveLocation(index)); } } : undefined}
       onReveal={() => session.editorRef.current?.focusEnd(0)} onNoticeExpired={() => session.setNotice("")} />
-    <DocumentScroll role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
+    <DocumentScroll role="tabpanel" tabIndex={-1} id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
       data-document-tab={id} data-active={focused ? "true" : "false"} data-visible={active ? "true" : "false"} data-group-index={groupIndex}
       style={{ "--editor-group-index": groupIndex } as CSSProperties}
       onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>

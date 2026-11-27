@@ -372,6 +372,12 @@ function registerIpc(): void {
     if (request === folderRequest) explorerFolders.setOpened(roots);
   });
   handle("desktop:startup", () => first);
+  handle("desktop:full-screen", () => window!.isFullScreen());
+  handle("desktop:set-full-screen", enabled => {
+    if (typeof enabled !== "boolean") throw new Error("Invalid full-screen state.");
+    window!.setFullScreen(enabled);
+    return window!.isFullScreen();
+  });
   handle("desktop:reset-plan", () => resetPlan());
   handle("desktop:reset-app", (removeFolders, revision) => resetApp(removeFolders, revision));
   handle("desktop:host-connection", () => hostConnection());
@@ -497,6 +503,8 @@ function createWindow(): void {
     },
   });
   window = created;
+  created.on("enter-full-screen", () => created.webContents.send("desktop:full-screen-changed", true));
+  created.on("leave-full-screen", () => created.webContents.send("desktop:full-screen-changed", false));
   created.on("close", event => {
     if (exiting || installing || resetting) {
       // A native unsaved-work dialog must be visible even when removal starts in the tray.

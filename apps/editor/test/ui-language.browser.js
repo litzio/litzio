@@ -61,7 +61,16 @@ async (page, { openPath, screenshots }) => {
     await page.getByRole('tab', {name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
     check(await page.getByRole('tab').count() === tabCount + 1, 'Settings is not a task tab');
     check(await page.getByTestId('save').count() === 0, 'Settings must not expose a hidden document Save');
-    await page.keyboard.press('Tab'); // Tab close, then category navigation.
+    await page.keyboard.press('Tab'); // Tab close.
+    await page.keyboard.press('Tab');
+    const tabActions = page.getByRole('button', {name:'Tab actions',exact:true});
+    await tabActions.and(page.locator(':focus')).waitFor();
+    await page.keyboard.press('Enter');
+    const fullScreenAction = page.getByRole('menuitem',{name:'View full screen',exact:true});
+    await fullScreenAction.waitFor();
+    await page.keyboard.press('Escape');
+    await fullScreenAction.waitFor({state:'hidden'});
+    await tabActions.and(page.locator(':focus')).waitFor();
     await page.keyboard.press('Tab');
     check(await screen.getByRole('button',{name:'Appearance & language',exact:true}).evaluate(n => n === document.activeElement), 'Tab does not lead to category navigation');
     await page.keyboard.press('Tab'); await page.keyboard.press('Tab'); await page.keyboard.press('Enter'); // Past Highlight sets.

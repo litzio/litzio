@@ -23,6 +23,8 @@ import { activeHighlightSet, chooseHighlightSet, relocateHighlightChoice, useHig
 import { productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, FIND_SHORTCUT, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { useShellLayout } from "./shell/useShellLayout.ts";
+import { useTabFullscreen } from "./shell/useTabFullscreen.ts";
+import { FullscreenExit } from "./shell/FullscreenExit.tsx";
 import { AssistantPanel, rememberAssistantWidth, type AssistantLocalSubmission, type AssistantButtonStatus } from "./shell/AssistantPanel.tsx";
 import { NotificationProvider, NotificationSource, ShellNotificationCenter } from "./components/ui/notification-center.tsx";
 import { UiError } from "./ui-message.ts";
@@ -68,7 +70,7 @@ import darkIcon from "@brand-dark-icon";
 import { CommandCenter } from "./shell/CommandCenter.tsx";
 import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
-import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Highlighter, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Search, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
+import { MessageSquare, Maximize, Minimize, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Highlighter, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Search, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal, X } from "lucide-react";
 import type {
   EditorFileResponse,
   DocumentStartResponse,
@@ -93,6 +95,9 @@ const SPLIT_MIN_WIDTH = 432 * 2 + 1;
 
 /** The Desktop app's bridge; the browser Editor has none and shows no Desktop UI. */
 const desktop = typeof window === "undefined" ? undefined : window.litzioDesktop;
+const hasVisiblePopup = (includeMenus = false) => [...globalThis.document.querySelectorAll(
+  includeMenus ? '[role="dialog"], [aria-modal="true"], [role="menu"]' : '[role="dialog"], [aria-modal="true"]',
+)].some(element => element.getClientRects().length > 0);
 
 export function App() {
   return <NotificationProvider><EditorApp /></NotificationProvider>;
@@ -102,12 +107,15 @@ function EditorApp() {
   useSyncExternalStore(hostConnection.subscribe, hostConnection.snapshot, hostConnection.snapshot);
   useTranslation();
   const [fileOperationPending, setFileOperationPending] = useState(false);
+  const [error, setError, errorCause] = useMessageState("");
+  const fullscreenError = useCallback((cause: unknown) => setError(messageOf(cause)), [setError]);
+  const { fullscreen, changing: fullscreenChanging, setTabFullscreen } = useTabFullscreen(desktop, fullscreenError);
   const {
     assistantOpen, setAssistantOpen, assistantOverlay, assistantSize, setAssistantSize, assistantReturn, closeAssistant, toggleAssistant,
     sidebarSize, setSidebarSize, sidebarOverlay, sidebarOpen, chooseSidebarOpen, closeSidebar, sidebarToggle, sidebarFocus,
     documentPanelSize, setDocumentPanelSize, panelOverlay, panelOpen, choosePanelOpen, toggleOutline, outlineToggle,
     shell, header, main, titlebar, notifications, notificationSlot, shellReturnFocus,
-  } = useShellLayout({ fileOperationPending });
+  } = useShellLayout({ fileOperationPending, fullscreen: fullscreen || fullscreenChanging });
   const [assistantStatus, setAssistantStatus] = useState<AssistantButtonStatus>();
   const newFileButton = useRef<HTMLElement | null>(null);
   const newFolderButton = useRef<HTMLElement>(null);
@@ -213,6 +221,14 @@ function EditorApp() {
 
   const focusedGroup = navigation.groups.find(group => group.id === navigation.focused)!;
   const activeId = focusedGroup.active;
+  const exitedEmpty = useRef(false);
+  useEffect(() => {
+    if (activeId || !fullscreen) { exitedEmpty.current = false; return; }
+    if (!fullscreenChanging && !exitedEmpty.current) {
+      exitedEmpty.current = true;
+      setTabFullscreen(false);
+    }
+  }, [activeId, fullscreen, fullscreenChanging, setTabFullscreen]);
   const settingsGroup = navigation.groups.find(group => group.tabs.includes("settings"));
   const settingsOpen = settingsGroup?.active === "settings";
   const settingsFocused = activeId === "settings";
@@ -221,7 +237,8 @@ function EditorApp() {
   const galleryFocused = activeId === "templates";
   const activeViewTab = viewTabs.find(tab => tab.id === activeId);
   const activePdf = activeViewTab?.pdf ? activeViewTab : undefined;
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, icon: tab.screen ? <PluginIcon client={tab.client} plugin={tab.screen.plugin} digest={screens.find(screen => screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.label ?? tab.screen?.title ?? "" })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const taskTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, icon: tab.screen ? <PluginIcon client={tab.client} plugin={tab.screen.plugin} digest={screens.find(screen => screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.label ?? tab.screen?.title ?? "" })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : [])];
+  const allTabs = [...taskTabs, ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -293,7 +310,6 @@ function EditorApp() {
     }
   }, [navigation]);
 
-  const [error, setError, errorCause] = useMessageState("");
   const { referenceRequest, addToChat, consumeReference } =
     useAssistantReferenceHandoff({ assistantReturn, setAssistantOpen });
   // Restore folder context before opening tabs, including their bibliography resources.
@@ -478,11 +494,31 @@ function EditorApp() {
   useLayoutEffect(() => {
     if (focusAfterClose.current) {
       focusAfterClose.current = false;
-      const target = activeId ? globalThis.document.getElementById(`tab-${activeId}`)
+      const target = activeId ? globalThis.document.getElementById(`${fullscreen ? "panel" : "tab"}-${activeId}`)
         : globalThis.document.querySelector<HTMLElement>('[data-testid="document-start"] button');
       target?.focus({ preventScroll: true });
     }
-  }, [activeId, tabs.length, navigation]);
+  }, [activeId, tabs.length, navigation, fullscreen]);
+
+  function enterFullscreen(groupActive = activeId): void {
+    if (!groupActive || fullscreen || fullscreenChanging) return;
+    if (groupActive !== activeId) activateTab(groupActive);
+    setTabFullscreen(true);
+  }
+
+  const wasFullscreen = useRef(false);
+  useLayoutEffect(() => {
+    if (wasFullscreen.current === fullscreen) return;
+    wasFullscreen.current = fullscreen;
+    const frame = requestAnimationFrame(() => {
+      const doc = globalThis.document;
+      if (doc.activeElement !== doc.body) return;
+      const target = activeId ? doc.getElementById(`${fullscreen ? "panel" : "tab"}-${activeId}`)
+        : doc.querySelector<HTMLElement>('[data-testid="document-start"] button');
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [fullscreen, activeId]);
 
   function placeTab(id: string, group = navigation.focused): void {
     cancelOpen(group);
@@ -501,7 +537,7 @@ function EditorApp() {
 
   useLayoutEffect(() => {
     const area = main.current;
-    if (!area) return;
+    if (!area || fullscreen || fullscreenChanging) return;
     const measure = () => {
       const available = area.getBoundingClientRect().width >= SPLIT_MIN_WIDTH;
       splitAvailable.current = available;
@@ -512,7 +548,7 @@ function EditorApp() {
     observer.observe(area);
     measure();
     return () => observer.disconnect();
-  }, [split]);
+  }, [split, fullscreen, fullscreenChanging]);
 
   const { acceptFile, restoreRecovery, addInitial } = createTabAdmission({
     tabs, latestTabs, nextId, startupOverrides, splitAvailable, focused: navigation.focused,
@@ -719,7 +755,7 @@ function EditorApp() {
     if (operationRef.current || settingsDisabled) return;
     if (sidebarOverlay) closeSidebar();
     if (activeId !== "settings") settingsReturnTab.current = activeId;
-    if (assistantOverlay) setAssistantOpen(false);
+    if (assistantOverlay && !fullscreen) setAssistantOpen(false);
     settingsFocusRequested.current = true;
     if (settingsGroup) {
       settingsFocusRequested.current = false;
@@ -933,7 +969,27 @@ function EditorApp() {
         !globalThis.document.querySelector('[data-slot="dialog-content"], [role="menu"], [data-slot="popover-content"][data-open]')) {
       event.preventDefault(); event.stopPropagation(); closeSettingsTab(); return;
     }
-    if (ASSISTANT_SHORTCUT.matches(event) && event.key !== "Process" && event.keyCode !== 229 && assistantAvailable) {
+    if (event.key === "F11" && !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && (fullscreen || activeId)) {
+      event.preventDefault();
+      if (!event.repeat && !fullscreenChanging) {
+        if (fullscreen) setTabFullscreen(false);
+        else if (!fileOperationPending && !hasVisiblePopup()) enterFullscreen();
+      }
+      return;
+    }
+    if (desktop && fullscreen && event.key === "Tab" && event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing) {
+      event.preventDefault();
+      if (hasVisiblePopup(true)) return;
+      const ids = navigation.groups.flatMap(group => group.tabs);
+      const index = ids.indexOf(activeId ?? "");
+      const next = ids[(index + (event.shiftKey ? -1 : 1) + ids.length) % ids.length];
+      if (next && next !== activeId) {
+        activateTab(next);
+        requestAnimationFrame(() => globalThis.document.getElementById(`panel-${next}`)?.focus({ preventScroll: true }));
+      }
+      return;
+    }
+    if (!fullscreen && ASSISTANT_SHORTCUT.matches(event) && event.key !== "Process" && event.keyCode !== 229 && assistantAvailable) {
       if (globalThis.document.querySelector('[data-slot="dialog-content"]')) return;
       event.preventDefault(); toggleAssistant(); return;
     }
@@ -1107,8 +1163,13 @@ function EditorApp() {
     });
   };
   const commandItems: CommandCenterItem[] = [
+    { id: "fullscreen", kind: "command", label: i18n.t(fullscreen ? "Exit full screen" : "View full screen"),
+      icon: fullscreen ? Minimize : Maximize, shortcut: "F11", disabled: fullscreenChanging || !fullscreen && (!activeId || fileOperationPending),
+      keywords: ["fullscreen", "전체화면"], run: () => { if (fullscreen) setTabFullscreen(false); else enterFullscreen(); } },
+    ...(fullscreen && activeId ? [{ id: "close-active-tab", kind: "command" as const, label: i18n.t("Close tab"), icon: X,
+      disabled: busy || Boolean(continuation), run: () => closeTab(activeId) }] : []),
     ...screens.filter((screen,index,all)=>all.findIndex(s=>s.plugin===screen.plugin&&s.id===screen.id)===index).map(screen=>({id:`screen:${screen.plugin}:${screen.id}`,kind:"command" as const,label:`${screen.plugin}: ${screen.title} ${i18n.t("Open view")}`,icon:viewScreenIcon(screen.icon),takesFocus:true,run:()=>openScreen(screen)})),
-    ...(assistantAvailable ? [{ id: "assistant", kind: "command" as const, label: i18n.t("Assistant"), icon: MessageSquare, takesFocus: true,
+    ...(assistantAvailable && !fullscreen ? [{ id: "assistant", kind: "command" as const, label: i18n.t("Assistant"), icon: MessageSquare, takesFocus: true,
       shortcut: ASSISTANT_SHORTCUT.label, keywords: ["assistant", "비서"], run: () => { assistantReturn.current = commandReturnFocus.current; setAssistantOpen(true); } }] : []),
     ...(samplePath ? [{ id: "open-sample", kind: "command" as const, label: i18n.t("Open sample document"), icon: FileText, takesFocus: true, disabled: busy || Boolean(continuation),
       keywords: ["sample", "샘플"], run: openSample }] : []),
@@ -1120,9 +1181,16 @@ function EditorApp() {
         const owner = sessions.current.get(tab.id);
         // The retained target can still be hidden here; Dialog focuses it after activation/dismissal.
         commandReturnFocus.current = (owner?.kind === "text" || owner?.view === "visual") ? owner.editorRef.current?.getFocusTarget() ?? null
-          : globalThis.document.getElementById(`tab-${tab.id}`);
+          : globalThis.document.getElementById(`${fullscreen ? "panel" : "tab"}-${tab.id}`);
       },
     })),
+    ...(fullscreen ? taskTabs.map(tab => ({
+      id: `tab:${tab.id}`, kind: "document" as const, label: tab.title, detail: i18n.t("Opened tab"), icon: FileText,
+      disabled: busy || Boolean(continuation), run: () => {
+        activateTab(tab.id);
+        commandReturnFocus.current = globalThis.document.getElementById(`panel-${tab.id}`);
+      },
+    })) : []),
     ...listedDocuments.filter(entry => !openedPaths.has(entry.path)).map(entry => ({
       id: `file:${entry.path}`, kind: "file" as const, label: entry.name,
       detail: `${i18n.t("Explorer")} · ${entry.native === false ? `${i18n.t("Not a {{product}} document")} · ` : ""}${entry.path}`,
@@ -1148,10 +1216,10 @@ function EditorApp() {
       disabled: busy || Boolean(continuation), keywords: ["new document", "new file", "새 문서", "새 파일"],
       run: () => newDocument(commandReturnFocus.current) },
     { id: "open-right", kind: "command", label: i18n.t("Open to the right"), icon: PanelRightOpen,
-      disabled: !activeId || !canSplit || busy || Boolean(continuation), takesFocus: true,
+      disabled: fullscreen || !activeId || !canSplit || busy || Boolean(continuation), takesFocus: true,
       keywords: ["split editor group", "오른쪽 그룹 분할"], run: () => { if (activeId) moveTab(activeId, true); } },
     { id: "move-group", kind: "command", label: i18n.t("Move to other group"), icon: ArrowLeftRight,
-      disabled: !activeId || !split || busy || Boolean(continuation), takesFocus: true,
+      disabled: fullscreen || !activeId || !split || busy || Boolean(continuation), takesFocus: true,
       keywords: ["move tab group", "탭 그룹 이동"], run: () => { if (activeId) moveTab(activeId); } },
     { id: "open-folder", kind: "command", label: i18n.t("Open folder…"), icon: FolderOpen, takesFocus: true,
       keywords: ["open folder", "폴더 열기"], run: () => { dialogReturnFocus.current = commandReturnFocus.current; setFolderDialog(true); } },
@@ -1176,10 +1244,10 @@ function EditorApp() {
       keywords: ["visual view", "비주얼 보기"], run: () => { globalThis.document.querySelector<HTMLElement>(`[data-editor-group="${navigation.focused}"] [data-testid="view-visual"]`)?.focus(); setView("visual"); } },
     { id: "source", kind: "command" as const, label: i18n.t("View: Source"), icon: SquareCode, disabled: !document || busy, takesFocus: true,
       keywords: ["source markdown", "소스 보기"], run: () => { globalThis.document.querySelector<HTMLElement>(`[data-editor-group="${navigation.focused}"] [data-testid="view-source"]`)?.focus(); void showSource(); } }]),
-    { id: "outline", kind: "command", label: i18n.t(panelOpen && !assistantOpen ? "Hide outline" : "Show outline"), icon: PanelRight, takesFocus: true, disabled: session?.kind === "text",
+    { id: "outline", kind: "command", label: i18n.t(panelOpen && !assistantOpen ? "Hide outline" : "Show outline"), icon: PanelRight, takesFocus: true, disabled: fullscreen || session?.kind === "text",
       keywords: ["outline", "개요"], run: () => { outlineToggle.current?.focus(); toggleOutline(); } },
     { id: "sidebar", kind: "command", label: i18n.t(sidebarOpen ? "Collapse Explorer" : "Expand Explorer"), icon: PanelLeft,
-      keywords: ["sidebar", "사이드바"], takesFocus: true,
+      keywords: ["sidebar", "사이드바"], takesFocus: true, disabled: fullscreen,
       run: () => { sidebarFocus.current = "sidebar"; chooseSidebarOpen(!sidebarOpen); } },
     { id: "table-wrap", kind: "command", label: i18n.t("This document’s tables: wrap long text"), icon: FileText,
       detail: i18n.t(tableWrap ? "Current: wrap" : "Current: single line"), disabled: !tableWrapPath || busy,
@@ -1234,7 +1302,8 @@ function EditorApp() {
     })];
 
   return (<>
-    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${fullscreen ? " app-shell--fullscreen" : assistantOpen ? " app-shell--assistant" : ""}${sidebarOverlay ? " app-shell--navigation-overlay" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split && !fullscreen ? " app-shell--split" : ""}`}>
+      {fullscreen ? <FullscreenExit onExit={() => setTabFullscreen(false)} /> : null}
       <ActivityBar explorerOpen={sidebarOpen} explorerRef={sidebarToggle} onExplorer={() => chooseSidebarOpen(!sidebarOpen)}
         items={activityItems} itemsDisabled={busy || Boolean(continuation)}
         theme={theme} onThemeChange={changeTheme}
@@ -1356,8 +1425,9 @@ function EditorApp() {
               onToggleOutline={owner?.kind === "text" ? undefined : toggleOutline}
               outlineToggleRef={group.id === navigation.focused ? outlineToggle : undefined}
               onManageHighlights={owner?.kind === "native" ? openHighlightSettings : undefined}
-            /> : pdfTab?.pdf && pluginActions.length ? <div className="top-bar-actions">
-              <TabFileMenu documentPath={pdfTab.pdf} pluginActions={pluginActions} onOpenPluginFile={openPluginFile}
+              onFullscreen={() => enterFullscreen(group.active)}
+            /> : group.active ? <div className="top-bar-actions">
+              <TabFileMenu documentPath={pdfTab?.pdf} pluginActions={pluginActions} onOpenPluginFile={openPluginFile} onFullscreen={() => enterFullscreen(group.active)}
                 disabled={groupBusy || Boolean(continuation)} fileActionsRef={group.id === navigation.focused ? fileActionsToggle : undefined} />
             </div> : null
           } />
@@ -1399,7 +1469,7 @@ function EditorApp() {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));
             const group = navigation.groups[groupIndex];
             return <DocumentTab client={tab.client} settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
-              active={group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
+              active={fullscreen ? activeId === tab.id : group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
               report={reportSession} onAssetChange={onAssetChange} renameImage={renameImage} onReveal={revealDocument}
               onCompare={compareExternal} />;
           })}
@@ -1407,24 +1477,25 @@ function EditorApp() {
           <ScreenBoundary closing={!viewTabs.some(tab => tab.id === activeId)} resetKey={activeId ?? undefined}>{viewTabs.map(tab => {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));
             const group = navigation.groups[groupIndex];
+            const visible = fullscreen ? activeId === tab.id : group?.active === tab.id;
             return <div key={tab.id} className="shell-tab" role="tabpanel" tabIndex={-1} id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`}
-              hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
+              hidden={!visible} inert={!visible} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={tab.client} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace client={tab.client} roots={openedFolderPaths} key={`${tab.id}:local`} id={tab.id} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} fileOpen={tab.fileOpen} onOpenDocument={(path, signal) => openViewDocument(path, tab.client, signal)} /> : null}
+              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={tab.client} root={tab.root} path={tab.pdf} active={visible} /></Suspense> : tab.screen ? <ViewWorkspace client={tab.client} roots={openedFolderPaths} key={`${tab.id}:local`} id={tab.id} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} fileOpen={tab.fileOpen} onOpenDocument={(path, signal) => openViewDocument(path, tab.client, signal)} /> : null}
 
             </div>;
           })}
           </ScreenBoundary>
           {galleryGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
-            hidden={!galleryOpen} inert={!galleryOpen} data-document-tab="templates" data-active={galleryFocused ? "true" : "false"}
+            hidden={fullscreen ? !galleryFocused : !galleryOpen} inert={fullscreen ? !galleryFocused : !galleryOpen} data-document-tab="templates" data-active={galleryFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(galleryGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(galleryGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("templates")} onPointerDownCapture={() => focusDocument("templates")}>
             <Suspense fallback={null}><TemplateGallery key="local" active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
               onCreate={(item, focus, client) => newDocument(focus, { ...item, client })} onOpenFolder={openFolder} /></Suspense>
           </div> : null}
           {settingsGroup ? <div className="shell-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
-            hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
+            hidden={fullscreen ? !settingsFocused : !settingsOpen} inert={fullscreen ? !settingsFocused : !settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(settingsGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(settingsGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("settings")} onPointerDownCapture={() => focusDocument("settings")}>
             <SettingsDialog onAssistantSaved={() => setAssistantSettingsRevision(value => value + 1)} assistantProviderRevision={assistantProviderRevision}
@@ -1587,7 +1658,7 @@ function EditorApp() {
       <OpenRefusalDialog openRefusal={openRefusal} setOpenRefusal={setOpenRefusal} openRefusalReturnFocus={openRefusalReturnFocus} document={document} />
       <ReloadChangesDialog reloadDialog={reloadDialog} switching={switching} setReloadDialog={setReloadDialog} fileActionsToggle={fileActionsToggle} reloadFromDisk={reloadFromDisk} />
     </div>
-    <ShellNotificationCenter ref={notifications} onKeyDown={moveActivityFocus} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
+    <ShellNotificationCenter ref={notifications} fullscreen={fullscreen} onKeyDown={fullscreen ? undefined : moveActivityFocus} documentPanelWidth={documentPanelSize} panelWidth={fullscreen ? "0px" : assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
       : documentPanelOpen ? "var(--document-panel-effective-width)" : "0px"} />
   </>);

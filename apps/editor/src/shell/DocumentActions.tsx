@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { operationText, type Operation } from "../operation.ts";
 import { useEffect, useState, type ReactNode, type Ref } from "react";
-import { ArrowLeftRight, Check, Circle, Copy, Ellipsis, FileDiff, FilePenLine, LoaderCircle, PanelRight, PanelRightOpen, RotateCcw, StretchHorizontal, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, Check, Circle, Copy, Ellipsis, FileDiff, FilePenLine, LoaderCircle, Maximize, PanelRight, PanelRightOpen, RotateCcw, StretchHorizontal, TriangleAlert } from "lucide-react";
 import { ChoiceGroup } from "@/components/ui/choice-group.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
@@ -14,24 +14,29 @@ import { viewScreenIcon } from "../views/view-screen-icon.ts";
 import { HighlightSetMenu } from "./HighlightSetMenu.tsx";
 
 type PluginFileMenuProps = {
-  documentPath: string;
+  documentPath?: string;
   pluginActions?: ViewFileAction[];
   onOpenPluginFile?: OpenPluginFile;
+  onFullscreen?(): void;
 };
 
-export function TabFileMenu({ documentPath, pluginActions, onOpenPluginFile, fileActionsRef, disabled, children }: PluginFileMenuProps & {
+export function TabFileMenu({ documentPath = "", pluginActions, onOpenPluginFile, onFullscreen, fileActionsRef, disabled, children }: PluginFileMenuProps & {
   fileActionsRef?: Ref<HTMLButtonElement>;
   disabled?: boolean;
   children?: ReactNode;
 }) {
+  const label = i18n.t(children || pluginActions?.length ? "File actions" : "Tab actions");
   return <DropdownMenu>
     <DropdownMenuTrigger ref={fileActionsRef}
-      render={<Button type="button" size="icon-sm" variant="ghost" aria-label={i18n.t("File actions")} title={i18n.t("File actions")} disabled={disabled} />}>
+      render={<Button type="button" size="icon-sm" variant="ghost" aria-label={label} title={label} disabled={disabled} />}>
       <Ellipsis aria-hidden="true" />
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end">
       {children}
-      {children && pluginActions?.length ? <DropdownMenuSeparator /> : null}
+      {onFullscreen ? <DropdownMenuItem onClick={onFullscreen}>
+        <Maximize aria-hidden="true" />{i18n.t("View full screen")}
+      </DropdownMenuItem> : null}
+      {(children || onFullscreen) && pluginActions?.length ? <DropdownMenuSeparator /> : null}
       {pluginActions?.map(entry => {
         const Icon = viewScreenIcon(entry.action.icon);
         return <DropdownMenuItem key={entry.key} onClick={() => onOpenPluginFile?.(entry, documentPath)}>
@@ -81,7 +86,7 @@ type DocumentActionsProps = PluginFileMenuProps & {
 /** Actions and status of this tab row's active document. */
 export function DocumentActions({
   documentPath, textMode, markdownText, hideViewControls, wide, onToggleWide, status, unsaved = false, draftNotice = "", view, viewDisabled, onViewChange, saveDisabled,
-  onSave, onCompare, compareDisabled, onReload, reloadDisabled, onCopyPath, fileActionsRef, pluginActions, onOpenPluginFile,
+  onSave, onCompare, compareDisabled, onReload, reloadDisabled, onCopyPath, fileActionsRef, pluginActions, onOpenPluginFile, onFullscreen,
   outline, onToggleOutline, outlineToggleRef, compact: groupCompact = false, onOpenRight, onMove, openRightDisabled, moveDisabled, onManageHighlights,
 }: DocumentActionsProps) {
   useTranslation();
@@ -146,7 +151,7 @@ export function DocumentActions({
             {saveLabel}
           </Button>
         {onReload ? (
-          <TabFileMenu fileActionsRef={fileActionsRef} documentPath={documentPath} pluginActions={pluginActions} onOpenPluginFile={onOpenPluginFile}
+          <TabFileMenu fileActionsRef={fileActionsRef} documentPath={documentPath} pluginActions={pluginActions} onOpenPluginFile={onOpenPluginFile} onFullscreen={onFullscreen}
             disabled={reloadDisabled && !(compact && onToggleWide)}>
               {compact && onToggleWide ? <DropdownMenuItem role="menuitemcheckbox" aria-checked={wide} onClick={onToggleWide}>
                 <StretchHorizontal aria-hidden="true" />{i18n.t("Wide document")}</DropdownMenuItem> : null}
