@@ -40,6 +40,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - 문장부호로 끝나는(또는 시작하는) 굵게·기울임 바로 바깥에 글자를 붙이면 강조가 풀린다(예: `**정확도(Accuracy)**를`). check의 emphasis 경고를 보면 그 바깥 글자를 `&#x...;` 문자 참조로 바꿔 고친다.
 - 전체 접근의 이미지 자산 CLI: litzio assistant import-image <absolute-document> --source <absolute-image>로 가져올 수 있다. 삽입 방법과 무관하게 litzio check로 그림 경로를 검사한다.
 - 전체 접근의 새 문서 CLI: litzio create <new-file>, litzio inspect <file>, litzio apply-batch <file> --operations <json-file> --if-revision <revision>, litzio check <file> 순서로 작성·검사한다.
+- 긴 텍스트는 명령 인수(`--text` 등)로 넘기지 말고 `apply-batch --operations <json-file>`(또는 `-`로 stdin)으로 넘긴다. Windows 명령줄은 약 8,000자에서 잘린다.
 - 전체 접근의 템플릿 CLI: litzio templates list --json --language <ko|en>, litzio templates read <id> --json --language <ko|en>, litzio create <new-file> --template <id> --language <ko|en>, litzio templates save <name> --from <file> --description <text>를 사용한다.
 - CLI 생성에는 리치오 결과 카드·카드 Undo가 없으므로 경로·검사 결과를 텍스트로 보고한다.
 

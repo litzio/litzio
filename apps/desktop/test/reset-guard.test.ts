@@ -6,6 +6,7 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { ResetGuard } from "../../editor/server/reset-guard.ts";
+import { processStart } from "../../editor/server/daemon-state.ts";
 
 const actorFiles = (root: string) => fs.readdirSync(root).filter(name => name.startsWith("actor-"));
 
@@ -19,8 +20,6 @@ test("reset excludes all live actor roles and new writers; dead PID generations 
     done();
   }
   fs.writeFileSync(path.join(root, "actor-dead.json"), JSON.stringify({ pid: process.pid, started: "previous", role: "host" }));
-  // A closed open-handle owner whose PID now belongs to a live process (here: this one).
-  fs.writeFileSync(path.join(root, "actor-reused.json"), JSON.stringify({ pid: process.pid, started: "windows-open-handle", role: "cli" }));
   const done = guard.exclusive();
   assert.throws(() => guard.actor("host"), /reset is in progress/);
   assert.throws(() => guard.exclusive(), /reset is in progress/);
@@ -71,14 +70,63 @@ test("a writer that exits without releasing keeps reset blocked only while its p
   assert.deepEqual(fs.readdirSync(root), []);
 });
 
-test("an unenforced exclusive open falls back to the OS creation identity", t => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-reset-guard-fallback-"));
+test("a writer killed at any registration step blocks reset while alive and is reclaimed after it exits", { skip: process.platform !== "win32" }, async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-reset-guard-steps-"));
+  const children: ReturnType<typeof spawn>[] = [];
+  t.after(async () => {
+    for (const child of children) if (child.exitCode === null && child.signalCode === null) { const exited = once(child, "exit"); child.kill(); await exited; }
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const source = new URL("../../editor/server/reset-guard.ts", import.meta.url).href;
+  // Each child stops forever at one step: after creating an empty record, after writing it but before
+  // the exclusive open, or after the open but before checking for a reset.
+  const block = { created: `fs.writeFileSync = (file, ...rest) => { if (!String(file).includes("actor-")) return original.writeFileSync(file, ...rest); original.closeSync(original.openSync(file, "wx")); stop(); }`,
+    written: `fs.openSync = (file, ...rest) => { if (String(file).includes("actor-") && typeof rest[0] === "number") stop(); return original.openSync(file, ...rest); }`,
+    locked: `fs.existsSync = file => { if (String(file).endsWith("exclusive.json")) stop(); return original.existsSync(file); }` };
+  for (const [step, patch] of Object.entries(block)) {
+    const guardDir = path.join(root, step), marker = path.join(root, `${step}.ready`);
+    const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `import fs from "node:fs";
+      const original = { ...fs }; const stop = () => { original.writeFileSync(${JSON.stringify(marker)}, ""); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0); };
+      ${patch};
+      const { ResetGuard } = await import(${JSON.stringify(source)}); new ResetGuard(${JSON.stringify(guardDir)}).actor("cli");`], { windowsHide: true, stdio: "ignore" });
+    children.push(child);
+    while (!fs.existsSync(marker)) await new Promise(resolve => setTimeout(resolve, 20));
+    const [record] = actorFiles(guardDir), read = () => fs.readFileSync(path.join(guardDir, record!), "utf8");
+    if (step === "created") assert.equal(read(), "");
+    else if (step === "written") assert.equal(JSON.parse(read()).pid, child.pid);
+    else assert.throws(read, { code: "EBUSY" });
+    // The writer is alive: an open handle or, without one, its PID's creation before the record refuses reset.
+    const guard = new ResetGuard(guardDir, pid => pid === process.pid ? "reset" : processStart(pid));
+    assert.throws(() => guard.exclusive(), new RegExp(`Close cli \\(PID ${child.pid}\\)`), step);
+    const exited = once(child, "exit"); child.kill(); await exited; // TerminateProcess: no release runs.
+    assert.equal(actorFiles(guardDir).length, 1, `${step}: a forced exit leaves the record`);
+    guard.exclusive()();
+    assert.deepEqual(fs.readdirSync(guardDir), [], step);
+  }
+});
+
+test("a record without an open handle is judged by its filename PID's creation time", t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-reset-guard-pid-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  // Flag 0 opens with normal sharing, as if the platform ignored the exclusive flag.
-  const guard = new ResetGuard(root, pid => pid === process.pid ? "current" : undefined, 0);
-  const done = guard.actor("host");
-  const [file] = actorFiles(root);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(root, file!), "utf8")).started, "current");
-  assert.throws(() => guard.exclusive(), /Close host \(PID/);
+  // The parent of this test process is alive; its record has lost (or never had) the exclusive open.
+  const ticks = (ms: number) => String(BigInt(Math.round(ms * 10_000)) + 621_355_968_000_000_000n);
+  const record = () => {
+    const file = path.join(root, `actor-${process.ppid}-host-${Math.random().toString(16).slice(2)}.json`);
+    fs.writeFileSync(file, JSON.stringify({ pid: process.ppid, role: "host", lease: "open-handle" }));
+    return fs.statSync(file).birthtimeMs;
+  };
+  const resetWith = (creation: (birth: number) => string | undefined) => {
+    const birth = record();
+    return () => new ResetGuard(root, pid => pid === process.pid ? "reset" : creation(birth), 0).exclusive()();
+  };
+  for (const creation of [(birth: number) => ticks(birth - 5_000), () => undefined, () => "boot-id:1234"]) {
+    assert.throws(resetWith(creation), new RegExp(`Close host \\(PID ${process.ppid}\\)`), "an older, unknown or incomparable creation refuses");
+    for (const name of actorFiles(root)) fs.unlinkSync(path.join(root, name));
+  }
+  resetWith(birth => ticks(birth + 60_000))();
+  assert.deepEqual(fs.readdirSync(root), [], "a process created after the record reuses the PID");
+  // Without an enforced exclusive open, a live writer in this process is still protected.
+  const done = new ResetGuard(root, pid => pid === process.pid ? "reset" : undefined, 0).actor("desktop");
+  assert.throws(() => new ResetGuard(root, () => ticks(0), 0).exclusive(), /Close desktop \(PID/);
   done(); assert.deepEqual(fs.readdirSync(root), []);
 });

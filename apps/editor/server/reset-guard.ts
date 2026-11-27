@@ -14,14 +14,20 @@ let ownStart: string | undefined;
 /** libuv's UV_FS_O_EXLOCK (include/uv/win.h, "EXCLUSIVE SHARING MODE"): CreateFile with share mode 0.
  * Node passes it through to libuv but does not export it in fs.constants. */
 const UV_FS_O_EXLOCK = (fs.constants as Record<string, number | undefined>).UV_FS_O_EXLOCK ?? 0x10000000;
-/** Written only while this process holds the file open without sharing. Readable means the handle is closed,
- * so the writer has exited (the kernel closes handles of any terminated process) or released it.
- * Older resets compare it with an OS creation identity, which never equals this value. */
-const OPEN_HANDLE = "windows-open-handle";
+/** A process created this long after an actor file was created cannot be its writer (PID reuse).
+ * The margin only absorbs a small backward system clock step between writer start and file creation. */
+const REUSE_MARGIN_MS = 2_000;
 
 const errorCode = (error: unknown) => (error as NodeJS.ErrnoException).code;
 function unlinkIfPresent(file: string) {
   try { fs.unlinkSync(file); } catch (error) { if (errorCode(error) !== "ENOENT") throw error; }
+}
+function exited(pid: number): boolean {
+  try { process.kill(pid, 0); return false; } catch (error) { if (errorCode(error) === "ESRCH") return true; if (errorCode(error) === "EPERM") return false; throw error; }
+}
+/** Windows processStart values are .NET UTC ticks; other platforms' identities are not wall-clock times. */
+function creationMs(started: string | undefined): number | undefined {
+  return started && /^\d{15,20}$/.test(started) ? Number(BigInt(started) - 621_355_968_000_000_000n) / 10_000 : undefined;
 }
 
 /** A narrow process-lifetime gate: never kills another owner or treats HTTP silence as death. */
@@ -48,27 +54,33 @@ export class ResetGuard {
     let released = false;
     return () => { if (!released) { fs.unlinkSync(file); released = true; } };
   }
-  /** Hold the actor file open without sharing for the process lifetime. Returns undefined when the
-   * platform did not enforce the lock, so the caller falls back to the OS creation identity. */
-  private publishOpenHandle(file: string, role: ActorRole, flag: number): (() => void) | undefined {
+  /** Publish the record, then hold it open without sharing for the process lifetime. The open handle only
+   * proves a live writer; an openable file is judged by its PID at reset. The record has no `started`,
+   * so older resets refuse it as invalid instead of reclaiming it by identity mismatch. */
+  private publishLease(file: string, role: ActorRole, flag: number) {
     fs.mkdirSync(this.directory, { recursive: true });
-    const { O_CREAT, O_EXCL, O_WRONLY } = fs.constants;
-    const fd = fs.openSync(file, O_CREAT | O_EXCL | O_WRONLY | flag, 0o600);
-    const abandon = () => { fs.closeSync(fd); fs.unlinkSync(file); };
-    try {
-      // Prove the lock before publishing the marker: a readable file must always mean a closed handle.
-      let enforced = false;
-      try { fs.closeSync(fs.openSync(file, "r")); } catch (error) { if (errorCode(error) === "EBUSY") enforced = true; }
-      if (!enforced) { abandon(); return undefined; }
-      fs.writeSync(fd, JSON.stringify({ pid: process.pid, started: OPEN_HANDLE, role }));
-    } catch (error) { abandon(); throw error; }
+    fs.writeFileSync(file, JSON.stringify({ pid: process.pid, role, lease: "open-handle" }), { flag: "wx", mode: 0o600 });
+    let fd: number | undefined;
+    try { fd = fs.openSync(file, fs.constants.O_RDONLY | flag); }
+    catch (error) { if (errorCode(error) !== "EBUSY") { unlinkIfPresent(file); throw error; } } // Another program has it open.
     let released = false;
-    // A reset may remove the file once the handle is closed; the release is already complete then.
-    return () => { if (!released) { released = true; fs.closeSync(fd); unlinkIfPresent(file); } };
+    return () => { if (!released) { released = true; if (fd !== undefined) fs.closeSync(fd); unlinkIfPresent(file); } };
+  }
+  /** Judge an actor record without a usable creation identity by the PID in its unique filename. */
+  private judgeByFilename(name: string, file: string): void {
+    const [, digits, role] = /^actor-(\d+)-(?:(desktop|host|cli)-)?/.exec(name) ?? [];
+    const pid = Number(digits);
+    if (!Number.isSafeInteger(pid) || pid < 1) throw new Error("Invalid reset guard owner; inspect the guard directory.");
+    if (exited(pid)) return;
+    const birth = fs.statSync(file).birthtimeMs;
+    const created = creationMs(this.identify(pid));
+    if (created !== undefined && created > birth + REUSE_MARGIN_MS) return; // The PID now belongs to a later process.
+    if (created === undefined && exited(pid)) return;
+    throw new Error(`Close ${role ?? "the writer"} (PID ${pid}) before resetting. No process was stopped.`);
   }
   actor(role: ActorRole): () => void {
     const file = path.join(this.directory, `actor-${process.pid}-${role}-${randomUUID()}.json`);
-    const release = (this.exclusiveSharing !== null && this.publishOpenHandle(file, role, this.exclusiveSharing)) || this.publish(file, this.owner(role));
+    const release = this.exclusiveSharing !== null ? this.publishLease(file, role, this.exclusiveSharing) : this.publish(file, this.owner(role));
     // Publish THEN check: either the exclusive owner sees us, or we see it and stop.
     if (fs.existsSync(path.join(this.directory, "exclusive.json"))) {
       release(); throw new Error("App reset is in progress. Retry after it finishes.");
@@ -95,18 +107,23 @@ export class ResetGuard {
       for (const name of fs.readdirSync(this.directory)) {
         if (!name.startsWith("actor-") || !name.endsWith(".json")) continue;
         const actorFile = path.join(this.directory, name);
-        let owner;
-        try { owner = this.read(actorFile); } catch (error) {
+        let bytes;
+        try { bytes = fs.readFileSync(actorFile, "utf8"); } catch (error) {
           if (errorCode(error) === "ENOENT") continue; // Released after the listing.
           if (errorCode(error) === "EBUSY") {
             const [, pid, role] = /^actor-(\d+)-(desktop|host|cli)-/.exec(name) ?? [];
             throw new Error(`Close ${role ?? "the writer"}${pid ? ` (PID ${pid})` : ""} before resetting. No process was stopped.`);
           }
-          throw errorCode(error) ? new Error(`Cannot read reset guard owner ${name} (${errorCode(error)}); inspect the guard directory.`) : error;
+          throw new Error(`Cannot read reset guard owner ${name} (${errorCode(error) ?? "unknown"}); inspect the guard directory.`);
         }
-        // An open-handle owner is alive exactly while its file is unreadable. Older identity owners use the OS
-        // creation identity; processStart answers an exited PID without an OS query.
-        if (owner.started !== OPEN_HANDLE && this.identify(owner.pid) === owner.started) throw new Error(`Close ${owner.role} (PID ${owner.pid}) before resetting. No process was stopped.`);
+        let owner: Partial<Owner> | undefined;
+        try { owner = JSON.parse(bytes); } catch { /* Interrupted before its content was written. */ }
+        try {
+          if (owner && Number.isSafeInteger(owner.pid) && owner.pid! > 0 && typeof owner.started === "string" && owner.started) {
+            // Identity record: the OS creation identity distinguishes a reused PID; processStart answers an exited PID without an OS query.
+            if (this.identify(owner.pid!) === owner.started) throw new Error(`Close ${owner.role} (PID ${owner.pid}) before resetting. No process was stopped.`);
+          } else this.judgeByFilename(name, actorFile);
+        } catch (error) { if (errorCode(error) === "ENOENT") continue; throw error; }
         // Actor filenames are unique and never reused, so dead generations can be removed.
         unlinkIfPresent(actorFile);
       }
