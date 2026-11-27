@@ -2,7 +2,7 @@ import { PLUGIN_CLI_SOURCE, PLUGIN_CLI_OPERATION, verifyPluginCli } from "../../
 import { availableHostCli, hostCli } from "../server/host-cli.ts";
 import {writeCodePluginManifest} from "../../../test/helpers/code-plugin.ts";
 import fs from "node:fs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { syncBuiltinESMExports } from "node:module";
 import { canonicalFilePath } from "../server/file-access.ts";
 
@@ -879,6 +879,98 @@ function lifecycleFixture(root: string, id: string, code = "export function acti
   writeFileSync(path.join(directory, "host.js"), code);
   return directory;
 }
+
+test("Host storage survives plugin lifecycle changes and a replacement Host", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-storage-"));
+  const storageDirectory = path.join(root, "plugin-storage"), state = path.join(root, "state.json");
+  const id = "fixture.storage";
+  const code = `export function activate({storage}) {
+    return {operations: {read: async () => (await storage.get("view")) ?? null}, status: () => ({available:true,message:"Ready"}), dispose() {}};
+  }`;
+  let host = new PluginHost(state, { storageDirectory });
+  const screen = (method: string, key: string, value?: unknown) => host.invoke("screen-storage", { plugin: id, method, key, value }) as Promise<any>;
+  const show = (id: string) => host.invoke("storage-show", { id }) as Promise<any>;
+  const saved = { filter: ["open"], order: "latest" };
+  try {
+    const directory = lifecycleFixture(root, id, code);
+    const other = lifecycleFixture(root, "fixture.other-storage", code);
+    await host.invoke("install", { directory });
+    await host.invoke("install", { directory: other });
+    assert.equal((await screen("set", "view", saved)).receipt.outcome, "success");
+    assert.deepEqual((await host.invokeOperation(id + ".read", {}, undefined, id)).result, saved);
+    assert.equal((await host.invokeOperation("fixture.other-storage.read", {}, undefined, "fixture.other-storage")).result, null);
+
+    writeFileSync(path.join(directory, "host.js"), code.replace(
+      "function activate({storage}) {", 'async function activate({storage}) { await storage.set("view", "failed candidate");',
+    ));
+    await assert.rejects(host.invoke("reload", { id }));
+    assert.deepEqual((await screen("get", "view")).result, saved);
+    writeFileSync(path.join(directory, "host.js"), code.replace("Ready", "Updated"));
+    await host.invoke("reload", { id });
+    writeFileSync(path.join(directory, "host.js"), code.replace("Ready", "New version"));
+    await host.invoke("update", { id });
+    await host.invoke("disable", { id });
+    assert.deepEqual((await show(id)).storage.view, saved);
+    await host.invoke("enable", { id });
+    await host.close();
+    host = new PluginHost(state, { storageDirectory });
+    await host.start();
+    assert.deepEqual((await screen("get", "view")).result, saved);
+    await host.invoke("unregister", { id });
+    assert.deepEqual((await show(id)).storage.view, saved);
+    await host.invoke("install", { directory });
+    assert.deepEqual((await screen("get", "view")).result, saved);
+  } finally {
+    await host.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Host storage serializes concurrent changes and preserves data on quota or corruption failures", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-storage-failure-"));
+  const storageDirectory = path.join(root, "plugin-storage");
+  const host = new PluginHost(path.join(root, "state.json"), { storageDirectory });
+  const id = "fixture.storage";
+  const screen = (method: string, key: string, value?: unknown) => host.invoke("screen-storage", { plugin: id, method, key, value }) as Promise<any>;
+  const show = () => host.invoke("storage-show", { id }) as Promise<any>;
+  const clear = () => host.invoke("storage-clear", { id }) as Promise<any>;
+  const file = path.join(storageDirectory, createHash("sha256").update(id).digest("hex") + ".json");
+  try {
+    await host.invoke("install", { directory: lifecycleFixture(root, id) });
+    const results = await Promise.all(Array.from({ length: 128 }, (_, index) => screen("set", `key-${index}`, index)));
+    assert.ok(results.every(result => result.receipt.outcome === "success"));
+    const before = await show();
+    assert.equal(before.storage["key-0"], 0);
+    assert.equal(before.storage["key-127"], 127);
+    const extra = await screen("set", "extra", true);
+    assert.equal(extra.code, "storage_limit");
+    assert.match(extra.message, /key count is 129.*128/);
+    assert.equal((await screen("set", "key-0", undefined)).code, "storage_invalid_value");
+    assert.deepEqual((await show()).storage, before.storage);
+    await Promise.all([screen("set", "key-0", "first"), screen("set", "key-0", "last"), screen("delete", "key-1")]);
+    assert.equal((await screen("get", "key-0")).result, "last");
+    assert.equal((await screen("get", "key-1")).result, undefined);
+
+    await clear();
+    const large = "x".repeat(64 * 1024 - 2);
+    for (let index = 0; index < 15; index++) assert.equal((await screen("set", `large-${index}`, large)).receipt.outcome, "success");
+    const full = await screen("set", "large-15", large);
+    assert.equal(full.code, "storage_limit");
+    assert.match(full.message, /total size is 1048\d+ bytes.*1048576 bytes/);
+    assert.equal((await screen("get", "large-15")).result, undefined);
+    assert.equal((await screen("get", "large-14")).result, large);
+
+    writeFileSync(file, '{"incomplete":');
+    assert.equal((await screen("get", "view")).code, "storage_corrupt");
+    assert.equal((await screen("set", "view", "replacement")).code, "storage_corrupt");
+    assert.equal(readFileSync(file, "utf8"), '{"incomplete":');
+    assert.equal((await clear()).receipt.outcome, "success");
+    assert.deepEqual(Object.keys((await show()).storage), []);
+  } finally {
+    await host.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 test("missing artifact affects only its registration; unregister records activity and leaves artifact files alone", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-missing-plugin-")), host = new PluginHost(path.join(root, "state.json"));
   try {
@@ -1443,7 +1535,7 @@ test("Host SDK runtime is one self-contained JavaScript module with only Node bu
     }
   }
   const runtime = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles![0]!.contents).toString("base64")}`);
-  assert.equal(runtime.SDK_VERSION, "0.21.0");
+  assert.equal(runtime.SDK_VERSION, "0.22.0");
   assert.equal(typeof runtime.updateDocumentStatus, "function");
   assert.equal(JSON.parse(readFileSync(new URL("../../../packages/plugin-sdk/package.json", import.meta.url), "utf8")).version, runtime.SDK_VERSION);
   assert.equal(typeof runtime.PluginOperationError, "function");

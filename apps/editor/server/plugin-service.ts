@@ -3,8 +3,8 @@ import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { hostPaths } from "./host-paths.ts";
 
 /** Host-owned plugin lifetime and management API, independent of AI providers. */
-export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile = hostPaths().settingsFile("plugins"), assistantDirectory = hostPaths().assistant, logging?: PluginHostLogging) {
-  const host = new PluginHost(settingsFile, { access, assistantDirectory, log: logging?.log, warn: logging?.warn });
+export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile = hostPaths().settingsFile("plugins"), assistantDirectory = hostPaths().assistant, logging?: PluginHostLogging, storageDirectory = hostPaths().pluginStorage) {
+  const host = new PluginHost(settingsFile, { access, assistantDirectory, storageDirectory, log: logging?.log, warn: logging?.warn });
   let ready: Promise<void> | undefined, closing: Promise<void> | undefined;
   let closed = false;
   // Catalogs and management can respond as soon as registered activations have been scheduled.

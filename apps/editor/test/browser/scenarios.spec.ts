@@ -238,11 +238,31 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       mkdirSync(pluginDirectory, { recursive: true });
       writeFileSync(otherJobInput, JSON.stringify({ label: "CLI connection" }));
       writeCodePluginManifest(pluginDirectory,{id: "fixture.drive",name: "Drive fixture",version: "1.2.3",entry: "host.mjs",description: "Isolated folder fixture",operations: [{ id: "snapshot", outputSchema: { type: "string" } }],settingsSchema: { type: "object", properties: { label: { type: "string", title: "Connection label" } }, additionalProperties: false },secrets: [{ id: "pat", title: "Access token", scope: "connection", required: false }],screen:"screen.jsx"});
-      writeFileSync(path.join(pluginDirectory, "host.mjs"), `export function activate(c){return {operations:{snapshot:()=>"Original value"},dispose(){},status:()=>({available:true,message:c.secrets.pat ? "Secret applied" : c.settings.label ?? "Fixture ready"})}}`);
+      writeFileSync(path.join(pluginDirectory, "host.mjs"), `export function activate(c){return {operations:{
+        snapshot:()=>"Original value",
+        prepareStorage:async()=>{await c.storage.set("draft","Handler draft");return null;},
+        readStorage:async()=>(await c.storage.get("view")) ?? null,
+      },dispose(){},status:()=>({available:true,message:c.secrets.pat ? "Secret applied" : c.settings.label ?? "Fixture ready"})}}`);
     }
-    const writeDriveScreen = (label: string) => writeFileSync(path.join(pluginDirectory, "screen.jsx"), `export default function Screen({React,ui,invoke}) {
+    const writeDriveScreen = (label: string) => writeFileSync(path.join(pluginDirectory, "screen.jsx"), `export default function Screen({React,ui,invoke,storage}) {
       const [result,setResult] = React.useState("Ready");
-      return <><p>{${JSON.stringify(label)}}</p><ui.Button onClick={()=>invoke("snapshot",{}).then(setResult).catch(error=>setResult(error.message))}>Read installed value</ui.Button><output>{result}</output></>;
+      const saveOnClose = React.useRef(false);
+      React.useEffect(() => () => {
+        if (saveOnClose.current) {
+          void storage.set("view","Saved on close").catch(()=>{});
+          void storage.delete("draft").catch(()=>{});
+        }
+      }, [storage]);
+      const prepare = async () => {
+        await invoke("prepareStorage");
+        setResult(await storage.get("draft"));
+        saveOnClose.current = true;
+      };
+      return <><p>{${JSON.stringify(label)}}</p>
+        <ui.Button onClick={()=>invoke("snapshot",{}).then(setResult).catch(error=>setResult(error.message))}>Read installed value</ui.Button>
+        <ui.Button onClick={()=>prepare().catch(error=>setResult(error.message))}>Prepare storage</ui.Button>
+        <ui.Button onClick={()=>invoke("readStorage").then(setResult).catch(error=>setResult(error.message))}>Read saved view</ui.Button>
+        <output>{result}</output></>;
     }`);
     if (name === "http-plugins") writeDriveScreen("Runtime fixture");
     const pluginFixture = { document: path.join(pluginFolder, "a.md"), directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput,

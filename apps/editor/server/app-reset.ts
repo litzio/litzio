@@ -17,7 +17,7 @@ export function localResetLocations(userData?: string, updaterCache?: string, ru
     host, daemonDirectories: ["stable", "beta", "development"].map(channel => path.resolve(daemonDirectory(channel as "stable" | "beta" | "development"))) };
 }
 
-export const resetHostPaths = (paths = hostPaths()) => ({ templates: path.resolve(paths.templates), assistant: path.resolve(paths.assistant),
+export const resetHostPaths = (paths: ResetStorageLocations["host"] = hostPaths()) => ({ templates: path.resolve(paths.templates), assistant: path.resolve(paths.assistant),
   assistantSettings: path.resolve(paths.settingsFile("assistant")), pluginSettings: path.resolve(paths.settingsFile("plugins")) });
 
 export function inspectAppReset(locations: ResetStorageLocations) {

@@ -5,7 +5,7 @@ import type { hostPaths } from "./host-paths.ts";
 export type ResetStorageTarget = { path: string; kind: "file" | "directory"; contents: string };
 export type ResetStorageLocations = {
   userData: string;
-  host: ReturnType<typeof hostPaths>;
+  host: Pick<ReturnType<typeof hostPaths>, "templates" | "assistant" | "settingsFile">;
   daemonDirectories: string[];
   updaterCache: string;
 };

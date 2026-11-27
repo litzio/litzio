@@ -27,9 +27,37 @@ import { statSync, realpathSync } from 'node:fs';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { registerHooks } from 'node:module';
-let instance, PublicError;
+let instance, PublicError, validateStorageKey, prepareStorageValue;
+let storageSequence = 0;
+const storageCalls = new Map();
+async function storageRequest(action, key, value) {
+  validateStorageKey(key);
+  if (action === "set") value = prepareStorageValue(value);
+  const id = ++storageSequence;
+  return new Promise((resolve, reject) => {
+    storageCalls.set(id, {resolve, reject});
+    process.send({storageRequest: true, id, action, key, value}, error => {
+      if (!error) return;
+      storageCalls.delete(id);
+      reject(new PublicError("storage_unavailable", "Plugin storage connection is unavailable."));
+    });
+  });
+}
+const storage = Object.freeze({
+  get: key => storageRequest("get", key),
+  set: (key, value) => storageRequest("set", key, value),
+  delete: key => storageRequest("delete", key),
+});
 process.on('disconnect', () => process.exit(0));
-process.on('message', async ({id, method, args}) => {
+process.on('message', async ({id, method, args, storageReply, result: storageResult, error: storageError}) => {
+  if (storageReply === true) {
+    const call = storageCalls.get(id);
+    if (!call) return;
+    storageCalls.delete(id);
+    if (storageError) call.reject(new PublicError(storageError.code, storageError.message));
+    else call.resolve(storageResult);
+    return;
+  }
   try {
     let result;
     if (method === 'activate') {
@@ -56,10 +84,13 @@ process.on('message', async ({id, method, args}) => {
         }
         return resolved;
       }});
-      if ((await import('@litzio/plugin-sdk')).SDK_VERSION !== args.sdkVersion) throw new Error('Unsupported SDK version');
-      PublicError = (await import('@litzio/plugin-sdk')).PluginPublicError;
+      const sdk = await import('@litzio/plugin-sdk');
+      if (sdk.SDK_VERSION !== args.sdkVersion) throw new Error('Unsupported SDK version');
+      PublicError = sdk.PluginPublicError;
+      validateStorageKey = sdk.validatePluginStorageKey;
+      prepareStorageValue = sdk.preparePluginStorageValue;
       const module = await import(pathToFileURL(args.entry).href);
-      instance = await module.activate({...(args.cli ? {cli: Object.freeze({bin: args.cli.bin, args: Object.freeze(args.cli.args)})} : {}), secrets: Object.freeze(args.secrets), settings: args.settings, platform: process.platform, env: {...process.env}, isDirectory(file) {try {return statSync(file).isDirectory()} catch {return false}}});
+      instance = await module.activate({...(args.cli ? {cli: Object.freeze({bin: args.cli.bin, args: Object.freeze(args.cli.args)})} : {}), secrets: Object.freeze(args.secrets), settings: args.settings, storage, platform: process.platform, env: {...process.env}, isDirectory(file) {try {return statSync(file).isDirectory()} catch {return false}}});
       if (!instance || typeof instance.status !== 'function' || typeof instance.dispose !== 'function' || !instance.operations || args.operations.some(key => typeof instance.operations[key] !== 'function' || !Object.hasOwn(instance.operations, key)) || Object.keys(instance.operations).some(key => typeof instance.operations[key] !== 'function' || !args.codeScreen && !args.operations.includes(key))) throw new Error('Invalid handlers');
       result = Object.keys(instance.operations);
     } else if (method === 'status') result = await instance.status();
@@ -81,7 +112,9 @@ process.on('message', async ({id, method, args}) => {
 type PluginProcessExit = { code: number | null; signal: NodeJS.Signals | null };
 export type PluginProcessActivationFailure = { kind: "processExit" } & PluginProcessExit;
 
-export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: (exited: Promise<PluginProcessExit | undefined>) => void, artifactDirectory = path.dirname(entry), cli?: PluginCli, activation: { signal: AbortSignal; onFailure(failure: PluginProcessActivationFailure): void } | undefined = undefined): Promise<PluginInstance> {
+type StorageRequest = (action: unknown, key: unknown, value: unknown) => Promise<unknown>;
+
+export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, storage: StorageRequest, failed: (exited: Promise<PluginProcessExit | undefined>) => void, artifactDirectory = path.dirname(entry), cli?: PluginCli, activation: { signal: AbortSignal; onFailure(failure: PluginProcessActivationFailure): void } | undefined = undefined): Promise<PluginInstance> {
   const runtimeUrl = await hostSdkUrl();
   activation?.signal.throwIfAborted();
   const child = spawn(process.execPath, ["--input-type=module", "--eval", bootstrap], {
@@ -109,6 +142,22 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
     fail();
   });
   child.on("message", (message: any) => {
+    if (message?.storageRequest === true) {
+      if (dead || stopped || !Number.isSafeInteger(message.id)) return;
+      const reply = (data: { result?: unknown; error?: { code: string; message: string } }) => {
+        if (child.connected && !dead && !stopped) {
+          child.send({ id: message.id, storageReply: true, ...data }, error => {
+            if (error) { fail(); child.kill(); }
+          });
+        }
+      };
+      void Promise.resolve().then(() => storage(message.action, message.key, message.value)).then(
+        result => reply({ result }),
+        error => reply({ error: error instanceof PluginPublicError ? { code: error.code, message: error.message }
+          : { code: "storage_io", message: "Plugin storage could not be accessed." } }),
+      );
+      return;
+    }
     const call = pending.get(message?.id);
     if (!call) return;
     pending.delete(message.id); clearTimeout(call.timer);
