@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
-import { CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS as keys, FIND_NEXT_SHORTCUT, FIND_PREVIOUS_SHORTCUT, FIND_SHORTCUT, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, SAVE_SHORTCUT } from "../shortcuts.ts";
+import { CLOSE_TAB_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS as keys, FIND_NEXT_SHORTCUT, FIND_PREVIOUS_SHORTCUT, FIND_SHORTCUT, LINK_SHORTCUT, PROPERTY_APPLY_SHORTCUT, REPLACE_SHORTCUT, SAVE_SHORTCUT } from "../shortcuts.ts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 
 type Entry = { label: MessageKey; shortcuts: readonly { readonly label: string; binding: string }[] };
@@ -14,6 +14,7 @@ const groups: { label: MessageKey; entries: Entry[] }[] = [
     { label: "Next / previous match", shortcuts: [FIND_NEXT_SHORTCUT, FIND_PREVIOUS_SHORTCUT] },
   ] },
   { label: "Editing", entries: [
+    { label: "Replace in document", shortcuts: [REPLACE_SHORTCUT] },
     { label: "Undo", shortcuts: [keys.undo] },
     { label: "Redo", shortcuts: [keys.redo, keys.redoAlternative] },
     { label: "New block", shortcuts: [keys.newBlock] },

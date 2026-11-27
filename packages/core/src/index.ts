@@ -15,6 +15,7 @@ import { createDocument as createNativeDocument, parseNativeDocument as parseTre
   canonicalWriteError as canonicalWriteErrorTree, canonicalWriteIssue as canonicalWriteIssueTree } from "./myst/native.ts";
 import type { MystDocument } from "./myst/tree.ts";
 import * as operations from "./operations.ts";
+import { replaceAllText as replaceAllTextTree } from "./replace-text.ts";
 import { unresolvedReferences as unresolvedReferencesTree } from "./references.ts";
 import { validateStructure as validateTree } from "./validation.ts";
 import { updateDocumentTitle as updateDocumentTitleTree } from "./myst/title.ts";
@@ -46,7 +47,9 @@ export { ADMONITION_VARIANTS, isAdmonitionVariant } from "./myst/admonition.ts";
 export { paragraphInlineContent, paragraphLeadingSpaceLength } from "./inline.ts";
 /** Paragraph offset length of inline content, as used by split and hard break offsets. */
 export { inlineContentLength, inlineContentText, sameInlineContent } from "./inline.ts";
+export { literalSearchPattern } from "./inline.ts";
 export { groupInlineLeaves, orderInlineMarks, type InlineMark, type InlineLeaf } from "./inline-group.ts";
+export type { ReplaceAllTextOptions } from "./replace-text.ts";
 export type { FigureContent } from "./figure.ts";
 export { LIST_STYLES } from "./list.ts";
 export type { ListContent, ListItemContent, ListStyle, ListDelimiter } from "./list.ts";
@@ -72,7 +75,7 @@ export const updateReferenceTemplates = fence(updateReferenceTemplatesTree);
 export { referenceNumberText, captionNumberText, referenceTemplatesError, DEFAULT_REFERENCE_TEMPLATES, type ReferenceTemplates, type ReferenceTemplateUpdate } from "./numbering.ts";
 
 type Opaque<T> = T extends MystDocument ? Document
-  : T extends { markdown: string; document: MystDocument } ? { markdown: string; document: Document }
+  : T extends { document: MystDocument } ? Omit<T, "document"> & { document: Document }
   : T;
 type Fenced<F> = F extends (...args: infer A) => infer R
   ? (...args: { [K in keyof A]: Opaque<A[K]> }) => Opaque<R>
@@ -113,6 +116,7 @@ export const insertHardBreak = fence(operations.insertHardBreak);
 export const splitParagraph = fence(operations.splitParagraph);
 export const mergeParagraphWithPrevious = fence(operations.mergeParagraphWithPrevious);
 export const replaceText = fence(operations.replaceText);
+export const replaceAllText = fence(replaceAllTextTree);
 export const moveBlock = fence(operations.moveBlock);
 export const reorderBlocks = fence(operations.reorderBlocks);
 export const moveSection = fence(operations.moveSection);

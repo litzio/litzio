@@ -269,6 +269,23 @@ Editor Host Save와 CLI의 파일 수정 명령은 기존 Markdown 파일을 같
 - 사전조건 통과 후에도 위 File commit 계약을 유지한다. `commitFile`의 baseline은 이번 요청이 읽은 원본의 revision이므로 검증부터 커밋 사이 외부 변경도 기존 `FileChangedError` 경계에서 거부한다. 마지막 확인과 rename 사이의 기존 TOCTOU 한계는 그대로다.
 - 단건 변경 명령은 실제 쓰기 성공 후 새 revision을 출력하지 않는다. 후속 변경 전 `inspect`를 다시 실행해 새 revision과 경로를 함께 얻는다. [ADR-0003](../adr/0003-document-addressing-identity-boundary.md)에 따라 NodePath는 현재 snapshot의 locator이며, 구조 변경 후 오래된 경로가 다른 유효 블록을 가리켜도 추측으로 재지정하지 않는다.
 
+### CLI text replacement (#2039)
+
+`litzio replace-text <file> --from <text> --to <text> [--all] [--ignore-case]`
+uses the existing revision-checked edit and atomic file commit. Both modes match case by
+default. Without `--all`, the command keeps its first matching paragraph or heading behavior
+and its usual output. `--all` calls Core `replaceAllText` with literal, non-overlapping
+matches within each editable text block. Formatting boundaries can be crossed. Hard breaks
+and other inline atoms interrupt the match, and replacement text inherits only marks
+shared by all parts of the match. Empty replacement text deletes the match.
+
+The standalone `--all` result prints `Replaced N matches.` (singular for one). Text dry-run
+includes the count and JSON dry-run includes `replaced`. The count describes changed matches.
+Zero changes preserve the exact file bytes, including noncanonical whitespace. Validation and
+write failures leave the original untouched. The same options are available to `apply-batch`
+as `"all": true` and `"ignore-case": true`. A batch containing only zero-change replace-all
+operations also leaves the file untouched. The batch receipt counts completed operations.
+
 ### CLI batch application (#215)
 
 Stdin verification: 2026-10-28 (#681: actual piped UTF-8/BOM input, file-byte/output equivalence, dry run and failure preservation).

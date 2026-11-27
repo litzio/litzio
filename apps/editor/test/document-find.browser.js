@@ -2,7 +2,7 @@
 // Enter/F3 and the buttons step and wrap, Esc returns the caret and focus to the document, and
 // finding never dirties the document. Edit, Read, a plugin document view and IME composition.
 // pnpm browser:test document-find [--screenshots]
-async (page, { openPath, expect, screenshots }) => {
+async (page, { openPath, reloadDocument, assertSavedSource, expect, screenshots }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
@@ -216,6 +216,76 @@ async (page, { openPath, expect, screenshots }) => {
     await page.setViewportSize({width: 1440, height: 900});
     await configure('en', 'light');
   }
+  await page.keyboard.press('Escape');
+
+  // Replace acts on the visible matches and keeps one history event for Replace all.
+  const replacePath = file('replace.md');
+  const readReplacement = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(replacePath)}`,
+    { headers: { Connection: "close" } })).json()).source;
+  const expectedSource = (await readReplacement()).replace(/motor/gi, 'drive unit');
+  await openPath(page, replacePath);
+  await editor.getByText('The motor limits current.').click({position: {x: 3, y: 8}});
+  await page.keyboard.press('Control+h');
+  const replacement = bar.getByRole('textbox', {name: 'Replacement text'});
+  const replaceOne = bar.getByRole('button', {name: 'Replace', exact: true});
+  const replaceAll = bar.getByRole('button', {name: 'Replace all', exact: true});
+  const receipt = bar.getByRole('status');
+  await expect(replacement).toBeVisible();
+  await input.fill('motor');
+  await replacement.fill('drive unit');
+  await expect(count).toHaveText('1 / 3');
+  await replaceOne.click();
+  await expect(receipt).toHaveText('Replacements: 1');
+  await expect(count).toHaveText('1 / 2');
+  await expect(editor.getByText('The drive unit limits current.')).toBeVisible();
+
+  if (screenshots) {
+    for (const theme of ['light', 'dark']) {
+      await configure('en', theme);
+      await input.focus();
+      for (const width of [1440, 1920]) {
+        await page.setViewportSize({width, height: width === 1920 ? 1080 : 900});
+        await expect(replacement).toBeVisible();
+        await page.screenshot({ path: `tmp/document-find-captures/replace-${theme}-${width}.png`,
+          mask: [page.getByTestId('status'), page.locator('.app-sidebar')], maskColor: theme === 'dark' ? '#202124' : '#f5f5f5' });
+      }
+    }
+    await page.setViewportSize({width: 1440, height: 900});
+    await configure('en', 'light');
+  }
+
+  await replaceAll.click();
+  await expect(receipt).toHaveText('Replacements: 2');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+z');
+  await expect(editor.getByText('A Motor starts the drive.')).toBeVisible();
+  await expect(editor.getByText('Replace this motor before commissioning.')).toBeVisible();
+  await expect(editor.getByText('The drive unit limits current.')).toBeVisible();
+  await page.keyboard.press('Control+y');
+  await expect(editor.getByText('A drive unit starts the drive.')).toBeVisible();
+
+  // Removing a required heading refuses the entire operation, including matches in ordinary text.
+  await page.keyboard.press('Control+h');
+  await input.fill('Converter notes');
+  await replacement.fill('');
+  await replaceAll.click();
+  await expect(receipt).toContainText('Could not replace text.');
+  await expect(editor.getByRole('heading', {name: /Converter notes/})).toBeVisible();
+  await expect(editor.getByText('See Converter notes for details.')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+s');
+  await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+  await assertSavedSource(await readReplacement(), expectedSource, 'Replace all saves exactly the changed text');
+  await reloadDocument(page);
+  await expect(editor.getByText('A drive unit starts the drive.')).toBeVisible();
+  await expect(editor.getByText('Replace this drive unit before commissioning.')).toBeVisible();
+  await page.getByTestId('view-read').click();
+  await editor.getByText('The drive unit limits current.').click();
+  await page.keyboard.press('Control+h');
+  await expect(replacement).toHaveCount(0);
+  await page.keyboard.press('Control+f');
+  await expect(bar).toBeVisible();
+  await expect(bar.getByRole('button', {name: 'Replace in document'})).toHaveCount(0);
   await page.keyboard.press('Escape');
 
   // A large document (about 2,000 blocks): per key, the time until the next frame shows the typed

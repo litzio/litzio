@@ -75,6 +75,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     } },
     { name: "large.md", create: () => nativeSource("# Large document\n\n" + Array.from({ length: 2000 }, (_, i) => i % 50 === 0
       ? `## Part ${i / 50 + 1}` : `Paragraph ${i} describes converter control and voltage regulation in block ${i}.`).join("\n\n") + "\n") },
+    { name: "replace.md", create: () => nativeSource("# Converter notes\n\nThe motor limits current.\n\nA Motor starts the drive.\n\nReplace this motor before commissioning.\n\nSee Converter notes for details.\n") },
   ], scenarios: ["document-find"] },
   "highlight-sets": { files: [
     { name: "requirements.md", create: () => nativeSource([

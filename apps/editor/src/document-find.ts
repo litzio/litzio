@@ -1,4 +1,5 @@
 import { Extension } from "@tiptap/core";
+import { literalSearchPattern } from "@litzio/core";
 import { TextSelection, type Command, type EditorState, type Transaction } from "@tiptap/pm/state";
 import { SearchQuery, findNext, findPrev, getMatchHighlights, getSearchState, search, setSearchState } from "prosemirror-search";
 
@@ -14,7 +15,14 @@ export type FindOptions = { text: string; caseSensitive: boolean };
 
 /** Plain text only: no regular expressions, whole words or escape sequences. */
 function findQuery({ text, caseSensitive }: FindOptions): SearchQuery {
-  return new SearchQuery({ search: text, caseSensitive, literal: true });
+  // StringQuery lowercases the whole block and then uses the folded offsets in the
+  // original document. An expanding fold (e.g. İ) can move a highlight onto other text.
+  return new SearchQuery({ search: caseSensitive ? text : literalSearchPattern(text),
+    caseSensitive, regexp: !caseSensitive, literal: true,
+    // The library represents inline atoms with U+FFFC while scanning.
+    ...(text.includes("\ufffc") ? { filter: (state, result) =>
+      state.doc.textBetween(result.from, result.to).length === result.to - result.from } : {}),
+  });
 }
 
 /** Show the matches of a new search text and make the first one at or after the selection current. */

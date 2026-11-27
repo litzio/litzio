@@ -135,9 +135,10 @@ export function createDocumentRequests(client: HostClient) {
   }
 
   /** Asks the Host for the canonical Markdown a Save request would write. */
-  async function requestSource(body: SaveRequest): Promise<string> {
+  async function requestSource(body: SaveRequest, signal?: AbortSignal): Promise<string> {
     const response = await client.request(`/api/document-source`, {
       method: "POST",
+      signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });

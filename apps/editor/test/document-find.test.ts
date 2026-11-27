@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getSchema } from "@tiptap/core";
 import { history, undoDepth } from "@tiptap/pm/history";
+import { parse, serializeChange } from "@litzio/core";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { editorDocumentJSON, editorExtensions } from "../src/editor-schema.tsx";
 import { closeFindTransaction, findMatches, findStep, findTransaction, selectedFindText } from "../src/document-find.ts";
 import { DocumentFind } from "../src/document-find.ts";
-import { appliedDocument, toTiptapDocument } from "../src/tiptap-document.ts";
+import { appliedDocument, collectSupportedEdits, toTiptapDocument } from "../src/tiptap-document.ts";
+import { replaceFoundText } from "../src/document-replace.ts";
+import { saveEdits } from "../server/document-replay.ts";
+import { parseCommandArgs, replaceAllTextFor } from "../server/document-edit-commands.ts";
 import { loadEditableDocument, nativeSource } from "./helpers/document.ts";
 
 // Find (#1982) reuses prosemirror-search. These cases pin what Litzio relies on: which document
@@ -26,10 +30,10 @@ const source = nativeSource([
   "[^n]: Endnote juliet.",
 ].join("\n\n") + "\n");
 
-function editorState() {
+function editorState(markdown = source) {
   const extensions = editorExtensions();
   const schema = getSchema(extensions);
-  const doc = schema.nodeFromJSON(toTiptapDocument(loadEditableDocument(source)));
+  const doc = schema.nodeFromJSON(toTiptapDocument(loadEditableDocument(markdown)));
   const plugins = DocumentFind.config.addProseMirrorPlugins!.call({} as never) as EditorState["plugins"];
   return EditorState.create({ schema, doc, plugins: [...plugins, history()] });
 }
@@ -90,4 +94,40 @@ test("a single-line selection seeds the search text", () => {
   assert.equal(selectedFindText(state.apply(state.tr.setSelection(TextSelection.create(state.doc, start.from, start.to)))), "Heading alpha");
   const across = TextSelection.create(state.doc, start.from, findMatches(find(state, "bravo")).matches[0]!.to);
   assert.equal(selectedFindText(state.apply(state.tr.setSelection(across))), "", "a selection across blocks is not a search text");
+});
+
+test("Find ranges and Core replace-all produce identical saved bytes", () => {
+  const markdown = nativeSource([
+    "# motor Heading",
+    "İ motor MOTOR mo**to**r **motor model** [motor one](https://example.test) `motor()`.",
+    "Partial [early motor late](https://example.test) and motor [right](https://example.test).",
+    "A mo$x^2$tor and mo[^n]tor keep their inline boundaries.",
+    "A mo\\\ntor keeps its hard break.",
+    "- motor drive\n  - motor control",
+    "> MOTOR quote",
+    ":::{note}\nmotor callout\n:::",
+    ":::{table} Motor readings\n\n| motor | Other |\n| --- | --- |\n| Motor speed | motor current |\n\nmotor note\n:::",
+    ':::{table} motor grid\n\n<table><thead><tr><th colspan="2"><p>motor</p></th></tr></thead><tbody><tr><td><p>motor</p></td><td><p>other</p></td></tr></tbody></table>\n:::',
+    ":::{figure} ./diagram.svg\n:name: fig-motor\n\nmotor caption\n:::",
+    "```python\nmotor = 'MOTOR'\n```",
+    "aaaa and aaaa.",
+    "[^n]: motor endnote.",
+  ].join("\n\n") + "\n");
+  const original = parse(markdown);
+  const model = loadEditableDocument(markdown);
+  for (const [from, to, caseSensitive] of [
+    ["motor", "drive", false], ["motor", "$&", true], ["motor", "motor", false],
+    ["motor right", "drive", true], ["aa", "a", true], ["motor()", "drive()", false],
+  ] as const) {
+    const state = find(editorState(markdown), from, caseSensitive);
+    const change = replaceFoundText(state, to, true);
+    assert.ok(change, from);
+    const next = state.apply(change.tr);
+    const { flags } = parseCommandArgs("replace-text", ["fixture.md", "--all", "--from", from, "--to", to,
+      ...(caseSensitive ? [] : ["--ignore-case"])]);
+    const result = replaceAllTextFor(original, flags);
+    const editorMarkdown = saveEdits(markdown, collectSupportedEdits(model, editorDocumentJSON(next))).markdown;
+    assert.equal(change.replaced, result.replaced, from);
+    assert.equal(editorMarkdown, serializeChange(original, () => result.document), from);
+  }
 });

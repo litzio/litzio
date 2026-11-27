@@ -30,6 +30,7 @@ import {
   placeEndnotes,
   removeFootnote,
   replaceText,
+  replaceAllText,
   serialize,
   updateNodeTextAtPath,
   updateHeadingLevel,
@@ -84,6 +85,13 @@ type OutputFormat = "text" | "json";
 type ParsedArgs = {file: string; flags: string[]; format: OutputFormat};
 type Change = (document: Document) => Document;
 
+/** The standalone command uses the count in its receipt; batches use the resulting document. */
+export function replaceAllTextFor(document: Document, flags: string[]) {
+  return replaceAllText(document, {
+    from: flag(flags, "--from"), to: flag(flags, "--to"), caseSensitive: !flags.includes("--ignore-case"),
+  });
+}
+
 /** Share flag interpretation and Core operations between single edits and batch steps. */
 export function changeFor(command: string, flags: string[], deferEndnotes = false): Change {
   switch (command) {
@@ -99,7 +107,8 @@ export function changeFor(command: string, flags: string[], deferEndnotes = fals
       return (document) => document;
     }
     case "replace-text": {
-      return (document) => replaceText(document, flag(flags, "--from"), flag(flags, "--to"));
+      return flags.includes("--all") ? document => replaceAllTextFor(document, flags).document
+        : document => replaceText(document, flag(flags, "--from"), flag(flags, "--to"), { caseSensitive: !flags.includes("--ignore-case") });
     }
     case "insert-block": {
       const text = optionalFlag(flags, "--text");
@@ -394,8 +403,8 @@ function batchChange(operation: unknown): Change {
       : !["string", "number", "boolean"].includes(typeof value)) {
       throw new Error(`${name} must be ${json ? "an object, array or string" : "a string, number or boolean"}`);
     }
-    if (name === "--remove") {
-      if (value !== true) throw new Error("remove must be true");
+    if (SWITCH_OPTIONS.has(name)) {
+      if (value !== true) throw new Error(`${key} must be true`);
       tokens.push(name);
       continue;
     }
@@ -404,6 +413,8 @@ function batchChange(operation: unknown): Change {
   return changeFor(command, parseCommandArgs(command, ["batch-document", ...tokens]).flags, true);
 }
 
+
+const SWITCH_OPTIONS = new Set(["--dry-run", "--remove", "--all", "--ignore-case"]);
 
 export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "apply-batch": ["--operations", "--if-revision", "--dry-run", "--format"],
@@ -414,7 +425,7 @@ export const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   check: ["--format"],
   inspect: ["--format"],
   format: [],
-  "replace-text": ["--from", "--to"],
+  "replace-text": ["--from", "--to", "--all", "--ignore-case"],
   "insert-block": ["--at", "--text", "--content"],
   "insert-heading": ["--at", "--level", "--text", "--content"],
   "update-heading": ["--path", "--text", "--content"],
@@ -500,7 +511,7 @@ export function parseCommandArgs(command: string, args: string[]): ParsedArgs {
     }
     seen.add(token);
     flags.push(token);
-    if (token === "--dry-run" || token === "--remove") continue;
+    if (SWITCH_OPTIONS.has(token)) continue;
 
     const value = tokens[index + 1];
     if (value === undefined || value.startsWith("--")) {
@@ -603,11 +614,15 @@ export function applyDocumentBatch(source: string, operations: unknown) {
   if (!Array.isArray(operations) || operations.length === 0) throw new Error("--operations must be a non-empty JSON array");
   const original = parse(source);
   let document = original;
+  let unchanged = true;
   const references = unresolvedReferences(document);
   for (let index = 0; index < operations.length; index += 1) {
     const operation = operations[index];
     try {
-      document = batchChange(operation)(document);
+      const next = batchChange(operation)(document);
+      if (next === document && operation.command === "replace-text" && operation.all === true) continue;
+      unchanged = false;
+      document = next;
       validateStructure(document);
       document = placeEndnotes(document);
     } catch (error) {
@@ -616,6 +631,6 @@ export function applyDocumentBatch(source: string, operations: unknown) {
       throw new Error(`operation ${index + 1} (${command}): ${error instanceof Error ? error.message : String(error)}; nothing was written`, { cause: error });
     }
   }
-  const result = serializeChange(original, () => document);
-  return { markdown: result, applied: operations.length, references };
+  const markdown = unchanged ? source : serializeChange(original, () => document);
+  return { markdown, applied: operations.length, references, unchanged };
 }
