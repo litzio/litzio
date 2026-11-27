@@ -752,23 +752,26 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
   let bodyFailure: unknown;
   let restarted: { pid: number; processStartedAt: string } | undefined;
   const workOwners = environment.LITZIO_RESET_DIR;
-  const readOwner = (file: string) => {
-    try { return JSON.parse(readFileSync(file, "utf8")); }
-    catch (error) {
-      // The first owner publication can be observed between create and write.
-      // A persistently malformed record still fails the readiness assertion.
-      if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-      throw error;
-    }
-  };
+  // A live Desktop holds its reset lease open without sharing, so its record cannot be read.
+  // Identify it as the product reset does: the locked record's filename PID, then its OS identity.
   const currentOwner = () => {
     for (const name of existsSync(workOwners) ? readdirSync(workOwners) : []) {
-      if (!name.startsWith("actor-") || !name.endsWith(".json")) continue;
-      const owner = readOwner(path.join(workOwners, name));
-      if (owner?.role === "desktop" && Number.isSafeInteger(owner.pid) && (owner.pid !== originalPid || owner.started !== originalStarted) && processStart(owner.pid) === owner.started) return {pid:owner.pid,processStartedAt:owner.started};
+      const pid = Number(/^actor-(\d+)-desktop-.+\.json$/.exec(name)?.[1]);
+      if (!pid) continue;
+      try { readFileSync(path.join(workOwners, name)); continue; } // Readable: not (yet) held open by a live writer.
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "EBUSY") continue; }
+      const started = processStart(pid);
+      if (started && (pid !== originalPid || started !== originalStarted)) return { pid, processStartedAt: started };
     }
     return undefined;
   };
+  // Fallback for cleanup only: the relaunched main process of this fixture executable and profile.
+  const relaunchedOwner = () => {
+    const owner = installationPort(exe).processes().find(owner => owner.executable?.toLowerCase() === exe.toLowerCase() &&
+      owner.command.includes(userData) && !owner.command.includes("--type=") && (owner.pid !== originalPid || owner.started !== originalStarted));
+    return owner && { pid: owner.pid, processStartedAt: owner.started };
+  };
+  let resetRequested = false;
   try {
     const startup = await page.evaluate(() => window.litzioDesktop!.startup());
     assert.ok(startup.samples);
@@ -788,6 +791,7 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
     await confirmation.getByRole("checkbox", { name: "Also remove empty settings folders", exact: true }).check();
     await confirmation.getByRole("button", { name: "Delete data and restart", exact: true }).click();
+    resetRequested = true;
     await expect.poll(() => processStart(originalPid), { timeout: 30_000 }).not.toBe(originalStarted);
     proof.stage = "parent-closed";
     await expect.poll(() => { restarted = currentOwner(); return !!restarted; }, { timeout: 60_000 }).toBe(true);
@@ -812,38 +816,48 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
   } catch (error) {
     bodyFailure = error; proof.bodyFailure = error instanceof Error ? error.message : String(error); throw error;
   } finally {
-    try {
-    if (processStart(originalPid) === originalStarted) { await answerClose(app, 0); await closeApp(app); }
-    restarted ??= currentOwner();
+    // Every step runs even after an earlier one fails, so a failed assertion cannot leave the
+    // fixture app or its launcher running. Forced termination still fails the test.
+    const cleanupErrors: unknown[] = [];
+    const step = async (run: () => unknown) => { try { await run(); } catch (error) { cleanupErrors.push(error); } };
+    await step(async () => { if (processStart(originalPid) === originalStarted) { await answerClose(app, 0); await closeApp(app); } });
     // A startup failure before actor publication must not orphan our relaunch.
-    for (const name of !restarted && existsSync(environment.LITZIO_RESET_DIR) ? readdirSync(environment.LITZIO_RESET_DIR) : []) {
-      if (!name.startsWith("actor-") || !name.endsWith(".json")) continue;
-      const owner = readOwner(path.join(environment.LITZIO_RESET_DIR, name));
-      if (owner?.role === "desktop" && Number.isSafeInteger(owner.pid) && (owner.pid !== originalPid || owner.started !== originalStarted) && processStart(owner.pid) === owner.started) restarted = { pid: owner.pid, processStartedAt: owner.started };
-    }
-    if (restarted && processStart(restarted.pid) === restarted.processStartedAt) {
-      try {
-        // Bare WM_CLOSE now hides to tray. Reuse the installer's explicit exit intent +
-        // WM_CLOSE, limited to this fixture's exact executable/PID/creation identity.
-        // This also exercises the bundled intent hook in the reset-relaunched process.
-        const port = installationPort(exe);
-        const owner = port.processes().find(owner => owner.pid === restarted!.pid && owner.started === restarted!.processStartedAt);
-        assert.ok(owner?.window, "The reset-relaunched Desktop window must be identifiable for explicit exit");
-        port.closeWindows([owner]);
-        proof.exitRequest = "installation-intent-and-wm-close";
-        await expect.poll(() => processStart(restarted!.pid), { timeout: 15_000 }).not.toBe(restarted.processStartedAt);
+    await step(async () => {
+      try { restarted ??= currentOwner(); }
+      finally {
+        // The helper relaunches asynchronously after the original exits. A relaunch left running keeps
+        // the inherited test pipes open, so wait for it instead of finishing before it appears.
+        if (!restarted && resetRequested) await expect.poll(() => !!(restarted ??= relaunchedOwner()), { timeout: 30_000 }).toBe(true);
       }
-      catch (error) {
-        if (processStart(restarted.pid) === restarted.processStartedAt) execFileSync("taskkill.exe", ["/PID", String(restarted.pid), "/T", "/F"], { windowsHide: true });
-        throw error;
+    });
+    if (restarted && processStart(restarted.pid) === restarted.processStartedAt) await step(async () => {
+      // Bare WM_CLOSE now hides to tray. Reuse the installer's explicit exit intent +
+      // WM_CLOSE, limited to this fixture's exact executable/PID/creation identity.
+      // This also exercises the bundled intent hook in the reset-relaunched process.
+      const port = installationPort(exe);
+      const owner = port.processes().find(owner => owner.pid === restarted!.pid && owner.started === restarted!.processStartedAt);
+      assert.ok(owner?.window, "The reset-relaunched Desktop window must be identifiable for explicit exit");
+      port.closeWindows([owner]);
+      proof.exitRequest = "installation-intent-and-wm-close";
+      await expect.poll(() => processStart(restarted!.pid), { timeout: 15_000 }).not.toBe(restarted!.processStartedAt);
+    });
+    await step(() => expect.poll(() => launcher.exitCode !== null || launcher.signalCode !== null, { timeout: 15_000 }).toBe(true));
+    for (const owner of [restarted, { pid: originalPid, processStartedAt: originalStarted }]) await step(() => {
+      if (!owner || processStart(owner.pid) !== owner.processStartedAt) return;
+      execFileSync("taskkill.exe", ["/PID", String(owner.pid), "/T", "/F"], { windowsHide: true });
+      throw new Error(`Forced termination of fixture Desktop PID ${owner.pid}`);
+    });
+    await step(() => {
+      if (launcher.exitCode !== null || launcher.signalCode !== null) return;
+      launcher.kill(); throw new Error("Forced termination of the fixture launcher");
+    });
+    try {
+      if (!cleanupErrors.length) proof.cleanup = "confirmed";
+      else {
+        proof.cleanupFailure = cleanupErrors.map(error => error instanceof Error ? error.message : String(error)).join("; ");
+        if (!bodyFailure) throw cleanupErrors[0];
+        console.error("Reset cleanup also failed; preserving the original assertion:", ...cleanupErrors);
       }
-    }
-    await expect.poll(() => launcher.exitCode !== null || launcher.signalCode !== null, { timeout: 15_000 }).toBe(true);
-    proof.cleanup = "confirmed";
-    } catch (error) {
-      proof.cleanupFailure = error instanceof Error ? error.message : String(error);
-      if (!bodyFailure) throw error;
-      console.error("Reset cleanup also failed; preserving the original assertion:", error);
     } finally {
       writeFileSync(path.join(work, "reset-proof.json"), JSON.stringify(proof, null, 2));
       console.log(`Complete reset proof: ${JSON.stringify(proof)}`);
