@@ -850,7 +850,8 @@ const TABLE_CAPTION_FAILURE = "table caption cannot be preserved through canonic
 
 /**
  * Set, change or remove (empty) the caption of a top-level table: supported inline content without
- * line breaks. Every table stays a numbered `{table}` directive, including an empty caption.
+ * line breaks. Clearing the last metadata on a simple table lets the writer emit a plain
+ * GFM pipe grid. Core automatic numbering is independent of the wrapper.
  */
 export function updateTableCaption(document: MystDocument, path: NodePath, caption: TableCellInput): MystDocument {
   if (!Array.isArray(path) || path.length !== 1) {
@@ -978,7 +979,7 @@ function assertStableTable(document: MystDocument, index: number, failure: strin
   const after = cells(reloaded);
   const caption = (block: MystNode) => tableCaptionContent(block);
   if (repeatRoundTrip(result).markdown !== markdown || !tableOf(reloaded) ||
-      // The full semantic guard above admits the GFM-to-directive canonical wrapper change.
+      // The full semantic guard above treats a plain grid and its empty wrapper as equivalent.
       !sameInlineContent(caption(document.children[index]), caption(reloaded)) || after.length !== before.length ||
       before.some((row, rowIndex) => row.size !== after[rowIndex].size || [...row].some(([column, blocks]) => {
         const reloaded = after[rowIndex].get(column);
@@ -1342,8 +1343,10 @@ function newLabelIdentifier(document: MystDocument, kind: "Equation" | "Figure" 
 function assertLabelRoundTrip(document: MystDocument, index: number, label: string, failure: string): void {
   const result = roundTripFor(document, failure);
   const { markdown, reparsed } = result;
+  const original = document.children[index];
   const reloaded = reparsed.children[bodyIndex(document, index)];
-  if (reloaded?.type !== document.children[index].type || (reloaded.label ?? "") !== label || repeatRoundTrip(result).markdown !== markdown) {
+  const sameBlockKind = reloaded && (reloaded.type === original.type || (tableOf(original) && tableOf(reloaded)));
+  if (!sameBlockKind || (reloaded.label ?? "") !== label || repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", failure);
   }
 }

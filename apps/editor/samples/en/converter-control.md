@@ -37,12 +37,12 @@ The converter supplies a resistive load from a nominal $48\,\mathrm{V}$ DC sourc
 
 The values in {numref}`tbl-ratings` define one nominal operating point. Averaged converter models provide the starting framework {cite:p}`erickson2020`; this note derives its own simplified tuning below. The [publisher's book page](https://link.springer.com/book/10.1007/978-3-030-43881-4) gives the reference details.
 
-*   Keep the voltage command within the available duty-cycle range.
-*   Record the conditions that can invalidate the nominal model.
+- Keep the voltage command within the available duty-cycle range.
+- Record the conditions that can invalidate the nominal model.
 
-    *   Inductance changes with current and temperature.
-    *   ADC filtering and computation add delay.
-*   Separate analytical predictions from later bench measurements.
+  - Inductance changes with current and temperature.
+  - ADC filtering and computation add delay.
+- Separate analytical predictions from later bench measurements.
 
 (sec-model)=
 
@@ -105,13 +105,13 @@ flowchart LR
 Proposed bench sequence; no test result is implied.
 :::
 
-1.  Verify the sensor offset with the power stage disabled.
-2.  Use a current-limited supply and a low current reference.
+1. Verify the sensor offset with the power stage disabled.
+2. Use a current-limited supply and a low current reference.
 
-    1.  Check that positive error raises the commanded voltage.
-    2.  Confirm that saturation does not accumulate integral state.
-3.  Record the current step response together with bus voltage and load.
-4.  Compare the measured response with the nominal target and revise the model before retuning.
+   1. Check that positive error raises the commanded voltage.
+   2. Confirm that saturation does not accumulate integral state.
+3. Record the current step response together with bus voltage and load.
+4. Compare the measured response with the nominal target and revise the model before retuning.
 
 :::{note}
 Use the same sampling rate, sensor filter and PWM update timing for every comparison. Keep the raw capture beside the design revision.

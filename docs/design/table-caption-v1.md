@@ -32,11 +32,13 @@ immediately. Disabling `EXPAND_SELECT_ALL_TO_DOCUMENT` keeps Ctrl/Cmd+A local;
 node/read-only selections are retained. See the [selection contract](document-editing-v1.md#select-all-within-an-editing-surface-723).
 
 Issues #94 / #584. Core owns `updateTableCaption`, table `updateLabel` and table numbering.
-Unless explicitly unnumbered under the [shared number contract](heading-numbering-v1.md#fixed-numbers-720), every table receives an automatic number in document order or an authored fixed number, regardless of caption or Label, and is
-canonically written as a MyST `{table}` directive. Without caption or Label, the directive
-has neither an argument nor `:name:`; its optional fixed number uses `:enumerator:`.
-Plain GFM input remains supported and is normalized
-on any official write. Canonical writing uses the existing Markdown writer for the caption
+Unless explicitly unnumbered under the [shared number contract](heading-numbering-v1.md#fixed-numbers-720), every table receives an automatic number in document order or an authored fixed number, regardless of caption or Label.
+A simple table with a caption, Label, notes, fixed number or explicit numbering visibility
+uses a MyST `{table}` directive. Other simple tables use a bare GFM grid with a
+space around cell content and no padding to equalize column widths. The separator
+uses `---` in each column, with colons to preserve explicit alignment.
+External MyST renderers number directives only, so a bare grid has a number in Core
+and does not count toward MyST's directive numbering. Canonical writing uses the existing Markdown writer for the caption
 and GFM grid, then verifies the complete semantic round-trip. The fingerprint treats only
 the plain top-level table and its empty directive wrapper as equivalent; grid content,
 rows/columns, alignment, caption, notes, Label and other fields remain checked. Cell paths remain
@@ -155,15 +157,14 @@ architecture is introduced.
 CLI: `litzio update-table-caption <file> --path <block> --text <caption>` (empty text removes it), or `--content <InlineContent JSON>`. `update-label` accepts tables; `inspect --format json` includes caption, label and computed table number.
 
 `updateEnumerator` / CLI `update-enumerator` sets or clears the `{table}` enumerator.
-Caption, label, cell and shape edits preserve it. Plain GFM inputs acquire the same canonical
-wrapper when a number is set; every official write already uses that wrapper, including
-without caption, label or number. The [shared fixed-number rules](heading-numbering-v1.md#fixed-numbers-720)
+Caption, label, cell and shape edits preserve it. A plain grid acquires the directive
+wrapper when a fixed number is set. The [shared fixed-number rules](heading-numbering-v1.md#fixed-numbers-720)
 define warning-only consistency checks. `{list-table}` and `{csv-table}` remain unsupported,
 following the [#597 owner decision](https://github.com/litzio/litzio/issues/597).
 
 No new CLI option is needed for #584: `format`, `insert-table`, caption/Label edits and
 `apply-batch` already use the Core write path; `inspect` already projects Core numbers.
-They now retain numbered directives and report a number for captionless, unlabeled tables.
+They report Core numbers for captionless, unlabeled tables in either source form.
 
 Insertion (#280): `insert-table <file> --at <index|end> --cells <json> [--align <json>] [--caption <text> | --caption-content <InlineContent JSON>] [--label <label>]` composes Core `insertTable`, optional `updateTableCaption`, then `updateLabel` in one edit and one atomic file replacement. A label does not require a caption. The caption uses the existing single-line inline contract; label validation and collision refusal use `updateLabel` and the shared [label rules](section-references-v1.md#core), including implicit heading IDs. Any failure leaves the original bytes unchanged. `apply-batch` shares the options and accepts `"at": "end"`, resolved by Core before endnotes on the current step's snapshot.
 
@@ -178,8 +179,7 @@ recovery-structure and continuous-editing protect their interface-specific integ
 
 ## Cell code and math preservation (#622)
 
-Keep `{table}` + GFM as decided in [#597](https://github.com/litzio/litzio/issues/597).
-The canonical writer adds one backslash before every pipe in inline code and math
+For plain grids and grids inside `{table}`, the canonical writer adds one backslash before every pipe in inline code and math
 inside grid cells, including inside marks and links. The pinned MyST/markdown-it
 table splitter removes exactly that one backslash before inline parsing, regardless
 of how many backslashes already precede the pipe. Authored code/LaTeX strings must

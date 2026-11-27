@@ -513,7 +513,8 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     JSON.stringify(await grid(created)) === JSON.stringify([['#', '#', '#'], ['', '', ''], ['', '', '']]);
   if (!await save()) throw new Error('A newly inserted empty table must save');
   const emptySaved = await read();
-  result.emptyTableDirective = emptySaved.includes(':::{table}\n\n') && emptySaved.match(/:::\{table\}/g)?.length === 2;
+  result.emptyTablePipeGrid = emptySaved.includes('| | | |\n| --- | --- | --- |\n| | | |\n| | | |') &&
+    !emptySaved.includes(':::{table}');
   await reloadDocument(page);
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   result.emptyTableReload = await tables.count() === 2 &&
@@ -542,15 +543,15 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     JSON.stringify([['#Name', '#', '#Value'], ['U', '', 'AC'], ['P', 'W', '']]);
   result.firstSave = await save();
   result.firstFile = await read() === '---\nlitzio: 1\n---\n\n# Tables\n\nIntro paragraph.\n\n' +
-    ':::{table}\n\n| Port |   |   |\n| ---- | - | - |\n| U    |   |   |\n|      |   |   |\n:::\n\n' +
-    ':::{table}\n\n| Name |   | Value |\n| ---- | - | ----- |\n| U    |   | AC    |\n| P    | W |       |\n:::\n';
+    '| Port | | |\n| --- | --- | --- |\n| U | | |\n| | | |\n\n' +
+    '| Name | | Value |\n| --- | --- | --- |\n| U | | AC |\n| P | W | |\n';
 
   // 3. Rows added after a save are new again: the saved cells are no longer "added".
   await existing.locator('td', {hasText:/^AC$/}).click();
   await blockMenu(4, 'Add row below');
   await page.keyboard.type('Q');
   result.secondSave = await save();
-  result.secondFile = (await read()).endsWith(':::{table}\n\n| Name |   | Value |\n| ---- | - | ----- |\n| U    |   | AC    |\n|      |   | Q     |\n| P    | W |       |\n:::\n');
+  result.secondFile = (await read()).endsWith('| Name | | Value |\n| --- | --- | --- |\n| U | | AC |\n| | | Q |\n| P | W | |\n');
 
   // 4. Reopening shows the saved tables with editable new cells.
   await reloadDocument(page);
@@ -581,12 +582,12 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await page.keyboard.press('Control+Shift+z');
   result.redoRemovesRow = JSON.stringify(await grid(reopened)) === JSON.stringify(reshaped);
   result.thirdSave = await save();
-  result.thirdFile = (await read()).endsWith(':::{table}\n\n| Name | Value |     |\n| ---- | ----- | :-: |\n| U    | AC    |     |\n| P    |       |  W  |\n:::\n');
+  result.thirdFile = (await read()).endsWith('| Name | Value | |\n| --- | --- | :---: |\n| U | AC | |\n| P | | W |\n');
   // A later Save in the same session replays these changes against the opening snapshot.
   await reopened.locator('td', {hasText:/^W$/}).click();
   await blockMenu(4, 'Clear column alignment');
   result.fourthSave = await save();
-  result.fourthFile = (await read()).endsWith(':::{table}\n\n| Name | Value |   |\n| ---- | ----- | - |\n| U    | AC    |   |\n| P    |       | W |\n:::\n');
+  result.fourthFile = (await read()).endsWith('| Name | Value | |\n| --- | --- | --- |\n| U | AC | |\n| P | | W |\n');
   await reloadDocument(page);
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await page.getByRole('dialog').waitFor({state:'detached'});

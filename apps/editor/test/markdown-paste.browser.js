@@ -97,11 +97,11 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   const markdownDisk = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(markdownFile)}`, { headers: { Connection: "close" } })).json()).source.replaceAll('\r\n', '\n');
   // Core's canonical write of the same Markdown in place of "Alpha.".
   const markdownSaved = '---\nlitzio: 1\n---\n\n# Markdown\n\n# 측정시스템 분석 구술평가\n\n## 발표 흐름\n\n**MSA 목적 → 변동 요인 → 판정 기준**\n\n' +
-    '1.  **MSA 목적:** 측정값을 믿을 수 있는지 확인한다.\n2.  **반복성:** 같은 사람이 같은 부품을 여러 번 잰다.\n' +
-    '3.  **재현성:** 다른 사람이 같은 부품을 잰다.\n4.  **편의:** 기준값과 평균의 차이를 본다.\n' +
-    '5.  **선형성:** 범위 전체에서 편의가 변하는지 본다.\n6.  **판정:** %GRR이 10% 이하이면 적합하다.\n\n' +
+    '1. **MSA 목적:** 측정값을 믿을 수 있는지 확인한다.\n2. **반복성:** 같은 사람이 같은 부품을 여러 번 잰다.\n' +
+    '3. **재현성:** 다른 사람이 같은 부품을 잰다.\n4. **편의:** 기준값과 평균의 차이를 본다.\n' +
+    '5. **선형성:** 범위 전체에서 편의가 변하는지 본다.\n6. **판정:** %GRR이 10% 이하이면 적합하다.\n\n' +
     '## 구술 대본\n\n오늘은 **측정시스템 분석**의 목적부터 말씀드리겠습니다.\n\n측정값의 변동에는 **부품 변동**과 **측정 변동**이 섞여 있습니다.\n\n' +
-    'Inline `mono` text.\n\n```\ncode\n```\n\n:::{table}\n\n| A | B |\n| - | - |\n| c | d |\n:::\n\nOmega.\n';
+    'Inline `mono` text.\n\n```\ncode\n```\n\n| A | B |\n| --- | --- |\n| c | d |\n\nOmega.\n';
   assert(markdownDisk === markdownPreview && markdownDisk === markdownSaved, `Markdown paste must save Core's canonical Markdown: ${JSON.stringify(markdownDisk)}`);
   // Reload hands focus back to File actions late; the keyboard steps below must not race it.
   await reloadDocument(page);

@@ -8,6 +8,7 @@ import { validateNumbering } from "myst-frontmatter";
 import { headingNumbers, sectionReferenceText, blockTargets, targetNumbers, captionNumberText, referenceNumberText } from "../src/numbering.ts";
 import { updateHeadingNumbering, getHeadingNumbering } from "../src/myst/heading-numbering.ts";
 import { getEditableDocument, insertEquation, moveBlock, parse, removeBlock, serialize, type MystDocument, type MystNode } from "./core-internal.ts";
+import { machineNodes } from "../src/document-output.ts";
 
 const numbers = (document: MystDocument) => targetNumbers(getEditableDocument(document).blocks.map(blockTargets));
 
@@ -102,7 +103,7 @@ test("empty fixed equations are an intermediate state; only final writes refuse 
   assert.equal(core.canonicalWriteIssue(empty), undefined);
 });
 
-test("all tables keep official numbers through canonical directives and caption/label edits", async () => {
+test("plain and wrapped tables keep Core numbers and reference text through writing and caption/label edits", async () => {
   const core = await import("../src/index.ts");
   const grids = ["|  |  |\n| --- | --- |\n|  |  |", "| Header | Only |\n| --- | --- |",
     "| Left | Center | Right |\n| :--- | :---: | ---: |\n| **a** | b | $x$ |"];
@@ -113,16 +114,17 @@ test("all tables keep official numbers through canonical directives and caption/
   assert.deepEqual(targetNumbers(read().blocks.map(blockTargets)), expected);
   const original = read().blocks;
   const saved = core.serialize(document);
-  assert.equal(saved.match(/:::?\{table\}/g)?.length, 4);
-  assert.equal(core.serialize(core.parse(saved)), saved);
-  assert.deepEqual(core.getEditableDocument(core.parse(saved)).blocks, original);
-  const file = new VFile();
-  const tree = mystParse(saved, { vfile: file });
-  liftMystDirectivesAndRolesTransform(tree);
-  containerChildrenTransform(tree, file);
-  enumerateTargetsTransform(tree as never, { state: new ReferenceState("tables.md", { vfile: file }) });
-  assert.deepEqual(file.messages, []);
-  assert.deepEqual(tree.children.filter(node => node.kind === "table").map(node => node.enumerator), ["1", "2", "3", "4"]);
+  assert.equal(saved.match(/^:::\{table\}/gm)?.length, 1);
+  assert.match(saved, /\| Left \| Center \| Right \|\n\| :--- \| :---: \| ---: \|\n\| \*\*a\*\* \| b \| \$x\$ \|/);
+  const reopened = core.parse(saved);
+  assert.equal(core.serialize(reopened), saved);
+  assert.deepEqual(core.getEditableDocument(reopened).blocks, original);
+  for (const snapshot of [document, reopened]) {
+    const nodes = machineNodes(core.getEditableDocument(snapshot));
+    assert.deepEqual(nodes.filter(node => node.type === "table").map(node => node.numbers), expected.slice(0, 4));
+    assert.equal(nodes.find(node => node.label === "last")?.referenceText, "Table\u00a04");
+    assert.deepEqual(core.unresolvedReferences(snapshot), []);
+  }
   for (const caption of ["Filled", ""]) {
     document = core.updateTableCaption(document, [2], caption);
     assert.deepEqual(targetNumbers(read().blocks.map(blockTargets)), expected);

@@ -92,9 +92,9 @@ Support is decided from Core semantic structure and existing authoring helpers, 
 | --- | --- |
 | Headings | H1–H6, non-empty supported inline content, no line breaks or additional attributes. |
 | Paragraphs and inline content | Text, strong/emphasis/delete/code, ordinary links with non-empty content, inline math, supported subscript/superscript, footnote references, `{eq}`, `{numref}`, `{ref}` without custom display text, and explicit `{cite}`, `{cite:t}`, `{cite:p}` keys/groups. Existing inline nesting/round-trip restrictions apply. Distinct adjacent links with identical targets are unsupported. |
-| Equation | Display math value (including empty), optional label and fixed `:enumerator:` string. Empty equations use dollar fences, filled equations use `{math}`. A label must preserve its identity in the chosen notation. Empty equations with a fixed number are permitted only as an intermediate operation state, and refused at final canonical write. No `:enumerated: false` or arbitrary attributes. |
+| Equation | Display math value (including empty), optional label and fixed `:enumerator:` string. Filled equations without label or fixed number use `$$` on separate opening and closing lines when the LaTeX reads back intact. Other filled equations use `{math}`. Empty equations use dollar fences and retain their optional closing-line label. Empty equations with a fixed number are permitted only as an intermediate operation state and refused at final canonical write. No `:enumerated: false` or arbitrary attributes. |
 | Figure | Empty/pending, one image or one option-free non-empty `mermaid` directive, optional container label, fixed `:enumerator:` string and one supported inline caption. Mermaid numbering belongs only to the outer `{figure}`; numbering visibility follows the [shared number contract](heading-numbering-v1.md#fixed-numbers-720). Alt text requires an image. Mermaid source is opaque; no syntax validation or image ↔ Mermaid conversion. No legends, subfigures, mixed content or extra directive/image/Mermaid attributes. |
-| Table | Rectangular GFM grid with a header row, supported inline cells with hard breaks, column alignment and optional table caption, note paragraphs, label and fixed number. Only plain GFM and the exact `{table}` directive are accepted. Its options may contain only `name` / `label`, `enumerator` and numbering visibility (`enumerated` / `numbered`), and any MyST VFile diagnostic within the directive's source range causes refusal, including duplicate/unknown options in colon-line or YAML syntax. `{csv-table}`, `{list-table}` and other table directives are refused with or without caption/Label. Every table is canonically saved as `{table}`, including without caption or label. Numbering visibility follows the [shared number contract](heading-numbering-v1.md#fixed-numbers-720). Only paragraph legends are supported, under the [table format contract](table-caption-v1.md#cell-breaks-and-table-notes-1973). Merged cells and extra directive attributes are outside this format. |
+| Table | Rectangular GFM grid with a header row, supported inline cells with hard breaks, column alignment and optional table caption, note paragraphs, label and fixed number. Only plain GFM and the exact `{table}` directive are accepted for simple grids. Directive options may contain only `name` / `label`, `enumerator` and numbering visibility (`enumerated` / `numbered`), and any MyST VFile diagnostic within the directive's source range causes refusal, including duplicate/unknown options in colon-line or YAML syntax. `{csv-table}`, `{list-table}` and other table directives are refused with or without caption/Label. Canonical output uses a bare GFM grid unless the table has a caption, label, notes, fixed number or explicit numbering visibility. Numbering visibility and paragraph legends follow the [table format contract](table-caption-v1.md). Complex tables follow [ADR-0024](../adr/0024-complex-tables.md). |
 | List | Ordered or unordered lists with supported paragraph content and supported nested lists; existing start and nesting rules. Ordered lists preserve style and delimiter under the [ordered format contract](#ordered-list-formats-734). A list retains at least one item. Each item may be empty, including a parent with only a nested list, or contain supported inline content such as text, a citation, footnote reference, math, code or semantic reference. This applies at every nesting level. Insert/update operations normalize whitespace-only content to empty content as described below. A [checklist](#checklists-1893) is an unordered list whose every item has a check state. No arbitrary nested blocks. |
 | Code | Plain fenced code with the existing language contract; no captioned/directive variants. |
 | Quote, divider, admonition | An empty quote or one supported paragraph; thematic break; all standard admonition kinds with an empty body or one supported paragraph. No custom titles/options or additional nested blocks. |
@@ -179,10 +179,10 @@ unchanged. Native structural shape rules and the full canonical round-trip guard
 | --- | --- | --- |
 | Standard admonition | `:::{note}\n:::` (its selected kind) | Existing standard directive with one paragraph |
 | Quote | `>` | Existing Markdown quote |
-| Bullet list item | `*` | Existing Markdown list; empty/nested items retain structure |
+| Bullet list item | `-` | `- text` with continuation lines indented to the item's content |
 | Ordered list item | `3.` (its start) | Existing numbered list |
-| Checklist item | `*   [ ]` (its check state) | `*   [ ] text` / `*   [x] text` |
-| Equation | `$$\n$$` | Existing fenced `{math}` directive |
+| Checklist item | `- [ ]` (its check state) | `- [ ] text` / `- [x] text` |
+| Equation | `$$\n$$` | Dollar fences on separate lines when the LaTeX round-trips, otherwise `{math}` |
 | Labeled equation | `$$\n$$ (eq-empty)` | Existing `{math}` with label option |
 
 The pinned MyST parser reads an empty `{math}` directive as `mystDirectiveError`.
@@ -305,8 +305,10 @@ title, label, numbering and metadata edits use full Save. Any inconclusive check
 uses full Save. [ADR-0006](../adr/0006-native-document-boundary.md#amendment-국소-정규-저장-1983)
 defines the temporary interval between local commit and full readback.
 
-Adjacent lists retain separate boundaries without HTML comments: canonical output
-alternates `*` / `-` for adjacent unordered lists. Ordered delimiters retain their
+Canonical lists use `-` and one space after each nonempty item marker, including
+numbered items. Adjacent unordered lists alternate `-` / `*` to retain separate
+boundaries. The writer also uses `*` when empty nested items would form a thematic
+break. Ordered delimiters retain their
 meaning: when two ordered siblings use the same delimiter, the second receives a
 style line, including `{style=decimal}` for the default. Different delimiters already
 separate lists. Starts, kind, items and nesting survive repeated byte-stable writes.
@@ -360,10 +362,10 @@ the same content as any list item: zero or one paragraph and at most one nested 
 Nesting follows the existing rule in both directions: a checklist item may hold a bullet,
 numbered or checklist list, and any list item may hold a checklist.
 
-The saved form is GFM task-list syntax under the bullet list's canonical marker, written
-tight: `*   [ ] text` and `*   [x] text`, with the `*` / `-` alternation for adjacent
+The saved form is tight GFM task-list syntax, `- [ ] text` and `- [x] text`, with
+the `-` / `*` alternation for adjacent
 unordered lists and nested items indented as in other lists. An empty item is the
-checkbox alone (`*   [ ]`). Alternative spellings are accepted and normalized: `-` or `+`
+checkbox alone (`- [ ]`). Alternative spellings are accepted and normalized: `*` or `+`
 markers, `[X]`, and extra spaces after the checkbox. An escaped `\[ ]` stays text in an
 ordinary bullet list.
 

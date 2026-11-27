@@ -34,7 +34,7 @@ export function semanticFingerprint(node: MystNode): Fingerprint {
  * Anything not listed here must match exactly.
  */
 function normalizeChildren(node: MystNode, children: Fingerprint[]): Fingerprint[] {
-  // Native top-level GFM input and its canonical uncaptioned/unlabeled directive
+  // A top-level GFM grid and the same grid in a directive without metadata
   // have the same table meaning. Keep every grid field and every wrapper field:
   // caption, label, alignment or any unknown attribute must still match exactly.
   if (node.type === "root") children = children.map(child => child.type === "table"

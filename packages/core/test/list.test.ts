@@ -186,6 +186,27 @@ test("canonical writer preserves adjacent list siblings inside a list item witho
   }
 });
 
+test("adjacent checklist and bullet lists keep separate boundaries with or without blank lines", () => {
+  const header = "---\nlitzio: 1\n---\n\n";
+  const siblings = ["- [ ] First\n  - Nested bullet", "* Second\n  - [x] Nested task", "- [x] Third"];
+  const expected = [
+    { block: "list", path: [1], ordered: false, checklist: true, items: [{ checked: false, content: text("First"),
+      list: { ordered: false, items: [{ content: text("Nested bullet") }] } }] },
+    { block: "list", path: [2], ordered: false, items: [{ content: text("Second"),
+      list: { ordered: false, checklist: true, items: [{ checked: true, content: text("Nested task") }] } }] },
+    { block: "list", path: [3], ordered: false, checklist: true, items: [{ checked: true, content: text("Third") }] },
+  ];
+  for (const beforeMiddle of ["\n", "\n\n"]) for (const afterMiddle of ["\n", "\n\n"]) {
+    const original = core.parse(header + siblings[0] + beforeMiddle + siblings[1] + afterMiddle + siblings[2] + "\n");
+    assert.deepEqual(core.getEditableDocument(original).blocks, expected);
+    const markdown = core.serialize(original);
+    assert.equal(markdown, header + siblings.join("\n\n").replace("* Second\n", "* Second\n\n") + "\n");
+    const reopened = core.parse(markdown);
+    assert.deepEqual(core.getEditableDocument(reopened).blocks, expected);
+    assert.equal(core.serialize(reopened), markdown);
+  }
+});
+
 test("all ordered formats preserve style, delimiter, starts, nesting and adjacent boundaries", () => {
   for (const style of core.LIST_STYLES) for (const delimiter of [".", ")"] as const) {
     const nested: ListContent = { ordered: true, start: 4, style: "upper-roman", delimiter: ")", items: [{ content: text("Nested") }] };
@@ -255,7 +276,7 @@ test("checklists read, write canonically and keep check states and content throu
   // Alternative spellings (`-`, `[X]`) normalize to one canonical form; an empty
   // item is its checkbox alone. Nesting works in both directions under the existing list rules.
   const source = "---\nlitzio: 1\n---\n\n- [X] **Done**\n- [ ]\n  - [x] nested\n  - [ ]\n- [ ] has bullets\n  - plain\n\n1. step\n   - [ ] inside numbered\n";
-  const canonical = "---\nlitzio: 1\n---\n\n*   [x] **Done**\n*   [ ]\n    *   [x] nested\n    *   [ ]\n*   [ ] has bullets\n    *   plain\n\n1.  step\n\n    *   [ ] inside numbered\n";
+  const canonical = "---\nlitzio: 1\n---\n\n- [x] **Done**\n- [ ]\n  - [x] nested\n  - [ ]\n- [ ] has bullets\n  - plain\n\n1. step\n\n   - [ ] inside numbered\n";
   // The parse boundary reads the checkbox; native admission accepts the same tree.
   assert.deepEqual(parse(source).children[1].children!.map(item => item.checked), [true, false, false]);
   const document = core.parse(source);
@@ -272,7 +293,7 @@ test("checklists read, write canonically and keep check states and content throu
   assert.deepEqual(core.getEditableDocument(core.parse(markdown)), core.getEditableDocument(document));
   assert.equal(core.serialize(core.parse(markdown)), markdown);
   // Spaces after the checkbox are not content; canonical write removes them.
-  assert.equal(core.serialize(core.parse("---\nlitzio: 1\n---\n\n+ [ ]   spaced\n")), "---\nlitzio: 1\n---\n\n*   [ ] spaced\n");
+  assert.equal(core.serialize(core.parse("---\nlitzio: 1\n---\n\n+ [ ]   spaced\n")), "---\nlitzio: 1\n---\n\n- [ ] spaced\n");
 });
 
 test("checkbox shapes outside the checklist contract are refused with their reason", () => {
@@ -296,12 +317,12 @@ test("checkbox shapes outside the checklist contract are refused with their reas
 test("insert and update lists accept checklists; check states default to unchecked and belong only to checklists", () => {
   const document = core.parse("---\nlitzio: 1\n---\n\nIntro.\n");
   const inserted = core.insertList(document, 2, { ordered: false, checklist: true, items: [{ content: text("todo") }, { content: text("done"), checked: true }] });
-  assert.equal(core.serialize(inserted), "---\nlitzio: 1\n---\n\nIntro.\n\n*   [ ] todo\n*   [x] done\n");
+  assert.equal(core.serialize(inserted), "---\nlitzio: 1\n---\n\nIntro.\n\n- [ ] todo\n- [x] done\n");
   // Switching kind is a whole-list update, like bullets and numbers.
   const numbered = core.updateList(inserted, [2], { ordered: true, items: [{ content: text("todo") }, { content: text("done") }] });
-  assert.equal(core.serialize(numbered), "---\nlitzio: 1\n---\n\nIntro.\n\n1.  todo\n2.  done\n");
+  assert.equal(core.serialize(numbered), "---\nlitzio: 1\n---\n\nIntro.\n\n1. todo\n2. done\n");
   const back = core.updateList(numbered, [2], { ordered: false, checklist: true, items: [{ content: text("todo"), checked: true }, { content: [] }] });
-  assert.equal(core.serialize(back), "---\nlitzio: 1\n---\n\nIntro.\n\n*   [x] todo\n*   [ ]\n");
+  assert.equal(core.serialize(back), "---\nlitzio: 1\n---\n\nIntro.\n\n- [x] todo\n- [ ]\n");
   const before = core.serialize(inserted);
   for (const [list, reason] of [
     [{ ordered: true, checklist: true, items: [{ content: text("a") }] }, /numbered lists have no checkboxes/],
@@ -315,7 +336,7 @@ test("insert and update lists accept checklists; check states default to uncheck
 });
 
 test("updateListItemChecked changes one checklist item and leaves every other byte", () => {
-  const source = "---\nlitzio: 1\n---\n\n# Plan\n\n*   [ ] first\n    *   [ ] nested\n    *   [x] nested done\n*   [x] second\n\n-   plain\n\nAfter.\n";
+  const source = "---\nlitzio: 1\n---\n\n# Plan\n\n- [ ] first\n  - [ ] nested\n  - [x] nested done\n- [x] second\n\n* plain\n\nAfter.\n";
   const document = core.parse(source);
   const checked = core.updateListItemChecked(document, [2], [0, 0], true);
   assert.equal(core.serialize(checked), source.replace("[ ] nested\n", "[x] nested\n"));

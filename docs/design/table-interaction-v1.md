@@ -11,9 +11,10 @@
 - Previous verification: 2026-10-08 (contract compared with table commands and regression coverage).
 - Related: [Continuous editing](document-editing-v1.md), [Table caption and label](table-caption-v1.md).
 
-Every table displays its official Core number, including the empty caption surface
-(`Table N.` by default). Caption/Label changes retain that number, and canonical Save
-writes a `{table}` directive even when both are absent (#584; [format contract](table-caption-v1.md)).
+Numbered tables display their Core number even on an empty caption surface
+(`Table N.` by default). Caption and Label changes retain that number. A simple table
+with no remaining metadata saves as a bare pipe grid under the
+[table format contract](table-caption-v1.md).
 
 - Scope: active-cell outline, matching row/column handles and a contextual menu on existing Markdown tables.
 - Reuse the Editor table commands and Core save operations. Handles and selection indicators are UI only; they never enter Markdown or document attributes.

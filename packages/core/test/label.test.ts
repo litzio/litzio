@@ -107,7 +107,7 @@ test("Equation labels can be added, changed and removed; LaTeX is kept", () => {
   const changed = updateLabel(added, [1], "Eq-Total");
   assert.equal(serialize(changed), "Intro.\n\n```{math}\n:label: Eq-Total\n\nx + 1\n```\n");
   const removed = updateLabel(changed, [1], "");
-  assert.equal(serialize(removed), "Intro.\n\n```{math}\nx + 1\n```\n");
+  assert.equal(serialize(removed), "Intro.\n\n$$\nx + 1\n$$\n");
   assert.equal(serialize(updateEquationLatex(changed, [1], "x + 1", "y")), "Intro.\n\n```{math}\n:label: Eq-Total\n\ny\n```\n");
 });
 

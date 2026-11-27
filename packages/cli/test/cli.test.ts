@@ -1227,7 +1227,7 @@ test("CLI insert-equation persists a Core equation", () => {
     });
     assert.equal(saved, serialize(parse(saved)));
     assert.equal(run(["insert-equation", file, "--at", "1", "--latex", ""]).status, 0);
-    assert.equal(readFileSync(file, "utf8"), nativeSource("$$\n$$\n\nIntro\n\n```{math}\nx^2 + 1\n```\n"));
+    assert.equal(readFileSync(file, "utf8"), nativeSource("$$\n$$\n\nIntro\n\n$$\nx^2 + 1\n$$\n"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -2229,7 +2229,7 @@ test("CLI updates Markdown table cells through Core and rejects unsupported text
     const formatted = run(["update-table-cell", file, "--path", "13,2,0", "--content", JSON.stringify(bold)]);
     assert.equal(formatted.status, 0, formatted.stderr);
     const saved = readFileSync(file, "utf8");
-    assert.match(saved, /\| Port name \| Type +\|\n\| -+ \| -+ \|\n\| U +\| AC-side \|\n\| \*\*P\*\* +\| +\|\n:::\n$/);
+    assert.match(saved, /\| Port name \| Type \|\n\| --- \| --- \|\n\| U \| AC-side \|\n\| \*\*P\*\* \| \|\n$/);
     assert.equal(serialize(parse(saved)), saved);
     const table = getEditableDocument(parse(saved)).blocks[12];
     assert.equal(table?.block, "table");
@@ -2277,7 +2277,7 @@ test("CLI inserts and updates lists through Core and rejects invalid lists witho
     const update = run(["update-list", file, "--path", "2", "--list", JSON.stringify(updated)]);
     assert.equal(update.status, 0, update.stderr);
     const saved = readFileSync(file, "utf8");
-    assert.equal(saved, nativeSource("# Steps\n\n{style=lower-alpha}\n3)  **Check** wiring\n\n    {style=lower-roman}\n    1)  Input\n4)  Power on\n"));
+    assert.equal(saved, nativeSource("# Steps\n\n{style=lower-alpha}\n3) **Check** wiring\n\n   {style=lower-roman}\n   1) Input\n4) Power on\n"));
     const after = run(["inspect", file, "--format", "json"]);
     assert.deepEqual(JSON.parse(after.stdout).nodes[1], { path: [2], type: "list", ...updated });
     assert.match(run(["inspect", file]).stdout, /style=lower-alpha delimiter="\)"/);
@@ -2315,7 +2315,7 @@ test("CLI inserts a checklist, checks one item and rejects invalid checks withou
     const check = run(["update-list-item-checked", file, "--path", "2", "--item", "0,0", "--checked", "true"]);
     assert.equal(check.status, 0, check.stderr);
     const saved = readFileSync(file, "utf8");
-    assert.equal(saved, nativeSource("# Steps\n\n*   [ ] Wire\n    *   [x] Input\n*   [x] Power on\n\n-   plain\n"));
+    assert.equal(saved, nativeSource("# Steps\n\n- [ ] Wire\n  - [x] Input\n- [x] Power on\n\n* plain\n"));
     const inspected = JSON.parse(run(["inspect", file, "--format", "json"]).stdout) as { nodes: Array<Record<string, unknown>> };
     assert.deepEqual(inspected.nodes[1], { path: [2], type: "list", ordered: false, checklist: true, items: [
       { content: text("Wire"), checked: false, list: { ordered: false, checklist: true, items: [{ content: text("Input"), checked: true }] } },
@@ -2413,7 +2413,7 @@ test("CLI creates a table, adds, moves and removes rows and columns, and aligns 
       assert.equal(result.status, 0, `${args[0]}: ${result.stderr}`);
     }
     const saved = readFileSync(file, "utf8");
-    assert.equal(saved, nativeSource("# Ratings\n\n:::{table}\n\n| Port |   | Type |\n| :--- | - | ---: |\n| U    |   |   AC |\n| P    |   |      |\n:::\n"));
+    assert.equal(saved, nativeSource("# Ratings\n\n| Port | | Type |\n| :--- | --- | ---: |\n| U | | AC |\n| P | | |\n"));
     assert.equal(serialize(parse(saved)), saved);
     const invalid: [string[], RegExp?][] = [
       [["insert-table", file, "--at", "1", "--cells", "[[\"A\",\"B\"],[\"x\"]]"]],
@@ -2440,7 +2440,7 @@ test("CLI creates a table, adds, moves and removes rows and columns, and aligns 
       assert.equal(result.status, 0, `${args[0]}: ${result.stderr}`);
     }
     const reshaped = readFileSync(file, "utf8");
-    assert.equal(reshaped, nativeSource("# Ratings\n\n:::{table}\n\n| Type | Port |\n| ---- | :--- |\n|      | P    |\n:::\n"));
+    assert.equal(reshaped, nativeSource("# Ratings\n\n| Type | Port |\n| --- | :--- |\n| | P |\n"));
     for (const [args, reason] of [
       [["remove-table-row", file, "--path", "2", "--at", "0"], /from 1 to 1/],
       [["update-table-alignment", file, "--path", "2", "--column", "0", "--align", "justify"], /--align must be/],
@@ -2895,11 +2895,11 @@ test("CLI authors table captions and labels through Core and rejects multiline c
       assert.equal(changed.status, 0, changed.stderr);
       assert.deepEqual(numbers(), ["Table 1"]);
     }
-    assert.match(readFileSync(file, "utf8"), /:::\{table\}\n\n\| A \|/);
+    assert.equal(readFileSync(file, "utf8"), nativeSource("| A |\n| --- |\n| 1 |\n"));
     const inserted = run(["insert-table", file, "--at", "end", "--cells", '[[""],[""]]']);
     assert.equal(inserted.status, 0, inserted.stderr);
     assert.deepEqual(numbers(), ["Table 1", "Table 2"]);
-    assert.equal(readFileSync(file, "utf8").match(/:::\{table\}/g)?.length, 2);
+    assert.equal(readFileSync(file, "utf8"), nativeSource("| A |\n| --- |\n| 1 |\n\n| |\n| --- |\n| |\n"));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

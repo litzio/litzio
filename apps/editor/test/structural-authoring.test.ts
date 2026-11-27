@@ -409,7 +409,7 @@ test("content editing keeps text, inline math in a cell, list items and captions
   assert.match(saved, /First paragraph Fixed\./);
   assert.match(saved, /\| 1 \| \$x\^2\$2 \|/);
   assert.match(saved, /:::\{table\} Caption text/);
-  assert.match(saved, /\*   two\n\*   three\n/);
+  assert.match(saved, /- two\n- three\n/);
   assert.doesNotMatch(saved, /one/);
   assert.deepEqual(loadEditableDocument(saved).blocks.map(block => block.block), editable.blocks.map(block => block.block));
 });

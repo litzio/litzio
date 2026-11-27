@@ -43,11 +43,11 @@ async (page, { showNotifications, openPath }) => {
     // A rendered GFM checklist (GitHub's markup) keeps each item's check state.
     checklist: ['<ul class="contains-task-list"><li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled> Todo</li>' +
       '<li class="task-list-item"><p><input type="checkbox" class="task-list-item-checkbox" checked disabled> Done</p></li></ul>',
-      '*   [ ] Todo\n*   [x] Done\n\nOmega.\n'],
+      '- [ ] Todo\n- [x] Done\n\nOmega.\n'],
     // Checklist items with no text, inside a wrapper with no text, are still items.
     emptyChecklist: ['<p>Inspection</p><div><ul><li><input type="checkbox" checked></li><li><input type="checkbox"></li></ul></div><p>End</p>',
-      'Inspection\n\n*   [x]\n*   [ ]\n\nEndOmega.\n'],
-    emptyChecklistOnly: ['<div><ul><li><input type="checkbox"></li></ul></div>', '*   [ ]\n\nOmega.\n'],
+      'Inspection\n\n- [x]\n- [ ]\n\nEndOmega.\n'],
+    emptyChecklistOnly: ['<div><ul><li><input type="checkbox"></li></ul></div>', '- [ ]\n\nOmega.\n'],
   };
   for (const [name, [html, expected]] of Object.entries(cases)) {
     await select();

@@ -124,7 +124,8 @@ test("Host label-only payloads preserve final reference content without another 
   assert.match(saved.markdown, /See \[Figure\]\(#fig-control\) and \{eq\}`eq-current`\./);
 
   const removed = saveEdits(source, collectSupportedEdits(...Object.values(relabel({ [EQUATION]: "", [FIGURE]: "" })) as [EditableDocument, TiptapJSON]));
-  assert.equal(removed.markdown, canonical.replace(":name: fig-control\n", "").replace(":label: eq-current\n\n", ""));
+  assert.equal(removed.markdown, canonical.replace(":name: fig-control\n", "")
+    .replace(/```\{math\}\n:label: eq-current\n\n([\s\S]*?)\n```/, (_, body) => `$$\n${body}\n$$`));
   assert.deepEqual(labels(loadEditableDocument(removed.markdown)).map((block) => block[1]), ["", ""]);
 });
 

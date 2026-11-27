@@ -142,7 +142,7 @@ async (page, { openPath }) => {
   await setFigureLabel(figure, '');
   await save();
   const removed = await markdown();
-  result.labelsRemovedContentKept = removed.includes(`\`\`\`{math}\n${latex}\n\`\`\``) &&
+  result.labelsRemovedContentKept = removed.includes(`$$\n${latex}\n$$`) &&
     removed.includes(':::{figure} ./diagram.svg\n:alt: Control block diagram\n\nControl block diagram of the grid-connected converter.\n:::') &&
     !removed.includes(':label:') && !removed.includes(':name:') && removed.includes(reference);
 

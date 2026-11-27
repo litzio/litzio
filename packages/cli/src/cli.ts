@@ -742,7 +742,10 @@ const COMMANDS: CommandSpec[] = [
     group: "Edit — tables",
     summary: "Set or remove a table caption through Core",
     usage: `${brand.cliCommand} update-table-caption <file> --path <table> (--text <text> | --content <json>)`,
-    details: ["Set a single-line caption; empty text removes it. Every table remains a numbered table directive, with or without a caption or label."],
+    details: [
+      "Set a single-line caption. Empty text or an empty content array removes it.",
+      "A simple table saves as a plain GFM pipe table once it has no caption, label, notes, fixed number, or explicit numbering visibility. Core automatic numbering is preserved.",
+    ],
   },
   {
     name: "insert-table-note",
