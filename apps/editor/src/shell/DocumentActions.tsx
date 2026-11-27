@@ -25,9 +25,10 @@ export function TabFileMenu({ documentPath = "", pluginActions, onOpenPluginFile
   disabled?: boolean;
   children?: ReactNode;
 }) {
+  const label = i18n.t(children || pluginActions?.length ? "File actions" : "Tab actions");
   return <DropdownMenu>
     <DropdownMenuTrigger ref={fileActionsRef}
-      render={<Button type="button" size="icon-sm" variant="ghost" aria-label={i18n.t(documentPath || children ? "File actions" : "Tab actions")} title={i18n.t(documentPath || children ? "File actions" : "Tab actions")} disabled={disabled} />}>
+      render={<Button type="button" size="icon-sm" variant="ghost" aria-label={label} title={label} disabled={disabled} />}>
       <Ellipsis aria-hidden="true" />
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end">

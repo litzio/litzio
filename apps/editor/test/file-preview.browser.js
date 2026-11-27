@@ -145,7 +145,7 @@ async (page, { openDocument, screenshots, expect, waitForExplorerLayout }) => {
   await expect(pdf.getByRole('button',{name:'Zoom in',exact:true})).toBeEnabled();
   await page.keyboard.press('F11');
   await expect(page.getByRole('tab',{name:'reading.pdf',selected:true})).toBeVisible();
-  await page.getByRole('button',{name:'File actions',exact:true}).click();
+  await page.getByRole('button',{name:'Tab actions',exact:true}).click();
   await page.getByRole('menuitem',{name:'View full screen',exact:true}).click();
   await expect(page.locator('.app-titlebar')).toBeHidden();
   await expect(pdf.locator('.textLayer').first()).toContainText('Selectable PDF text');
