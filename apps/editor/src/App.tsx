@@ -905,11 +905,12 @@ function EditorApp() {
           const { actionId, path } = tab.fileOpen;
           const action = viewFileActions([screen], path).find(entry => entry.action.id === actionId);
           const chain = openedFolderPaths.map(root => folderChain(root, path)).find(chain => chain.length);
-          if (action && chain) {
-            const root = chain[0]!;
-            const listing = await requestFolder(root, chain.at(-1), false, screenCatalog.client);
+          if (action) {
+            // A file action can also originate in a document tab opened without Explorer.
+            const root = chain?.[0] ?? splitDocumentPath(path).directory;
+            const listing = await requestFolder(root, chain?.at(-1), false, screenCatalog.client);
             if (!listing.entries.some(entry => entry.path === path) ||
-                !foldersRef.current.trees.some(tree => tree.root === root)) {
+                (chain && !foldersRef.current.trees.some(tree => tree.root === root))) {
               setError({ key: "The file is missing or unavailable: {{path}}", values: { path } });
               return;
             }
