@@ -2,7 +2,7 @@ import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 import { PluginArtifactChangedError } from "../shared/plugin-artifact-error.ts";
 // Use the published ESM entry: its UMD factory leaves dynamic relative require calls in CLI bundles.
 
-import { browseFolder, documentRevision, listFolder, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
+import { browseFolder, documentRevision, listFolder, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
 export { browseFolder, documentRevision, listFolder, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
 import { executeCompareOperation } from "./document-compare.ts";
 import { ASSISTANT_TRANSPORT_LIMITS } from "../shared/assistant-limits.ts";
@@ -91,15 +91,11 @@ function fileStep<T>(apply: () => T): T {
 
 const EMPTY_DOCUMENT_MARKDOWN = serialize(createDocument());
 
-/** The request tag cannot grant raw writes to a native document. Recheck disk on every Save. */
+/** Text Save writes the submitted string to the checked revision. Open owns document classification. */
 export function saveTextFile(request: TextSaveRequest, access: FileAccess = LOCAL_FILE_ACCESS): SaveResponse {
   const filePath = fileStep(() => resolveEditorPath(request.path, access));
   const source = fileStep(() => decodeUtf8(readFileSync(accessPath(filePath, access))));
   if (documentRevision(source) !== request.revision) throw new DocumentConflictError();
-  const target = fileStep(() => fs.realpathSync(filePath));
-  if (editorFile(filePath, source).kind !== "text" || target !== filePath && editorFile(target, source).kind !== "text") {
-    throw new Error("This file is now a native document. Reload before saving.");
-  }
   assertUnicode(request.source);
   fileStep(() => replaceDocumentFile(accessPath(filePath, access), request.source, request.revision));
   return { revision: documentRevision(request.source) };
@@ -165,11 +161,6 @@ async function saveFileInOrder(request: SaveRequest | TextSaveRequest, access: F
         }, commit);
       return { revision, ...(localWrite ? { pendingLocalWrite: true } : {}), ...(blocks ? { blocks } : {}) };
     }
-    if ([filePath, target].some(file => path.extname(file).toLowerCase() === ".md") &&
-        await thread.read({ kind: "check-text", source: disk }, signal)) {
-      throw new Error("This file is now a native document. Reload before saving.");
-    }
-    signal.throwIfAborted();
     assertUnicode(request.source);
     commit(request.source);
     return { revision: documentRevision(request.source) };

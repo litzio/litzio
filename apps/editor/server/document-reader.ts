@@ -41,7 +41,7 @@ const entryOrder = new Intl.Collator(undefined, { numeric: true });
  * One level of a folder the user chose. Regular folders and files of every extension are listed:
  * hidden entries and symlinks are left out, and a requested folder must stay inside the chosen
  * one, symlinks resolved. Each document says whether its leading frontmatter carries the native
- * marker, so the tree can set apart files Litzio will not open. Nothing is remembered between requests.
+ * marker when found. Markdown admission is decided on Open. Nothing is remembered between requests.
  */
 export function listFolder(requestedRoot: string | undefined, requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): FolderResponse {
   if (!requestedRoot?.trim()) throw new Error("folder path is required");
@@ -55,10 +55,10 @@ export function listFolder(requestedRoot: string | undefined, requestedPath?: st
   return { ...listed, entries: listed.entries.map(entry => entry.kind === "document" ? withNativeMarker(entry) : entry) };
 }
 
-// Native frontmatter holds only `litzio` and `numbering`, so its start is enough to find the marker.
+// This prefix is enough to identify short marked headers for the folder hint.
 const MARKER_PREFIX_BYTES = 4096;
 
-/** Reads the start of a listed document for its marker; an unreadable file stays unmarked either way. */
+/** Reads a positive marker hint for Markdown, or identifies a text file by extension. */
 function withNativeMarker(entry: FolderEntry): FolderEntry {
   if (path.extname(entry.path).toLowerCase() === ".txt") return { ...entry, native: false };
   let descriptor: number | undefined;
@@ -66,7 +66,7 @@ function withNativeMarker(entry: FolderEntry): FolderEntry {
     descriptor = fs.openSync(entry.path, "r");
     const prefix = Buffer.alloc(MARKER_PREFIX_BYTES);
     const length = fs.readSync(descriptor, prefix, 0, MARKER_PREFIX_BYTES, 0);
-    return { ...entry, native: hasNativeMarker(new TextDecoder().decode(prefix.subarray(0, length))) };
+    return hasNativeMarker(new TextDecoder().decode(prefix.subarray(0, length))) ? { ...entry, native: true } : entry;
   } catch {
     return entry;
   } finally {

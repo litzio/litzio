@@ -11,7 +11,7 @@ export type CommandCenterItem = {
   shortcut?: string;
   icon: LucideIcon;
   disabled?: boolean;
-  /** A listed Markdown file without Litzio's native marker, as in the sidebar. */
+  /** A listed text file, as in the sidebar. */
   foreign?: boolean;
   /** A command opening another surface owns its focus after the center has closed. */
   takesFocus?: boolean;

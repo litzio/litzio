@@ -213,9 +213,8 @@ test("bibliography declarations validate shape without reading resources and kee
   assert.throws(() => parse("---\nlitzio: 1\nbibliography: [a.bib]\nbibliography: [b.bib]\n---\n"), /Invalid native frontmatter/);
 });
 
-test("native admission checks the marker and the complete YAML contract before writing", () => {
-  for (const source of ["", "# Title\n", "---\nlitzio: '1'\n---\n", "---\nlitzio: 2\n---\n",
-    "---\nlitzio: 1\nlitzio: 1\n---\n", "---\nlitzio: [\n---\n", "---\n- litzio: 1\n---\n",
+test("native admission accepts optional YAML and checks its complete contract when present", () => {
+  for (const source of ["---\nlitzio: 1\nlitzio: 1\n---\n", "---\nlitzio: [\n---\n", "---\n- litzio: 1\n---\n",
     "---\nlitzio: 1\n? [author]\n: Title\n---\n", "---\nlitzio: 1\nnumbering: true\n---\n",
     "---\nlitzio: 1\nnumbering:\n  headings: true\n  heading_1: 3\n---\n",
     "---\nlitzio: 1\nnumbering:\n  title: true\n---\n", "---\nlitzio: 1\n"]) {
@@ -223,6 +222,37 @@ test("native admission checks the marker and the complete YAML contract before w
   }
   const marked = native("# Title\n");
   assert.equal(serialize(parse(`\uFEFF${marked.replaceAll("\n", "\r\n")}`)), marked);
+});
+
+test("metadata occupies block zero even when no frontmatter is written", () => {
+  const source = "# Heading\n\nBody.\n";
+  const document = parse(source);
+  assert.deepEqual(getEditableDocument(document).blocks.map(block => block.path), [[1], [2]]);
+  assert.throws(() => core.removeBlock(document, 0), /body blocks start at 1/);
+  assert.equal(getEditableDocument(document).title, undefined);
+  assert.equal(serialize(parse("")), "\n");
+  assert.equal(serialize(core.updateDocumentTitle(document, null)), source);
+  const bodyEdit = serialize(updateParagraphInlineContent(document, [2], [{ kind: "text", text: "Edited." }]));
+  assert.equal(bodyEdit, source.replace("Body.", "Edited."));
+  assert.equal(serialize(parse(bodyEdit)), bodyEdit);
+  const firstTitle = serialize(core.updateDocumentTitle(document, "Document title"));
+  const firstStatus = serialize(core.updateDocumentStatus(document, "draft"));
+  assert.equal(firstTitle, `---\ntitle: Document title\n---\n\n${source}`);
+  assert.equal(firstStatus, `---\nstatus: draft\n---\n\n${source}`);
+  for (const saved of [firstTitle, firstStatus]) assert.equal(serialize(parse(saved)), saved);
+});
+
+test("existing litzio fields preserve their exact lines regardless of value", () => {
+  for (const field of ["litzio: 1 # original", "litzio: '1'   # quoted", "litzio: 2", "litzio: {version: 2}"]) {
+    const source = `---\n${field}\n---\n\nBody.\n`;
+    const document = parse(source);
+    assert.equal(serialize(document), source);
+    const saved = serialize(core.updateDocumentStatus(document, "draft"));
+    assert.equal(saved, source.replace(`${field}\n`, `${field}\nstatus: draft\n`));
+    assert.equal(serialize(parse(saved)), saved);
+  }
+  const flow = parse("---\n{litzio: 0x1F, title: Old}\n---\n\nBody.\n");
+  assert.throws(() => core.updateDocumentStatus(flow, "draft"), /fields of other tools keep their source/);
 });
 
 test("frontmatter fields of other tools keep their exact source through body and metadata edits", () => {
@@ -254,9 +284,9 @@ test("frontmatter fields of other tools keep their exact source through body and
   assert.equal(serialize(core.updateDocumentTitle(parse(sources[1]), "New")), sources[1].replace("title: Old", "title: New"));
 
   // A flow mapping has no lines of its own per key. With Litzio's fields only, the whole YAML is written.
-  const flow = parse("---\n{litzio: 1, title: Old}\n---\n\nBody.\n");
+  const flow = parse("---\n{title: Old}\n---\n\nBody.\n");
   const saved = serialize(core.updateDocumentStatus(flow, "draft"));
-  assert.deepEqual(parseYaml(saved.split("---\n")[1]), { litzio: 1, title: "Old", status: "draft" });
+  assert.deepEqual(parseYaml(saved.split("---\n")[1]), { title: "Old", status: "draft" });
   assert.equal(serialize(parse(saved)), saved);
 });
 

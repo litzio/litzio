@@ -53,7 +53,7 @@ Save waits remains dirty and recoverable. Failure/conflict keeps local text; ext
 bytes remain untouched. Reload confirms before discarding local text and asks Host to
 classify the file again, replacing the editor only after a successful read. Unedited
 source preserves BOM, CRLF and trailing whitespace. Once edited, the submitted text
-is the textarea value (browser line breaks are LF); Host performs no normalization.
+is the textarea value (browser line breaks are LF). Host writes that string unchanged after path and revision checks, including after recovery or a rename. The kind is classified again on Open or Reload.
 
 The existing IndexedDB recorder, barriers, retention, deletion and path changes also
 serve text sessions. A text snapshot carries `kind: text`, a text file descriptor,
@@ -67,7 +67,7 @@ recorded string. Native recovery and canonical replay remain unchanged.
 `pnpm browser:test text-mode` covers exact Save/Reload, retained input during delayed
 acknowledgement, close cancellation/Save/discard, unload protection, text recovery and
 external conflict, and Reload across native/text admission. Host tests cover raw-request
-schema isolation, native-write refusal, file commit failure/cleanup and unchanged bytes.
+schema isolation, revision conflicts, file commit failure/cleanup and unchanged bytes on failure.
 
 Text editing has no CLI command because it adds no document semantic operation.
 The shared Host remains stateless, using existing revision checks, temporary sibling
@@ -284,9 +284,9 @@ Host는 확인 성공을 표시하지 않고 조회를 끝낸다. 전체 쓰기�
 다른 문서·2,000블록 이상 문서·첫 집계일·마지막 불일치일(UTC)을 문단과 표 칸별로, 전체 경로
 선택은 사유별로 제공한다. 중복을 제거한 전체 문서 수도 제공한다. 내부에 경로 지문을
 저장하며 CLI에는 집계만 반환한다. 규칙 수정으로 집계를 다시 시작할 때 저장소의 규칙
-버전을 올린다. 규칙 버전 5는 느슨한 목록의 정규 바이트와 블록 범위가 바뀐 상태에서 문단과 표 칸을 집계한다([#2064](https://github.com/litzio/litzio/issues/2064)). [#1986](https://github.com/litzio/litzio/issues/1986)의 종료 조건을 채우면
+버전을 올린다. 규칙 버전 6은 식별 표식 없는 YAML 머리말을 가진 문서도 집계한다([#2068](https://github.com/litzio/litzio/issues/2068)). 머리말 없이 열린 문서는 합성 메타데이터의 원문 범위가 없으므로 전체 저장을 사용한다. [#1986](https://github.com/litzio/litzio/issues/1986)의 종료 조건을 채우면
 `verify-local-write` 확인·교정·알림·CLI·집계와 이 임시 계약을 걷어낸다. CI에서는
-씨앗이 고정된 112건을 대조한다. 릴리스 준비 때 전체 9,652건을 master에서
+기존 씨앗 고정 사례 112건과 새 머리말 사례 12건을 대조한다. 릴리스 준비 때 전체 10,036건을 master에서
 `pnpm exec tsx packages/core/test/local-write-corpus.ts`로 수동 실행해 불일치가 0건인지
 확인한다. 대조 검사는 뒤따르는 확인을 걷어낸 뒤에도 유지한다.
 

@@ -229,8 +229,8 @@ export type DocumentErrorResponse = { error: string; code?: NativeDocumentErrorC
 
 /** One entry of a folder listing: a regular sub-folder, or a regular `.md`/`.txt` file (an image file when choosing an image). */
 /**
- * A listed folder, document, image or other regular file. In the sidebar listing, `native` tells whether a
- * `.md` starts with the native marker; `.txt` is always false. It is absent when a Markdown file could not be read.
+ * A listed folder, document, image or other regular file. In the sidebar listing, `native` is true when
+ * a Markdown marker was found, false for `.txt`, and otherwise absent. It does not predict admission.
  * Optional `modifiedAt` is an ISO timestamp; `size` is bytes for files only. Missing stat metadata does not remove the entry.
  */
 export type FolderEntry = { name: string; kind: "folder" | "document" | "image" | "file"; path: string; native?: boolean; modifiedAt?: string; size?: number };

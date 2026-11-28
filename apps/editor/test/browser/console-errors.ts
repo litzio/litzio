@@ -29,7 +29,6 @@ const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
     { status: 400, pathname: "/api/document", minimum: 1, maximum: 1, description: "full verification rejected a candidate and the next Save receives the same diagnostic" },
   ],
   "text-mode": [
-    {status:400, pathname:"/api/document", minimum:1, description:"a text session cannot raw-save a file that has become native"},
     {status:409, pathname:"/api/document", minimum:1, description:"recovered text refuses an external revision without losing local input"},
   ],
   "reference-save-reload": [

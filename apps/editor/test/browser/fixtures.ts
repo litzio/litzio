@@ -161,7 +161,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "nested/ref.md", create: () => nativeSource("# Reference\n\n:::{figure} ../diagram.svg\n:alt: Figure\n\nCaption.\n:::\n") },
     { name: "ref.md", create: () => nativeSource("# Reference\n\n:::{figure} ./diagram.svg\n:alt: Figure\n\nCaption.\n:::\n") },
     { name: "second-ref.md", create: () => nativeSource("# Another reference\n\n:::{figure} diagram.svg\n:name: second\n:alt: Figure\n\nSecond caption.\n:::\n") },
-    { name: "foreign.md", create: () => "# Ordinary Markdown\n\n![Unmanaged](diagram.svg)\n" },
+    { name: "foreign.md", create: () => "# Ordinary Markdown\n\nInline ![Unmanaged](diagram.svg) image.\n" },
   ], scenarios: ["file-actions", "assistant-result"] },
   "table-caption": { files: [{ name: "caption.md", create: () => nativeSource(
     "# Table captions\n\nBefore.\n\n:::{figure}\n:name: fig-a\n:::\n\n" +
@@ -185,7 +185,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
   "document-tabs": { files: [
     ...Array.from({ length: 8 }, (_, index) => ({ name: `technical-${index + 1}.md`, create: () => document("technical-document.md").create() })),
     { name: "bulk-1999.md", create: () => document("technical-document.md").create() },
-    { name: "foreign.md", create: () => "# Foreign Markdown\n\nNo native marker.\n" },
+    { name: "foreign.md", create: () => "# Ordinary Markdown\n\nNo frontmatter.\n" },
     { name: "notes.txt", create: () => "Not a document" },
     document("diagram.svg"),
     ...["alpha", "beta"].flatMap(folder => [

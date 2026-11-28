@@ -295,7 +295,7 @@ test("HTTP file mutations reuse shared validation, strict bodies and allowlisted
   const source = nativeSource(":::{figure} ./image.png\n\nCaption.\n:::\n");
   fs.writeFileSync(file, source); fs.writeFileSync(path.join(b, "document.md"), source);
   fs.unlinkSync(path.join(b, "image.png")); fs.linkSync(path.join(a, "image.png"), path.join(b, "image.png"));
-  fs.writeFileSync(path.join(a, "foreign.md"), "Ordinary Markdown");
+  fs.writeFileSync(path.join(a, "foreign.md"), "<div>Unsupported HTML</div>");
   const request = { root:a, path:path.join(a, "image.png"), name:"changed" };
   const dirty = await send("/api/file", "PATCH", { ...request, openDocuments:[{path:file}] });
   assert.equal(dirty.status, 400);
@@ -868,6 +868,18 @@ test("HTTP starts with only allowed places and saves both roots through Core and
   }
   assert.equal((await send("/api/document", "POST", textRequest)).status, 200);
   assert.equal(fs.readFileSync(blocked, "utf8"), textRequest.source);
+  const corrected = "Ordinary Markdown.\n";
+  const correction = await send("/api/document", "POST", { ...textRequest, revision: documentRevision(textRequest.source), source: corrected });
+  assert.equal(correction.status, 200);
+  const checkpoint = (await correction.json()).revision;
+  const moved = path.join(a, "moved.md");
+  assert.equal((await send("/api/file", "PATCH", { root: a, path: blocked, name: "moved" })).status, 200);
+  const nextTextSave = { ...textRequest, path: moved, revision: checkpoint, source: "Second text save.\r\n" };
+  assert.equal((await send("/api/document", "POST", nextTextSave)).status, 200);
+  assert.equal((await send("/api/document", "POST", nextTextSave)).status, 409);
+  const reopenedTextSave = await (await send(documentQuery(moved))).json();
+  assert.equal(reopenedTextSave.kind, "native");
+  assert.equal(reopenedTextSave.source, nextTextSave.source);
   const plain = path.join(a, "notes.txt"); fs.writeFileSync(plain, "plain");
   const plainFile = await (await send(documentQuery(plain))).json();
   assert.equal(plainFile.kind, "text");
@@ -875,10 +887,40 @@ test("HTTP starts with only allowed places and saves both roots through Core and
   const preview = await (await send("/api/document-source?recovery=1", "POST", { path: plain })).json();
   assert.equal(preview.disk.source, "exact\n");
   const native = path.join(b, "document.md"), nativeBytes = fs.readFileSync(native, "utf8");
-  assert.equal((await send("/api/document", "POST", { ...textRequest, path: native, revision: documentRevision(nativeBytes) })).status, 400);
-  assert.equal(fs.readFileSync(native, "utf8"), nativeBytes);
+  assert.equal((await send("/api/document", "POST", { ...textRequest, path: native, revision: documentRevision(nativeBytes) })).status, 200);
+  assert.equal(fs.readFileSync(native, "utf8"), textRequest.source);
   await host.close();
   await assert.rejects(fetch(url), /fetch failed/);
+});
+
+test("HTTP opens and saves an ordinary README as a structured document", async t => {
+  const { a, send } = await fixture(t);
+  const file = path.join(a, "README.md");
+  const source = [
+    "# Example project", "", "Read the [manual](https://example.com/manual).", "",
+    "- Install", "- Run", "", "| Command | Result |", "| --- | --- |", "| start | ready |", "",
+    "```sh", "npm start", "```", "",
+  ].join("\n");
+  fs.writeFileSync(file, source);
+  const opened = await (await send(documentQuery(file))).json();
+  assert.equal(opened.kind, "native");
+  assert.equal(opened.source, source);
+  assert.deepEqual(opened.document.blocks.map((block: { block: string }) => block.block),
+    ["heading", "paragraph", "list", "table", "code"]);
+  const [heading, paragraph] = opened.document.blocks;
+  assert.deepEqual(heading.path, [1]);
+  const content = paragraph.content.map((item: { kind: string; text?: string }) =>
+    item.text === "Read the " ? { ...item, text: "See the " } : item);
+  const saved = await send("/api/document", "POST", {
+    path: file, revision: opened.revision, base: { source: opened.source },
+    paragraphs: [{ path: paragraph.path, content }],
+  });
+  assert.equal(saved.status, 200, await saved.clone().text());
+  const reopened = await (await send(documentQuery(file))).json();
+  assert.equal(reopened.kind, "native");
+  assert.equal(reopened.source, source.replace("Read the", "See the"));
+  assert.equal(reopened.revision, (await saved.json()).revision);
+  assert.equal(fs.readFileSync(file, "utf8"), reopened.source);
 });
 
 test("HTTP rejects an escaped surrogate locator and preserves valid Unicode names", async t => {
@@ -1257,7 +1299,7 @@ test("document comparison accepts only supplied native snapshots and returns rea
   const body = await result.json();
   assert.equal(body.changes[0].kind, "changed");
   assert.deepEqual(body.receipt, { beforeRevision: documentRevision(before), afterRevision: documentRevision(after) });
-  for (const input of [{ before, after: false }, { before, after: "plain text" }, { before: "x".repeat(1000001), after }]) {
+  for (const input of [{ before, after: false }, { before, after: "<div>Unsupported HTML</div>" }, { before: "x".repeat(1000001), after }]) {
     const response = await send("/api/document-compare", "POST", input);
     assert.equal(response.ok, false);
     assert.equal(typeof (await response.json()).error, "string");

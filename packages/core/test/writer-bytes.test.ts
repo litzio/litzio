@@ -9,7 +9,10 @@ import { mystParse } from "myst-parser";
 import { parse as parseNative, serialize as serializeNative } from "@litzio/core";
 
 test("local canonical Save agrees with full write, reread and repeat on seeded edits", () => {
-  const results = Object.values(localWriteCorpus(false));
+  const corpus = localWriteCorpus(false);
+  const results = Object.values(corpus);
+  assert.equal(corpus["without-frontmatter"].fallback["document-retry"], corpus["without-frontmatter"].tests);
+  assert.ok(corpus["unmarked-frontmatter"].paragraph + corpus["unmarked-frontmatter"].cell > 0);
   assert.ok(results.some(item => item.paragraph > 0));
   assert.ok(results.some(item => item.cell > 0));
   assert.ok(results.some(item => Object.keys(item.fallback).length > 0));

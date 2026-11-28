@@ -6,7 +6,7 @@ import {
 import { VFile } from "vfile";
 import { DocumentWriteError } from "../write-error.ts";
 import { recognizeGitHubAlert } from "./admonition.ts";
-import { markFrontMatter } from "./metadata.ts";
+import { ensureFrontMatter, markFrontMatter } from "./metadata.ts";
 import { locateFootnotes } from "./footnote.ts";
 import { retainMermaidOptions } from "./figure.ts";
 import { assertComplexTableDirective, isNativeTableSource, readTableBreaks, retainTableSource } from "./table.ts";
@@ -52,12 +52,13 @@ export function sourcePosition(node: MystNode): MystNode["position"] {
   return directiveRanges.get(node) ?? node.position;
 }
 
-export function parse(source: string, { complexTables = false, nativeAdmission = false } = {}): MystDocument {
+export function parse(source: string, { complexTables = false, nativeAdmission = false, documentMetadata = false } = {}): MystDocument {
   assertUnicode(source);
   const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
   const file = new VFile();
   const document = parseMyst(text, file) as MystDocument;
   markFrontMatter(document, text);
+  if (documentMetadata) ensureFrontMatter(document);
   const convertedTables = complexTables ? new Set<MystNode>() : undefined;
   retainTableSource(document, file, convertedTables);
   retainMermaidOptions(document, file);

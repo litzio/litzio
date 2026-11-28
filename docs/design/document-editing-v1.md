@@ -528,7 +528,7 @@ block menu). Heading marks and references retain their existing rules. The
 leading H1 and its label can move, accept preceding blocks, change level, or be
 removed like other sections. There is no fixed-title guard, label exception or
 Save replay bypass. Adding, changing or removing metadata title never changes
-body heading levels, labels or content. `litzio: 1` remains unchanged; existing
+body heading levels, labels or content. Unrelated frontmatter stays as written. Existing
 leading-H1 input opens as a body section without migration.
 
 Stored logical levels are independent of output heading placement. The installed
@@ -605,7 +605,7 @@ command is added; pasting is an editor input interaction.
 
 Clipboard text without `text/html` (Notepad, `.md` files, AI chat source) is pasted as Litzio
 formatting only when Core reads all of it as a document. Core `readMarkdownFragment` reads the
-text as the whole body of a native document (`litzio: 1` frontmatter plus the text) through the
+text as the whole body of a native document by prepending an empty YAML mapping. It uses the
 same admission and canonical round-trip as opening a document; the Editor projects the blocks
 with the Core → editor projection that opening uses. No Markdown is read in the Editor.
 `text/html`, Litzio's typed clipboard and image files keep their existing precedence.

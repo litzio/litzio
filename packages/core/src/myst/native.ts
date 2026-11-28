@@ -24,7 +24,7 @@ import { getDocumentStatus } from "./status.ts";
 import { getDocumentTitle } from "./title.ts";
 import { declaredBibliography } from "./citation.ts";
 
-export type NativeDocumentErrorCode = "native-marker" | "native-metadata" | "native-content";
+export type NativeDocumentErrorCode = "native-metadata" | "native-content";
 export class NativeDocumentError extends DocumentWriteError {
   constructor(readonly code: NativeDocumentErrorCode, reason: string, path?: number[], line?: number) {
     super(reason, { code, action: "Open a native document or create a new document. Automatic conversion is not supported.", path, line });
@@ -46,8 +46,7 @@ export function supportedHeadingContent(node: MystNode): InlineContent[] | undef
 
 /**
  * Whether source starts with frontmatter carrying the native marker `litzio: 1`, read from the
- * leading frontmatter alone so a folder listing can tell native files apart without parsing them.
- * It is not admission: a marked file can still be rejected for its metadata or content.
+ * leading frontmatter alone for the folder listing. Admission uses the full document.
  */
 export function hasNativeMarker(source: string): boolean {
   const match = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(source.replace(/^\uFEFF/, ""));
@@ -60,11 +59,9 @@ export function hasNativeMarker(source: string): boolean {
 /** Validate source metadata before accepting a file; canonicalization cannot detect duplicate YAML keys. */
 function metadata(document: MystDocument): void {
   const first = document.children[0];
-  if (first?.[FRONT_MATTER_FIELD] !== true) throw new NativeDocumentError("native-marker", "A native document requires leading frontmatter with litzio: 1", [0], 1);
+  if (first?.[FRONT_MATTER_FIELD] !== true) throw new NativeDocumentError("native-metadata", "Front matter must be closed and remain at the start of the document", [0], 1);
   const yaml = parseDocument(String(first.value ?? ""));
   if (yaml.errors.length || !isMap(yaml.contents)) throw new NativeDocumentError("native-metadata", `Invalid native frontmatter: ${yaml.errors[0]?.message ?? "expected a YAML mapping"}`, [0], 1);
-  const marker = yaml.get("litzio", true);
-  if (!isScalar(marker) || marker.value !== 1) throw new NativeDocumentError("native-marker", "Unsupported native document marker; expected YAML number litzio: 1", [0], 1);
   // Other fields belong to other tools; they are kept as written and never read as Litzio metadata.
   if (yaml.contents.items.some(pair => !isScalar(pair.key))) throw new NativeDocumentError("native-metadata", "Native frontmatter keys must be plain scalars", [0], 1);
   try { getDocumentStatus(document); getDocumentTitle(document); declaredBibliography(document); getTemplateMetadata(document); }
@@ -153,7 +150,7 @@ export function assertNativeDocument(document: MystDocument): void {
 
 export function parseNativeDocument(source: string): MystDocument {
   // ADR-0024: a `{table}` grid may be the supported HTML subset.
-  const document = parseTree(source, { complexTables: true, nativeAdmission: true });
+  const document = parseTree(source, { complexTables: true, nativeAdmission: true, documentMetadata: true });
   assertNativeDocument(document);
   // An HTML grid that fits a pipe grid is a pipe table, as its canonical write is, so that the read
   // model and the operations see the grid that the document keeps.
