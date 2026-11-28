@@ -561,7 +561,7 @@ test("table note whitespace follows paragraph writes and supports field-level au
   const authored = await core.authorDocument({ inputs: [{ key: "table", blocks: [
     { kind: "table", rows: block.rows.map(row => row.cells.map(cell => cell.content)), notes: block.notes },
   ] }] });
-  assert.equal(authored.source, canonical);
+  assert.equal(authored.source, canonical.replace(/^---\nlitzio: 1\n---\n\n/, ""));
   assert.equal(core.serialize(core.updateTableNote(document, [1], 0, block.notes[0])), canonical);
 });
 
@@ -584,7 +584,7 @@ test("table notes round-trip as owned paragraphs and follow whole-table operatio
   const authored = await core.authorDocument({ inputs: [{ key: "table", blocks: [
     { kind: "table", rows, notes: table.notes }, { kind: "target", label: "next" }, { kind: "heading", level: 1, text: "Next" },
   ] }] });
-  assert.equal(authored.source, canonical);
+  assert.equal(authored.source, canonical.replace(/^---\nlitzio: 1\n---\n\n/, ""));
   let edited = core.insertTableNote(doc, [1], 1, "c. Added");
   edited = core.updateTableNote(edited, [1], 0, "a. Updated");
   edited = core.moveTableNote(edited, [1], 2, 0);

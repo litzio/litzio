@@ -1,5 +1,4 @@
 ---
-litzio: 1
 numbering:
   headings: true
   title: false

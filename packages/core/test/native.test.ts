@@ -135,7 +135,7 @@ test("literal @ text opens, edits and writes safely for both Litzio and default 
     else assert.match(markdown, /\\@/);
   }
   const document = insertParagraph(createDocument(), 1, "Contact @kim for details.");
-  assert.equal(serialize(document), native("Contact \\@kim for details.\n"));
+  assert.equal(serialize(document), "Contact \\@kim for details.\n");
   const edited = updateParagraphInlineContent(document, [1], [
     { kind: "strong", children: [{ kind: "text", text: "@param" }] },
     { kind: "text", text: " [@key, p. 3] a@b.com" },
@@ -483,8 +483,12 @@ test("native supported semantics accept alternative spellings and preserve snaps
   assert.deepEqual(getEditableDocument(parse(markdown)), getEditableDocument(document));
 });
 
-test("creation and authoring retain the marker, including empty Figures and unresolved references", () => {
+test("creation and authoring omit the format marker and support empty Figures and unresolved references", () => {
   const empty = createDocument();
+  assert.equal(serialize(empty), "\n");
+  const divider = core.insertDivider(empty, 1);
+  assert.equal(serialize(divider), "***\n");
+  assert.equal(serialize(parse(serialize(divider))), "***\n");
   assert.deepEqual(getEditableDocument(empty).blocks, []);
   let document = insertHeading(empty, 1, 1, "Title");
   document = insertParagraph(document, 2, "Body.");
@@ -501,7 +505,7 @@ test("creation and authoring retain the marker, including empty Figures and unre
   const orphan = updateParagraphInlineContent(document, [2], [{ kind: "text", text: "Body." }]);
   assert.throws(() => serialize(moveBlock(orphan, 2, 1)), /has no reference/);
   const source = serialize(document);
-  assert.match(source, /^---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---/);
+  assert.match(source, /^---\nnumbering:\n  headings: true\n  title: false\n---/);
   assert.equal(serialize(parse(source)), source);
   assert.equal(canonicalWriteIssue(document), undefined);
   assert.throws(() => removeBlock(document, 0), /block 0 is the document metadata; body blocks start at 1/);
@@ -713,7 +717,7 @@ test("display math uses dollar fences when they preserve the complete LaTeX", ()
   ]) {
     const document = core.insertEquation(core.createDocument(), 1, latex);
     const markdown = core.serialize(document);
-    assert.equal(markdown, native(body));
+    assert.equal(markdown, body);
     const reopened = core.parse(markdown);
     assert.deepEqual(core.getEditableDocument(reopened), core.getEditableDocument(document));
     assert.equal(core.serialize(reopened), markdown);
@@ -939,7 +943,7 @@ test("authoring reuses native inline/list semantics and preserves canonical sour
     return { kind, ...semantic };
   });
   const authored = await authorDocument({ inputs: [{ key: "sample", blocks }] });
-  assert.equal(authored.source, serialize(original));
+  assert.equal(authored.source, serialize(original).slice(native("").length));
   assert.deepEqual(getEditableDocument(parse(authored.source)), model);
   // Endnote relocation must not retarget input receipts.
   const moved = await authorDocument({ inputs: [{ key: "moved", blocks: [

@@ -2,7 +2,6 @@
 export const BUILTIN_TEMPLATES = {
   "ai-report": {
     ko: `---
-litzio: 1
 title: AI 작업 보고서
 numbering:
   figure: 그림 %s
@@ -22,7 +21,6 @@ template:
 ## 남은 작업
 `,
     en: `---
-litzio: 1
 title: AI work report
 template:
   name: AI work report
@@ -40,7 +38,6 @@ template:
   },
   "technical-document": {
     ko: `---
-litzio: 1
 title: 기술 문서
 numbering:
   figure: 그림 %s
@@ -60,7 +57,6 @@ template:
 ## 검증 방법
 `,
     en: `---
-litzio: 1
 title: Technical document
 template:
   name: Technical document

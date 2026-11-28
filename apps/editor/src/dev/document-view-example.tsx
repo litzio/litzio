@@ -8,7 +8,7 @@ import type { ScreenDocumentEditState, ScreenDocumentViewState, ScreenDocumentVi
 import type { HostClient } from "../host-client.ts";
 
 const columns = Array.from({length:12}, (_, index) => `Column ${index+1}`);
-const source = "---\nlitzio: 1\ntitle: Document view example\n---\n\nSaved snapshots use the same renderer as document tabs.\n\n| " + columns.join(" | ") + " |\n| " + columns.map(() => "---").join(" | ") + " |\n| " + columns.map((_, index) => index === 11 ? "18" : `Source ${index+1}`).join(" | ") + " |\n\n$$\nE=mc^2\n$$\n\n:::{figure} " + new URL("./document-view-diagram.svg", import.meta.url).href + "\n:alt: Synthetic diagram\n\nSynthetic diagram\n:::\n" + Array.from({length:24}, (_, index) => `\nSource passage ${index + 1}. Synthetic material for side-by-side reading.\n`).join("\n") + "\n\n- Source list\n  - Nested source item\n";
+const source = "---\ntitle: Document view example\n---\n\nSaved snapshots use the same renderer as document tabs.\n\n| " + columns.join(" | ") + " |\n| " + columns.map(() => "---").join(" | ") + " |\n| " + columns.map((_, index) => index === 11 ? "18" : `Source ${index+1}`).join(" | ") + " |\n\n$$\nE=mc^2\n$$\n\n:::{figure} " + new URL("./document-view-diagram.svg", import.meta.url).href + "\n:alt: Synthetic diagram\n\nSynthetic diagram\n:::\n" + Array.from({length:24}, (_, index) => `\nSource passage ${index + 1}. Synthetic material for side-by-side reading.\n`).join("\n") + "\n\n- Source list\n  - Nested source item\n";
 const document = getEditableDocument(parse(source));
 const revision = "a".repeat(64), path = "/example/report.md";
 
@@ -109,7 +109,7 @@ export function LinkedDocumentViewExample() {
     const body = Array.from({ length: large ? 1200 : 24 }, (_, index) =>
       `${index + 1} · ${passages[index % passages.length]}`).join("\n\n");
     const title = korean ? "펌프 검사 절차" : "Pump inspection procedure";
-    const source = `---\nlitzio: 1\ntitle: ${title}\n---\n\n${body}\n`;
+    const source = `---\ntitle: ${title}\n---\n\n${body}\n`;
     const samplePath = large ? "/example/large-procedure.md" : "/example/procedure.md";
     const document = getEditableDocument(parse(source));
     const client: HostClient = { assertCurrent() {}, url: value => value, crossOrigin: undefined,

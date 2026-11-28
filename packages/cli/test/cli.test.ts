@@ -1361,7 +1361,7 @@ test("CLI insert-figure persists a Core Figure", () => {
     assert.match(readFileSync(file, "utf8"), /\*\*Bold\*\*/);
     assert.equal(run(["insert-figure", file, "--at", "1", "--image", "./only.svg"]).status, 0);
     const minimal = readFileSync(file, "utf8");
-    assert.match(minimal, /^---\nlitzio: 1\n---\n\n!\[\]\(\.\/only\.svg\)\n/);
+    assert.match(minimal, /^!\[\]\(\.\/only\.svg\)\n/);
     // Invalid under the pending Figure contract too: alt text without an image.
     for (const args of [
       ["insert-figure", file, "--at", "1", "--image", " ./a.svg"],
@@ -3225,6 +3225,8 @@ test("templates CLI lists, previews, saves and exclusively creates through the s
   const source = readFileSync(output, "utf8");
   assert.equal(receipt.source, source);
   assert.ok(source.includes("작업 목적"));
+  assert.match(source, /^---\ntitle: AI 작업 보고서\nnumbering:\n/);
+  assert.doesNotMatch(source, /^litzio:/m);
   assert.equal(run(["create", output, "--template", "builtin:technical-document"]).status, 1);
   assert.equal(readFileSync(output, "utf8"), source);
   const saved = run(["templates", "save", name, "--from", output, "--description", "CLI report"]);

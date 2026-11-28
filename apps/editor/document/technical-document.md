@@ -1,7 +1,3 @@
----
-litzio: 1
----
-
 # Converter Control
 
 The converter regulates the **DC-link voltage** and *phase current*.

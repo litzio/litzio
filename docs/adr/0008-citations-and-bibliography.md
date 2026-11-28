@@ -42,7 +42,6 @@ Implementation update (2026-10-23): units A, B and C are implemented in [Citatio
 
 ```yaml
 ---
-litzio: 1
 bibliography:
   - ../refs.bib
   - ../refs/standards.bib

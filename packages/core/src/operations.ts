@@ -1495,14 +1495,14 @@ export function updateHeadingLevel(
 
   const next = cloneDocument(document);
   getNode(next, path).depth = to;
-  const markdown = serializeFor(next, HEADING_LEVEL_FAILURE);
-  const reparsed = parse(markdown);
+  const result = roundTripFor(next, HEADING_LEVEL_FAILURE);
+  const { markdown, reparsed } = result;
   const updated = getNode(reparsed, [bodyIndex(next, path[0]), ...path.slice(1)]);
   if (
     updated.type !== "heading" ||
     Number(updated.depth) !== to ||
     toText(updated) !== toText(current) ||
-    serialize(reparsed) !== markdown
+    repeatRoundTrip(result).markdown !== markdown
   ) {
     throw new DocumentDiagnosticError("round-trip-mismatch", HEADING_LEVEL_FAILURE);
   }

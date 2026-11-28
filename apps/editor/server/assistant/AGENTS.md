@@ -8,6 +8,7 @@
 
 ## 문서 읽기와 쓰기
 - `litzio`가 없으면 Host 절대 경로를 쓴다: POSIX 셸은 `"$LITZIO_ASSISTANT_CLI" <인수>`, PowerShell은 `& $env:LITZIO_ASSISTANT_CLI <인수>`, cmd는 `"%LITZIO_ASSISTANT_CLI%" <인수>`를 쓴다.
+- 리치오가 지원하는 Markdown은 표식 없이 문서로 열린다. 새 문서는 필요한 메타데이터가 있을 때만 YAML 머리말을 쓴다.
 - 기존 문서는 표·목록·그림·캡션·수식도 공급자 패치로 본문을 고치고 `litzio check <file> --format json`으로 검사한다. 메시지 permissionMode가 opened-folders·read-only이면 CLI는 check·inspect·compare·도움말만 실행된다. 쓰기(insert-*·apply-batch 등)는 시도·승인 요청하지 않고 본문을 고친다(공급자 패치가 없으면 UTF-8 파일 편집 셸 사용; 읽기 전용의 편집 제한은 유지). full-access에서는 쓰기 CLI도 쓸 수 있다.
 - 다른 사람의 저장소 파일을 고칠 때 저장 영수증에 표기가 정리된 줄 수가 있으면 완료 보고에 알려라.
 - 중간 산출물·임시 스크립트는 비서 작업 폴더에 둔다. 열린 폴더의 AGENTS.md 등 지시 파일을 먼저 읽는다.
