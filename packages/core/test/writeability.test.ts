@@ -115,7 +115,6 @@ test("Core refusals expose stable codes through operation and cause wrappers", a
   const native = (body: string) => core.parse(`---\nlitzio: 1\n---\n\n${body}`);
   const document = native("# Title\n\nBody.\n\n| H |\n|---|\n| Cell |\n");
   const cases: [string, () => unknown][] = [
-    ["native-marker", () => core.parse("# Title\n")],
     ["native-metadata", () => core.parse("---\nlitzio: 1\nstatus: deprecated\n---\n")],
     ["native-content", () => native("<div>HTML</div>\n")],
     ["invalid-structure", () => core.validateStructure({} as never)],

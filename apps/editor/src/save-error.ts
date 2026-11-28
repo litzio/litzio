@@ -8,7 +8,6 @@ import type { SupportedEdits } from "../shared/document-protocol.ts";
 import { TABLE_CELL_SOURCE_ATTR } from "./tiptap-projection.ts";
 
 const diagnosticGuidance = {
-  "native-marker": "Invalid marker → Open a {{product}} document or create one.",
   "native-metadata": "Unsupported settings → Check document frontmatter.",
   "native-content": "Unsupported content or nesting → Remove or replace it.",
   "invalid-structure": "Invalid structure → Keep edits and report technical details.",
@@ -30,7 +29,6 @@ const diagnosticGuidance = {
 } satisfies Record<WriteIssueCode, MessageKey>;
 
 const diagnosticBadges = {
-  "native-marker": "Invalid marker → Open native file",
   "native-metadata": "Invalid settings → Review settings",
   "native-content": "Unsupported content → Replace",
   "invalid-structure": "Invalid structure → Report details",

@@ -135,7 +135,7 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   }
   await page.getByTestId('view-visual').click();
   await expect(input()).toHaveValue('```mermaid\ngraph LR\n  A --> B\n```\n\n    indented\n');
-  const content = '\t  한글 😀 **literal** <div>\n' + '긴 문장 soft wrap '.repeat(40) + 'identifier'.repeat(100) + '\n\n마지막 줄  \n';
+  const content = '<div>Unsupported HTML</div>\n\n\t  한글 😀 **literal** <div>\n' + '긴 문장 soft wrap '.repeat(40) + 'identifier'.repeat(100) + '\n\n마지막 줄  \n';
   await input().fill(content);
   await expect(input().locator('..')).toHaveClass('document');
   expect(await input().evaluate(node => ({border:getComputedStyle(node).borderWidth,background:getComputedStyle(node).backgroundColor,outline:getComputedStyle(node).outlineStyle}))).toEqual({border:'0px',background:'rgba(0, 0, 0, 0)',outline:'none'});
@@ -169,15 +169,17 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   // External edits can change admission in either direction, only when Reload accepts them.
   await openPath(page,file('native.md'));
   await expect(activeDocument(page).locator('.document-editor')).toBeVisible();
-  textFixture.replaceNative('external plain Markdown\n');
+  textFixture.replaceNative('<div>Unsupported HTML</div>\n\nExternal Markdown.\n');
   await reload();
-  await expect(preview()).toContainText('external plain Markdown');
+  await expect(preview()).toContainText('External Markdown.');
   await page.getByTestId('view-visual').click();
-  await expect(input()).toHaveValue('external plain Markdown\n');
+  await expect(input()).toHaveValue('<div>Unsupported HTML</div>\n\nExternal Markdown.\n');
+  await input().fill('External Markdown.\n');
+  await save();
+  await expect(input()).toHaveValue('External Markdown.\n');
   await input().fill(nativeBefore.source);
   await save();
-  await page.keyboard.press('Control+s');
-  await expect(page.getByTestId('status')).toHaveAttribute('data-operation','save-failed');
+  await expect(input()).toHaveValue(nativeBefore.source);
   expect((await read(file('native.md'))).source).toBe(nativeBefore.source);
   await reload();
   await expect(activeDocument(page).locator('.document-editor')).toBeVisible();

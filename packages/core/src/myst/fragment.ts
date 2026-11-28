@@ -18,7 +18,7 @@ export type MarkdownFragment = {
   formatted: boolean;
 };
 
-const NATIVE_PREFIX = "---\nlitzio: 1\n---\n\n";
+const NATIVE_PREFIX = "---\n{}\n---\n\n";
 const FENCE = /^ {0,3}(?:`{3,}|~{3,})/;
 
 /**

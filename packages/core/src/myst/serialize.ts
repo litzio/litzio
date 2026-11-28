@@ -9,7 +9,7 @@ import { DocumentWriteError, writeIssueOf, type WriteIssue } from "../write-erro
 import { completeFootnotes, endnotePlacement, footnoteWriteIssue } from "./footnote.ts";
 import { githubAlertTag } from "./admonition.ts";
 import { isFigure, figureContentKind } from "./figure.ts";
-import { FRONT_MATTER_FIELD } from "./constants.ts";
+import { FRONT_MATTER_FIELD, IMPLICIT_FRONT_MATTER } from "./constants.ts";
 import { encodeEmphasisBoundaries, hasAlternateBoundaries } from "./emphasis-boundary.ts";
 import { encodeLineStarts, hasLineStartSyntax } from "./line-start.ts";
 import { sourceSyntaxDiagnostics } from "./literal-syntax.ts";
@@ -256,7 +256,7 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
   assertNoSerializationDiagnostics(file, document);
   // Normalize the complete output, including preserved source, before semantic verification.
   const markdown = `${frontMatter}${String(file.result ?? "").trimEnd()}\n`.replace(/\r\n?/g, "\n");
-  const result = previous?.markdown === markdown ? previous : parsedRoundTrip(markdown, complexTables);
+  const result = previous?.markdown === markdown ? previous : parsedRoundTrip(markdown, complexTables, document.children[0]?.[FRONT_MATTER_FIELD] === true);
   const difference = semanticDifferenceIssue(expected, result.fingerprint);
   if (difference) {
     const index = difference.blockIndex;
@@ -297,8 +297,8 @@ function keepsStandaloneImage(image: MystNode): boolean {
   return read !== undefined && read.url === image.url && read.alt === (image.alt ?? "");
 }
 
-function parsedRoundTrip(markdown: string, complexTables: boolean): RoundTrip {
-  const reparsed = parse(markdown, { complexTables });
+function parsedRoundTrip(markdown: string, complexTables: boolean, documentMetadata: boolean): RoundTrip {
+  const reparsed = parse(markdown, { complexTables, documentMetadata });
   return { markdown, reparsed, fingerprint: semanticFingerprint(reparsed) };
 }
 
@@ -356,8 +356,10 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
         throw new SemanticLossError(`Block ${index + 1}: front matter must be closed and remain at the start of the document`, {
           code: "native-metadata", path, action: "Close the front matter with --- and keep it at the start of the file, then Reload." });
       }
-      const yaml = String(node.value ?? "");
-      prefix = `---\n${yaml}${yaml && !yaml.endsWith("\n") ? "\n" : ""}---\n\n`;
+      if (node[IMPLICIT_FRONT_MATTER] !== true) {
+        const yaml = String(node.value ?? "");
+        prefix = `---\n${yaml}${yaml && !yaml.endsWith("\n") ? "\n" : ""}---\n\n`;
+      }
     }
     // myst-to-md chooses its image directive by key presence, even for undefined
     // attributes emitted by myst-parser. Absent values must stay absent.
@@ -539,7 +541,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     }
   }
   visit(tree, 0);
-  if (prefix) tree.children.shift();
+  if (tree.children[0]?.[FRONT_MATTER_FIELD] === true) tree.children.shift();
   return { prefix, minimal };
 }
 

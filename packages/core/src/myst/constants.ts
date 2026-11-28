@@ -4,3 +4,6 @@
  * Unterminated or unrecognized delimiters remain unwritable. The parenthesized name is not a MyST field.
  */
 export const FRONT_MATTER_FIELD = "(front matter)";
+
+/** A metadata slot with no corresponding source lines. */
+export const IMPLICIT_FRONT_MATTER = "(implicit front matter)";

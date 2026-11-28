@@ -11,14 +11,12 @@ export type SaveWork = { kind: "save"; path: string; disk: string; request: Omit
 export type DocumentWork =
   | { kind: "open"; path: string; source: string }
   | { kind: "bibliography"; path: string; source: string }
-  | { kind: "check-text"; source: string }
   | SaveWork
   | { kind: "verify-local-write"; save: SaveWork; expected: string };
 
 export type DocumentResults = {
   open: DocumentReadModel | undefined;
   bibliography: string[];
-  "check-text": boolean;
   save: SaveResponse & { markdown: string; localWrite?: { kind: LocalWriteKind; blockCount: number; path: readonly number[] }; fallback?: string };
   "verify-local-write": { outcome: "equal" } | { outcome: "different"; markdown: string; revision: string }
     | ({ outcome: "rejected" } & Pick<Extract<Diagnostic, { kind: "save" }>, "reason" | "failure">);

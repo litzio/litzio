@@ -5,6 +5,7 @@ import { semanticDifference, semanticFingerprint } from "./fingerprint.ts";
 import { assertNativeDocument } from "./native.ts";
 import { parse, sourcePosition } from "./parse.ts";
 import { plainRoundTrip } from "./serialize.ts";
+import { IMPLICIT_FRONT_MATTER } from "./constants.ts";
 import { tableOf } from "./table.ts";
 import { isComplexGrid } from "./table-grid.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
@@ -16,7 +17,7 @@ type LocalWriteResult =
   | { reason: string }
   | { markdown: string; baseline: LocalWriteBaseline; kind: LocalWriteKind; blockCount: number };
 
-const marker = "---\nlitzio: 1\n---\n\n";
+const WINDOW_PREFIX = "---\n{}\n---\n\n";
 const inlineTypes = new Set(["text", "strong", "emphasis", "delete", "inlineCode", "inlineMath", "link"]);
 const ordinaryText = /^[\p{L}\p{M}\p{N}\p{So}\p{Sk} .,!?;:'"’“”()–—…\-]+$/u;
 const oneLineMath = /^[\p{L}\p{N} =+^_{}\\.,()\-]+$/u;
@@ -66,12 +67,14 @@ export class LocalWriteBaseline {
   ) {}
 
   static fromCanonical(source: string, verified: Document): LocalWriteBaseline | undefined {
+    const document = verified as unknown as MystDocument;
+    if (document.children[0]?.[IMPLICIT_FRONT_MATTER] === true) return undefined;
     try {
       // A document-wide retry can change how distant blocks are escaped.
-      const { markdown, reparsed: document } = plainRoundTrip(verified as unknown as MystDocument);
+      const { markdown, reparsed } = plainRoundTrip(document);
       if (markdown !== source) return undefined;
-      assertNativeDocument(document);
-      return new LocalWriteBaseline(source, document, blockSpans(source, document));
+      assertNativeDocument(reparsed);
+      return new LocalWriteBaseline(source, reparsed, blockSpans(source, reparsed));
     } catch { return undefined; }
   }
 
@@ -120,7 +123,7 @@ export class LocalWriteBaseline {
     } catch { return { reason: "block-rejected-or-needs-retry" }; }
 
     const delta = replacement.length - (span.end - span.start);
-    const prefix = first === 0 ? "" : marker;
+    const prefix = first === 0 ? "" : WINDOW_PREFIX;
     const offset = prefix.length - left.start;
     const window = prefix + source.slice(left.start, span.start) + replacement + source.slice(span.end, right.end) + "\n";
     try {

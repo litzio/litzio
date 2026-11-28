@@ -258,7 +258,7 @@ const COMMANDS: CommandSpec[] = [
     details: [
       `Validate a document: its structure, and whether ${brand.name.en} can rewrite it as canonical`,
       "Markdown without losing semantics (the same check format and Editor Save use).",
-      "Exits 1 when it cannot.",
+      "YAML frontmatter is optional. Exits 1 when the document is unsupported.",
       "JSON failures may include optional error.code from Core; unclassified errors may omit the code.",
       "References ({eq}, {numref}, {ref}, and links such as [](#label) whose URL starts with #)",
       "that name no target in this document, as MyST resolves them (including the implicit IDs",
@@ -282,7 +282,7 @@ const COMMANDS: CommandSpec[] = [
     summary: "Inspect semantic blocks and editable targets",
     usage: `${brand.cliCommand} inspect <file> [--format <text|json>]`,
     details: [
-      "Inspect semantic blocks and editable targets.",
+      "Inspect semantic blocks and editable targets. YAML frontmatter is optional.",
       "JSON nodes expose Core InlineContent as content (table caption as caption, note paragraphs as notes, list items as items). text is a readable summary. JSON includes revision: the SHA-256 of the original UTF-8 text read for this inspect.",
       "Reports body character counts with and without spaces (JSON: characterCount).",
       ...REVISION_NOTE,

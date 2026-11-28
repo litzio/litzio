@@ -1,4 +1,5 @@
 import { createTokenizer } from "myst-parser";
+import { installedRule } from "./tokenizer-rule.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
 
 // Source-only evidence, outside the semantic tree and canonical-write fingerprint.
@@ -35,7 +36,7 @@ export function sourceSyntaxDiagnostics(document: MystDocument): ((LiteralSyntax
   const source = sources.get(document);
   if (!source) return [];
   const tokenizer = createTokenizer(source.options);
-  const backticks = installed(tokenizer.inline.ruler, "backticks");
+  const backticks = installedRule(tokenizer.inline.ruler, "backticks");
   // MyST leaves bare URLs as text (linkify is off). Reuse markdown-it's URL
   // recognizer solely to suppress diagnostics there; do not change parsing options.
   // Public native admission and unresolvedReferences both reach this recognizer;
@@ -163,17 +164,6 @@ export function sourceSyntaxDiagnostics(document: MystDocument): ((LiteralSyntax
   });
 }
 
-/** An installed rule, captured through the public ruler API (without depending on
- * its function name or copying its algorithm). */
-function installed<Rule>(ruler: { getRules(chain: string): Rule[]; disable(name: string): unknown; enable(name: string): unknown },
-  name: string): Rule {
-  const rules = ruler.getRules("");
-  ruler.disable(name);
-  const otherRules = new Set(ruler.getRules(""));
-  ruler.enable(name);
-  return rules.find(rule => !otherRules.has(rule))!;
-}
-
 const CJK = /[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
 function codePointBefore(text: string, position: number): number {
@@ -192,8 +182,8 @@ type EmphasisRun = { start: number; length: number; open: boolean; close: boolea
  * written as a character reference (punctuation `&`) when the inside character is punctuation.
  * A pair that pairs only after that repair, and not in the actual parse, warns. */
 function observeEmphasis(tokenizer: Tokenizer, inUrl: (state: InlineState, position: number) => boolean): void {
-  const emphasis = installed(tokenizer.inline.ruler, "emphasis");
-  const balancePairs = installed(tokenizer.inline.ruler2, "balance_pairs");
+  const emphasis = installedRule(tokenizer.inline.ruler, "emphasis");
+  const balancePairs = installedRule(tokenizer.inline.ruler2, "balance_pairs");
   const runs = new WeakMap<Delimiter, EmphasisRun>();
   const flags = new WeakMap<Delimiter, { open: boolean; close: boolean }>();
   const { isWhiteSpace, isPunctChar, isMdAsciiPunct } = tokenizer.utils;
