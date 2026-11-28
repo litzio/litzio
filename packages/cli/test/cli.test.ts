@@ -23,6 +23,7 @@ import {
   validateStructure,
   citationReport,
   updateLabel,
+  updateTableCell,
   numberingReport,
 } from "@litzio/core";
 import { textRevision } from "@litzio/file-commit";
@@ -1922,6 +1923,32 @@ test("CLI rejects empty NodePath segments in single and batch writes while accep
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("CLI batch groups plain table edits while retaining the first refused command number", () => {
+  const file = path.join(fixtures, "table-batch.md");
+  const operations = path.join(fixtures, "table-batch.json");
+  const source = nativeSource("| Header |\n| --- |\n| Middle |\n| Last |\n");
+  writeFileSync(file, source);
+  const edits = [
+    { path: [1, 0, 0], text: "First" },
+    { path: [1, 1, 0], text: "Second" },
+    { path: [1, 2, 0], text: "Third" },
+  ];
+  const command = (items: typeof edits) => {
+    writeFileSync(operations, JSON.stringify(items.map(edit => ({
+      command: "update-table-cell", path: edit.path.join(","), text: edit.text,
+    }))));
+    return run(["apply-batch", file, "--operations", operations]);
+  };
+  const refusal = command([edits[0], { ...edits[1], text: "invalid\0text" }, edits[2], edits[1]]);
+  assert.equal(refusal.status, 1);
+  assert.match(refusal.stderr, /operation 2 \(update-table-cell\): table cell text cannot be preserved.*nothing was written/);
+  assert.deepEqual(readFileSync(file), Buffer.from(source));
+  const accepted = command(edits);
+  assert.equal(accepted.status, 0, accepted.stderr);
+  const sequential = edits.reduce((doc, edit) => updateTableCell(doc, edit.path, edit.text), parse(source));
+  assert.deepEqual(readFileSync(file), Buffer.from(serialize(sequential)));
 });
 
 test("CLI accepts an inspect revision for edits and format without printing a new revision", () => {

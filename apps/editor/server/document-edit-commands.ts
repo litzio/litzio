@@ -49,6 +49,7 @@ import {
   updateEnumerator,
   updateNumberingMode,
   updateTableCell,
+  tryUpdateTableCells,
   updateTableCellBlocks,
   updateTableCaption,
   insertTableNote,
@@ -621,11 +622,37 @@ export function applyDocumentBatch(source: string, operations: unknown) {
   const original = parse(source);
   let document = original;
   let unchanged = true;
+  let triedUntil = 0;
   const references = unresolvedReferences(document);
   for (let index = 0; index < operations.length; index += 1) {
     const operation = operations[index];
     try {
       const { command, flags } = batchCommand(operation);
+      // The first ordinary step establishes canonical endnote placement. Thereafter a
+      // checked group of plain cell edits can neither move those endnotes nor change structure.
+      if (!unchanged && index >= triedUntil && command === "update-table-cell" && !flags.includes("--blocks") &&
+          operations[index + 1]?.command === command) {
+        try {
+          const first = tableCellEdit(flags);
+          const group = [first];
+          triedUntil = index + 1;
+          while (operations[triedUntil]?.command === command) {
+            const next = batchCommand(operations[triedUntil]);
+            if (next.flags.includes("--blocks")) break;
+            const edit = tableCellEdit(next.flags);
+            if (edit.path[0] !== first.path[0]) break;
+            group.push(edit);
+            triedUntil++;
+          }
+          const next = tryUpdateTableCells(document, group);
+          if (next) {
+            validateStructure(next);
+            document = placeEndnotes(next);
+            index = triedUntil - 1;
+            continue;
+          }
+        } catch { /* Execute in order below to retain the original command number and error. */ }
+      }
       const next = changeFor(command, flags, true)(document);
       if (next === document && operation.command === "replace-text" && operation.all === true) continue;
       unchanged = false;

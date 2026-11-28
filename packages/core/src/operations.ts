@@ -53,7 +53,7 @@ import {
   setTableCellContent, setTableColumnAlignNode, tableBlockNode, tableCaptionParagraph, tableCellContent, tableOf,
   setTableNoteParagraphs, tableNoteHasFootnote, tableNoteParagraphs,
 } from "./myst/table.ts";
-import { isComplexGrid, locateTableCells, settleTableGrid, tableCellBlockNodes, tableCellBlocks } from "./myst/table-grid.ts";
+import { isComplexGrid, locateTableCells, needsComplexGrid, settleTableGrid, tableCellBlockNodes, tableCellBlocks } from "./myst/table-grid.ts";
 import type { ComplexTableInput, TableCellBlock } from "./table.ts";
 import { assertBodyIndex, cloneDocument, getNode, type MystDocument, type MystNode, toText } from "./myst/tree.ts";
 
@@ -788,6 +788,51 @@ export function updateTableCell(document: MystDocument, path: NodePath, cell: Ta
   if (complex) settleTableGrid(tableOf(next.children[path[0]])!, [path[0]]);
   assertStableTable(next, path[0], TABLE_CELL_FAILURE);
   return next;
+}
+
+const plainCellText = /^(?:[\p{L}\p{N}][\p{L}\p{M}\p{N}]*(?: +[\p{L}\p{N}][\p{L}\p{M}\p{N}]*)*)$/u;
+
+function isPlainCell(content: InlineContent[]): boolean {
+  return !content.length || (content.length === 1 && content[0].kind === "text" && plainCellText.test(content[0].text));
+}
+
+/** Try a single checked write for distinct cells of one pipe table. When this returns undefined,
+ * replay the original edits sequentially to obtain their exact first refusal, if any. */
+export function tryUpdateTableCells(
+  document: MystDocument,
+  edits: readonly { path: NodePath; content: TableCellInput }[],
+): MystDocument | undefined {
+  if (edits.length < 2) return undefined;
+  const index = edits[0].path[0];
+  try {
+    const table = tableOf(getNode(document, [index]));
+    if (!table || needsComplexGrid(table)) return undefined;
+    const seen = new Set<MystNode>();
+    const changes: { path: NodePath; content: InlineContent[] }[] = [];
+    for (const { path, content } of edits) {
+      if (path.length !== 3 || path[0] !== index) return undefined;
+      const cell = tableCellAt(document, path);
+      if (cell?.type !== "tableCell" || seen.has(cell)) return undefined;
+      const children = cell.children ?? [];
+      const [text] = children;
+      if (children.length && (children.length !== 1 || text.type !== "text" || typeof text.value !== "string" ||
+          !plainCellText.test(text.value) || Object.keys(text).some(key => !["type", "position", "value"].includes(key)))) return undefined;
+      const after = tableCellInput(content);
+      if (!isPlainCell(after)) return undefined;
+      seen.add(cell);
+      changes.push({ path, content: after });
+    }
+    // A pipe cell bounds its inline parse. In either version these cells contain only
+    // words, spaces or nothing, so no prefix can change delimiters, grid shape, escaping,
+    // links or endnotes. A successful round-trip therefore holds for every mix of old
+    // and new cells in this group. The unchanged document context is checked as usual.
+    const next = cloneDocument(document);
+    for (const { path, content } of changes) setTableCellContent(tableCellAt(next, path)!, content);
+    assertStableTable(next, index, TABLE_CELL_FAILURE);
+    return next;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Replace the blocks of a top-level table cell: paragraphs and bullet or decimal lists (ADR-0024).

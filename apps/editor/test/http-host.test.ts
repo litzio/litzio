@@ -781,6 +781,41 @@ const saveBody = (file: string, text = "Edited.") => {
     paragraphs: [{ path: [2], content: [{ kind: "text", text }] }] };
 };
 
+test("table replay preserves the first cell refusal and commits no partial edits", async t => {
+  const { a, send } = await fixture(t);
+  const file = path.join(a, "tables.md");
+  const source = nativeSource("| First |\n| --- |\n| Before |\n\nDivider\n\n| Second |\n| --- |\n| Before |\n");
+  fs.writeFileSync(file, source);
+  const body = { path: file, revision: documentRevision(source), base: { source } };
+  const cell = (path: number[], text: string) => ({ path, content: [{ kind: "text", text }] });
+  const first = cell([3, 0, 0], "Edited");
+  const invalid = cell([1, 1, 0], "invalid\0text");
+  const repair = cell(invalid.path, "Repaired");
+  // Table 3's bad edit is later in request order, even though that table occurs first in the request.
+  const cells = [first, invalid, cell([3, 1, 0], " also invalid"), repair];
+  const expectedTarget = { path: invalid.path, part: 0 };
+  const expectedError = 'table cell text cannot be preserved through canonical round-trip (Block 2: root > container > table > tableRow > tableCell > text: value "invalid\\u0000text" became "invalid�text")';
+  for (const route of ["/api/document-source", "/api/document"]) {
+    for (const edits of [cells, [cell([1, 0, 0], "Edited"), invalid, repair]]) {
+      const response = await send(route, "POST", { ...body, cells: edits });
+      assert.equal(response.status, 400);
+      const rejection = await response.json();
+      assert.equal(rejection.error, expectedError);
+      assert.deepEqual(rejection.target, expectedTarget);
+      assert.equal(rejection.failure.code, "round-trip-mismatch");
+      assert.deepEqual(rejection.failure.target, expectedTarget);
+      assert.deepEqual(fs.readFileSync(file), Buffer.from(source));
+    }
+  }
+  const repeated = { ...body, cells: [first, cell(repair.path, "Intermediate"), repair] };
+  const preview = await send("/api/document-source", "POST", repeated);
+  assert.equal(preview.status, 200);
+  const { markdown } = await preview.json();
+  assert.match(markdown, /\| Repaired \|/);
+  assert.equal((await send("/api/document", "POST", repeated)).status, 200);
+  assert.deepEqual(fs.readFileSync(file), Buffer.from(markdown));
+});
+
 test("HTTP authored creation preserves Core validity, receipt and exclusive publication", async t => {
   const { a, outside, send } = await fixture(t);
   const file = path.join(a, "new", "nested", "authored.md");
