@@ -305,6 +305,7 @@ test("canonical Markdown keeps looseness at each list level and is stable on the
     ["- a\n\n  -\n", "- a\n\n  -\n"],
     ["- a\n\n- b\n- c\n", "- a\n\n- b\n\n- c\n"],
     ["- a\n- [b][ref]\n\n  [ref]: https://example.com\n", "- a\n\n- [b](https://example.com)\n"],
+    ["- [a][ref]\n  - b\n\n  [ref]: https://example.com\n", "- [a](https://example.com)\n\n  - b\n"],
     ["- a\n  - b\n\n  - c\n- d\n", "- a\n  - b\n\n  - c\n- d\n"],
     ["2) a\n\n3) b\n\n1. c\n2. d\n", "2) a\n\n3) b\n\n1. c\n2. d\n"],
     ["- [ ] a\n- [x] b\n  - c\n\n  - d\n", "- [ ] a\n- [x] b\n  - c\n\n  - d\n"],

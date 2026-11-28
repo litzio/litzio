@@ -113,7 +113,7 @@ index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f520
              visit(mdast, (node) => {
                  if (node.position) {
 diff --git a/dist/tokensToMyst.js b/dist/tokensToMyst.js
-index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..96ea13283a69c4c51f3b5ff2f94212e19bfff065 100644
+index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..e8d9b76b5df56a58866620ae46d815ab80169c22 100644
 --- a/dist/tokensToMyst.js
 +++ b/dist/tokensToMyst.js
 @@ -98,22 +98,23 @@ const defaultMdast = {
@@ -145,7 +145,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..96ea13283a69c4c51f3b5ff2f94212e1
              if (t.attrGet('class') === 'task-list-item') {
                  // This is a temporary property used to clean up the AST in a subsequent pass
                  attrs.__taskList = true;
-@@ -506,7 +507,52 @@ const defaultOptions = {
+@@ -506,7 +507,59 @@ const defaultOptions = {
      listItemParagraphs: true,
      nestBlocks: true,
  };
@@ -160,11 +160,15 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..96ea13283a69c4c51f3b5ff2f94212e1
 +    for (const token of tokens) {
 +        const item = items.at(-1);
 +        if (item && token.map && token.level === item.token.level + 1 && token.nesting >= 0) {
-+            if (item.seenBlock && separated(token)) {
-+                spread(item.token);
-+                lists.at(-1).innerSpread = true;
++            const list = lists.at(-1);
++            if (item.seenBlock) {
++                list.innerCandidate ??= item.token;
++                if (separated(token)) {
++                    spread(item.token);
++                    list.innerSpread = true;
++                }
 +            }
-+            if (token.type === 'paragraph_open' && !token.hidden) lists.at(-1).looseParagraph = true;
++            if (token.type === 'paragraph_open' && !token.hidden) list.looseParagraph = true;
 +            item.seenBlock = true;
 +        }
 +        switch (token.type) {
@@ -176,7 +180,10 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..96ea13283a69c4c51f3b5ff2f94212e1
 +            case 'bullet_list_close': {
 +                const list = lists.pop();
 +                // Reference definitions leave no block token, but can make a paragraph loose.
-+                if (list.itemCount > 1 && list.looseParagraph && !list.innerSpread) spread(list.token);
++                if (list.looseParagraph && !list.innerSpread) {
++                    if (list.itemCount > 1) spread(list.token);
++                    else if (list.innerCandidate) spread(list.innerCandidate);
++                }
 +                break;
 +            }
 +            case 'list_item_open': {
@@ -198,7 +205,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..96ea13283a69c4c51f3b5ff2f94212e1
      const opts = {
          ...defaultOptions,
          ...options,
-@@ -540,9 +586,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
+@@ -540,9 +593,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
              node.checked = html[0].value.includes('checked=""');
              // Remove the inline html
              node.children?.splice(0, 1);
