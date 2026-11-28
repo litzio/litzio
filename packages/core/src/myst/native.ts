@@ -151,6 +151,10 @@ export function assertNativeDocument(document: MystDocument): void {
 }
 
 export function parseNativeDocument(source: string): MystDocument {
+  return parseNativeSnapshot(source).document;
+}
+
+export function parseNativeSnapshot(source: string) {
   // ADR-0024: a `{table}` grid may be the supported HTML subset.
   const document = parseTree(source, { complexTables: true, nativeAdmission: true, documentMetadata: true });
   assertNativeDocument(document);
@@ -160,8 +164,7 @@ export function parseNativeDocument(source: string): MystDocument {
     const table = tableOf(node);
     if (isComplexGrid(table)) usePipeGrid(table!, [index]);
   });
-  serializeTree(document);
-  return document;
+  return { document, canonicalMarkdown: serializeTree(document) };
 }
 
 export function serializeNativeDocument(document: MystDocument): string {
