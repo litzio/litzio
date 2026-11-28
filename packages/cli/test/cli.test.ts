@@ -684,7 +684,7 @@ test("apply-batch preserves original bytes for step errors, invalid input and st
     assert.deepEqual(run(["apply-batch", file, "--operations", operationsFile, "--if-revision", "0".repeat(64), "--dry-run"]), stale);
     assert.deepEqual(readFileSync(file), original);
     const invalid = path.join(dir, "invalid.md");
-    for (const source of [undefined, "# Missing native marker\n"]) {
+    for (const source of [undefined, "<div>Unsupported HTML</div>\n"]) {
       if (source !== undefined) writeFileSync(invalid, source);
       const batch = run(["apply-batch", invalid, "--operations", operationsFile]);
       assert.equal(batch.status, 1);
@@ -2550,12 +2550,21 @@ test("native create and admission keep existing files intact and report structur
     assert.equal(run(["create", nested]).status, 1);
     assert.deepEqual(readdirSync(dir), ["new.md"]);
     for (const args of [["check", file], ["check", file, "--format", "json"]]) assert.equal(run(args).status, 0);
-    const unsupported = "# Older document\r\n\r\nKeep these exact bytes.\r\n";
+    const ordinary = "# Ordinary document\n\nKeep these exact bytes.\n";
+    writeFileSync(file, ordinary);
+    assert.equal(run(["check", file]).status, 0);
+    const inspected = run(["inspect", file, "--format", "json"]);
+    assert.equal(inspected.status, 0, inspected.stderr);
+    assert.deepEqual(JSON.parse(inspected.stdout).nodes.map((node: { path: number[] }) => node.path), [[1], [2]]);
+    assert.equal(run(["format", file]).status, 0);
+    assert.equal(readFileSync(file, "utf8"), ordinary);
+
+    const unsupported = "---\r\ntitle: [\r\n---\r\n\r\nKeep these exact bytes.\r\n";
     writeFileSync(file, unsupported);
     for (const args of [["check", file], ["inspect", file], ["format", file], ["replace-text", file, "--from", "Older", "--to", "Changed"]]) {
       const rejected = run(args);
       assert.equal(rejected.status, 1, args.join(" "));
-      assert.match(rejected.stderr, /litzio: 1/);
+      assert.match(rejected.stderr, /Invalid native frontmatter/);
       assert.equal(readFileSync(file, "utf8"), unsupported);
     }
     const json = run(["check", file, "--format", "json"]);
@@ -2563,7 +2572,7 @@ test("native create and admission keep existing files intact and report structur
     const result = JSON.parse(json.stdout);
     assert.equal(result.ok, false);
     assert.deepEqual(result.validation, { valid: false });
-    assert.equal(result.error.code, "native-marker");
+    assert.equal(result.error.code, "native-metadata");
     assert.equal(result.error.line, 1);
     assert.equal(result.nodes, undefined);
     // A non-native write refusal keeps the same JSON envelope and passes through Core's code.
@@ -3259,10 +3268,10 @@ test("compare returns shared JSON receipts without changing either file; rejects
     const failure = run(["compare", ...args]);
     assert.notEqual(failure.status, 0); assert.equal(failure.stdout, "");
   }
-  writeFileSync(after, "not native");
+  writeFileSync(after, "<div>Unsupported HTML</div>");
   const failure = run(["compare", before, after, "--json"]);
   assert.notEqual(failure.status, 0); assert.equal(failure.stdout, "");
-  assert.equal(readFileSync(after, "utf8"), "not native");
+  assert.equal(readFileSync(after, "utf8"), "<div>Unsupported HTML</div>");
 });
 
 test("plugin CLI forwards authoring and registration consent without implicit approval", async t => {

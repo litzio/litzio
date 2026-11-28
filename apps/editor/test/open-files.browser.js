@@ -176,7 +176,7 @@ async (page, { showNotifications, openDocument, openPath, expect, screenshots = 
     await measureLongDialog('unsaved', page.getByRole('dialog', {name:'Save changes?',exact:true}));
     await page.getByRole('button', {name:"Don't save",exact:true}).click();
     await page.getByRole('dialog').waitFor({state:'detached'});
-    const rejectLong = route => route.fulfill({status:400,json:{code:'native-marker',error:'Not a native document',issue:{reason:`Missing native marker: ${longPath}`,action:'Create a new document and paste the text.'}}});
+    const rejectLong = route => route.fulfill({status:400,json:{code:'native-metadata',error:'Not a native document',issue:{reason:`Invalid frontmatter: ${longPath}`,action:'Create a new document and paste the text.'}}});
     await page.route('**/api/document?*', rejectLong);
     await openDocument(page, longPath);
     await measureLongDialog('refusal', page.getByRole('dialog', {name:'Cannot open document',exact:true}));

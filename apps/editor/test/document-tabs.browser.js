@@ -160,7 +160,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   const countTarget = request => {
     if (request.method() === 'GET' && request.url().includes('/api/document?path=')) targetReads++;
   };
-  const failedDefault = route => route.fulfill({status:400,json:{code:'native-marker',error:'Default document unavailable'}});
+  const failedDefault = route => route.fulfill({status:400,json:{code:'native-metadata',error:'Default document unavailable'}});
   page.on('request',countTarget);
   await page.route('**/api/document',failedDefault);
   try {

@@ -21,7 +21,7 @@
 | [ADR-0003: Addressing and identity](adr/0003-document-addressing-identity-boundary.md) | Accepted | snapshot locator인 NodePath/sourcePath와 영속 identity의 경계를 정한다. |
 | [ADR-0004: Desktop Host and distribution](adr/0004-desktop-host-distribution.md) | Accepted | Windows Electron/NSIS shell, 공용 Host handler 재사용과 사용자 승인 기반 업데이트·배포를 정한다. |
 | [ADR-0005: Standalone HTTP Host](adr/0005-http-host.md) | Accepted | 공용 handler를 재사용하는 단일 운영자용 HTTP Host와 Node 배포·접근 범위를 정한다. |
-| [ADR-0006: Native document boundary](adr/0006-native-document-boundary.md) | Accepted | 표식과 Core의 전체 의미 검증으로 네이티브 문서를 수용하고 공식 생성·쓰기의 유효성을 보장하는 경계를 정한다. |
+| [ADR-0006: Native document boundary](adr/0006-native-document-boundary.md) | Accepted | Core의 전체 의미 검증으로 구조화 문서를 수용하고 공식 생성·쓰기의 유효성을 보장하는 경계를 정한다. |
 | [ADR-0007: Editing session lifetime](adr/0007-editing-session-lifetime.md) | Accepted | 명시적 저장, 원본과 분리된 미저장 작업 복구, 탭별 독립 세션과 공용 저장·버리기·취소 확인을 정한다. 탐색 기억은 경로·순서·활성 탭만 보존한다. |
 | [ADR-0008: Citations and bibliography](adr/0008-citations-and-bibliography.md) | Accepted | #327의 승인된 방향. 단위 A·B·C는 Citations 계약으로 구현. MIT BibTeX 입력·Core 제한 IEEE·Root 경계 포함. 단위 D 확장은 각각 별도 결정. #328과의 경계·실행 근거 포함. **2026-10-30 동결:** 기존 동작은 유지하고 새 작업 범위에서는 제외. |
 | [ADR-0009: Multiple opened folders](adr/0009-multiple-opened-folders.md) | Accepted | 포함 관계 없는 여러 열린 폴더의 탐색·상위 흡수·하위 reveal, origin별 경로·접힘 기억과 문서의 폴더 맥락을 정한다. |
@@ -49,7 +49,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [Native document support](design/document-support-v1.md) | Implemented | 네이티브 문서의 표식·지원 의미·Core 진입·생성·쓰기와 정규 직렬화·실패 시 보존을 정의한다. 별도 텍스트 종류의 열기·저장 경계를 포함한다. |
+| [Native document support](design/document-support-v1.md) | Implemented | 네이티브 문서의 선택적 머리말·지원 의미·Core 진입·생성·쓰기와 정규 직렬화·실패 시 보존을 정의한다. 별도 텍스트 종류의 열기·저장 경계를 포함한다. |
 | [Document templates](design/document-templates-v1.md) | Implemented | Core 템플릿 메타데이터, 공용 CLI·Host, 기본 템플릿·갤러리·사용자 저장과 생성 receipt·되돌리기를 정의한다. |
 | [비서: 현재 동작 계약](design/main-agent-v1.md) | Implemented | 비서의 공급자·권한·문서 직접 수정·대화·질문·변경 확인·되돌리기와 실행 수명, 현재 한계와 수락 기준을 정의한다. |
 | [Parser security boundary](design/parser-security-v1.md) | Implemented | 공개 parse·참조 진단의 보안 경계, URL·inline HTML 패치의 보호 범위와 제거 조건을 정의한다. |

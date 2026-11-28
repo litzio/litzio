@@ -362,13 +362,11 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   check(await editor().evaluate(n => JSON.stringify(n.editor.getJSON())) === retained, 'Opening a listed file lost existing dirty work');
   await page.keyboard.press('Control+z');
   await open('foreign.md');
-  const foreign = center().getByRole('option',{name:'foreign.md',exact:true});
-  check((await foreign.innerText()).includes('Not a Litzio document'), 'Non-native file has no explanation');
-  check(await foreign.evaluate(n => getComputedStyle(n).color) === await folder.getByRole('treeitem',{name:'foreign.md',exact:true,includeHidden:true}).evaluate(n => getComputedStyle(n).color), 'Non-native result differs from sidebar muted treatment');
+  const ordinary = center().getByRole('option',{name:'foreign.md',exact:true});
+  check(!(await ordinary.innerText()).includes('Not a Litzio document'), 'Unmarked Markdown was labeled unsupported');
   await page.keyboard.press('Enter'); await center().waitFor({state:'detached'});
-  await page.getByTestId('plain-markdown').waitFor();
-  check(await page.getByTestId('view-read').getAttribute('aria-pressed') === 'true', 'Non-native Markdown did not default to Read');
-  check(await page.getByTestId('current-file').textContent() === 'foreign.md', 'Non-native selection did not open its text session');
+  await waitForActivePath(page, file('foreign.md'));
+  check((await editor().innerText()).includes('No frontmatter.'), 'Unmarked Markdown did not open in the document editor');
   await open('technical-1.md'); await page.keyboard.press('Enter'); await center().waitFor({state:'detached'});
   await waitForActivePath(page, file('technical-1.md'));
   result.sidebarListedDocuments = true;

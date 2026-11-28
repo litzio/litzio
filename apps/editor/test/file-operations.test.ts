@@ -139,7 +139,7 @@ test("referenced image rename updates every admitted document and reports skippe
   const image = path.join(root, "nested", "old.svg"); fs.writeFileSync(image, "<svg/>");
   const docs = [path.join(root, "a.md"), path.join(root, "nested", "b.md")];
   for (const [index, doc] of docs.entries()) fs.writeFileSync(doc, nativeSource(`:::{figure} ${index ? "old.svg" : "./nested/old.svg"}\n:name: fig\n:alt: Keep\n\n**Caption**.\n:::\n`));
-  fs.writeFileSync(path.join(root, "foreign.md"), "# Not native");
+  fs.writeFileSync(path.join(root, "foreign.md"), "<div>Unsupported HTML</div>");
   const result = renameFile({ root, path: image, name: "new" });
   assert.equal(fs.existsSync(image), false);
   for (const [index, doc] of docs.entries()) {

@@ -439,7 +439,7 @@ button {
 
 .open-refusal-details p { margin: 0; }
 
-/* A document without the native marker stays listed, quieter and with its own icon. */
+/* A listed text file has quieter styling and its own icon. */
 .sidebar-tree-item[data-foreign] {
   color: var(--id-color-text-subtle);
 }

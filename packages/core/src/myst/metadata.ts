@@ -1,7 +1,40 @@
 import { DocumentDiagnosticError, DocumentWriteError } from "../write-error.ts";
 import { Document, isMap, isNode, isScalar, parseDocument, visit, type Pair, type Node } from "yaml";
-import { FRONT_MATTER_FIELD } from "./constants.ts";
+import { FRONT_MATTER_FIELD, IMPLICIT_FRONT_MATTER } from "./constants.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
+
+/**
+ * myst-parser replaces its `front_matter` token with an ordinary `yaml` fence, so the
+ * tree alone cannot tell front matter from a leading ```yaml block. The source can:
+ * of the block rules, only front matter opens a code block with `-` (fences open with
+ * ``` or ~~~, indented code with spaces), and it only starts at the first line.
+ */
+export function markFrontMatter(document: MystDocument, source: string): void {
+  const first = document.children[0];
+  if (first?.type === "code" && first.position?.start.line === 1 && source.startsWith("-")) {
+    const lines = source.split(/\r?\n/);
+    const opener = /^(-{3,})[\t ]*$/.exec(lines[0]);
+    // An indented marker can belong to a YAML block scalar. The upstream rule
+    // also accepts it as a closer; do not reinterpret that ambiguous input.
+    const closer = /^(-{3,})[\t ]*$/.exec(lines[(first.position.end.line ?? 1) - 1]);
+    first[FRONT_MATTER_FIELD] = opener && closer && first.position.end.line > 1 &&
+      closer[1].length >= opener[1].length ? true : "unclosed or unsupported delimiter";
+    if (first[FRONT_MATTER_FIELD] === true) {
+      // MyST's code conversion trims a trailing blank line. In YAML a block scalar
+      // (notably |+) can give that newline meaning. Keep the complete metadata value;
+      // the marker above keeps its role and required document-start context semantic.
+      const content = lines.slice(1, first.position.end.line - 1);
+      first.value = content.length ? `${content.join("\n")}\n` : "";
+    }
+  }
+}
+
+/** Reserve the metadata slot without changing the body's source lines. */
+export function ensureFrontMatter(document: MystDocument): void {
+  if (document.children[0]?.[FRONT_MATTER_FIELD] !== undefined) return;
+  document.children.unshift({ type: "code", lang: "yaml", value: "{}\n",
+    [FRONT_MATTER_FIELD]: true, [IMPLICIT_FRONT_MATTER]: true });
+}
 
 /** Shared YAML document for semantic metadata edits; preserves comments and unrelated settings. */
 export function metadata(document: MystDocument) {
@@ -13,7 +46,7 @@ export function metadata(document: MystDocument) {
 }
 
 /** The frontmatter fields Litzio interprets; others belong to other tools. */
-const LITZIO_FIELDS: unknown[] = ["litzio", "title", "numbering", "bibliography", "template", "status"];
+const LITZIO_FIELDS: unknown[] = ["title", "numbering", "bibliography", "template", "status"];
 
 function pairOf(yaml: Document, key: string): Pair | undefined {
   return isMap(yaml.contents) ? yaml.contents.items.find(pair => (isScalar(pair.key) ? pair.key.value : pair.key) === key) : undefined;
@@ -26,8 +59,9 @@ function lines(source: string, pair: Pair): [number, number] | undefined {
   const start = source.lastIndexOf("\n", key[0] - 1) + 1;
   // Only a key that starts its line can be replaced by whole lines.
   if (source.slice(start, key[0]).trim()) return undefined;
-  let end = value[2];
-  while (end > start && /\s/.test(source[end - 1])) end--;
+  const end = value[2];
+  // The YAML range includes any blank lines consumed by a keep-chomp block scalar.
+  if (source[end - 1] === "\n") return [start, end];
   const newline = source.indexOf("\n", end);
   return [start, newline === -1 ? source.length : newline + 1];
 }
@@ -50,6 +84,14 @@ function pairSource(yaml: Document, pair: Pair): string {
  * integer, `1.0`, `0x1F`), so such a document refuses the edit instead.
  */
 export function writeMetadata(node: MystNode, yaml: Document, key: string): void {
+  if (node[IMPLICIT_FRONT_MATTER] === true) {
+    if (isMap(yaml.contents) && yaml.contents.items.length) {
+      yaml.contents.flow = false;
+      node.value = String(yaml);
+      delete node[IMPLICIT_FRONT_MATTER];
+    }
+    return;
+  }
   const source = String(node.value ?? "");
   const before = parseDocument(source);
   const old = pairOf(before, key), next = pairOf(yaml, key);

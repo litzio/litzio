@@ -85,7 +85,7 @@ function compare(name: string, { input, count }: Corpus): Counts {
   const stats: Counts = { tests: 0, paragraph: 0, cell: 0, refused: 0, skipped: 0, mismatches: 0, fallback: {} };
   let source: string, original: ReturnType<typeof parse>;
   try {
-    source = serialize(parse(input.startsWith("---\n") ? input : header + input));
+    source = serialize(parse(input));
     original = parse(source);
   } catch { return { ...stats, skipped: 1 }; }
   const baseline = LocalWriteBaseline.fromCanonical(source, original);
@@ -115,6 +115,10 @@ function compare(name: string, { input, count }: Corpus): Counts {
     if (!full) stats.refused++;
     if ("reason" in local) {
       stats.fallback[local.reason] = (stats.fallback[local.reason] ?? 0) + 1;
+      if (name === "without-frontmatter" && full) {
+        assert.equal(serialize(parse(full.markdown)), full.markdown);
+        assert.ok(!full.markdown.startsWith("---\n"), full.markdown);
+      }
       continue;
     }
     stats[edit.kind]++;
@@ -131,9 +135,12 @@ function compare(name: string, { input, count }: Corpus): Counts {
 export function localWriteCorpus(large: boolean) {
   const expected = JSON.parse(readFileSync(EXPECTED_URL, "utf8")) as Expected;
   const fixtures = Object.entries(expected.fixtures).map(([name, { input }]): [string, Corpus] =>
-    [name, { input, ...(large ? {} : { count: 3 }) }]);
+    [name, { input: input.startsWith("---\n") ? input : header + input, ...(large ? {} : { count: 3 }) }]);
+  const ordinaryBody = "First paragraph.\n\nSecond paragraph.\n\n| Input | Result |\n| --- | --- |\n| Signal | Pass |\n";
   const corpus: [string, Corpus][] = [
     ...fixtures,
+    ["without-frontmatter", { input: ordinaryBody, ...(large ? {} : { count: 6 }) }],
+    ["unmarked-frontmatter", { input: `---\ntitle: Results\n---\n\n${ordinaryBody}`, ...(large ? {} : { count: 6 }) }],
     ["synthetic-300", { input: synthetic(300), count: large ? 400 : 12 }],
     ["synthetic-2300", { input: synthetic(2300), count: large ? 100 : 4 }],
   ];

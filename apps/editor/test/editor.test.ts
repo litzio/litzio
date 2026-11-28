@@ -858,8 +858,8 @@ test("a chosen folder lists all regular files, marks only documents, and stays i
     assert.deepEqual(top.entries.map(entry => `${entry.kind}:${entry.name}`),
       ["folder:guides", "document:a9.md", "document:a10.md", "document:b.md", "document:notes.txt", "document:UPPER.MD"]);
     assert.equal(top.entries[1]?.path, path.join(path.resolve(chosen), "a9.md"));
-    // The tree can tell files without the native marker apart before anyone opens them.
-    assert.deepEqual(top.entries.map(entry => entry.native), [undefined, true, true, false, false, true]);
+    // Unmarked Markdown has no assertion about admission in the folder listing.
+    assert.deepEqual(top.entries.map(entry => entry.native), [undefined, true, true, undefined, false, true]);
 
     // Choosing a folder can browse outside the eventual sidebar root, with Host-owned crumbs.
     const browsed = browseFolder(chosen);
@@ -2689,7 +2689,6 @@ test("save diagnostic guidance and badges use codes in both languages and retain
   const { i18n } = await import("../src/i18n.ts");
   const { DocumentDiagnosticError } = await import("@litzio/core");
   const cases = {
-    "native-marker": ["Open a Litzio", "Litzio 문서를"],
     "native-metadata": ["Check document frontmatter", "설정을 확인"],
     "native-content": ["Remove or replace", "지우거나 바꾸세요"],
     "invalid-structure": ["report technical details", "오류를 알려"],
@@ -2738,11 +2737,11 @@ test("save diagnostic guidance and badges use codes in both languages and retain
 });
 
 
-test("text Save preserves exact UTF-8 text, shares file commit and cannot overwrite native documents", t => {
+test("text Save preserves exact UTF-8 text and checks the revision independently of admission", t => {
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-text-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const plain = path.join(dir, "notes.TXT"), markdown = path.join(dir, "foreign.md"), native = path.join(dir, "native.md");
-  const original = "\uFEFF# 일반 Markdown\r\n\t**literal**  \r\n";
+  const original = "\uFEFF# 일반 Markdown\r\n\r\n<div>literal</div>  \r\n";
   writeFileSync(plain, original); writeFileSync(markdown, original); writeFileSync(native, nativeSource("Native.\n"));
   const access = new RootAccess([dir]);
   for (const file of [plain, markdown]) {
@@ -2760,8 +2759,10 @@ test("text Save preserves exact UTF-8 text, shares file commit and cannot overwr
   }
   const nativeBefore = readFileSync(native);
   assert.equal(loadEditorFile(native).kind, "native");
-  assert.throws(() => saveTextFile({ kind: "text", path: native, revision: documentRevision(nativeBefore.toString()), source: "bypass" }), /now a native document/);
-  assert.deepEqual(readFileSync(native), nativeBefore);
+  const replacement = "Raw edit <kbd>Ctrl</kbd>.";
+  saveTextFile({ kind: "text", path: native, revision: documentRevision(nativeBefore.toString()), source: replacement });
+  assert.equal(readFileSync(native, "utf8"), replacement);
+  assert.equal(loadEditorFile(native).kind, "text");
   // .txt stays text even when its content has native syntax; it is not a native document.
   writeFileSync(plain, nativeBefore);
   assert.equal(loadEditorFile(plain).kind, "text");

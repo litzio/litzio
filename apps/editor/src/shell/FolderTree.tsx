@@ -183,7 +183,7 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, pluginScreen
             .filter(action => action.id === "new" || action.id === "new-folder" || action.id === "reveal")
             .concat(pathActions(entry.path, tree.root, onCopyPath), deleteFolder);
           const expanded = folder && tree.expanded.has(entry.path);
-          // Text files and Markdown without a native marker open in text mode.
+          // Only known text entries are distinguished before Open.
           const foreign = entry.kind === "document" && entry.native === false;
           const pluginActions = folder ? [] : viewFileActions(pluginScreens, entry.path);
           const usesPlugin = entry.kind === "file" && !/\.pdf$/i.test(entry.path) && pluginActions.some(({ action }) => action.openByDefault);
