@@ -160,7 +160,7 @@ export const LIST_TYPES = ["bulletList", "orderedList", "taskList"];
 
 const SourcedBulletList = BulletList.extend({
   addAttributes() {
-    return blockAttrs({});
+    return blockAttrs({ loose: hiddenAttr(false) });
   },
   addInputRules() {
     return [];
@@ -170,6 +170,7 @@ const SourcedBulletList = BulletList.extend({
 const SourcedOrderedList = OrderedList.extend({
   addAttributes() {
     return blockAttrs({
+      loose: hiddenAttr(false),
       start: {
         default: 1,
         parseHTML: (element) => element.hasAttribute("start") ? Number.parseInt(element.getAttribute("start") ?? "", 10) : 1,

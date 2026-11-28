@@ -2304,10 +2304,10 @@ test("CLI inserts and updates lists through Core and rejects invalid lists witho
     const inspected = run(["inspect", file, "--format", "json"]);
     assert.equal(inspected.status, 0, inspected.stderr);
     const node = (JSON.parse(inspected.stdout) as { nodes: Array<Record<string, unknown>> }).nodes[1];
-    assert.deepEqual(node, { path: [2], type: "list", ...inserted });
+    assert.deepEqual(node, { path: [2], type: "list", ...inserted, loose: true });
 
     // The inspected shape is the update input.
-    const updated = { ordered: true, start: 3, style: "lower-alpha", delimiter: ")", items: node.items };
+    const updated = { ordered: true, start: 3, style: "lower-alpha", delimiter: ")", loose: node.loose, items: node.items };
     const update = run(["update-list", file, "--path", "2", "--list", JSON.stringify(updated)]);
     assert.equal(update.status, 0, update.stderr);
     const saved = readFileSync(file, "utf8");

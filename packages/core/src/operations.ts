@@ -646,6 +646,12 @@ function normalizeList(list: ListContent): ListContent {
     throw new DocumentDiagnosticError("invalid-operation", "checklist must be true or false");
   }
   const checklist = list.checklist === true;
+  if (list.loose !== undefined && typeof list.loose !== "boolean") {
+    throw new DocumentDiagnosticError("invalid-operation", "list loose must be true or false");
+  }
+  if (checklist && list.loose) {
+    throw new DocumentDiagnosticError("invalid-operation", "checklist items must be tight");
+  }
   if (checklist && list.ordered) {
     throw new DocumentDiagnosticError("invalid-operation", "a checklist is a bullet list; numbered lists have no checkboxes");
   }
@@ -658,10 +664,11 @@ function normalizeList(list: ListContent): ListContent {
     const content = structuralInlineContent(item.content);
     return { content, ...(checklist ? { checked: item.checked === true } : {}), ...(item.list === undefined ? {} : { list: normalizeList(item.list) }) };
   });
-  return list.ordered ? { ordered: true, start,
+  const spacing = list.loose ? { loose: true } : {};
+  return list.ordered ? { ordered: true, start, ...spacing,
     ...(list.style && list.style !== "decimal" ? { style: list.style } : {}),
     ...(list.delimiter === ")" ? { delimiter: list.delimiter } : {}), items }
-    : { ordered: false, ...(checklist ? { checklist: true } : {}), items };
+    : { ordered: false, ...spacing, ...(checklist ? { checklist: true } : {}), items };
 }
 
 function assertListRoundTrip(document: MystDocument, index: number, list: ListContent): void {
@@ -672,6 +679,7 @@ function assertListRoundTrip(document: MystDocument, index: number, list: ListCo
   const { markdown, reparsed } = result;
   const reloaded = reparsed.children[bodyIndex(document, index)];
   const content = reloaded && supportedListContent(reloaded);
+  // roundTripFor already guards the effective looseness of the representable tree.
   if (reparsed.children.length !== complete.children.length || !content || !sameList(content, list) ||
       repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", LIST_FAILURE);

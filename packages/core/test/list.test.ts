@@ -89,7 +89,7 @@ test("Markdown bullet and numbered lists project as editable List v1 content", (
 
   assert.deepEqual(blocks, [
     {
-      block: "list", path: [0], ordered: false, items: [
+      block: "list", path: [0], ordered: false, loose: true, items: [
         {
           content: [{ kind: "text", text: "A " }, { kind: "emphasis", children: text("b") }],
           list: { ordered: true, start: 3, items: [{ content: text("inner") }] },
@@ -296,13 +296,19 @@ test("checklists read, write canonically and keep check states and content throu
   assert.equal(core.serialize(core.parse("---\nlitzio: 1\n---\n\n+ [ ]   spaced\n")), "---\nlitzio: 1\n---\n\n- [ ] spaced\n");
 });
 
-test("nested lists keep the separating blank only where needed to interrupt a paragraph", () => {
+test("canonical Markdown keeps looseness at each list level and is stable on the second save", () => {
   const header = "---\nlitzio: 1\n---\n\n";
   for (const [body, saved] of [
-    ["- a\n\n  - b\n", "- a\n  - b\n"],
-    ["- a\n\n  1) b\n", "- a\n  1) b\n"],
+    ["- a\n\n  - b\n", "- a\n\n  - b\n"],
+    ["- a\n\n  1) b\n", "- a\n\n  1) b\n"],
     ["- a\n\n  2. b\n", "- a\n\n  2. b\n"],
     ["- a\n\n  -\n", "- a\n\n  -\n"],
+    ["- a\n\n- b\n- c\n", "- a\n\n- b\n\n- c\n"],
+    ["- a\n- [b][ref]\n\n  [ref]: https://example.com\n", "- a\n\n- [b](https://example.com)\n"],
+    ["- [a][ref]\n  - b\n\n  [ref]: https://example.com\n", "- [a](https://example.com)\n\n  - b\n"],
+    ["- a\n  - b\n\n  - c\n- d\n", "- a\n  - b\n\n  - c\n- d\n"],
+    ["2) a\n\n3) b\n\n1. c\n2. d\n", "2) a\n\n3) b\n\n1. c\n2. d\n"],
+    ["- [ ] a\n- [x] b\n  - c\n\n  - d\n", "- [ ] a\n- [x] b\n  - c\n\n  - d\n"],
   ]) {
     const original = core.parse(header + body);
     const reopened = core.parse(header + saved);
@@ -310,6 +316,30 @@ test("nested lists keep the separating blank only where needed to interrupt a pa
     assert.equal(core.serialize(original), header + saved);
     assert.equal(core.serialize(reopened), header + saved);
   }
+});
+
+test("whole-list edits preserve the looseness of each surviving destination", () => {
+  const header = "---\nlitzio: 1\n---\n\n";
+  const document = core.parse(header + "- a\n  - b\n\n  - c\n- d\n  - e\n  - f\n");
+  const [list] = core.getEditableDocument(document).blocks;
+  assert.equal(list.block, "list");
+  if (list.block !== "list") return;
+  const [first, second] = list.items;
+  assert.equal(first.list?.loose, true);
+  assert.equal(second.list?.loose, undefined);
+  const withAddedItem = core.updateList(document, [1], { ...list, items: [
+    { ...first, list: { ...first.list!, items: [...first.list!.items, { content: text("added") }] } }, second,
+  ] });
+  assert.equal(core.serialize(withAddedItem), header + "- a\n  - b\n\n  - c\n\n  - added\n- d\n  - e\n  - f\n");
+  const movedUp = { ...list, items: [first, { content: text("g") }] };
+  assert.equal(core.serialize(core.updateList(document, [1], movedUp)), header + "- a\n  - b\n\n  - c\n- g\n");
+  assert.equal(core.serialize(core.updateList(document, [1], { ...list, items: [second] })), header + "- d\n  - e\n  - f\n");
+  const indented = { ...list, items: [{ ...first, list: { ...first.list!, items: [...first.list!.items, second] } }] };
+  assert.equal(core.serialize(core.updateList(document, [1], indented)), header + "- a\n  - b\n\n  - c\n\n  - d\n    - e\n    - f\n");
+  const outdented = { ...list, loose: true, items: [{ ...first, list: undefined }, ...first.list!.items] };
+  assert.equal(core.serialize(core.updateList(document, [1], outdented)), header + "- a\n\n- b\n\n- c\n");
+  assert.equal(core.serialize(core.updateList(document, [1], { ...list, loose: true, items: [{ content: text("alone") }] })),
+    header + "- alone\n");
 });
 
 test("checkbox shapes outside the checklist contract are refused with their reason", () => {

@@ -559,7 +559,7 @@ test("structural whitespace normalization preserves visible text and semantic-on
     }
     for (const next of [insertedList, core.updateList(insertedList, [1], list)]) {
       assertStableEmpty(next);
-      assert.deepEqual(core.getEditableDocument(next).blocks[0], { block: "list", path: [1], ...list });
+      assert.deepEqual(core.getEditableDocument(next).blocks[0], { block: "list", path: [1], loose: true, ...list });
     }
     assert.equal(core.serialize(document), original);
   }

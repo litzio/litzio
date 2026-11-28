@@ -286,7 +286,7 @@ Host는 확인 성공을 표시하지 않고 조회를 끝낸다. 전체 쓰기�
 다른 문서·2,000블록 이상 문서·첫 집계일·마지막 불일치일(UTC)을 문단과 표 칸별로, 전체 경로
 선택은 사유별로 제공한다. 중복을 제거한 전체 문서 수도 제공한다. 내부에 경로 지문을
 저장하며 CLI에는 집계만 반환한다. 규칙 수정으로 집계를 다시 시작할 때 저장소의 규칙
-버전을 올린다. 규칙 버전 4는 취소선의 정규 바이트, 알림·그림·중첩 목록의 인접 블록 범위와 글자의 최소 이스케이프([#2058](https://github.com/litzio/litzio/issues/2058))가 바뀐 상태에서 문단과 표 칸을 집계한다. [#1986](https://github.com/litzio/litzio/issues/1986)의 종료 조건을 채우면
+버전을 올린다. 규칙 버전 5는 느슨한 목록의 정규 바이트와 블록 범위가 바뀐 상태에서 문단과 표 칸을 집계한다([#2064](https://github.com/litzio/litzio/issues/2064)). [#1986](https://github.com/litzio/litzio/issues/1986)의 종료 조건을 채우면
 `verify-local-write` 확인·교정·알림·CLI·집계와 이 임시 계약을 걷어낸다. CI에서는
 씨앗이 고정된 112건을 대조한다. 릴리스 준비 때 전체 9,652건을 master에서
 `pnpm exec tsx packages/core/test/local-write-corpus.ts`로 수동 실행해 불일치가 0건인지

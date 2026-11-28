@@ -44,6 +44,22 @@ test('screen saveDocument keeps authored payload image identity and size validat
  const input={authoring:{title:'Example',inputs:[{key:'rows',blocks:[{kind:'paragraph',text:'Value'}]}]},images:[]};assert.doesNotThrow(()=>authoredDocumentRequestSchema.parse(input));assert.equal(authoredDocumentRequestSchema.safeParse({...input,images:[{key:'a',mime:'image/png',base64:'x'},{key:'a',mime:'image/png',base64:'x'}]}).success,false);
 });
 
+test('SDK authoring and machine nodes carry optional looseness through nested lists', async () => {
+  const nested = { ordered: true, loose: true, items: ['First', 'Second'].map(text => ({ content: [{ kind: 'text', text }] })) };
+  const input = { authoring: { inputs: [{ key: 'lists', blocks: [
+    { kind: 'list', ordered: false, loose: true, items: [
+      { content: [{ kind: 'text', text: 'Outer' }], list: nested }, 'Next',
+    ] },
+    { kind: 'list', ordered: true, items: ['Tight'] },
+  ] }] }, images: [] };
+  const { authoring } = authoredDocumentRequestSchema.parse(input);
+  const { source } = await sdk.authorDocument(authoring);
+  const nodes = sdk.machineNodes(sdk.getEditableDocument(sdk.parse(source)));
+  assert.equal(nodes[0].loose, true);
+  assert.equal((nodes[0].items as { list?: { loose?: boolean } }[])[0].list?.loose, true);
+  assert.equal(nodes[1].loose, undefined);
+});
+
 test('SDK exposes document title and admonition operations', () => {
   let doc = sdk.parse('---\nlitzio: 1\n---\n\nBody.\n');
   doc = sdk.updateDocumentTitle(doc, 'Report');

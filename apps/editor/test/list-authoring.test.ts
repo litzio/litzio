@@ -129,6 +129,21 @@ test("new lists and empty items save from insertion", () => {
   }
 });
 
+test("adding an item to a loose list keeps its spacing through Host Save", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-editor-loose-list-"));
+  const markdown = nativeSource("- Wire\n\n- Power\n");
+  try {
+    let { editable, state } = editorState(markdown);
+    state = run(caretAfter(state, "Power"), splitListItem(state.schema.nodes.listItem));
+    state = state.apply(state.tr.insertText("Close"));
+    const disk = saveFile(dir, markdown, state, editable);
+    assert.equal(disk, nativeSource("- Wire\n\n- Power\n\n- Close\n"));
+    assert.equal(serialize(parse(disk)), disk);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a checklist opens with its check states, saves a changed check and new unchecked item, and reopens", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-editor-checklist-"));
   const markdown = nativeSource("Intro.\n\n*   [ ] Wire\n    *   [x] Input\n*   [x] Power\n");

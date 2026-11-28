@@ -23,10 +23,14 @@ const inline: z.ZodType<InlineContent> = z.lazy(() => z.discriminatedUnion("kind
   z.strictObject({ kind: z.literal("citation"), role: z.enum(["cite", "cite:t", "cite:p"]), keys: z.array(text) }),
 ]));
 const content = z.array(inline);
+const listFields = {
+  ordered: z.boolean(), checklist: z.boolean().optional(), start: z.number().int().positive().optional(),
+  loose: z.boolean().optional(),
+  style: z.enum(LIST_STYLES).optional(), delimiter: z.enum([".", ")"]).optional(),
+};
 const listItem: z.ZodType<ListItemContent> = z.lazy(() => z.strictObject({ content, checked: z.boolean().optional(), list: list.optional() }));
 const list: z.ZodType<ListContent> = z.lazy(() => z.strictObject({
-  ordered: z.boolean(), checklist: z.boolean().optional(), start: z.number().int().positive().optional(), style: z.enum(LIST_STYLES).optional(),
-  delimiter: z.enum([".", ")"]).optional(), items: z.array(listItem).min(1).max(100),
+  ...listFields, items: z.array(listItem).min(1).max(100),
 }));
 const inlineFields = { text: text.optional(), content: content.optional() };
 const tableFields = { notes: z.array(z.union([text, content])).max(DOCUMENT_AUTHORING_LIMITS.blocks).optional(), caption: z.union([text, content]).optional(), label: text.optional(), enumerator: text.optional(), enumerated: z.boolean().optional() };
@@ -61,8 +65,7 @@ const block = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("admonition"), variant: z.enum(ADMONITION_VARIANTS), ...inlineFields }),
   z.strictObject({ kind: z.literal("footnote"), label: text, ...inlineFields }),
   z.strictObject({ kind: z.literal("target"), label: text }),
-  z.strictObject({ kind: z.literal("list"), ordered: z.boolean(), checklist: z.boolean().optional(), start: z.number().int().positive().optional(),
-    style: z.enum(LIST_STYLES).optional(), delimiter: z.enum([".", ")"]).optional(), items: z.array(z.union([text, listItem])).min(1).max(100) }),
+  z.strictObject({ kind: z.literal("list"), ...listFields, items: z.array(z.union([text, listItem])).min(1).max(100) }),
   table,
   z.strictObject({ kind: z.literal("figure"), imageUrl: text.optional(), imageAsset: text.min(1).max(512).optional(), imageAlt: text, caption: z.union([text, content]), label: text.optional(), enumerator: text.optional(), enumerated: z.boolean().optional() }).refine(value => (value.imageUrl !== undefined) !== (value.imageAsset !== undefined), "Expected imageUrl or imageAsset"),
   z.strictObject({ kind: z.literal("code"), language: text, code: text }),
