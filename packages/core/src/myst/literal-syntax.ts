@@ -30,7 +30,8 @@ export function citationShorthand(document: MystDocument) {
   return sourceSyntaxDiagnostics(document).find(item => "syntax" in item && item.syntax === "citation");
 }
 
-function sourceSyntaxDiagnostics(document: MystDocument): ((LiteralSyntax | CitationSyntax) & { path: number[]; line: number })[] {
+/** Both kinds: literal syntax that reopening reports and citation shorthand that native admission rejects. */
+export function sourceSyntaxDiagnostics(document: MystDocument): ((LiteralSyntax | CitationSyntax) & { path: number[]; line: number })[] {
   const source = sources.get(document);
   if (!source) return [];
   const tokenizer = createTokenizer(source.options);

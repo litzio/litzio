@@ -11,6 +11,8 @@ import { isFigure, figureContentKind } from "./figure.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { encodeEmphasisBoundaries, hasAlternateBoundaries } from "./emphasis-boundary.ts";
 import { encodeLineStarts, hasLineStartSyntax } from "./line-start.ts";
+import { sourceSyntaxDiagnostics } from "./literal-syntax.ts";
+import { holdsAt, markMinimalEscape, minimalEscapeText } from "./minimal-escape.ts";
 import { parse, standaloneImage } from "./parse.ts";
 import { prepareReferences } from "./reference.ts";
 import { assertComplexTableDirective, isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode, tableNoteParagraphs } from "./table.ts";
@@ -26,6 +28,15 @@ const citationRules = writerTokenizer.inline.ruler.getRules("");
 writerTokenizer.inline.ruler.disable("citation");
 const nonCitationRules = new Set(writerTokenizer.inline.ruler.getRules(""));
 const citationRule = citationRules.find(rule => !nonCitationRules.has(rule))!;
+// Likewise ask the pinned dollar-math rule which literal $ positions would open math.
+const mathRule = (() => {
+  const rules = writerTokenizer.inline.ruler.getRules("");
+  writerTokenizer.inline.ruler.disable("math_inline");
+  const others = new Set(writerTokenizer.inline.ruler.getRules(""));
+  writerTokenizer.inline.ruler.enable("math_inline");
+  return rules.find(rule => !others.has(rule))!;
+})();
+const handlers = { text: minimalEscapeText };
 
 /** Canonical serialization would lose semantics; `detail` names the node and reason. */
 export class SemanticLossError extends DocumentWriteError {
@@ -78,6 +89,7 @@ export function repeatRoundTrip(result: RoundTrip): RoundTrip {
 /** How a write attempt differs from the plain write. */
 type Attempt = { alternate: boolean; lineStarts: boolean };
 type Conventions = { attempted?: Set<number>; skip?: ReadonlySet<number> };
+type Prepared = { prefix: string; minimal: Set<number> };
 
 /** Return the same parsed snapshot that passed canonical semantic comparison.
  * The plain write is tried first and kept whenever it passes, so output it keeps never changes.
@@ -191,10 +203,10 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
       }, { cause: error });
     }
   });
-  const frontMatter = prepareWriter(tree, blockPaths, attempt, conventions);
+  const { prefix: frontMatter, minimal } = prepareWriter(tree, blockPaths, attempt, conventions);
   const file = new VFile();
   try {
-    writeMd(file, tree as never);
+    writeMd(file, tree as never, undefined, { handlers });
   } catch (error) {
     assertNoSerializationDiagnostics(file, document);
     throw new SemanticLossError("serializer failed", { code: "serialization-failed", cause: error,
@@ -224,6 +236,14 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
     }
     throw new SemanticLossError(difference.reason, { path });
   }
+  // Same meaning is not enough for narrowed escapes: text must not read as citation shorthand,
+  // which native admission rejects, or as other literal syntax, which reopening reports.
+  if (minimal.size) {
+    const literal = sourceSyntaxDiagnostics(result.reparsed).find(item => minimal.has(blockPaths[item.path[0]]?.[0]));
+    if (literal) {
+      throw new SemanticLossError("text would read as literal syntax without its escapes", { path: blockPaths[literal.path[0]] });
+    }
+  }
   return result;
 }
 
@@ -244,15 +264,18 @@ function parsedRoundTrip(markdown: string, complexTables: boolean): RoundTrip {
 /** Write one prepared flow node with myst-to-md. */
 function render(value: MystNode, tablePipeAlign = true): string {
   const file = new VFile();
-  writeMd(file, { type: "root", children: [value] } as never, undefined, { tablePipeAlign });
+  writeMd(file, { type: "root", children: [value] } as never, undefined, { tablePipeAlign, handlers });
   assertNoSerializationDiagnostics(file);
   return String(file.result ?? "").trimEnd();
 }
 
 /** Adapt the MyST representation to the existing mdast writer, on the write-only clone.
  * The original fingerprint and the whole reparsed output still have to match. */
-function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, lineStarts }: Attempt, conventions: Conventions): string {
+function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, lineStarts }: Attempt, conventions: Conventions): Prepared {
   let prefix = "";
+  // Blocks whose text is written with the narrowed escapes of minimal-escape.ts.
+  const minimal = new Set<number>();
+  const bracketBlocks = new Set<number>();
   // A table caption is written into its directive's line, not at a line start.
   const captions = new WeakSet<MystNode>();
   function visit(node: MystNode, index: number, parent?: MystNode, path: number[] = [], inLink = false, inCell = false): void {
@@ -280,6 +303,11 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
       node.children?.length === 1 && node.children[0].type === "paragraph" ? githubAlertTag(node.kind) : undefined;
     const tableCaption = tableCaptionParagraph(node);
     if (tableCaption) captions.add(tableCaption);
+    if (parent === tree && holdsAt(node)) bracketBlocks.add(path[0]);
+    if (useConvention && markMinimalEscape(node, bracketBlocks.has(path[0]))) {
+      minimal.add(path[0]);
+      conventions.attempted?.add(path[0]);
+    }
     // Lifted roles can lack positions; diagnostics still identify their containing block.
     node.position ??= parent?.position;
     if (node[FRONT_MATTER_FIELD] !== undefined) {
@@ -308,7 +336,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     // myst-to-md does not protect literal dollars or citation-triggering @ text.
     // The writer emits these escaped `html` values verbatim.
     if (node.children?.some(child => child.type === "text" && /[$@]/.test(String(child.value)))) {
-      node.children = node.children.flatMap(child => child.type === "text" ? escapeText(child, inLink) : [child]);
+      node.children = node.children.flatMap(child => child.type === "text" ? escapeText(child, inLink, useConvention) : [child]);
     }
     // myst-to-md writes inline math as the `{math}` role; write MyST's usual `$...$`.
     if (node.children?.some(child => child.type === "inlineMath")) {
@@ -462,7 +490,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
   }
   visit(tree, 0);
   if (prefix) tree.children.shift();
-  return prefix;
+  return { prefix, minimal };
 }
 
 function escapeTableCodeAndMath(node: MystNode): void {
@@ -484,7 +512,9 @@ function isDollarMath(node: MystNode, previous: MystNode | undefined): boolean {
     previous?.type !== "break" && !(previous?.type === "text" && /[\r\n]$/.test(String(previous.value)));
 }
 
-function escapeText(text: MystNode, inLink: boolean): MystNode[] {
+/** Escape a literal `@` where the citation rule would read one, and a `$` where dollar math
+ * would open; without `minimal` (a block written with upstream escapes) every `$`. */
+function escapeText(text: MystNode, inLink: boolean, minimal: boolean): MystNode[] {
   const value = String(text.value);
   const state = new writerTokenizer.inline.State(value, writerTokenizer, {}, []);
   const result: MystNode[] = [];
@@ -493,6 +523,7 @@ function escapeText(text: MystNode, inLink: boolean): MystNode[] {
     if (value[index] !== "$" && value[index] !== "@") continue;
     state.pos = index;
     if (value[index] === "@" && (inLink || !citationRule(state, true))) continue;
+    if (value[index] === "$" && minimal && !mathRule(state, true)) continue;
     // mdast collapses a text node's trailing newline before raw inline output.
     // Keep that newline with the escaped @ so a soft line break stays text.
     const boundary = value[index] === "@" && index > start && value[index - 1] === "\n" ? index - 1 : index;

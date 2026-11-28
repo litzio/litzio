@@ -66,7 +66,7 @@ test("inline math source can be changed, created and removed", () => {
   assert.equal(write(source, [text("The current is "), math("i_q"), text(".")]), "The current is $i_q$.\n");
   assert.equal(write("Voltage v_dc here.\n", [text("Voltage "), math("v_{dc}"), text(" here.")]),
     "Voltage $v_{dc}$ here.\n");
-  assert.equal(write(source, [text("The current is i_d.")]), "The current is i\\_d.\n");
+  assert.equal(write(source, [text("The current is i_d.")]), "The current is i_d.\n");
   // Sources with backticks, dollars and braces are kept literally.
   assert.equal(write(source, [text("A "), math("`a` {d}")]), "A $`a` {d}$\n");
   assert.equal(write(source, [text("A "), math("a`b $c$ {d}")]), "A {math}``a`b $c$ {d}``\n");
@@ -75,15 +75,17 @@ test("inline math source can be changed, created and removed", () => {
 
 test("literal dollar signs in text are written escaped and reload as text, not inline math", () => {
   const source = "The current is $i_d$.\n";
-  assert.equal(write(source, [text("Measure $THD$ below 5%.")]), "Measure \\$THD\\$ below 5%.\n");
-  assert.equal(write(source, [text("Cost $5 and $6.")]), "Cost \\$5 and \\$6.\n");
+  // Only a dollar that would open math is escaped; its partner then cannot close any.
+  assert.equal(write(source, [text("Measure $THD$ below 5%.")]), "Measure \\$THD$ below 5%.\n");
+  assert.equal(write(source, [text("Cost $5 and $6.")]), "Cost \\$5 and $6.\n");
   assert.equal(write(source, [text("a\\$b $$")]), "a\\\\\\$b \\$\\$\n");
+  // Unescaped, `$**$` across the strong boundary would be math: this block keeps every escape.
   assert.equal(write(source, [{ kind: "strong", children: [text("$a$")] }, math("x"), text("$ end")]),
     "**\\$a\\$**$x$\\$ end\n");
   // Every block that holds text: escaped dollars in headings, titles, cells and link text reload as written.
-  const blocks = "# Price \\$5 and \\$6\n\n:::{note} Cost \\$5 and \\$6\nBody\n:::\n\n| \\$a\\$ |\n| --- |\n| x |\n\n[\\$a\\$](https://x.example)\n";
+  const blocks = "# Price \\$5 and $6\n\n:::{note} Cost \\$5 and $6\nBody\n:::\n\n| \\$a$ |\n| --- |\n| x |\n\n[\\$a$](https://x.example)\n";
   assert.equal(serialize(parse(blocks)), blocks);
-  assert.match(serialize(updateTableCell(parse("| A |\n| - |\n| b |\n"), [0, 1, 0], "cost $x$")), /\| cost \\\$x\\\$ \|/);
+  assert.match(serialize(updateTableCell(parse("| A |\n| - |\n| b |\n"), [0, 1, 0], "cost $x$")), /\| cost \\\$x\$ \|/);
 });
 
 test("inline math keeps its meaning with bold, italic, links and breaks", () => {
