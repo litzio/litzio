@@ -114,10 +114,20 @@ index 616f80d64a4416d560136b43e62951fb72966de5..676aae501e4a45ea93d9ff7c8ce69e81
              visit(mdast, (node) => {
                  if (node.position) {
 diff --git a/dist/tokensToMyst.js b/dist/tokensToMyst.js
-index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..25762dcdc2aef4cafe31f6961cfb29fee115c2f8 100644
+index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..58ec59ba3c2a829c0dc289155885caed7ba3cb3d 100644
 --- a/dist/tokensToMyst.js
 +++ b/dist/tokensToMyst.js
-@@ -98,22 +98,23 @@ const defaultMdast = {
+@@ -69,6 +69,9 @@ function getColAlign(t) {
+         }
+     }
+ }
++function hasEntityLoss(token) {
++    return token.type === 'litzio_entity_loss' || token.children?.some(hasEntityLoss);
++}
+ const defaultMdast = {
+     heading: {
+         type: 'heading',
+@@ -98,22 +101,23 @@ const defaultMdast = {
              const start = Number(tokens[index + 1]?.info);
              return {
                  ordered: true,
@@ -146,7 +156,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..25762dcdc2aef4cafe31f6961cfb29fe
              if (t.attrGet('class') === 'task-list-item') {
                  // This is a temporary property used to clean up the AST in a subsequent pass
                  attrs.__taskList = true;
-@@ -191,6 +192,18 @@ const defaultMdast = {
+@@ -191,6 +195,18 @@ const defaultMdast = {
              };
          },
      },
@@ -165,15 +175,15 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..25762dcdc2aef4cafe31f6961cfb29fe
      image: {
          type: 'image',
          noCloseToken: true,
-@@ -202,6 +215,7 @@ const defaultMdast = {
+@@ -202,6 +218,7 @@ const defaultMdast = {
              return {
                  url: token.attrGet('src'),
                  alt: alt || undefined,
-+                ...(token.children?.some(child => child.type === 'litzio_entity_loss') ? { litzioParserLoss: 'entity' } : {}),
++                ...(token.children?.some(hasEntityLoss) ? { litzioParserLoss: 'entity' } : {}),
                  title: token.attrGet('title') || undefined,
                  class: getClassName(token, [ALIGN_CLASS]),
                  width: token.attrGet('width') || undefined,
-@@ -243,6 +257,7 @@ const defaultMdast = {
+@@ -243,6 +260,7 @@ const defaultMdast = {
      },
      tr: {
          type: 'tableRow',
@@ -181,7 +191,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..25762dcdc2aef4cafe31f6961cfb29fe
      },
      th: {
          type: 'tableCell',
-@@ -506,7 +521,59 @@ const defaultOptions = {
+@@ -506,7 +524,59 @@ const defaultOptions = {
      listItemParagraphs: true,
      nestBlocks: true,
  };
@@ -241,7 +251,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..25762dcdc2aef4cafe31f6961cfb29fe
      const opts = {
          ...defaultOptions,
          ...options,
-@@ -540,9 +607,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
+@@ -540,9 +610,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
              node.checked = html[0].value.includes('checked=""');
              // Remove the inline html
              node.children?.splice(0, 1);

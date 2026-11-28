@@ -61,3 +61,20 @@ test("a pipe table refuses content beyond its header width", () => {
   assert.equal(serialize(parse(header + "| C | D |   |\n")), header + "| C | D |\n");
   assert.equal(serialize(parse(header + "| C |\n")), header + "| C | |\n");
 });
+
+test("numeric character reference loss survives nested inline parsing", () => {
+  for (const source of [
+    "![overview ![marker&#0;](pin.png)](overview.png)\n\nBefore.\n",
+    "![overview ![detail ![marker&#0;](pin.png)](detail.png)](overview.png)\n",
+    "[Label &#0;](https://example.com)\n",
+    "[Label &#0;][id]\n\n[id]: https://example.com\n",
+    "Text[^a].\n\n[^a]: Note &#0;.\n",
+    "| Header |\n| --- |\n| Row &#0; |\n",
+    "Notation {sub}`a&#0;b`.\n",
+    "Notation {sup}`a&#0;b`.\n",
+    ":::{figure} example.png\n\nCaption &#0;.\n:::\n",
+    ":::{table} Caption &#0;.\n\n| Header |\n| --- |\n| Row |\n:::\n",
+  ]) {
+    assert.throws(() => parse(source), loss(/numeric character reference/i), source);
+  }
+});

@@ -2588,6 +2588,22 @@ test("native create and admission keep existing files intact and report structur
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("CLI refuses to edit a paragraph when a nested image alt would lose content", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-cli-parser-loss-"));
+  const file = path.join(dir, "figure.md");
+  const source = Buffer.from("![overview ![marker&#0;](pin.png)](overview.png)\n\nBefore.\n");
+  try {
+    writeFileSync(file, source);
+    const edited = run(["replace-text", file, "--from", "Before", "--to", "After"]);
+    assert.equal(edited.status, 1);
+    assert.match(edited.stderr, /invalid numeric character reference/i);
+    assert.deepEqual(readFileSync(file), source);
+    const checked = run(["check", file, "--format", "json"]);
+    assert.equal(checked.status, 1);
+    assert.equal(JSON.parse(checked.stdout).error.code, "parser-loss");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("single and batch metadata edits report the Core guidance and preserve original bytes", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-cli-metadata-"));
   const file = path.join(dir, "empty.md");
