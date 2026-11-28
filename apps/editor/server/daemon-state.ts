@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { Agent } from "undici";
 import { brand } from "../../../brand.ts";
 import { DAEMON_PROTOCOL, sameInstance, type DaemonHealth, type DaemonIdentity } from "./daemon-protocol.ts";
+import { DAEMON_INSTANCE_HEADER } from "../shared/daemon-version.ts";
 import { DAEMON_LOG_ROTATE_BYTES } from "./daemon-log.ts";
 
 export type DaemonRecord = DaemonHealth & { url: string };
@@ -147,13 +148,14 @@ export function acquireDaemonLock(file: string, identity: DaemonIdentity): () =>
   };
 }
 
-export async function daemonRpc(record: DaemonRecord, route: string, body?: unknown, protocol = DAEMON_PROTOCOL) {
+export async function daemonRpc(record: DaemonRecord, route: string, body?: unknown, { protocol = DAEMON_PROTOCOL, instanceId }: { protocol?: string; instanceId?: string } = {}) {
   // Low-frequency control requests must not inherit an idle socket from fetch's pool.
   // In particular, synchronous installation checks can delay processing its close event.
   const dispatcher = new Agent({ pipelining: 0 });
   try {
     const options = { dispatcher, method: body === undefined ? "GET" : "POST",
-      headers: { "X-Litzio-Protocol": protocol, Origin: record.url, "Content-Type": "application/json" },
+      headers: { "X-Litzio-Protocol": protocol, Origin: record.url, "Content-Type": "application/json",
+        ...(instanceId === undefined ? {} : { [DAEMON_INSTANCE_HEADER]: instanceId }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(10_000) };
     const response = await fetch(record.url + route, options);
     const result = await response.json();
