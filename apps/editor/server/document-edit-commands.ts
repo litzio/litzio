@@ -329,7 +329,10 @@ export function changeFor(command: string, flags: string[], deferEndnotes = fals
         if (optionalFlag(flags, "--text") !== undefined || optionalFlag(flags, "--content") !== undefined) throw new Error("use --blocks without --text or --content");
         return (document) => updateTableCellBlocks(document, pathFlag(flags), jsonFlag<TableCellBlock[]>(flags, "--blocks"));
       }
-      return (document) => updateTableCell(document, pathFlag(flags), plainTextOrContent(flags));
+      return (document) => {
+        const { path, content } = tableCellEdit(flags);
+        return updateTableCell(document, path, content);
+      };
     }
     case "insert-target": {
       return (document) => insertTarget(document, insertionIndex(document, flags), flag(flags, "--label"));
@@ -384,7 +387,7 @@ export function changeFor(command: string, flags: string[], deferEndnotes = fals
 }
 
 /** Adapt JSON options to the existing CLI flag parser, without interpreting document semantics. */
-function batchChange(operation: unknown): Change {
+function batchCommand(operation: unknown): { command: string; flags: string[] } {
   if (operation === null || typeof operation !== "object" || Array.isArray(operation)) {
     throw new Error("operation must be an object with a command");
   }
@@ -410,7 +413,7 @@ function batchChange(operation: unknown): Change {
     }
     tokens.push(name, json && typeof value !== "string" ? JSON.stringify(value) : String(value));
   }
-  return changeFor(command, parseCommandArgs(command, ["batch-document", ...tokens]).flags, true);
+  return { command, flags: parseCommandArgs(command, ["batch-document", ...tokens]).flags };
 }
 
 
@@ -609,6 +612,9 @@ function pathFlag(args: string[]): NodePath {
   return path;
 }
 
+function tableCellEdit(flags: string[]) {
+  return { path: pathFlag(flags), content: plainTextOrContent(flags) };
+}
 
 export function applyDocumentBatch(source: string, operations: unknown) {
   if (!Array.isArray(operations) || operations.length === 0) throw new Error("--operations must be a non-empty JSON array");
@@ -619,7 +625,8 @@ export function applyDocumentBatch(source: string, operations: unknown) {
   for (let index = 0; index < operations.length; index += 1) {
     const operation = operations[index];
     try {
-      const next = batchChange(operation)(document);
+      const { command, flags } = batchCommand(operation);
+      const next = changeFor(command, flags, true)(document);
       if (next === document && operation.command === "replace-text" && operation.all === true) continue;
       unchanged = false;
       document = next;
