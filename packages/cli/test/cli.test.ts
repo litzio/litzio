@@ -1361,7 +1361,7 @@ test("CLI insert-figure persists a Core Figure", () => {
     assert.match(readFileSync(file, "utf8"), /\*\*Bold\*\*/);
     assert.equal(run(["insert-figure", file, "--at", "1", "--image", "./only.svg"]).status, 0);
     const minimal = readFileSync(file, "utf8");
-    assert.match(minimal, /^!\[\]\(\.\/only\.svg\)\n/);
+    assert.match(minimal, /^---\nlitzio: 1\n---\n\n!\[\]\(\.\/only\.svg\)\n/);
     // Invalid under the pending Figure contract too: alt text without an image.
     for (const args of [
       ["insert-figure", file, "--at", "1", "--image", " ./a.svg"],
@@ -3424,7 +3424,7 @@ test("inspect preserves Core inline content at every native location", () => {
     writeFileSync(input, JSON.stringify({ authoring: { inputs: [{ key: "read", blocks }] } }));
     const created = runProcess(["create", rebuilt, "--input", input, "--format", "json"]);
     assert.equal(created.status, 0, created.stderr);
-    assert.equal(readFileSync(rebuilt, "utf8"), serialize(parse(source)));
+    assert.equal(readFileSync(rebuilt, "utf8"), serialize(parse(source)).slice(nativeSource("").length));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
