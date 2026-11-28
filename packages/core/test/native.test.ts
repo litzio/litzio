@@ -242,6 +242,37 @@ test("metadata occupies block zero even when no frontmatter is written", () => {
   for (const saved of [firstTitle, firstStatus]) assert.equal(serialize(parse(saved)), saved);
 });
 
+test("applying a body-only user template leaves no frontmatter on creation or resave", () => {
+  const source = "Body.\n";
+  const template = core.updateTemplateMetadata(parse(source), { name: "Body only", description: "" });
+  const created = core.createDocumentFromTemplate(parse(serialize(template)));
+  const saved = serialize(created);
+  assert.equal(saved, source);
+  assert.equal(serialize(parse(saved)), saved);
+});
+
+test("removing the last metadata field omits the header on save and resave", () => {
+  const source = "Body.\n";
+  for (const [field, remove] of [
+    ["title: Old", core.updateDocumentTitle],
+    ["{title: Old}", core.updateDocumentTitle],
+    ["status: draft", core.updateDocumentStatus],
+  ] as const) {
+    const document = parse("---\n" + field + "\n---\n\n" + source);
+    const saved = serialize(remove(document, null));
+    assert.equal(saved, source);
+    assert.equal(serialize(parse(saved)), saved);
+  }
+});
+
+test("removing metadata leaves other tools' fields and their source intact", () => {
+  const remaining = "---\nmask: 0x1F   # original\n---\n\nBody.\n";
+  const source = remaining.replace("mask:", "title: Old\nmask:");
+  const saved = serialize(core.updateDocumentTitle(parse(source), null));
+  assert.equal(saved, remaining);
+  assert.equal(serialize(parse(saved)), saved);
+});
+
 test("existing litzio fields preserve their exact lines regardless of value", () => {
   for (const field of ["litzio: 1 # original", "litzio: '1'   # quoted", "litzio: 2", "litzio: {version: 2}"]) {
     const source = `---\n${field}\n---\n\nBody.\n`;
