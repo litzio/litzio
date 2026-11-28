@@ -1,3 +1,4 @@
+import { countNormalizedLines } from "@litzio/core";
 import { textRevision as documentRevision } from "@litzio/file-commit";
 import type { SaveRequest, SupportedEdits } from "../shared/document-protocol.ts";
 import { prepareReplay, replayEdits, SaveContentError } from "./document-replay.ts";
@@ -36,7 +37,12 @@ export function prepareDocumentSave(disk: string, revision: string, request: Fil
     const previous = memo?.cache.approved(memo.path, source, edits, { source: disk, revision }) ?? replayEdits(opening(), edits);
     if (previous.markdown !== disk) throw new DocumentConflictError();
   }
-  return { source, ...replayCurrent(opening, request) };
+  const result = replayCurrent(opening, request);
+  // When disk differs from the opening source, the checked previous replay above
+  // already proved that disk is a canonical write.
+  const canonical = source === disk ? result.snapshot.normalizationSource : undefined;
+  const normalizedLineCount = canonical === undefined ? 0 : countNormalizedLines(disk, canonical);
+  return { source, ...result, normalizedLineCount };
 }
 
 export function replayCurrent(opening: () => ReturnType<typeof prepareReplay>, edits: SupportedEdits) {

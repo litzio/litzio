@@ -8,7 +8,7 @@ import test from "node:test";
 import { mystParse } from "myst-parser";
 import {
   authorDocument, DocumentAuthoringError, DOCUMENT_AUTHORING_LIMITS,
-  createDocument, parse, serialize, getEditableDocument, NativeDocumentError, canonicalWriteIssue, hasNativeMarker,
+  createDocument, parse, serialize, getEditableDocument, NativeDocumentError, canonicalWriteIssue,
   insertHeading, insertParagraph, insertFigure, updateHeadingNumbering, removeBlock,
   updateHeadingInlineContent, updateHeadingLevel, insertFootnote, updateParagraphInlineContent, moveBlock,
   insertTarget, moveSection, removeSection, updateNodeTextAtPath, updateTableCell, mergeParagraphWithPrevious,
@@ -317,16 +317,6 @@ test("Litzio's own field names keep their rules when another tool uses them diff
   }
 });
 
-test("the native marker is read from leading frontmatter alone, without admitting the document", () => {
-  for (const source of [native("# Title\n"), `\uFEFF${native("Body.\n").replaceAll("\n", "\r\n")}`,
-    "---\nlitzio: 1\nnumbering:\n  headings: true\n---\n", native("> One.\n>\n> Two.\n")]) {
-    assert.equal(hasNativeMarker(source), true, source);
-  }
-  for (const source of ["", "# Title\n", "---\nlitzio: '1'\n---\n", "---\nlitzio: 2\n---\n", "---\nlitzio: 1\n",
-    "---\n- litzio: 1\n---\n", "# Title\n\n---\nlitzio: 1\n---\n", "\n---\nlitzio: 1\n---\n"]) {
-    assert.equal(hasNativeMarker(source), false, source);
-  }
-});
 test("native admission refuses unused link definitions but keeps resolved reference links", () => {
   const unused = "# Runbook\n\nFix typo.\n\n[backup-console]: https://ops.example.org/recovery\n";
   assert.throws(() => parse(unused), error => {

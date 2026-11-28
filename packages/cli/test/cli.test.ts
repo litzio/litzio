@@ -56,7 +56,7 @@ test("replace-text exposes case options, counts committed changes, and leaves ze
 
   const committed = run(command);
   assert.equal(committed.status, 0, committed.stderr);
-  assert.equal(committed.stdout, "Replaced 1 match.\n");
+  assert.equal(committed.stdout, "Replaced 1 match.\nNormalized Markdown lines: 1\n");
   assert.equal(readFileSync(file, "utf8"), nativeSource("# drive notes\n\nA mo**to**r and MOTOR.\n"));
 
   writeFileSync(file, source);
@@ -72,7 +72,7 @@ test("replace-text exposes case options, counts committed changes, and leaves ze
 
   const single = run(["replace-text", file, "--from", "MOTOR", "--to", "drive", "--ignore-case"]);
   assert.equal(single.status, 0, single.stderr);
-  assert.equal(single.stdout, "");
+  assert.equal(single.stdout, "Normalized Markdown lines: 1\n");
   assert.match(readFileSync(file, "utf8"), /^# drive notes$/m);
   assert.match(readFileSync(file, "utf8"), /mo\*\*to\*\*r and MOTOR\./);
 
@@ -552,7 +552,7 @@ test("apply-batch matches sequential file bytes across canonical endnote and pat
       ["remove-block", "--at", "3"],
     ]) {
       const result = run([args[0], single, ...args.slice(1)]);
-      assert.deepEqual(result, { status: 0, stdout: "", stderr: "" });
+      assert.deepEqual(result, { status: 0, stdout: args[0] === "insert-heading" ? "Normalized Markdown lines: 11\n" : "", stderr: "" });
     }
     const result = run(["apply-batch", file, "--operations", operationsFile,
       "--if-revision", textRevision(source), "--format", "json"]);
@@ -562,7 +562,7 @@ test("apply-batch matches sequential file bytes across canonical endnote and pat
     assert.deepEqual(saved, readFileSync(single));
     assert.match(saved.toString("utf8"), /# Report\n\n## Verified results\n\n## Method/);
     assert.equal(result.stdout, `${JSON.stringify({ ok: true, command: "apply-batch", applied: operations.length,
-      revision: textRevision(saved.toString("utf8")) })}\n`);
+      revision: textRevision(saved.toString("utf8")), normalizedLineCount: 11 })}\n`);
     writeFileSync(operationsFile, JSON.stringify([{ command: "format" }]));
     assert.deepEqual(run(["apply-batch", file, "--operations", operationsFile]), { status: 0, stdout: "", stderr: "" });
     assert.deepEqual(readFileSync(file), saved);
@@ -1951,7 +1951,7 @@ test("CLI batch groups plain table edits while retaining the first refused comma
   assert.deepEqual(readFileSync(file), Buffer.from(serialize(sequential)));
 });
 
-test("CLI accepts an inspect revision for edits and format without printing a new revision", () => {
+test("CLI accepts an inspect revision and only reports normalization for noncanonical input", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-cli-revision-"));
   const file = path.join(dir, "document.md");
   const original = "\uFEFF" + nativeSource("## Target\r\n\r\nBody.\r\n");
@@ -1967,7 +1967,7 @@ test("CLI accepts an inspect revision for edits and format without printing a ne
     const updated = run(["update-heading", file, "--path", heading.path.join(","), "--text", "Changed",
       "--if-revision", snapshot.revision]);
     assert.equal(updated.status, 0, updated.stderr);
-    assert.equal(updated.stdout, "");
+    assert.equal(updated.stdout, "Normalized Markdown lines: 4\n");
     assert.equal(readFileSync(file, "utf8"), nativeSource("## Changed\n\nBody.\n"));
 
     // Refresh the revision for the next write, even when the path stayed the same.
@@ -2728,7 +2728,7 @@ test("check and edit previews retain original literal-syntax warnings through li
       assert.deepEqual(readFileSync(file), Buffer.from(source));
       const written = run(args);
       assert.equal(written.status, 0, written.stderr);
-      assert.equal(written.stdout, "");
+      assert.equal(written.stdout, "Normalized Markdown lines: 5\n");
       assert.equal(written.stderr, textPreview.stderr);
       assert.deepEqual(readFileSync(file), Buffer.from(preview.markdown));
       assert.equal(run(["check", file]).stderr, "", "escaped literal no longer warns");
@@ -2764,8 +2764,8 @@ test("CLI writes warn once per original footnote occurrence, keeping literal byt
       assert.equal(written.status, 0, written.stderr);
       assert.equal(written.stderr, warning + warning, "report original occurrences only, before their block moved");
       assert.equal(written.stdout, args.includes("json")
-        ? JSON.stringify({ ok: true, command: "apply-batch", applied: operations.length, revision: textRevision(expected) }) + "\n"
-        : "");
+        ? JSON.stringify({ ok: true, command: "apply-batch", applied: operations.length, revision: textRevision(expected), normalizedLineCount: 1 }) + "\n"
+        : "Normalized Markdown lines: 1\n");
       assert.equal(readFileSync(file, "utf8"), expected);
     }
     writeFileSync(file, source);
@@ -3440,6 +3440,33 @@ test("inspect preserves Core inline content at every native location", () => {
     assert.equal(created.status, 0, created.stderr);
     assert.equal(readFileSync(rebuilt, "utf8"), serialize(parse(source)));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("structured CLI writes report normalization of the pre-edit source", () => {
+  const file = path.join(fixtures, "normalization.md");
+  const operations = path.join(fixtures, "normalization.json");
+  const source = "# Heading ###\n\nBody.\n";
+  writeFileSync(operations, JSON.stringify([{ command: "replace-text", from: "Heading", to: "Revised" }]));
+  for (const [command, ...flags] of [
+    ["format"],
+    ["replace-text", "--from", "Heading", "--to", "Revised"],
+    ["apply-batch", "--operations", operations],
+  ]) {
+    writeFileSync(file, source);
+    const result = run([command!, file, ...flags, "--format", "json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const written = readFileSync(file, "utf8");
+    assert.equal(written, command === "format" ? "# Heading\n\nBody.\n" : "# Revised\n\nBody.\n");
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.normalizedLineCount, 1);
+    assert.equal(receipt.revision, textRevision(written));
+    assert.equal(JSON.parse(run(["format", file, "--format", "json"]).stdout).normalizedLineCount, 0);
+    assert.equal(readFileSync(file, "utf8"), written);
+  }
+  writeFileSync(file, source.replaceAll("\n", "\r\n"));
+  const text = run(["format", file]);
+  assert.equal(text.status, 0, text.stderr);
+  assert.equal(text.stdout, "Normalized Markdown lines: 3\n");
 });
 
 // Public SDK/CLI integration: byte parity, locator parity and conflicts, without new subprocesses.

@@ -116,12 +116,12 @@ export function saveDocumentFile(
   const disk = fileStep(() => decodeUtf8(readFileSync(accessPath(filePath, access))));
   const { describe, ...save } = request as FileSaveRequest & { describe?: true };
   const revision = verifySaveRevision(disk, save.revision);
-  const { saved, snapshot, source } = prepareDocumentSave(disk, revision, save, cache && { path: filePath, cache });
+  const { saved, snapshot, source, normalizedLineCount } = prepareDocumentSave(disk, revision, save, cache && { path: filePath, cache });
   fileStep(() => replaceDocumentFile(accessPath(filePath, access), saved.markdown, save.revision));
   const { path: _path, base, revision: _revision, ...edits } = save;
   if (cache) cache.remember(filePath, source, snapshot, edits, saved);
   const changed = describe && changedBlocks(base === undefined || base.source === disk ? {} : base.savedEdits ?? {}, edits);
-  return { markdown: saved.markdown, revision: saved.revision, path: filePath, ...(changed ? { blocks: describeBlocks(saved.document, changed) } : {}) };
+  return { markdown: saved.markdown, revision: saved.revision, normalizedLineCount, path: filePath, ...(changed ? { blocks: describeBlocks(saved.document, changed) } : {}) };
 }
 
 async function openEditorFile(
@@ -151,13 +151,13 @@ async function saveFileInOrder(request: SaveRequest | TextSaveRequest, access: F
     if (!text) {
       // The edits are fingerprinted and replayed; describing is only a reply option.
       const { describe, ...edits } = request;
-      const { revision, localWrite, blocks } = await thread.save({ kind: "save", path: target, disk, request: edits, ...(describe ? { describe } : {}) }, signal,
+      const { revision, localWrite, blocks, normalizedLineCount } = await thread.save({ kind: "save", path: target, disk, request: edits, ...(describe ? { describe } : {}) }, signal,
         saved => commit(saved.markdown),
         markdown => {
           try { return readFileSync(currentPath()).equals(Buffer.from(markdown, "utf8")); }
           catch { return false; }
         }, commit);
-      return { revision, ...(localWrite ? { pendingLocalWrite: true } : {}), ...(blocks ? { blocks } : {}) };
+      return { revision, normalizedLineCount, ...(localWrite ? { pendingLocalWrite: true } : {}), ...(blocks ? { blocks } : {}) };
     }
     assertUnicode(request.source);
     commit(request.source);
@@ -550,7 +550,7 @@ export async function handleDocumentRequest(
       try {
         const saved = documents ? await withDocumentResponse(res, signal => saveFileInOrder(request, access, documents, signal))
           : saveDocumentFile(request.path, request, access);
-        sendJson(res, 200, { revision: saved.revision, ...(saved.pendingLocalWrite ? { pendingLocalWrite: true } : {}),
+        sendJson(res, 200, { revision: saved.revision, normalizedLineCount: saved.normalizedLineCount, ...(saved.pendingLocalWrite ? { pendingLocalWrite: true } : {}),
           ...(saved.blocks ? { blocks: saved.blocks } : {}) } satisfies SaveResponse);
       } catch (error) {
         if (error instanceof DocumentConflictError) {

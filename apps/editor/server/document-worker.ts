@@ -62,16 +62,16 @@ port.on("message", (work: DocumentWork | { kind: "settle-save"; committed: boole
               else {
                 const { markdown, kind, blockCount } = result;
                 rememberCommitted = () => candidates.set(path, result.baseline);
-                reply({ result: { markdown, revision: textRevision(markdown), localWrite: { kind, blockCount, path: change.edit.path },
+                reply({ result: { markdown, revision: textRevision(markdown), normalizedLineCount: 0, localWrite: { kind, blockCount, path: change.edit.path },
                   ...described(work, disk, () => result.baseline.model) } });
                 break;
               }
             } catch { fallback = "unproven-edit"; }
           }
         }
-        const { saved, snapshot, source } = prepareDocumentSave(disk, revision, request, { path, cache });
+        const { saved, snapshot, source, normalizedLineCount } = prepareDocumentSave(disk, revision, request, { path, cache });
         rememberCommitted = () => cache.remember(path, source, snapshot, edits, saved);
-        reply({ result: { markdown: saved.markdown, revision: saved.revision, fallback, ...described(work, disk, () => saved.document) } });
+        reply({ result: { markdown: saved.markdown, revision: saved.revision, normalizedLineCount, fallback, ...described(work, disk, () => saved.document) } });
         break;
       }
       case "verify-local-write": {

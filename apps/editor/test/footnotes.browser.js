@@ -28,7 +28,7 @@ async (page, { screenshots = false, openPath, reloadDocument, expect, recoveryRe
   const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
   const chips = editor.getByTestId('footnote-reference');
   const texts = async locator => (await locator.allInnerTexts()).map(text => text.trim());
-  const notice = page.getByTestId('document-notice');
+  const notice = page.getByRole('button', { name: /^Saving will normalize Markdown/ });
   const save = page.locator('.document-tab-row [data-testid="save"]');
   const status = () => page.getByTestId('status').innerText();
   const order = () => editor.evaluate(element => {
@@ -153,7 +153,9 @@ async (page, { screenshots = false, openPath, reloadDocument, expect, recoveryRe
   assert(await read() === written, 'Opening changed the file');
   assert(await order() === 'heading paragraph paragraph b a', `Opened order: ${await order()}`);
   assert(await status() !== 'Unsaved changes', 'Opening or cancelling made the document dirty');
-  assert(/Save moves this file's endnote definitions after the body/.test(await notice.innerText()), 'Missing endnote placement notice');
+  await notice.hover();
+  await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toContainText("Save moves this file's endnote definitions after the body");
+  await page.keyboard.press('Escape');
   assert((await showSource().then(preview => preview.textContent())) === placed, 'Source differs from the Markdown Save writes');
   await showVisual();
   assert(await read() === written && await status() !== 'Unsaved changes', 'Source changed the file or made it dirty');

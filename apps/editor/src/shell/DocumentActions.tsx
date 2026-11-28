@@ -63,8 +63,11 @@ type DocumentActionsProps = PluginFileMenuProps & {
   onViewChange(view: DocumentView): void;
   saveDisabled: boolean;
   onSave(): void;
-  onCompare?(): void;
+  onCompare?(trigger?: HTMLElement): void;
   compareDisabled?: boolean;
+  normalizationPending?: boolean;
+  normalizationDetail?: string;
+  normalizedLineCount?: number;
   onReload?(): void;
   reloadDisabled?: boolean;
   /** Copies the document's full path, for use in other tools. */
@@ -86,7 +89,8 @@ type DocumentActionsProps = PluginFileMenuProps & {
 /** Actions and status of this tab row's active document. */
 export function DocumentActions({
   documentPath, textMode, markdownText, hideViewControls, wide, onToggleWide, status, unsaved = false, draftNotice = "", view, viewDisabled, onViewChange, saveDisabled,
-  onSave, onCompare, compareDisabled, onReload, reloadDisabled, onCopyPath, fileActionsRef, pluginActions, onOpenPluginFile, onFullscreen,
+  onSave, onCompare, compareDisabled, normalizationPending, normalizationDetail, normalizedLineCount = 0,
+  onReload, reloadDisabled, onCopyPath, fileActionsRef, pluginActions, onOpenPluginFile, onFullscreen,
   outline, onToggleOutline, outlineToggleRef, compact: groupCompact = false, onOpenRight, onMove, openRightDisabled, moveDisabled, onManageHighlights,
 }: DocumentActionsProps) {
   useTranslation();
@@ -103,6 +107,9 @@ export function DocumentActions({
   const displayStatus = idle
     ? (unsaved ? i18n.t("Unsaved changes") : status === "ready" ? "" : operationText("saved"))
     : operationText(status);
+  const normalizationReceipt = (status === "saved" || status === "saved-pending") && normalizedLineCount > 0
+    ? i18n.t("Markdown lines normalized: {{lines}}", { lines: normalizedLineCount }) : "";
+  const normalizationNotice = i18n.t("Saving will normalize Markdown.");
   const saving = status === "saving";
   const saveState = saving ? "saving" : unsaved ? "unsaved" : "clean";
   const saveVariant = saveState === "unsaved" ? "default" : "ghost";
@@ -135,15 +142,28 @@ export function DocumentActions({
         {onManageHighlights && documentPath ? <HighlightSetMenu path={documentPath} compact={compact} onManage={onManageHighlights} /> : null}
       </div> : null}
       <div className="top-bar-group" role="group" aria-label={i18n.t("File actions")}>
-        <p className="document-status status" data-testid="status" data-operation={status} role="status" title={displayStatus || undefined}>
-          {displayStatus ? <><StatusIcon aria-hidden="true" className={unsaved && idle ? "document-status-dirty" : undefined} /><span className="sr-only">{displayStatus}</span></> : null}
-        </p>
+        <Tooltip>
+          <TooltipTrigger render={<p className="document-status status" data-testid="status" data-operation={status}
+            role="status" tabIndex={normalizationReceipt ? 0 : undefined} title={normalizationReceipt ? undefined : displayStatus || undefined} />}>
+            {displayStatus ? <><StatusIcon aria-hidden="true" className={unsaved && idle ? "document-status-dirty" : undefined} />
+              <span className="sr-only">{displayStatus}</span></> : null}
+          </TooltipTrigger>
+          {normalizationReceipt ? <TooltipContent side="bottom">{normalizationReceipt}</TooltipContent> : null}
+        </Tooltip>
         {draftNotice ? <Tooltip>
           <TooltipTrigger render={<span tabIndex={0} role="img" className="draft-indicator" data-compact={compact || undefined}
             data-testid="draft-indicator" aria-label={`${i18n.t("Unapplied draft")}. ${draftNotice}`} />}>
             <FilePenLine aria-hidden="true" /><span className="draft-indicator-label" aria-hidden="true">{i18n.t("Unapplied draft")}</span>
           </TooltipTrigger>
           <TooltipContent side="bottom" data-testid="draft-indicator-description">{draftNotice}</TooltipContent>
+        </Tooltip> : null}
+        {normalizationPending && onCompare ? <Tooltip>
+          <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm"
+            aria-label={`${normalizationNotice} ${i18n.t("Changes before saving")}`}
+            disabled={compareDisabled} onClick={event => onCompare(event.currentTarget)} />}>
+            <FileDiff aria-hidden="true" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{normalizationNotice}{normalizationDetail ? ` ${normalizationDetail}` : ""}</TooltipContent>
         </Tooltip> : null}
           <Button type="button" variant={saveVariant} className="top-bar-save" data-save-state={saveState}
             aria-busy={saving || undefined} onClick={onSave} disabled={saveDisabled} data-testid="save"
@@ -159,7 +179,7 @@ export function DocumentActions({
                 <PanelRightOpen aria-hidden="true" />{i18n.t("Open to the right")}</DropdownMenuItem> : null}
               {onMove ? <DropdownMenuItem onClick={onMove} disabled={moveDisabled}>
                 <ArrowLeftRight aria-hidden="true" />{i18n.t("Move to other group")}</DropdownMenuItem> : null}
-              {onCompare ? <DropdownMenuItem onClick={onCompare} disabled={compareDisabled}>
+              {onCompare ? <DropdownMenuItem onClick={() => onCompare()} disabled={compareDisabled}>
                 <FileDiff aria-hidden="true" />{i18n.t("Changes before saving")}</DropdownMenuItem> : null}
               <DropdownMenuItem onClick={onReload} disabled={reloadDisabled}>
                 <RotateCcw aria-hidden="true" />{i18n.t("Reload")}</DropdownMenuItem>

@@ -977,7 +977,7 @@ test("HTTP keeps an unused link definition when correcting a README in text mode
   assert.equal(fs.readFileSync(file, "utf8"), corrected);
 });
 
-test("HTTP and synchronous open return the original text and parser-loss reason", async t => {
+test("HTTP and synchronous open distinguish parser loss from pending normalization", async t => {
   const { a, send } = await fixture(t);
   const file = path.join(a, "wide-table.md");
   const source = "| A | B |\n| --- | --- |\n| C | D | extra |\n";
@@ -990,8 +990,28 @@ test("HTTP and synchronous open return the original text and parser-loss reason"
   assert.equal(opened.issue.code, "parser-loss");
   assert.equal(opened.issue.line, 3);
   assert.match(opened.issue.reason, /header width/i);
+  assert.equal("normalizationPending" in opened, false);
   assert.deepEqual(loadEditorFile(file), opened);
   assert.equal(fs.readFileSync(file, "utf8"), source);
+
+  for (const pending of [true, false]) {
+    const structured = pending ? "# Title ###\n\nBody.\n" : "# Title\n\nBody.\n";
+    fs.writeFileSync(file, structured);
+    const response = await send(documentQuery(file));
+    assert.equal(response.status, 200);
+    const native = await response.json();
+    assert.equal(native.kind, "native");
+    assert.equal(native.source, structured);
+    assert.equal(native.normalizationPending, pending);
+    assert.equal("issue" in native, false);
+    assert.deepEqual(loadEditorFile(file), native);
+    assert.equal(fs.readFileSync(file, "utf8"), structured);
+  }
+
+  const listing = await (await send(`/api/folder?${new URLSearchParams({ root: a })}`)).json();
+  const listed = listing.entries.find((entry: { path: string }) => entry.path === file);
+  assert.equal(listed?.kind, "document");
+  assert.equal("native" in listed, false);
 });
 
 test("HTTP rejects an escaped surrogate locator and preserves valid Unicode names", async t => {
