@@ -20,7 +20,6 @@ A template is an ordinary native Markdown document accepted by Core, not a new
 document format. Its optional front matter field is:
 
 ```yaml
-litzio: 1
 title: Document title
 template:
   name: My report
@@ -54,6 +53,7 @@ The two app defaults are **AI 작업 보고서 / AI work report** (`builtin:ai-r
 and **기술 문서 / Technical document** (`builtin:technical-document`). Like
 [localized samples](desktop-distribution-v1.md#native-sample), content is
 available in `ko` and `en`; callers pass UI language, defaulting to `en`.
+The built-ins omit the `litzio` field. Existing user template metadata follows the native preservation contract.
 Neither default declares `bibliography`. Per the additional #936 owner instruction
 (2026-11-04), both Korean resources author the existing
 [Korean reference-style preset](heading-numbering-v1.md#reference-templates-445):

@@ -183,7 +183,7 @@ export function canonicalNativeSnapshot(document: MystDocument) {
 }
 
 export function createDocument(): MystDocument {
-  return parseNativeDocument("---\nlitzio: 1\n---\n");
+  return parseNativeDocument("");
 }
 
 export function canonicalWriteIssue(document: MystDocument): WriteIssue | undefined {

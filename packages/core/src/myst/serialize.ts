@@ -362,6 +362,12 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
         prefix = `---\n${yaml}${yaml && !yaml.endsWith("\n") ? "\n" : ""}---\n\n`;
       }
     }
+    // A leading dash divider would be parsed as the start of YAML frontmatter.
+    if (node.type === "thematicBreak" && parent === tree && index === 1 &&
+        tree.children[0]?.[IMPLICIT_FRONT_MATTER] === true) {
+      node.type = "html";
+      node.value = "***";
+    }
     // myst-to-md chooses its image directive by key presence, even for undefined
     // attributes emitted by myst-parser. Absent values must stay absent.
     for (const key of Object.keys(node)) if (node[key] === undefined) delete node[key];

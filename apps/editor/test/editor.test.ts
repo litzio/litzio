@@ -747,7 +747,7 @@ test("new Markdown files use Core's canonical empty document and can be edited a
   try {
     const created = createDocumentFile(file);
     assert.equal(created.path, path.resolve(file));
-    assert.equal(readFileSync(file, "utf8"), nativeSource("\n"));
+    assert.equal(readFileSync(file, "utf8"), "\n");
     assert.deepEqual(created.document.blocks, []);
     assert.deepEqual(loadEditableDocument(readFileSync(file, "utf8")).blocks, []);
 
@@ -756,7 +756,7 @@ test("new Markdown files use Core's canonical empty document and can be edited a
       inserts: [{ block: "paragraph", content: [{ kind: "text", text: "A new document" }] }],
       order: [{ insert: 0 }],
     });
-    assert.equal(readFileSync(file, "utf8"), nativeSource("A new document\n"));
+    assert.equal(readFileSync(file, "utf8"), "A new document\n");
     assert.equal(loadEditableDocument(saved.markdown).blocks[0]?.block, "paragraph");
   } finally {
     rmSync(dir, { recursive: true, force: true });

@@ -3241,6 +3241,8 @@ test("templates CLI lists, previews, saves and exclusively creates through the s
   const source = readFileSync(output, "utf8");
   assert.equal(receipt.source, source);
   assert.ok(source.includes("작업 목적"));
+  assert.match(source, /^---\ntitle: AI 작업 보고서\nnumbering:\n/);
+  assert.doesNotMatch(source, /^litzio:/m);
   assert.equal(run(["create", output, "--template", "builtin:technical-document"]).status, 1);
   assert.equal(readFileSync(output, "utf8"), source);
   const saved = run(["templates", "save", name, "--from", output, "--description", "CLI report"]);
@@ -3438,7 +3440,7 @@ test("inspect preserves Core inline content at every native location", () => {
     writeFileSync(input, JSON.stringify({ authoring: { inputs: [{ key: "read", blocks }] } }));
     const created = runProcess(["create", rebuilt, "--input", input, "--format", "json"]);
     assert.equal(created.status, 0, created.stderr);
-    assert.equal(readFileSync(rebuilt, "utf8"), serialize(parse(source)));
+    assert.equal(readFileSync(rebuilt, "utf8"), serialize(parse(source)).slice(nativeSource("").length));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

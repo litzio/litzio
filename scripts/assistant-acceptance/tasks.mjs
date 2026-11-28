@@ -3,7 +3,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { parse, serialize } from '../../packages/core/src/index.ts';
 const fixture = name => fs.readFileSync(new URL(`./fixtures/${name}`, import.meta.url));
-const doc = (title, body) => serialize(parse(`---\nlitzio: 1\ntitle: ${title}\n---\n\n${body}\n`));
+const doc = (title, body) => serialize(parse(`---\ntitle: ${title}\n---\n\n${body}\n`));
 const write = (root, name, value) => { const file = path.join(root,name); fs.mkdirSync(path.dirname(file),{recursive:true}); fs.writeFileSync(file,value); };
 const text = (root,name) => fs.existsSync(path.join(root,name)) ? fs.readFileSync(path.join(root,name),'utf8') : '';
 const contains = (value, expected) => expected.every(s => value.includes(s));

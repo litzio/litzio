@@ -135,7 +135,7 @@ test("literal @ text opens, edits and writes safely for both Litzio and default 
     else assert.match(markdown, /\\@/);
   }
   const document = insertParagraph(createDocument(), 1, "Contact @kim for details.");
-  assert.equal(serialize(document), native("Contact \\@kim for details.\n"));
+  assert.equal(serialize(document), "Contact \\@kim for details.\n");
   const edited = updateParagraphInlineContent(document, [1], [
     { kind: "strong", children: [{ kind: "text", text: "@param" }] },
     { kind: "text", text: " [@key, p. 3] a@b.com" },
@@ -240,6 +240,37 @@ test("metadata occupies block zero even when no frontmatter is written", () => {
   assert.equal(firstTitle, `---\ntitle: Document title\n---\n\n${source}`);
   assert.equal(firstStatus, `---\nstatus: draft\n---\n\n${source}`);
   for (const saved of [firstTitle, firstStatus]) assert.equal(serialize(parse(saved)), saved);
+});
+
+test("applying a body-only user template leaves no frontmatter on creation or resave", () => {
+  const source = "Body.\n";
+  const template = core.updateTemplateMetadata(parse(source), { name: "Body only", description: "" });
+  const created = core.createDocumentFromTemplate(parse(serialize(template)));
+  const saved = serialize(created);
+  assert.equal(saved, source);
+  assert.equal(serialize(parse(saved)), saved);
+});
+
+test("removing the last metadata field omits the header on save and resave", () => {
+  const source = "Body.\n";
+  for (const [field, remove] of [
+    ["title: Old", core.updateDocumentTitle],
+    ["{title: Old}", core.updateDocumentTitle],
+    ["status: draft", core.updateDocumentStatus],
+  ] as const) {
+    const document = parse("---\n" + field + "\n---\n\n" + source);
+    const saved = serialize(remove(document, null));
+    assert.equal(saved, source);
+    assert.equal(serialize(parse(saved)), saved);
+  }
+});
+
+test("removing metadata leaves other tools' fields and their source intact", () => {
+  const remaining = "---\nmask: 0x1F   # original\n---\n\nBody.\n";
+  const source = remaining.replace("mask:", "title: Old\nmask:");
+  const saved = serialize(core.updateDocumentTitle(parse(source), null));
+  assert.equal(saved, remaining);
+  assert.equal(serialize(parse(saved)), saved);
 });
 
 test("existing litzio fields preserve their exact lines regardless of value", () => {
@@ -483,8 +514,12 @@ test("native supported semantics accept alternative spellings and preserve snaps
   assert.deepEqual(getEditableDocument(parse(markdown)), getEditableDocument(document));
 });
 
-test("creation and authoring retain the marker, including empty Figures and unresolved references", () => {
+test("creation and authoring omit the format marker and support empty Figures and unresolved references", () => {
   const empty = createDocument();
+  assert.equal(serialize(empty), "\n");
+  const divider = core.insertDivider(empty, 1);
+  assert.equal(serialize(divider), "***\n");
+  assert.equal(serialize(parse(serialize(divider))), "***\n");
   assert.deepEqual(getEditableDocument(empty).blocks, []);
   let document = insertHeading(empty, 1, 1, "Title");
   document = insertParagraph(document, 2, "Body.");
@@ -501,7 +536,7 @@ test("creation and authoring retain the marker, including empty Figures and unre
   const orphan = updateParagraphInlineContent(document, [2], [{ kind: "text", text: "Body." }]);
   assert.throws(() => serialize(moveBlock(orphan, 2, 1)), /has no reference/);
   const source = serialize(document);
-  assert.match(source, /^---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---/);
+  assert.match(source, /^---\nnumbering:\n  headings: true\n  title: false\n---/);
   assert.equal(serialize(parse(source)), source);
   assert.equal(canonicalWriteIssue(document), undefined);
   assert.throws(() => removeBlock(document, 0), /block 0 is the document metadata; body blocks start at 1/);
@@ -713,7 +748,7 @@ test("display math uses dollar fences when they preserve the complete LaTeX", ()
   ]) {
     const document = core.insertEquation(core.createDocument(), 1, latex);
     const markdown = core.serialize(document);
-    assert.equal(markdown, native(body));
+    assert.equal(markdown, body);
     const reopened = core.parse(markdown);
     assert.deepEqual(core.getEditableDocument(reopened), core.getEditableDocument(document));
     assert.equal(core.serialize(reopened), markdown);
@@ -939,7 +974,7 @@ test("authoring reuses native inline/list semantics and preserves canonical sour
     return { kind, ...semantic };
   });
   const authored = await authorDocument({ inputs: [{ key: "sample", blocks }] });
-  assert.equal(authored.source, serialize(original));
+  assert.equal(authored.source, serialize(original).slice(native("").length));
   assert.deepEqual(getEditableDocument(parse(authored.source)), model);
   // Endnote relocation must not retarget input receipts.
   const moved = await authorDocument({ inputs: [{ key: "moved", blocks: [

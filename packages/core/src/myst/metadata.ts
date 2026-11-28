@@ -114,6 +114,12 @@ export function writeMetadata(node: MystNode, yaml: Document, key: string): void
     }
     written = String(yaml);
   }
+  // Keep the block-zero slot when deleting the last field leaves only an empty map.
+  if (old && !next && written.trim() === "{}") {
+    node.value = "{}\n";
+    node[IMPLICIT_FRONT_MATTER] = true;
+    return;
+  }
   node.value = written;
 }
 

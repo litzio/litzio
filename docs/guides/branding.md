@@ -56,7 +56,7 @@ pnpm --filter @litzio/desktop package
 
 ## 고정 내부 계약과 검증
 
-`@litzio/*`, native `litzio: 1`과 공식 AI HTTP route·Desktop bridge는 제품 브랜드로 바꾸지 않는다. Core는 브랜드 설정을 import하지 않으며 문서 의미는 패키저 설정의 영향을 받지 않는다. 과거 저장소/설정을 이전하거나 정리하지 않는다.
+`@litzio/*`와 공식 AI HTTP route·Desktop bridge는 제품 브랜드로 바꾸지 않는다. Core는 브랜드 설정을 import하지 않으며 문서 의미는 패키저 설정의 영향을 받지 않는다. 과거 저장소/설정을 이전하거나 정리하지 않는다.
 
 다른 브랜드 빌드와 공식판·대체판의 동시 설치는 CI로 검증하지 않는다(#1000). 공식 Litzio의 패키징·설치·Stable/Beta 업데이트·제거 검사는 유지한다.
 
