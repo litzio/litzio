@@ -216,13 +216,55 @@ test("bibliography declarations validate shape without reading resources and kee
 test("native admission checks the marker and the complete YAML contract before writing", () => {
   for (const source of ["", "# Title\n", "---\nlitzio: '1'\n---\n", "---\nlitzio: 2\n---\n",
     "---\nlitzio: 1\nlitzio: 1\n---\n", "---\nlitzio: [\n---\n", "---\n- litzio: 1\n---\n",
-    "---\nlitzio: 1\nauthor: Title\n---\n", "---\nlitzio: 1\nnumbering: true\n---\n",
+    "---\nlitzio: 1\n? [author]\n: Title\n---\n", "---\nlitzio: 1\nnumbering: true\n---\n",
     "---\nlitzio: 1\nnumbering:\n  headings: true\n  heading_1: 3\n---\n",
     "---\nlitzio: 1\nnumbering:\n  title: true\n---\n", "---\nlitzio: 1\n"]) {
     assert.throws(() => parse(source), NativeDocumentError, source);
   }
   const marked = native("# Title\n");
   assert.equal(serialize(parse(`\uFEFF${marked.replaceAll("\n", "\r\n")}`)), marked);
+});
+
+test("frontmatter fields of other tools keep their exact source through body and metadata edits", () => {
+  // Comments, quoting, block scalars, nested values and trailing spaces that a whole-YAML write would respell.
+  const before = "# Site settings\nlayout: post   \ntags: [draft, \"a: b\"]\nsummary: |\n  Line one\n    indented\n";
+  const after = "excerpt: >-\n  A folded value longer than the eighty columns at which a YAML writer would fold it again.\n" +
+    "author:\n  name: 'Kim'\n  links:\n    - https://example.com # home\n    - mail\ndate: 2024-01-01\n";
+  const sources = [`---\nlitzio: 1\n${before}${after}---\n\n# Heading\n\nBody.\n`,
+    `---\nlitzio: 1\n${before}title: Old # kept\n${after}---\n\n# Heading\n\nBody.\n`,
+    // A blank line before the closing marker stays after a new key.
+    `---\nlitzio: 1\n${before}${after}\n---\n\n# Heading\n\nBody.\n`];
+  const edits: ((document: core.Document) => core.Document)[] = [
+    document => updateParagraphInlineContent(document, [2], [{ kind: "text", text: "Edited." }]),
+    document => core.updateDocumentTitle(document, "New: title"),
+    document => core.updateDocumentTitle(document, null),
+    document => core.updateDocumentStatus(document, "draft"),
+    document => updateHeadingNumbering(document, true),
+  ];
+  for (const source of sources) {
+    let document = parse(source);
+    for (const edit of [...edits, edits[1]]) {
+      document = edit(document);
+      const saved = serialize(document);
+      assert.ok(saved.includes(`\n${before}`) && saved.includes(after), saved);
+      assert.equal(serialize(parse(saved)), saved);
+    }
+    assert.equal(getEditableDocument(document).title, "New: title");
+  }
+  assert.equal(serialize(core.updateDocumentTitle(parse(sources[1]), "New")), sources[1].replace("title: Old", "title: New"));
+
+  // A flow mapping has no lines of its own per key, so the whole YAML is written; its meaning stays.
+  const flow = parse("---\n{litzio: 1, tags: [a, b]}\n---\n\nBody.\n");
+  const saved = serialize(core.updateDocumentStatus(flow, "draft"));
+  assert.deepEqual(parseYaml(saved.split("---\n")[1]), { litzio: 1, tags: ["a", "b"], status: "draft" });
+  assert.equal(serialize(parse(saved)), saved);
+});
+
+test("Litzio's own field names keep their rules when another tool uses them differently", () => {
+  for (const field of ["title: |\n  Block title\n", "status: deprecated\n", "template: post\n"]) {
+    assert.throws(() => parse(`---\nlitzio: 1\nlayout: post\n${field}---\n`), (error: unknown) =>
+      error instanceof NativeDocumentError && error.code === "native-metadata", field);
+  }
 });
 
 test("the native marker is read from leading frontmatter alone, without admitting the document", () => {
