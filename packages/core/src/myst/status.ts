@@ -2,7 +2,7 @@ import { isScalar } from "yaml";
 import { DOCUMENT_STATUSES, type DocumentStatus } from "../status.ts";
 import { DocumentWriteError } from "../write-error.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
-import { metadata } from "./metadata.ts";
+import { metadata, writeMetadata } from "./metadata.ts";
 import { serializeFor } from "./serialize.ts";
 import { cloneDocument, type MystDocument } from "./tree.ts";
 
@@ -27,7 +27,7 @@ export function updateDocumentStatus(document: MystDocument, status: DocumentSta
   const { node, yaml } = metadata(next);
   if (status === null) yaml.delete("status");
   else yaml.set("status", status);
-  node.value = String(yaml);
+  writeMetadata(node, yaml, "status");
   serializeFor(next, "document status cannot be preserved through canonical round-trip");
   return next;
 }

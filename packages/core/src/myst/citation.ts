@@ -6,7 +6,7 @@ import { endnoteOrder, firstReferenceNumbers } from "../numbering.ts";
 import { endnoteBlocks } from "./footnote.ts";
 import { projectCitation } from "./citation-nodes.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
-import { metadata } from "./metadata.ts";
+import { metadata, writeMetadata } from "./metadata.ts";
 import { serializeFor } from "./serialize.ts";
 import { cloneDocument, type MystDocument, type MystNode } from "./tree.ts";
 
@@ -33,7 +33,7 @@ export function updateBibliography(document: MystDocument, paths: string[]): Mys
   const { node, yaml } = metadata(next);
   if (paths.length) yaml.set("bibliography", yaml.createNode(paths));
   else yaml.delete("bibliography");
-  node.value = String(yaml);
+  writeMetadata(node, yaml, "bibliography");
   serializeFor(next, "bibliography declaration cannot be preserved through canonical round-trip");
   return next;
 }

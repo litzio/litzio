@@ -2,7 +2,7 @@ import { updateDocumentStatus } from "./status.ts";
 import { isMap, isScalar, Scalar } from "yaml";
 import { DocumentWriteError } from "../write-error.ts";
 import { serializeFor } from "./serialize.ts";
-import { metadata } from "./metadata.ts";
+import { metadata, writeMetadata } from "./metadata.ts";
 import { cloneDocument, type MystDocument } from "./tree.ts";
 import { assertUnicode } from "./unicode.ts";
 
@@ -43,7 +43,7 @@ export function updateTemplateMetadata(document: MystDocument, value: TemplateMe
   const { node, yaml } = metadata(next);
   if (value === null) yaml.delete("template");
   else yaml.set("template", value);
-  node.value = String(yaml);
+  writeMetadata(node, yaml, "template");
   serializeFor(next, "template metadata cannot be preserved through canonical round-trip");
   return next;
 }

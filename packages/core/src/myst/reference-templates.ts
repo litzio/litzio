@@ -2,7 +2,7 @@ import { DocumentDiagnosticError } from "../write-error.ts";
 import { isMap, isScalar } from "yaml";
 import { NUMBERED_KINDS, referenceTemplatesError, type ReferenceTemplates, type ReferenceTemplateUpdate } from "../numbering.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
-import { metadata } from "./metadata.ts";
+import { metadata, writeMetadata } from "./metadata.ts";
 import { serializeFor } from "./serialize.ts";
 import { cloneDocument, type MystDocument } from "./tree.ts";
 
@@ -53,7 +53,7 @@ export function updateReferenceTemplates(document: MystDocument, templates: Refe
   if (changed) {
     const numbering = yaml.get("numbering", true);
     if (isMap(numbering) && numbering.items.length === 0) yaml.delete("numbering");
-    node.value = String(yaml);
+    writeMetadata(node, yaml, "numbering");
   }
   serializeFor(next, "reference templates cannot be preserved through canonical round-trip");
   return next;
