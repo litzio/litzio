@@ -162,7 +162,7 @@ test("insertFigure creates a canonical unlabeled Figure", () => {
   assert.equal(node.identifier, undefined);
 
   const minimal = roundTrip(insertFigure(parse("Intro"), 0, { imageUrl: "./a.png", imageAlt: "", caption: "" }), 0);
-  assert.equal(minimal.markdown, ":::{figure} ./a.png\n:::\n\nIntro\n");
+  assert.equal(minimal.markdown, "![](./a.png)\n\nIntro\n");
   assert.deepEqual(minimal.figure, { editable: true, label: "", imageUrl: "./a.png", imageAlt: "", caption: "" });
 });
 

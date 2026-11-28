@@ -13,7 +13,7 @@ test("local canonical Save agrees with full write, reread and repeat on seeded e
   assert.ok(results.some(item => Object.keys(item.fallback).length > 0));
 });
 
-// The byte baseline includes the approved canonical spelling changes in #2050.
+// The byte baseline includes the approved canonical spelling changes in #2050 and #2053.
 // Cases the baseline refused may now save if they are semantic and byte-stable.
 const expected = JSON.parse(readFileSync(EXPECTED_URL, "utf8")) as Expected;
 
@@ -65,7 +65,7 @@ test("paragraph text that starts a line with MyST block syntax saves and reloads
     assert.equal(semanticDifference(before, semanticFingerprint(parse(output))), undefined, markdown);
   }
   // Inside lists, quotes, admonitions and endnotes as well.
-  for (const source of ["- a\n  \\+++\n","> a\n> \\% c\n", ":::{note}\na\n\\:::\n:::\n", "a[^1]\n\n[^1]: \\(lab)=\n"]) {
+  for (const source of ["- a\n  \\+++\n","> a\n> \\% c\n", "> [!NOTE]\n> a\n> \\:::\n", "a[^1]\n\n[^1]: \\(lab)=\n"]) {
     const document = parse(source);
     assert.equal(serialize(document), source);
   }

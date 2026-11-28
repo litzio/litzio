@@ -200,7 +200,7 @@ test("adjacent checklist and bullet lists keep separate boundaries with or witho
     const original = core.parse(header + siblings[0] + beforeMiddle + siblings[1] + afterMiddle + siblings[2] + "\n");
     assert.deepEqual(core.getEditableDocument(original).blocks, expected);
     const markdown = core.serialize(original);
-    assert.equal(markdown, header + siblings.join("\n\n").replace("* Second\n", "* Second\n\n") + "\n");
+    assert.equal(markdown, header + siblings.join("\n\n") + "\n");
     const reopened = core.parse(markdown);
     assert.deepEqual(core.getEditableDocument(reopened).blocks, expected);
     assert.equal(core.serialize(reopened), markdown);
@@ -276,7 +276,7 @@ test("checklists read, write canonically and keep check states and content throu
   // Alternative spellings (`-`, `[X]`) normalize to one canonical form; an empty
   // item is its checkbox alone. Nesting works in both directions under the existing list rules.
   const source = "---\nlitzio: 1\n---\n\n- [X] **Done**\n- [ ]\n  - [x] nested\n  - [ ]\n- [ ] has bullets\n  - plain\n\n1. step\n   - [ ] inside numbered\n";
-  const canonical = "---\nlitzio: 1\n---\n\n- [x] **Done**\n- [ ]\n  - [x] nested\n  - [ ]\n- [ ] has bullets\n  - plain\n\n1. step\n\n   - [ ] inside numbered\n";
+  const canonical = source.replace("[X]", "[x]");
   // The parse boundary reads the checkbox; native admission accepts the same tree.
   assert.deepEqual(parse(source).children[1].children!.map(item => item.checked), [true, false, false]);
   const document = core.parse(source);
@@ -294,6 +294,22 @@ test("checklists read, write canonically and keep check states and content throu
   assert.equal(core.serialize(core.parse(markdown)), markdown);
   // Spaces after the checkbox are not content; canonical write removes them.
   assert.equal(core.serialize(core.parse("---\nlitzio: 1\n---\n\n+ [ ]   spaced\n")), "---\nlitzio: 1\n---\n\n- [ ] spaced\n");
+});
+
+test("nested lists keep the separating blank only where needed to interrupt a paragraph", () => {
+  const header = "---\nlitzio: 1\n---\n\n";
+  for (const [body, saved] of [
+    ["- a\n\n  - b\n", "- a\n  - b\n"],
+    ["- a\n\n  1) b\n", "- a\n  1) b\n"],
+    ["- a\n\n  2. b\n", "- a\n\n  2. b\n"],
+    ["- a\n\n  -\n", "- a\n\n  -\n"],
+  ]) {
+    const original = core.parse(header + body);
+    const reopened = core.parse(header + saved);
+    assert.deepEqual(core.getEditableDocument(reopened), core.getEditableDocument(original));
+    assert.equal(core.serialize(original), header + saved);
+    assert.equal(core.serialize(reopened), header + saved);
+  }
 });
 
 test("checkbox shapes outside the checklist contract are refused with their reason", () => {

@@ -106,7 +106,7 @@ test("a simple admonition body with a reference is editable like a paragraph", (
   assert.equal(block.editable, true);
   assert.deepEqual(block.content, [text("See "), ref("eq", "eq-a"), text(".")]);
   const next = updateAdmonitionInlineContent(document, [0], [text("See "), ref("numref", "fig-a"), text(" now.")]);
-  assert.equal(serialize(next), ":::{note}\nSee {numref}`fig-a` now.\n:::\n");
+  assert.equal(serialize(next), "> [!NOTE]\n> See {numref}`fig-a` now.\n");
 });
 
 test("unresolved references are kept as written and do not block saving", () => {

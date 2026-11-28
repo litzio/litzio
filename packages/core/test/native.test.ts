@@ -236,13 +236,29 @@ test("the native marker is read from leading frontmatter alone, without admittin
   }
 });
 test("native admission rejects unsupported structure instead of projecting partial documents", () => {
-  for (const body of ["![ordinary](./x.png)\n", "Text ![inline](./x.png).\n", "1. [x] task\n",
+  for (const body of ["Text ![inline](./x.png).\n", "[![linked](./x.png)](./y)\n", "![one](a.png)\n![two](b.png)\n",
+    "![titled](./x.png \"A title\")\n", "![reference][img]\n\n[img]: ./x.png\n", "1. [x] task\n",
     "> One.\n>\n> Two.\n", ":::{note}\n# Nested\n:::\n", "Text {kbd}`Ctrl`.\n",
     "## See {ref}`Custom <target>`\n", "[a](./same)[b](./same)\n", "| A |\n|---|\n| ![x](./x.png) |\n",
     "Text[^a].\n\n[^a]: One.\n\n    Two.\n", ":::{figure} ./x.png\n:width: 100px\n:::\n",
     "```{math}\n:enumerated: false\nx\n```\n",
     "```{code-block} python\n:enumerator: 17\n\nprint(1)\n```\n",
     ":::{figure}\n\n```{mermaid}\n:enumerator: 17\n\ngraph LR; A-->B\n```\n:::\n"]) {
+    assert.throws(() => parse(native(body)), NativeDocumentError, body);
+  }
+});
+
+test("GitHub alerts share existing admonition meaning and keep literal quotes and MyST variants distinct", () => {
+  const source = native("> [!NOTE]\n> **Note.**\n\n> [!TIP]\n> $x$\n\n> [!IMPORTANT]\n> Important.\n\n" +
+    "> [!WARNING]\n> Warning.\n\n> [!CAUTION]\n> Danger.\n\n:::{caution}\nMyST caution.\n:::\n\n" +
+    "> \\[!NOTE]\n> Someone quoted the marker.\n");
+  const doc = parse(source);
+  assert.deepEqual(getEditableDocument(doc).blocks.map(block => block.block === "admonition" ? block.variant : block.block),
+    ["note", "tip", "important", "warning", "danger", "caution", "quote"]);
+  assert.equal(serialize(doc), source);
+  assert.equal(serialize(parse(serialize(doc))), source);
+  for (const body of ["> [!NOTE]\n> First.\n>\n> Second.\n", "> [!NOTE]\n> - Item\n",
+    ":::{note} Custom title\n\nBody.\n:::\n", ":::{note}\nOne.\n\nTwo.\n:::\n"]) {
     assert.throws(() => parse(native(body)), NativeDocumentError, body);
   }
 });
@@ -288,7 +304,7 @@ test("a Markdown fragment is read all or nothing", () => {
 
 test("canonical write keeps its bytes for colon fences, block breaks and comments inside other syntax", () => {
   // Pasting adds no writer rule: these bytes are what canonical write already produced.
-  for (const body of ["# ::: heading\n", "| A |\n| --- |\n| ::: |\n", ":::{note}\n**::: body**\n:::\n",
+  for (const body of ["# ::: heading\n", "| A |\n| --- |\n| ::: |\n", "> [!NOTE]\n> **::: body**\n",
     "H{sub}`::: example`\n", "[:::x](https://e.com)\n", "x :::\n", "**a** :::b\n", ":::{table} ::: Caption\n\n| A |\n| - |\n| x |\n:::\n",
     "# +++ heading\n", "# % heading\n", "**+++** x\n", "**% x**\n", "a % b +++ c (l)=\n", "(lab)= x\n", "cost \\$5 here\n"]) {
     assert.equal(serialize(parse(native(body))), native(body), body);

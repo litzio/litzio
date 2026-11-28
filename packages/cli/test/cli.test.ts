@@ -934,13 +934,11 @@ test("CLI inserts admonitions, changes their kind and rejects unsafe requests wi
     assert.equal(saved, nativeSource([
       "Intro paragraph.",
       "",
-      ":::{warning}",
-      "Check current limit.",
-      ":::",
+      "> [!WARNING]",
+      "> Check current limit.",
       "",
-      ":::{note}",
-      "Confirm the result.",
-      ":::",
+      "> [!NOTE]",
+      "> Confirm the result.",
       "",
       "## Stable heading",
       "",
@@ -960,7 +958,7 @@ test("CLI inserts admonitions, changes their kind and rejects unsafe requests wi
 
     const changed = run(["update-admonition-variant", file, "--path", "2", "--variant", "caution"]);
     assert.equal(changed.status, 0, changed.stderr);
-    assert.equal(readFileSync(file, "utf8"), saved.replace(":::{warning}", ":::{caution}"));
+    assert.equal(readFileSync(file, "utf8"), saved.replace("> [!WARNING]\n> Check current limit.", ":::{caution}\nCheck current limit.\n:::"));
 
     const unchanged = readFileSync(file);
     for (const args of [
@@ -973,6 +971,15 @@ test("CLI inserts admonitions, changes their kind and rejects unsafe requests wi
       assert.equal(failed.status, 1, `${args.join(" ")}\n${failed.stderr}`);
       assert.deepEqual(readFileSync(file), unchanged, args.join(" "));
     }
+    const conventional = nativeSource("~~Dismissed~~\n\n> [!CAUTION]\n> Check the source.\n\n![Diagram](./plot.png)\n\n- Parent\n  - Child\n");
+    writeFileSync(file, conventional);
+    const inspected = run(["inspect", file, "--format", "json"]);
+    assert.equal(inspected.status, 0, inspected.stderr);
+    assert.deepEqual(JSON.parse(inspected.stdout).nodes.map((node: { type: string }) => node.type),
+      ["paragraph", "admonition", "figure", "caption", "list"]);
+    const formatted = run(["format", file]);
+    assert.equal(formatted.status, 0, formatted.stderr);
+    assert.equal(readFileSync(file, "utf8"), conventional);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1353,7 +1360,7 @@ test("CLI insert-figure persists a Core Figure", () => {
     assert.match(readFileSync(file, "utf8"), /\*\*Bold\*\*/);
     assert.equal(run(["insert-figure", file, "--at", "1", "--image", "./only.svg"]).status, 0);
     const minimal = readFileSync(file, "utf8");
-    assert.match(minimal, /^---\nlitzio: 1\n---\n\n:::\{figure\} \.\/only\.svg\n:::\n/);
+    assert.match(minimal, /^---\nlitzio: 1\n---\n\n!\[\]\(\.\/only\.svg\)\n/);
     // Invalid under the pending Figure contract too: alt text without an image.
     for (const args of [
       ["insert-figure", file, "--at", "1", "--image", " ./a.svg"],

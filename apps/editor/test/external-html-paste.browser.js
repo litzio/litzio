@@ -73,7 +73,7 @@ async (page, { showNotifications, openPath }) => {
   assert(await page.getByTestId('status').getAttribute('data-operation') === 'saved', `Save failed: ${await page.locator('body').innerText()}`);
   const disk = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source.replaceAll('\r\n', '\n');
   const saved = '---\nlitzio: 1\n---\n\n# External\n\n## Web *heading*\n\n' +
-    'Text with **bold *both***, {del}`gone`, `x = 1` and [a link](https://example.com/a "Example").\n\n' +
+    'Text with **bold *both***, ~~gone~~, `x = 1` and [a link](https://example.com/a "Example").\n\n' +
     '- One\n\n  - Nested\n- Two\n\n3. Third\n\n> Quoted red text.\n\nPress Ctrl+C and see Example.\n\n' +
     '```python\ndef f():\n    return 1\n```\n\n---\n\n| Key | Value |\n| ---: | --- |\n| a | 1 |\n\nOmega.\n';
   assert(disk === preview && disk === saved, `Save writes the canonical Markdown Source showed: ${JSON.stringify(disk)}`);

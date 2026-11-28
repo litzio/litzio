@@ -2,11 +2,11 @@
  "fixtures": {
   "apps/editor/test/browser/fixtures/authoring.md": {
    "input": "---\nlitzio: 1\n---\n\n# Admonition authoring\n\nIntro paragraph.\n\n:::{warning}\nBefore **bold** and *italic*, [manual](https://a.example), $x$\\\nafter the break.\n:::\n\n:::{note}\nA simple note.\n:::\n\n:::{tip}\nA tip is a standard kind and stays editable.\n:::\n\nEnd paragraph.\n",
-   "output": "---\nlitzio: 1\n---\n\n# Admonition authoring\n\nIntro paragraph.\n\n:::{warning}\nBefore **bold** and *italic*, [manual](https://a.example), $x$\\\nafter the break.\n:::\n\n:::{note}\nA simple note.\n:::\n\n:::{tip}\nA tip is a standard kind and stays editable.\n:::\n\nEnd paragraph.\n"
+   "output": "---\nlitzio: 1\n---\n\n# Admonition authoring\n\nIntro paragraph.\n\n> [!WARNING]\n> Before **bold** and *italic*, [manual](https://a.example), $x$\\\n> after the break.\n\n> [!NOTE]\n> A simple note.\n\n> [!TIP]\n> A tip is a standard kind and stays editable.\n\nEnd paragraph.\n"
   },
   "apps/editor/test/browser/fixtures/basic-blocks.md": {
    "input": "---\nlitzio: 1\n---\n\n# Basic blocks\n\n:::{note}\nKind me.\n:::\n\n> Quote one.\n\nStrike me.\n\nShortcut here\n",
-   "output": "---\nlitzio: 1\n---\n\n# Basic blocks\n\n:::{note}\nKind me.\n:::\n\n> Quote one.\n\nStrike me.\n\nShortcut here\n"
+   "output": "---\nlitzio: 1\n---\n\n# Basic blocks\n\n> [!NOTE]\n> Kind me.\n\n> Quote one.\n\nStrike me.\n\nShortcut here\n"
   },
   "apps/editor/test/browser/fixtures/bibliography.md": {
    "input": "---\nlitzio: 1\nbibliography:\n  - ../refs.bib\n---\n\n# Bibliography snapshots\n\nClaim {cite}`article`.\n\nGroup {cite:p}`standard,article`.\n\nWeb {cite}`online` and note {cite}`misc`.\n\nMove here.\n\n:::{table} Conference {cite}`conference`\n\n| Source | Value |\n| --- | --- |\n| {cite}`unicode` | 42 |\n:::\n\nMissing {cite}`missing` and detail[^n].\n\n[^n]: Book {cite}`book` and other {cite}`unsupported`.\n",
@@ -22,7 +22,7 @@
   },
   "apps/editor/test/browser/fixtures/continuous-editing.md": {
    "input": "---\nlitzio: 1\n---\n\n# Boundaries\n\nAlpha **bold** and $x$.\n\nBeta plain.\n\n## Heading\n\nTail paragraph.\n\n:::{note}\nNote **body**.\n:::\n\n$$\na+b\n$$\n\n:::{figure} diagram.svg\n:alt: Diagram\n\nFigure caption.\n:::\n\n| Left | Right |\n| :--- | ---: |\n| one | two |\n\nEnd paragraph.\n",
-   "output": "---\nlitzio: 1\n---\n\n# Boundaries\n\nAlpha **bold** and $x$.\n\nBeta plain.\n\n## Heading\n\nTail paragraph.\n\n:::{note}\nNote **body**.\n:::\n\n$$\na+b\n$$\n\n:::{figure} diagram.svg\n:alt: Diagram\n\nFigure caption.\n:::\n\n| Left | Right |\n| :--- | ---: |\n| one | two |\n\nEnd paragraph.\n"
+   "output": "---\nlitzio: 1\n---\n\n# Boundaries\n\nAlpha **bold** and $x$.\n\nBeta plain.\n\n## Heading\n\nTail paragraph.\n\n> [!NOTE]\n> Note **body**.\n\n$$\na+b\n$$\n\n:::{figure} diagram.svg\n:alt: Diagram\n\nFigure caption.\n:::\n\n| Left | Right |\n| :--- | ---: |\n| one | two |\n\nEnd paragraph.\n"
   },
   "apps/editor/test/browser/fixtures/links.md": {
    "input": "---\nlitzio: 1\n---\n\n# Links\n\nSee [OpenAI](https://openai.com) for **bold [docs](https://a.example/docs) text** for details.\n\nA plain paragraph to linked text.\n\nSee {eq}`eq-a` and [details](#eq-a).\n\n```{math}\n:label: eq-a\nx\n```\n\nLink endnote[^link-open].\n\n[^link-open]: [External note](https://note.example/)\n",
@@ -34,7 +34,7 @@
   },
   "apps/editor/test/browser/fixtures/list-inline.md": {
    "input": "---\nlitzio: 1\n---\n\n# Lists\n\n- Outer\n  - Middle\n    - Deep\n\n**Bold** and *italic*, [manual](https://a.example), $x$[^n], {cite}`Alpha`, {eq}`eq-a`.\n\n```{math}\n:label: eq-a\n\na = b\n```\n\nGuard.\n\n[^n]: Note.\n",
-   "output": "---\nlitzio: 1\n---\n\n# Lists\n\n- Outer\n\n  - Middle\n\n    - Deep\n\n**Bold** and *italic*, [manual](https://a.example), $x$[^n], {cite}`Alpha`, {eq}`eq-a`.\n\n```{math}\n:label: eq-a\n\na = b\n```\n\nGuard.\n\n[^n]: Note.\n"
+   "output": "---\nlitzio: 1\n---\n\n# Lists\n\n- Outer\n  - Middle\n    - Deep\n\n**Bold** and *italic*, [manual](https://a.example), $x$[^n], {cite}`Alpha`, {eq}`eq-a`.\n\n```{math}\n:label: eq-a\n\na = b\n```\n\nGuard.\n\n[^n]: Note.\n"
   },
   "apps/editor/test/browser/fixtures/lists.md": {
    "input": "---\nlitzio: 1\n---\n\n# Lists\n\nIntro paragraph.\n\n- Wire\n- Power\n\nDone.\n",
@@ -58,7 +58,7 @@
   },
   "apps/editor/test/browser/fixtures/panel-lists.md": {
    "input": "---\nlitzio: 1\n---\n\n# Navigation guide\n\n## First section\n\n:::{table} **Measured** results\n| Signal | Value |\n| --- | --- |\n| Alpha | 1 |\n:::\n\n:::{figure} diagram.svg\n:alt: Diagram\n\nSignal **flow** through the system.\n:::\n\n## Last section\n\n:::{table}\n| Signal | Value |\n| --- | --- |\n| Beta | 2 |\n:::\n\n:::{figure} diagram.svg\n:alt: Second diagram\n:::\n\n## Appendix\n\n:::{table} A very long caption with enough words to wrap across more than two lines in the document navigation panel without widening the panel\n| Signal | Value |\n| --- | --- |\n| Gamma | 3 |\n:::\n\n:::{figure} diagram.svg\n:alt: Third diagram\n\nA very long figure caption with enough words to wrap across more than two lines in the document navigation panel without widening the panel.\n:::\n\n### A long section heading that remains fully accessible while the navigation panel limits its visible text\n",
-   "output": "---\nlitzio: 1\n---\n\n# Navigation guide\n\n## First section\n\n:::{table} **Measured** results\n\n| Signal | Value |\n| ------ | ----- |\n| Alpha  | 1     |\n:::\n\n:::{figure} diagram.svg\n:alt: Diagram\n\nSignal **flow** through the system.\n:::\n\n## Last section\n\n| Signal | Value |\n| --- | --- |\n| Beta | 2 |\n\n:::{figure} diagram.svg\n:alt: Second diagram\n:::\n\n## Appendix\n\n:::{table} A very long caption with enough words to wrap across more than two lines in the document navigation panel without widening the panel\n\n| Signal | Value |\n| ------ | ----- |\n| Gamma  | 3     |\n:::\n\n:::{figure} diagram.svg\n:alt: Third diagram\n\nA very long figure caption with enough words to wrap across more than two lines in the document navigation panel without widening the panel.\n:::\n\n### A long section heading that remains fully accessible while the navigation panel limits its visible text\n"
+   "output": "---\nlitzio: 1\n---\n\n# Navigation guide\n\n## First section\n\n:::{table} **Measured** results\n\n| Signal | Value |\n| ------ | ----- |\n| Alpha  | 1     |\n:::\n\n:::{figure} diagram.svg\n:alt: Diagram\n\nSignal **flow** through the system.\n:::\n\n## Last section\n\n| Signal | Value |\n| --- | --- |\n| Beta | 2 |\n\n![Second diagram](diagram.svg)\n\n## Appendix\n\n:::{table} A very long caption with enough words to wrap across more than two lines in the document navigation panel without widening the panel\n\n| Signal | Value |\n| ------ | ----- |\n| Gamma  | 3     |\n:::\n\n:::{figure} diagram.svg\n:alt: Third diagram\n\nA very long figure caption with enough words to wrap across more than two lines in the document navigation panel without widening the panel.\n:::\n\n### A long section heading that remains fully accessible while the navigation panel limits its visible text\n"
   },
   "apps/editor/test/browser/fixtures/quiet-document-long.md": {
    "input": "---\nlitzio: 1\n---\n\n# 긴 콘텐츠 · Long content\n\nThis page exercises local scrolling without moving the document axis. 한글과 English, **bold**, *italic*, and $x + y$ remain readable.\n\n```{math}\n:label: eq-long\nF(s) = \\frac{a_1 s^{12}+a_2 s^{11}+a_3 s^{10}+a_4 s^9+a_5 s^8+a_6 s^7+a_7 s^6+a_8 s^5+a_9 s^4+a_{10} s^3+a_{11} s^2+a_{12} s+a_{13}}{b_1 s^{12}+b_2 s^{11}+b_3 s^{10}+b_4 s^9+b_5 s^8+b_6 s^7+b_7 s^6+b_8 s^5+b_9 s^4+b_{10} s^3+b_{11} s^2+b_{12} s+b_{13}}\n```\n\n| Parameter | Operating condition | Nominal value | Minimum | Maximum | Unit | Measurement | Notes | Reference condition | Verification detail |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| Input-voltage-with-a-long-unbroken-identifier | Continuous operation | 230 | 180 | 260 | Vrms | Example-measurement-configuration | Long-content-verification | Additional-reference-configuration | Additional-verification-configuration |\n| Temperature | Full load | 25 | -20 | 85 | Celsius | Example-sensor-position | Illustrative-values-only | Reference-measurement-configuration | Verification-measurement-configuration |\n\n:::{figure} ./diagram.svg\n:label: fig-long\n:alt: Local control block diagram\n\n긴 캡션도 여러 줄로 표시됩니다. A longer caption describes the diagram without extending beyond the document column or covering nearby controls.\n:::\n",
@@ -66,11 +66,11 @@
   },
   "apps/editor/test/browser/fixtures/quiet-document-wrap.md": {
    "input": "---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---\n\n# 한국어 기술 문서의 줄바꿈 검토\n\n전력변환 시스템은 입력전압을 측정하여 컨버터로 전달하고 제어기는 출력전류의 오차를 계산한다. 측정결과를 정리한다. 「제어설계」에서는 안정성과 응답속도를 함께 검토한다. (전압제어), 전류제어 및 보호기능을 확인한다.\n\n## 한국어 제어설계 검토와 측정결과\n\n- 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `목록식별자`\n\n> 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `인용식별자`\n\n:::{note}\n전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `주의식별자`\n:::\n\n:::{figure} ./diagram.svg\n:alt: 제어 신호의 흐름\n\n전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `캡션식별자`\n:::\n\n| 한국어 제어설계 검토와 측정결과 |\n| --- |\n| 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. |\n| https://example.com/UnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifier |\n| 전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석 |\n| 셀 코드 `표식별자` |\n\nhttps://example.com/UnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifier\n\n미주를 확인한다.[^review]\n\n코드 `전력변환시스템의측정결과를검토한다` 및 수식 $V_{dc}^{*}$ 은 별도로 표시한다.\n\n```text\n전력변환시스템의측정결과를검토한다\n```\n\n## 한국어 인라인 코드 `제어기식별자` 와 수식 $V_{dc}^{*}$\n\n전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석\n\n정격출력은 11 kW이며 보호기능은 (1) 전압제어와 (2) 전류제어로 구성한다.\n\n| 구분 | 정격출력 | 제어기능 |\n| --- | --- | --- |\n| 컨버터 | 11 kW | 출력전압과 전류제어 |\n| 측정결과 | 정격조건 | 안정성과 응답속도 |\n\n[^review]: 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `미주식별자`\n",
-   "output": "---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---\n\n# 한국어 기술 문서의 줄바꿈 검토\n\n전력변환 시스템은 입력전압을 측정하여 컨버터로 전달하고 제어기는 출력전류의 오차를 계산한다. 측정결과를 정리한다. 「제어설계」에서는 안정성과 응답속도를 함께 검토한다. (전압제어), 전류제어 및 보호기능을 확인한다.\n\n## 한국어 제어설계 검토와 측정결과\n\n- 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `목록식별자`\n\n> 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `인용식별자`\n\n:::{note}\n전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `주의식별자`\n:::\n\n:::{figure} ./diagram.svg\n:alt: 제어 신호의 흐름\n\n전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `캡션식별자`\n:::\n\n| 한국어 제어설계 검토와 측정결과 |\n| --- |\n| 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. |\n| https://example.com/UnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifier |\n| 전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석 |\n| 셀 코드 `표식별자` |\n\nhttps://example.com/UnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifier\n\n미주를 확인한다.[^review]\n\n코드 `전력변환시스템의측정결과를검토한다` 및 수식 $V_{dc}^{*}$ 은 별도로 표시한다.\n\n```text\n전력변환시스템의측정결과를검토한다\n```\n\n## 한국어 인라인 코드 `제어기식별자` 와 수식 $V_{dc}^{*}$\n\n전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석\n\n정격출력은 11 kW이며 보호기능은 (1) 전압제어와 (2) 전류제어로 구성한다.\n\n| 구분 | 정격출력 | 제어기능 |\n| --- | --- | --- |\n| 컨버터 | 11 kW | 출력전압과 전류제어 |\n| 측정결과 | 정격조건 | 안정성과 응답속도 |\n\n[^review]: 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `미주식별자`\n"
+   "output": "---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---\n\n# 한국어 기술 문서의 줄바꿈 검토\n\n전력변환 시스템은 입력전압을 측정하여 컨버터로 전달하고 제어기는 출력전류의 오차를 계산한다. 측정결과를 정리한다. 「제어설계」에서는 안정성과 응답속도를 함께 검토한다. (전압제어), 전류제어 및 보호기능을 확인한다.\n\n## 한국어 제어설계 검토와 측정결과\n\n- 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `목록식별자`\n\n> 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `인용식별자`\n\n> [!NOTE]\n> 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `주의식별자`\n\n:::{figure} ./diagram.svg\n:alt: 제어 신호의 흐름\n\n전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `캡션식별자`\n:::\n\n| 한국어 제어설계 검토와 측정결과 |\n| --- |\n| 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. |\n| https://example.com/UnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifier |\n| 전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석 |\n| 셀 코드 `표식별자` |\n\nhttps://example.com/UnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifierUnbreakableTechnicalIdentifier\n\n미주를 확인한다.[^review]\n\n코드 `전력변환시스템의측정결과를검토한다` 및 수식 $V_{dc}^{*}$ 은 별도로 표시한다.\n\n```text\n전력변환시스템의측정결과를검토한다\n```\n\n## 한국어 인라인 코드 `제어기식별자` 와 수식 $V_{dc}^{*}$\n\n전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석전력변환시스템출력전압제어기전류측정결과분석\n\n정격출력은 11 kW이며 보호기능은 (1) 전압제어와 (2) 전류제어로 구성한다.\n\n| 구분 | 정격출력 | 제어기능 |\n| --- | --- | --- |\n| 컨버터 | 11 kW | 출력전압과 전류제어 |\n| 측정결과 | 정격조건 | 안정성과 응답속도 |\n\n[^review]: 전력변환 시스템의 측정결과를 검토하고 제어기의 응답속도를 확인한다. `미주식별자`\n"
   },
   "apps/editor/test/browser/fixtures/quiet-document.md": {
    "input": "---\nlitzio: 1\n---\n\n# Converter Control · 제어 설계\n\n문서를 읽는 흐름을 먼저 생각합니다. This document describes a converter control example, with **clear structure**, *measured emphasis*, and a [design resource](https://example.com/design). 수식과 그림은 본문의 일부입니다.\n\n:::{warning}\n이 문서는 화면 검토용 예제입니다. Control parameters and diagrams are illustrative; hardware operation requires independent validation.\n:::\n\n## Control architecture · 제어 구조\n\nThe outer loop follows the voltage reference $V_{dc}^{*}$ while the inner loop shapes the current. See {eq}`eq-current` and {numref}`fig-control` for the expressions and local diagram used in this example.\n\n```{math}\n:label: eq-current\nG(s) = K_p + \\frac{K_i}{s} + K_d s\n```\n\n:::{figure} ./diagram.svg\n:label: fig-control\n:alt: Control block diagram with command, controller, and converter\n\n제어 신호의 흐름 — command, controller, and converter.\n:::\n\n| Parameter · 항목 | Symbol | Value | Description |\n| --- | --- | --- | --- |\n| Input voltage | Vin | 230 V | Example input condition |\n| Rated power | P | 3.3 kW | Illustrative operating point |\n| DC bus voltage | Vdc | 400 V | Example regulated voltage |\n\n짧은 문단도 같은 정렬축을 따릅니다. Each block belongs to one continuous document.\n\n:::{note}\nNote와 Warning은 의미가 있는 영역입니다. Their visual distinction remains visible while editing tools recede.\n:::\n\n### Reading details · 세부 내용\n\nLonger prose tests the rhythm of the page. 한글과 English가 함께 있어도 줄 간격과 문단 폭은 일정해야 합니다. A reader should find the heading, follow the explanation, and understand the caption without mistaking the document for a collection of form inputs.\n\n#### Implementation notes · 구현 기록\n\nExisting document semantics remain in Core.\n\n##### Review scope · 검토 범위\n\nVisual styling belongs to the editor.\n\n###### Supporting detail · 보충 설명\n\nLabels remain real document data; this example adds no automatic numbering.\n",
-   "output": "---\nlitzio: 1\n---\n\n# Converter Control · 제어 설계\n\n문서를 읽는 흐름을 먼저 생각합니다. This document describes a converter control example, with **clear structure**, *measured emphasis*, and a [design resource](https://example.com/design). 수식과 그림은 본문의 일부입니다.\n\n:::{warning}\n이 문서는 화면 검토용 예제입니다. Control parameters and diagrams are illustrative; hardware operation requires independent validation.\n:::\n\n## Control architecture · 제어 구조\n\nThe outer loop follows the voltage reference $V_{dc}^{*}$ while the inner loop shapes the current. See {eq}`eq-current` and {numref}`fig-control` for the expressions and local diagram used in this example.\n\n```{math}\n:label: eq-current\n\nG(s) = K_p + \\frac{K_i}{s} + K_d s\n```\n\n:::{figure} ./diagram.svg\n:name: fig-control\n:alt: Control block diagram with command, controller, and converter\n\n제어 신호의 흐름 — command, controller, and converter.\n:::\n\n| Parameter · 항목 | Symbol | Value | Description |\n| --- | --- | --- | --- |\n| Input voltage | Vin | 230 V | Example input condition |\n| Rated power | P | 3.3 kW | Illustrative operating point |\n| DC bus voltage | Vdc | 400 V | Example regulated voltage |\n\n짧은 문단도 같은 정렬축을 따릅니다. Each block belongs to one continuous document.\n\n:::{note}\nNote와 Warning은 의미가 있는 영역입니다. Their visual distinction remains visible while editing tools recede.\n:::\n\n### Reading details · 세부 내용\n\nLonger prose tests the rhythm of the page. 한글과 English가 함께 있어도 줄 간격과 문단 폭은 일정해야 합니다. A reader should find the heading, follow the explanation, and understand the caption without mistaking the document for a collection of form inputs.\n\n#### Implementation notes · 구현 기록\n\nExisting document semantics remain in Core.\n\n##### Review scope · 검토 범위\n\nVisual styling belongs to the editor.\n\n###### Supporting detail · 보충 설명\n\nLabels remain real document data; this example adds no automatic numbering.\n"
+   "output": "---\nlitzio: 1\n---\n\n# Converter Control · 제어 설계\n\n문서를 읽는 흐름을 먼저 생각합니다. This document describes a converter control example, with **clear structure**, *measured emphasis*, and a [design resource](https://example.com/design). 수식과 그림은 본문의 일부입니다.\n\n> [!WARNING]\n> 이 문서는 화면 검토용 예제입니다. Control parameters and diagrams are illustrative; hardware operation requires independent validation.\n\n## Control architecture · 제어 구조\n\nThe outer loop follows the voltage reference $V_{dc}^{*}$ while the inner loop shapes the current. See {eq}`eq-current` and {numref}`fig-control` for the expressions and local diagram used in this example.\n\n```{math}\n:label: eq-current\n\nG(s) = K_p + \\frac{K_i}{s} + K_d s\n```\n\n:::{figure} ./diagram.svg\n:name: fig-control\n:alt: Control block diagram with command, controller, and converter\n\n제어 신호의 흐름 — command, controller, and converter.\n:::\n\n| Parameter · 항목 | Symbol | Value | Description |\n| --- | --- | --- | --- |\n| Input voltage | Vin | 230 V | Example input condition |\n| Rated power | P | 3.3 kW | Illustrative operating point |\n| DC bus voltage | Vdc | 400 V | Example regulated voltage |\n\n짧은 문단도 같은 정렬축을 따릅니다. Each block belongs to one continuous document.\n\n> [!NOTE]\n> Note와 Warning은 의미가 있는 영역입니다. Their visual distinction remains visible while editing tools recede.\n\n### Reading details · 세부 내용\n\nLonger prose tests the rhythm of the page. 한글과 English가 함께 있어도 줄 간격과 문단 폭은 일정해야 합니다. A reader should find the heading, follow the explanation, and understand the caption without mistaking the document for a collection of form inputs.\n\n#### Implementation notes · 구현 기록\n\nExisting document semantics remain in Core.\n\n##### Review scope · 검토 범위\n\nVisual styling belongs to the editor.\n\n###### Supporting detail · 보충 설명\n\nLabels remain real document data; this example adds no automatic numbering.\n"
   },
   "apps/editor/test/browser/fixtures/quotes.md": {
    "input": "---\nlitzio: 1\n---\n\n# Quote save reload\n\nThe first paragraph.\n\nThe second paragraph.\n",
@@ -86,7 +86,7 @@
   },
   "apps/editor/test/browser/fixtures/scoped-select-all.md": {
    "input": "---\nlitzio: 1\n---\n\n# Scoped selection\n\nBefore.[^a] Also.[^b]\n\n:::{table} **Table** caption with $x$\n\n| Header | Other |\n| --- | --- |\n| **Cell** with $y$ | Keep this cell |\n:::\n\n:::{figure} diagram.svg\n:alt: Diagram\n\n**Image** caption with $z$\n:::\n\n:::{figure}\n\n```{mermaid}\ngraph LR\n  A --> B\n```\n\n**Mermaid** caption\n:::\n\n## Body heading\n\n- List item\n\n> Quoted text\n\n:::{note}\nNotice text\n:::\n\n```text\nCode text\n```\n\nAfter.\n\n[^a]: **First** note with $n$\\\n    Second line.\n\n[^b]: Keep this note.\n",
-   "output": "---\nlitzio: 1\n---\n\n# Scoped selection\n\nBefore.[^a] Also.[^b]\n\n:::{table} **Table** caption with $x$\n\n| Header            | Other          |\n| ----------------- | -------------- |\n| **Cell** with $y$ | Keep this cell |\n:::\n\n:::{figure} diagram.svg\n:alt: Diagram\n\n**Image** caption with $z$\n:::\n\n:::{figure}\n\n```{mermaid}\ngraph LR\n  A --> B\n```\n\n**Mermaid** caption\n:::\n\n## Body heading\n\n- List item\n\n> Quoted text\n\n:::{note}\nNotice text\n:::\n\n```text\nCode text\n```\n\nAfter.\n\n[^a]: **First** note with $n$\\\n    Second line.\n\n[^b]: Keep this note.\n"
+   "output": "---\nlitzio: 1\n---\n\n# Scoped selection\n\nBefore.[^a] Also.[^b]\n\n:::{table} **Table** caption with $x$\n\n| Header            | Other          |\n| ----------------- | -------------- |\n| **Cell** with $y$ | Keep this cell |\n:::\n\n:::{figure} diagram.svg\n:alt: Diagram\n\n**Image** caption with $z$\n:::\n\n:::{figure}\n\n```{mermaid}\ngraph LR\n  A --> B\n```\n\n**Mermaid** caption\n:::\n\n## Body heading\n\n- List item\n\n> Quoted text\n\n> [!NOTE]\n> Notice text\n\n```text\nCode text\n```\n\nAfter.\n\n[^a]: **First** note with $n$\\\n    Second line.\n\n[^b]: Keep this note.\n"
   },
   "apps/editor/test/browser/fixtures/split.md": {
    "input": "---\nlitzio: 1\n---\n\nThe current $i_d$, then more.\n\nValue: $x$ end.\n\n**Bold $a$**, and [see $b$-now](u).\n\nGo [see $c$-now](u).\n",
@@ -114,11 +114,11 @@
   },
   "packages/core/test/fixtures/document.canonical.md": {
    "input": "# Converter Control\n\nThe converter regulates voltage.\n\n:::{note}\nThe current controller parameters must be calibrated before operation.\n:::\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\n## Control Structure\n\nThe control system consists of:\n\n*   DC-link voltage controller\n*   AC current controller\n*   PLL\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n```{math}\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n```\n",
-   "output": "# Converter Control\n\nThe converter regulates voltage.\n\n:::{note}\nThe current controller parameters must be calibrated before operation.\n:::\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\n## Control Structure\n\nThe control system consists of:\n\n- DC-link voltage controller\n- AC current controller\n- PLL\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n$$\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n$$\n"
+   "output": "# Converter Control\n\nThe converter regulates voltage.\n\n> [!NOTE]\n> The current controller parameters must be calibrated before operation.\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\n## Control Structure\n\nThe control system consists of:\n\n- DC-link voltage controller\n- AC current controller\n- PLL\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n$$\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n$$\n"
   },
   "packages/core/test/fixtures/document.md": {
    "input": "# Converter Control\n\nThe converter regulates voltage.\n\n:::{note}\nThe current controller parameters must be calibrated before operation.\n:::\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\n## Control Structure\n\nThe control system consists of:\n\n*   DC-link voltage controller\n*   AC current controller\n*   PLL\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n```{math}\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n```\n",
-   "output": "# Converter Control\n\nThe converter regulates voltage.\n\n:::{note}\nThe current controller parameters must be calibrated before operation.\n:::\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\n## Control Structure\n\nThe control system consists of:\n\n- DC-link voltage controller\n- AC current controller\n- PLL\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n$$\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n$$\n"
+   "output": "# Converter Control\n\nThe converter regulates voltage.\n\n> [!NOTE]\n> The current controller parameters must be calibrated before operation.\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\n## Control Structure\n\nThe control system consists of:\n\n- DC-link voltage controller\n- AC current controller\n- PLL\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n$$\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n$$\n"
   },
   "packages/core/test/fixtures/inline-contract.canonical.md": {
    "input": "# Inline contract\n\nPlain **strong** and *emphasis* with **nested *marks***.\\\nHard break, $x + y$, and [a link](https://example.org \"title\").\n\n\"Quoted\" and 'single' quotes; don't change smartquotes.\n",
@@ -126,11 +126,11 @@
   },
   "packages/core/test/fixtures/technical-document.canonical.md": {
    "input": "# Converter Control\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\nSee [Figure](#fig-control) and {eq}`eq-current`.\n\n## Control Structure\n\n:::{warning}\nThe current controller parameters must be calibrated before operation.\n:::\n\n## Control Diagram\n\n:::{figure} ./diagram.svg\n:name: fig-control\n:alt: Control block diagram\n\nControl block diagram of the grid-connected converter.\n:::\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n```{math}\n:label: eq-current\n\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n```\n\nThe rated current follows from [Equation](#eq-current).\n\n## Ratings\n\n:::{table}\n\n| Port | Type |\n| ---- | ---- |\n| U    | AC   |\n| P    | DC   |\n:::\n",
-   "output": "# Converter Control\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\nSee [Figure](#fig-control) and {eq}`eq-current`.\n\n## Control Structure\n\n:::{warning}\nThe current controller parameters must be calibrated before operation.\n:::\n\n## Control Diagram\n\n:::{figure} ./diagram.svg\n:name: fig-control\n:alt: Control block diagram\n\nControl block diagram of the grid-connected converter.\n:::\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n```{math}\n:label: eq-current\n\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n```\n\nThe rated current follows from [Equation](#eq-current).\n\n## Ratings\n\n| Port | Type |\n| --- | --- |\n| U | AC |\n| P | DC |\n"
+   "output": "# Converter Control\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\nSee [Figure](#fig-control) and {eq}`eq-current`.\n\n## Control Structure\n\n> [!WARNING]\n> The current controller parameters must be calibrated before operation.\n\n## Control Diagram\n\n:::{figure} ./diagram.svg\n:name: fig-control\n:alt: Control block diagram\n\nControl block diagram of the grid-connected converter.\n:::\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n```{math}\n:label: eq-current\n\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n```\n\nThe rated current follows from [Equation](#eq-current).\n\n## Ratings\n\n| Port | Type |\n| --- | --- |\n| U | AC |\n| P | DC |\n"
   },
   "packages/core/test/fixtures/technical-document.md": {
    "input": "# Converter Control\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\nSee [Figure](#fig-control) and {eq}`eq-current`.\n\n## Control Structure\n\n:::{warning}\nThe current controller parameters must be calibrated before operation.\n:::\n\n## Control Diagram\n\n:::{figure} ./diagram.svg\n:label: fig-control\n:alt: Control block diagram\n\nControl block diagram of the grid-connected converter.\n:::\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n```{math}\n:label: eq-current\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n```\n\nThe rated current follows from [Equation](#eq-current).\n\n## Ratings\n\n| Port | Type |\n| --- | --- |\n| U | AC |\n| P | DC |\n",
-   "output": "# Converter Control\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\nSee [Figure](#fig-control) and {eq}`eq-current`.\n\n## Control Structure\n\n:::{warning}\nThe current controller parameters must be calibrated before operation.\n:::\n\n## Control Diagram\n\n:::{figure} ./diagram.svg\n:name: fig-control\n:alt: Control block diagram\n\nControl block diagram of the grid-connected converter.\n:::\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n```{math}\n:label: eq-current\n\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n```\n\nThe rated current follows from [Equation](#eq-current).\n\n## Ratings\n\n| Port | Type |\n| --- | --- |\n| U | AC |\n| P | DC |\n"
+   "output": "# Converter Control\n\nThe converter regulates the **DC-link voltage** and *phase current*.\n\nSee [Figure](#fig-control) and {eq}`eq-current`.\n\n## Control Structure\n\n> [!WARNING]\n> The current controller parameters must be calibrated before operation.\n\n## Control Diagram\n\n:::{figure} ./diagram.svg\n:name: fig-control\n:alt: Control block diagram\n\nControl block diagram of the grid-connected converter.\n:::\n\n## Current Reference\n\nThe current reference is calculated from the active power command.\n\n```{math}\n:label: eq-current\n\ni^{\\ast} = \\frac{P^{\\ast}}{V_{\\mathrm{rms}}}\n```\n\nThe rated current follows from [Equation](#eq-current).\n\n## Ratings\n\n| Port | Type |\n| --- | --- |\n| U | AC |\n| P | DC |\n"
   }
  },
  "generated": {
@@ -1178,66 +1178,66 @@
   "admonition | after soft break | \"(lab)=\"": null,
   "admonition | before soft break | \"(lab)=\"": null,
   "admonition | between soft breaks | \"(lab)=\"": null,
-  "admonition | alone | \"(lab)= \"": ":::{note}\n(lab)=&#x20;\n:::\n",
-  "admonition | after soft break | \"(lab)= \"": ":::{note}\na\n(lab)=&#x20;\n:::\n",
-  "admonition | before soft break | \"(lab)= \"": ":::{note}\n(lab)=&#x20;\nb\n:::\n",
-  "admonition | between soft breaks | \"(lab)= \"": ":::{note}\na\n(lab)=&#x20;\nb\n:::\n",
-  "admonition | alone | \"(측정)=\"": ":::{note}\n(측정)=\n:::\n",
-  "admonition | after soft break | \"(측정)=\"": ":::{note}\na\n(측정)=\n:::\n",
-  "admonition | before soft break | \"(측정)=\"": ":::{note}\n(측정)=\nb\n:::\n",
-  "admonition | between soft breaks | \"(측정)=\"": ":::{note}\na\n(측정)=\nb\n:::\n",
-  "admonition | alone | \"(a b)=\"": ":::{note}\n(a b)=\n:::\n",
-  "admonition | after soft break | \"(a b)=\"": ":::{note}\na\n(a b)=\n:::\n",
-  "admonition | before soft break | \"(a b)=\"": ":::{note}\n(a b)=\nb\n:::\n",
-  "admonition | between soft breaks | \"(a b)=\"": ":::{note}\na\n(a b)=\nb\n:::\n",
-  "admonition | alone | \"(lab)=x\"": ":::{note}\n(lab)=x\n:::\n",
-  "admonition | after soft break | \"(lab)=x\"": ":::{note}\na\n(lab)=x\n:::\n",
-  "admonition | before soft break | \"(lab)=x\"": ":::{note}\n(lab)=x\nb\n:::\n",
-  "admonition | between soft breaks | \"(lab)=x\"": ":::{note}\na\n(lab)=x\nb\n:::\n",
-  "admonition | alone | \"word\"": ":::{note}\nword\n:::\n",
-  "admonition | after soft break | \"word\"": ":::{note}\na\nword\n:::\n",
-  "admonition | before soft break | \"word\"": ":::{note}\nword\nb\n:::\n",
-  "admonition | between soft breaks | \"word\"": ":::{note}\na\nword\nb\n:::\n",
-  "admonition | alone | \"    run()\"": ":::{note}\nrun()\n:::\n",
-  "admonition | after soft break | \"    run()\"": ":::{note}\na\n&#x20;   run()\n:::\n",
-  "admonition | before soft break | \"    run()\"": ":::{note}\nrun()\nb\n:::\n",
-  "admonition | between soft breaks | \"    run()\"": ":::{note}\na\n&#x20;   run()\nb\n:::\n",
-  "admonition | alone | \"\\trun()\"": ":::{note}\nrun()\n:::\n",
-  "admonition | after soft break | \"\\trun()\"": ":::{note}\na\n&#x9;run()\n:::\n",
-  "admonition | before soft break | \"\\trun()\"": ":::{note}\nrun()\nb\n:::\n",
-  "admonition | between soft breaks | \"\\trun()\"": ":::{note}\na\n&#x9;run()\nb\n:::\n",
-  "admonition | alone | \" x\"": ":::{note}\nx\n:::\n",
-  "admonition | after soft break | \" x\"": ":::{note}\na\n&#x20;x\n:::\n",
-  "admonition | before soft break | \" x\"": ":::{note}\nx\nb\n:::\n",
-  "admonition | between soft breaks | \" x\"": ":::{note}\na\n&#x20;x\nb\n:::\n",
-  "admonition | alone | \"# h\"": ":::{note}\n\\# h\n:::\n",
-  "admonition | after soft break | \"# h\"": ":::{note}\na\n\\# h\n:::\n",
-  "admonition | before soft break | \"# h\"": ":::{note}\n\\# h\nb\n:::\n",
-  "admonition | between soft breaks | \"# h\"": ":::{note}\na\n\\# h\nb\n:::\n",
-  "admonition | alone | \"- li\"": ":::{note}\n\\- li\n:::\n",
-  "admonition | after soft break | \"- li\"": ":::{note}\na\n\\- li\n:::\n",
-  "admonition | before soft break | \"- li\"": ":::{note}\n\\- li\nb\n:::\n",
-  "admonition | between soft breaks | \"- li\"": ":::{note}\na\n\\- li\nb\n:::\n",
-  "admonition | alone | \"1. x\"": ":::{note}\n1\\. x\n:::\n",
-  "admonition | after soft break | \"1. x\"": ":::{note}\na\n1\\. x\n:::\n",
-  "admonition | before soft break | \"1. x\"": ":::{note}\n1\\. x\nb\n:::\n",
-  "admonition | between soft breaks | \"1. x\"": ":::{note}\na\n1\\. x\nb\n:::\n",
-  "admonition | alone | \"> q\"": ":::{note}\n\\> q\n:::\n",
-  "admonition | after soft break | \"> q\"": ":::{note}\na\n\\> q\n:::\n",
-  "admonition | before soft break | \"> q\"": ":::{note}\n\\> q\nb\n:::\n",
-  "admonition | between soft breaks | \"> q\"": ":::{note}\na\n\\> q\nb\n:::\n",
-  "admonition | alone | \"$5\"": ":::{note}\n\\$5\n:::\n",
+  "admonition | alone | \"(lab)= \"": "> [!NOTE]\n> (lab)=&#x20;\n",
+  "admonition | after soft break | \"(lab)= \"": "> [!NOTE]\n> a\n> (lab)=&#x20;\n",
+  "admonition | before soft break | \"(lab)= \"": "> [!NOTE]\n> (lab)=&#x20;\n> b\n",
+  "admonition | between soft breaks | \"(lab)= \"": "> [!NOTE]\n> a\n> (lab)=&#x20;\n> b\n",
+  "admonition | alone | \"(측정)=\"": "> [!NOTE]\n> (측정)=\n",
+  "admonition | after soft break | \"(측정)=\"": "> [!NOTE]\n> a\n> (측정)=\n",
+  "admonition | before soft break | \"(측정)=\"": "> [!NOTE]\n> (측정)=\n> b\n",
+  "admonition | between soft breaks | \"(측정)=\"": "> [!NOTE]\n> a\n> (측정)=\n> b\n",
+  "admonition | alone | \"(a b)=\"": "> [!NOTE]\n> (a b)=\n",
+  "admonition | after soft break | \"(a b)=\"": "> [!NOTE]\n> a\n> (a b)=\n",
+  "admonition | before soft break | \"(a b)=\"": "> [!NOTE]\n> (a b)=\n> b\n",
+  "admonition | between soft breaks | \"(a b)=\"": "> [!NOTE]\n> a\n> (a b)=\n> b\n",
+  "admonition | alone | \"(lab)=x\"": "> [!NOTE]\n> (lab)=x\n",
+  "admonition | after soft break | \"(lab)=x\"": "> [!NOTE]\n> a\n> (lab)=x\n",
+  "admonition | before soft break | \"(lab)=x\"": "> [!NOTE]\n> (lab)=x\n> b\n",
+  "admonition | between soft breaks | \"(lab)=x\"": "> [!NOTE]\n> a\n> (lab)=x\n> b\n",
+  "admonition | alone | \"word\"": "> [!NOTE]\n> word\n",
+  "admonition | after soft break | \"word\"": "> [!NOTE]\n> a\n> word\n",
+  "admonition | before soft break | \"word\"": "> [!NOTE]\n> word\n> b\n",
+  "admonition | between soft breaks | \"word\"": "> [!NOTE]\n> a\n> word\n> b\n",
+  "admonition | alone | \"    run()\"": "> [!NOTE]\n> run()\n",
+  "admonition | after soft break | \"    run()\"": "> [!NOTE]\n> a\n> &#x20;   run()\n",
+  "admonition | before soft break | \"    run()\"": "> [!NOTE]\n> run()\n> b\n",
+  "admonition | between soft breaks | \"    run()\"": "> [!NOTE]\n> a\n> &#x20;   run()\n> b\n",
+  "admonition | alone | \"\\trun()\"": "> [!NOTE]\n> run()\n",
+  "admonition | after soft break | \"\\trun()\"": "> [!NOTE]\n> a\n> &#x9;run()\n",
+  "admonition | before soft break | \"\\trun()\"": "> [!NOTE]\n> run()\n> b\n",
+  "admonition | between soft breaks | \"\\trun()\"": "> [!NOTE]\n> a\n> &#x9;run()\n> b\n",
+  "admonition | alone | \" x\"": "> [!NOTE]\n> x\n",
+  "admonition | after soft break | \" x\"": "> [!NOTE]\n> a\n> &#x20;x\n",
+  "admonition | before soft break | \" x\"": "> [!NOTE]\n> x\n> b\n",
+  "admonition | between soft breaks | \" x\"": "> [!NOTE]\n> a\n> &#x20;x\n> b\n",
+  "admonition | alone | \"# h\"": "> [!NOTE]\n> \\# h\n",
+  "admonition | after soft break | \"# h\"": "> [!NOTE]\n> a\n> \\# h\n",
+  "admonition | before soft break | \"# h\"": "> [!NOTE]\n> \\# h\n> b\n",
+  "admonition | between soft breaks | \"# h\"": "> [!NOTE]\n> a\n> \\# h\n> b\n",
+  "admonition | alone | \"- li\"": "> [!NOTE]\n> \\- li\n",
+  "admonition | after soft break | \"- li\"": "> [!NOTE]\n> a\n> \\- li\n",
+  "admonition | before soft break | \"- li\"": "> [!NOTE]\n> \\- li\n> b\n",
+  "admonition | between soft breaks | \"- li\"": "> [!NOTE]\n> a\n> \\- li\n> b\n",
+  "admonition | alone | \"1. x\"": "> [!NOTE]\n> 1\\. x\n",
+  "admonition | after soft break | \"1. x\"": "> [!NOTE]\n> a\n> 1\\. x\n",
+  "admonition | before soft break | \"1. x\"": "> [!NOTE]\n> 1\\. x\n> b\n",
+  "admonition | between soft breaks | \"1. x\"": "> [!NOTE]\n> a\n> 1\\. x\n> b\n",
+  "admonition | alone | \"> q\"": "> [!NOTE]\n> \\> q\n",
+  "admonition | after soft break | \"> q\"": "> [!NOTE]\n> a\n> \\> q\n",
+  "admonition | before soft break | \"> q\"": "> [!NOTE]\n> \\> q\n> b\n",
+  "admonition | between soft breaks | \"> q\"": "> [!NOTE]\n> a\n> \\> q\n> b\n",
+  "admonition | alone | \"$5\"": "> [!NOTE]\n> \\$5\n",
   "admonition | after soft break | \"$5\"": null,
-  "admonition | before soft break | \"$5\"": ":::{note}\n\\$5\nb\n:::\n",
+  "admonition | before soft break | \"$5\"": "> [!NOTE]\n> \\$5\n> b\n",
   "admonition | between soft breaks | \"$5\"": null,
-  "admonition | alone | \"@kim\"": ":::{note}\n\\@kim\n:::\n",
-  "admonition | after soft break | \"@kim\"": ":::{note}\na\n\\@kim\n:::\n",
-  "admonition | before soft break | \"@kim\"": ":::{note}\n\\@kim\nb\n:::\n",
-  "admonition | between soft breaks | \"@kim\"": ":::{note}\na\n\\@kim\nb\n:::\n",
-  "admonition | alone | \"**\"": ":::{note}\n\\*\\*\n:::\n",
-  "admonition | after soft break | \"**\"": ":::{note}\na\n\\*\\*\n:::\n",
-  "admonition | before soft break | \"**\"": ":::{note}\n\\*\\*\nb\n:::\n",
-  "admonition | between soft breaks | \"**\"": ":::{note}\na\n\\*\\*\nb\n:::\n",
+  "admonition | alone | \"@kim\"": "> [!NOTE]\n> \\@kim\n",
+  "admonition | after soft break | \"@kim\"": "> [!NOTE]\n> a\n> \\@kim\n",
+  "admonition | before soft break | \"@kim\"": "> [!NOTE]\n> \\@kim\n> b\n",
+  "admonition | between soft breaks | \"@kim\"": "> [!NOTE]\n> a\n> \\@kim\n> b\n",
+  "admonition | alone | \"**\"": "> [!NOTE]\n> \\*\\*\n",
+  "admonition | after soft break | \"**\"": "> [!NOTE]\n> a\n> \\*\\*\n",
+  "admonition | before soft break | \"**\"": "> [!NOTE]\n> \\*\\*\n> b\n",
+  "admonition | between soft breaks | \"**\"": "> [!NOTE]\n> a\n> \\*\\*\n> b\n",
   "list | alone | \"+++\"": null,
   "list | after soft break | \"+++\"": null,
   "list | before soft break | \"+++\"": null,

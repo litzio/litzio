@@ -377,8 +377,10 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
   "admonition-authoring": { files: [fixture("authoring.md"), {
     name: "callouts.md",
     create: () => nativeSource(
-      ["note", "tip", "important", "warning", "danger", "hint", "seealso", "attention", "caution", "error"]
-        .map(kind => `:::{${kind}}\nExample content.\n:::`).join("\n\n") + "\n\nTry inserting here.\n"),
+      [
+        ...["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"].map(tag => `> [!${tag}]\n> Example content.`),
+        ...["hint", "seealso", "attention", "caution", "error"].map(kind => `:::{${kind}}\nExample content.\n:::`),
+      ].join("\n\n") + "\n\nTry inserting here.\n"),
   }], scenarios: ["admonition-authoring"] },
   "list-authoring": { files: [fixture("lists.md"), fixture("list-inline.md")], scenarios: ["list-authoring"] },
   "list-format": { files: [fixture("list-format.md")], scenarios: ["list-format"] },

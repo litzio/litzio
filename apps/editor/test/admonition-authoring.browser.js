@@ -129,7 +129,10 @@ async (page, { openPath, expect, screenshots }) => {
   await save();
   const edited = (await readCallouts()).toString();
   expect(edited).not.toContain(':::{hint}');
-  for (const kind of kinds) expect(edited).toContain(`:::{${kind.toLowerCase()}}\nInserted ${kind}.\n:::`);
+  for (const [index, kind] of kinds.entries()) {
+    const tag = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'][index];
+    expect(edited).toContain(`> [!${tag}]\n> Inserted ${kind}.`);
+  }
 
   const selectText = async needle => {
     await page.evaluate(needle => {
@@ -169,18 +172,15 @@ async (page, { openPath, expect, screenshots }) => {
     '',
     'Intro paragraph.',
     '',
-    ':::{warning}',
-    'After **bold** and *italic*, [manual](https://a.example), $x$\\',
-    'after the break.',
-    ':::',
+    '> [!WARNING]',
+    '> After **bold** and *italic*, [manual](https://a.example), $x$\\',
+    '> after the break.',
     '',
-    ':::{note}',
-    'A **simple** note.',
-    ':::',
+    '> [!NOTE]',
+    '> A **simple** note.',
     '',
-    ':::{tip}',
-    'A tip is a standard kind and stays editable.',
-    ':::',
+    '> [!TIP]',
+    '> A tip is a standard kind and stays editable.',
     '',
     'End paragraph.',
     '',

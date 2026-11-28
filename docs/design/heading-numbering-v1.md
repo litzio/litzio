@@ -63,6 +63,8 @@ numbering. Fixed numbers are authored non-empty single-line strings such as `17`
 are outside this feature. Figures and tables also admit the standard MyST `:enumerated: false` option (#1383). It suppresses the number and excludes the block from automatic counters and missing/duplicate-number diagnostics. Equations do not support this option. A disabled block with an authored enumerator is refused as contradictory. No document-mode frontmatter
 or private number format is introduced.
 
+A top-level standalone Markdown image counts in the same automatic Figure sequence as a `{figure}` directive. Changing an eligible Figure between these forms preserves its number and the numbers of later Figures in Litzio. Admitting a new standalone image can advance the next automatic number. External Markdown renderers show the bare image without Litzio's Figure number. Use `{figure}` for captions, labels and explicit number options.
+
 `EditableBlock.enumerator` exposes the authored string; `enumerated` exposes explicit numbering visibility. `updateEnumeration(document, path, enabled)` changes Figure/Table visibility through Core, clearing a fixed number when disabling. Caption/label edits and engine copies retain visibility. The Editor renders caption text and Outline entries without a number; existing property forms show Number: None for these blocks. No new toggle or surface is added. CLI creation uses the shared authoring input described below.
 
 `EditableBlock.enumerator` exposes the authored string. `blockTargets` / `targetNumbers`

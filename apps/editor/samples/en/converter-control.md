@@ -39,7 +39,6 @@ The values in {numref}`tbl-ratings` define one nominal operating point. Averaged
 
 - Keep the voltage command within the available duty-cycle range.
 - Record the conditions that can invalidate the nominal model.
-
   - Inductance changes with current and temperature.
   - ADC filtering and computation add delay.
 - Separate analytical predictions from later bench measurements.
@@ -69,9 +68,8 @@ Using {eq}`eq-gains` and {numref}`tbl-ratings` gives $K_p\approx6.28$ and $K_i\a
 
 > A calculated bandwidth is a tuning target; only the measured loop response can establish the achieved bandwidth.
 
-:::{warning}
-Keep the power stage disabled while checking polarity and sensor scaling. A sign error in the feedback path of {numref}`fig-loop` creates positive feedback.
-:::
+> [!WARNING]
+> Keep the power stage disabled while checking polarity and sensor scaling. A sign error in the feedback path of {numref}`fig-loop` creates positive feedback.
 
 ### Discrete implementation
 
@@ -107,15 +105,13 @@ Proposed bench sequence; no test result is implied.
 
 1. Verify the sensor offset with the power stage disabled.
 2. Use a current-limited supply and a low current reference.
-
    1. Check that positive error raises the commanded voltage.
    2. Confirm that saturation does not accumulate integral state.
 3. Record the current step response together with bus voltage and load.
 4. Compare the measured response with the nominal target and revise the model before retuning.
 
-:::{note}
-Use the same sampling rate, sensor filter and PWM update timing for every comparison. Keep the raw capture beside the design revision.
-:::
+> [!NOTE]
+> Use the same sampling rate, sensor filter and PWM update timing for every comparison. Keep the raw capture beside the design revision.
 
 ## Review disposition
 

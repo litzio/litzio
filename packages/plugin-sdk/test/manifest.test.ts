@@ -52,8 +52,8 @@ test('SDK exposes document title and admonition operations', () => {
   doc = sdk.updateAdmonitionInlineContent(doc, [1], [{kind:'strong', children:[{kind:'text',text:'Notice'}]}]);
   const source = sdk.serialize(doc);
   assert.match(source, /title: Report/);
-  assert.match(source, /:::.*tip/);
-  assert.match(source, /\*\*Notice\*\*/);
+  assert.match(source, /> \[!TIP\]\n> \*\*Notice\*\*/);
+  assert.deepEqual(sdk.getEditableDocument(sdk.parse(source)), sdk.getEditableDocument(doc));
 });
 
 import * as sdk from '../src/index.ts';

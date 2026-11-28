@@ -2,9 +2,8 @@
 
 The converter regulates voltage.
 
-:::{note}
-The current controller parameters must be calibrated before operation.
-:::
+> [!NOTE]
+> The current controller parameters must be calibrated before operation.
 
 The converter regulates the **DC-link voltage** and *phase current*.
 

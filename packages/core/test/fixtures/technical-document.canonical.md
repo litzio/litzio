@@ -6,9 +6,8 @@ See [Figure](#fig-control) and {eq}`eq-current`.
 
 ## Control Structure
 
-:::{warning}
-The current controller parameters must be calibrated before operation.
-:::
+> [!WARNING]
+> The current controller parameters must be calibrated before operation.
 
 ## Control Diagram
 

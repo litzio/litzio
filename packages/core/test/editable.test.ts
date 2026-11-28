@@ -116,7 +116,7 @@ test("admonition inline update preserves variant and inline semantics through ca
   ];
   const updated = updateAdmonitionInlineContent(original, [0], content);
   const markdown = serialize(updated);
-  assert.equal(markdown, ":::{warning}\nAfter **bold** and *italic*, [manual](https://a.example), $x$\\\nnext.\n:::\n");
+  assert.equal(markdown, "> [!WARNING]\n> After **bold** and *italic*, [manual](https://a.example), $x$\\\n> next.\n");
   const reloaded = getEditableDocument(parse(markdown)).blocks[0];
   assert.equal(reloaded?.block, "admonition");
   if (reloaded?.block !== "admonition") return;
