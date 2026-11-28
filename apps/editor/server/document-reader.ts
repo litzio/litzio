@@ -1,5 +1,6 @@
 import fs, { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { writeIssueOf } from "@litzio/core";
 import { decodeUtf8, textRevision } from "@litzio/file-commit";
 import { accessPath, inside, LOCAL_FILE_ACCESS, rootIdentity, type FileAccess } from "./file-access.ts";
 import { resolveDocumentPath, resolveEditorPath } from "./document-path.ts";
@@ -20,13 +21,19 @@ export function loadDocumentFile(requestedPath?: string, access: FileAccess = LO
   return { kind: "native", path: filePath, source, ...readModel(source), revision: documentRevision(source) };
 }
 
+export function readEditorMarkdown(filePath: string, source: string, cache?: DocumentSaveCache) {
+  try { return { kind: "native" as const, ...readModel(cache?.open(filePath, source) ?? source) }; }
+  catch (error) {
+    const issue = writeIssueOf(error);
+    return { kind: "text" as const, ...(issue.code === "parser-loss" ? { issue } : {}) };
+  }
+}
+
 export function editorFile(filePath: string, source: string, cache?: DocumentSaveCache): EditorFileResponse {
   const file = { path: filePath, source, revision: documentRevision(source) };
-  if (path.extname(filePath).toLowerCase() === ".md") {
-    try { return { ...file, kind: "native", ...readModel(cache?.open(filePath, source) ?? source) }; }
-    catch { /* Core's existing admission is the only Markdown support decision. */ }
-  }
-  return { ...file, kind: "text" };
+  return path.extname(filePath).toLowerCase() === ".md"
+    ? { ...file, ...readEditorMarkdown(filePath, source, cache) }
+    : { ...file, kind: "text" };
 }
 
 export function loadEditorFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS, cache?: DocumentSaveCache): EditorFileResponse {

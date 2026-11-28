@@ -11,6 +11,37 @@ index afec8d8defc975811eaed0b5af0a8d571771c6b1..d3ba7fb51dd465e65aeac981e32d6fff
  
  
  var config = {
+diff --git a/lib/parser_block.js b/lib/parser_block.js
+index 61f184fdaecacd9aaea00a38f3a78b5388f42595..a0855220b012348cfe7bacbe3ac7640e41f4dd05 100644
+--- a/lib/parser_block.js
++++ b/lib/parser_block.js
+@@ -64,6 +64,10 @@ ParserBlock.prototype.tokenize = function (state, startLine, endLine) {
+     // If nesting level exceeded - skip tail to the end. That's not ordinary
+     // situation and we should not care about content.
+     if (state.level >= maxNesting) {
++      if (state.env && state.env.litzioParserLoss) {
++        state.env.litzioParserLoss();
++        state.push('litzio_depth_loss', '', 0).map = [line, line + 1];
++      }
+       state.line = endLine;
+       break;
+     }
+diff --git a/lib/rules_block/table.js b/lib/rules_block/table.js
+index 3cb416ff106aee2e31f57365bf3162df0e61a6eb..7928c2ff4cc800f01ab3b9397aded319e308323a 100644
+--- a/lib/rules_block/table.js
++++ b/lib/rules_block/table.js
+@@ -191,6 +191,11 @@ module.exports = function table(state, startLine, endLine, silent) {
+ 
+     token     = state.push('tr_open', 'tr', 1);
+     token.map = [ nextLine, nextLine + 1 ];
++    if (columns.length > columnCount && state.env && state.env.litzioParserLoss &&
++        columns.slice(columnCount).some(function (cell) { return /[^ \t]/.test(cell); })) {
++      state.env.litzioParserLoss();
++      token.meta = { litzioParserLoss: 'table' };
++    }
+ 
+     for (i = 0; i < columnCount; i++) {
+       token          = state.push('td_open', 'td', 1);
 diff --git a/lib/rules_core/smartquotes.js b/lib/rules_core/smartquotes.js
 index 42d6851b6783811d8655bde20689a21412372d59..a09bec68ea00a4319d50b822677b9ac143c929cc 100644
 --- a/lib/rules_core/smartquotes.js
@@ -96,6 +127,24 @@ index 42d6851b6783811d8655bde20689a21412372d59..a09bec68ea00a4319d50b822677b9ac1
  }
  
  
+diff --git a/lib/rules_inline/entity.js b/lib/rules_inline/entity.js
+index 3a985abb74bb39a0755c62d34a44c0229f39cde4..564fb7ec2cfa4fc0db0c348b0146a21fe54270a8 100644
+--- a/lib/rules_inline/entity.js
++++ b/lib/rules_inline/entity.js
+@@ -27,8 +27,11 @@ module.exports = function entity(state, silent) {
+       if (!silent) {
+         code = match[1][0].toLowerCase() === 'x' ? parseInt(match[1].slice(1), 16) : parseInt(match[1], 10);
+ 
+-        token         = state.push('text_special', '', 0);
+-        token.content = isValidEntityCode(code) ? fromCodePoint(code) : fromCodePoint(0xFFFD);
++        var valid = isValidEntityCode(code);
++        var reportLoss = !valid && state.env && state.env.litzioParserLoss;
++        if (reportLoss) reportLoss();
++        token         = state.push(reportLoss ? 'litzio_entity_loss' : 'text_special', '', 0);
++        token.content = valid ? fromCodePoint(code) : fromCodePoint(0xFFFD);
+         token.markup  = match[0];
+         token.info    = 'entity';
+       }
 diff --git a/lib/rules_inline/html_inline.js b/lib/rules_inline/html_inline.js
 index d3078192ab39d09ce4a3a859d2f7b2f91aa09610..a0e9b3b2cb48d080b53cce5df8cdc8f0daff6c04 100644
 --- a/lib/rules_inline/html_inline.js

@@ -12,7 +12,7 @@ import { tmpdir, userInfo, networkInterfaces } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { after, type TestContext } from "node:test";
-import { documentRevision, loadDocumentFile } from "../server/document-api.ts";
+import { documentRevision, loadDocumentFile, loadEditorFile } from "../server/document-api.ts";
 import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
 import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
 import { DAEMON_INSTANCE_HEADER } from "../shared/daemon-version.ts";
@@ -794,15 +794,14 @@ test("table replay preserves the first cell refusal and commits no partial edits
   // Table 3's bad edit is later in request order, even though that table occurs first in the request.
   const cells = [first, invalid, cell([3, 1, 0], " also invalid"), repair];
   const expectedTarget = { path: invalid.path, part: 0 };
-  const expectedError = 'table cell text cannot be preserved through canonical round-trip (Block 2: root > container > table > tableRow > tableCell > text: value "invalid\\u0000text" became "invalid�text")';
   for (const route of ["/api/document-source", "/api/document"]) {
     for (const edits of [cells, [cell([1, 0, 0], "Edited"), invalid, repair]]) {
       const response = await send(route, "POST", { ...body, cells: edits });
       assert.equal(response.status, 400);
       const rejection = await response.json();
-      assert.equal(rejection.error, expectedError);
+      assert.match(rejection.error, /NUL character/);
       assert.deepEqual(rejection.target, expectedTarget);
-      assert.equal(rejection.failure.code, "round-trip-mismatch");
+      assert.equal(rejection.failure.code, "parser-loss");
       assert.deepEqual(rejection.failure.target, expectedTarget);
       assert.deepEqual(fs.readFileSync(file), Buffer.from(source));
     }
@@ -976,6 +975,43 @@ test("HTTP keeps an unused link definition when correcting a README in text mode
   const corrected = source.replace("Fix typo.", "Fixed typo.");
   assert.equal((await send("/api/document", "POST", { kind: "text", path: file, revision: opened.revision, source: corrected })).status, 200);
   assert.equal(fs.readFileSync(file, "utf8"), corrected);
+});
+
+test("HTTP and synchronous open distinguish parser loss from pending normalization", async t => {
+  const { a, send } = await fixture(t);
+  const file = path.join(a, "wide-table.md");
+  const source = "| A | B |\n| --- | --- |\n| C | D | extra |\n";
+  fs.writeFileSync(file, source);
+  const response = await send(documentQuery(file));
+  assert.equal(response.status, 200);
+  const opened = await response.json();
+  assert.equal(opened.kind, "text");
+  assert.equal(opened.source, source);
+  assert.equal(opened.issue.code, "parser-loss");
+  assert.equal(opened.issue.line, 3);
+  assert.match(opened.issue.reason, /header width/i);
+  assert.equal("normalizationPending" in opened, false);
+  assert.deepEqual(loadEditorFile(file), opened);
+  assert.equal(fs.readFileSync(file, "utf8"), source);
+
+  for (const pending of [true, false]) {
+    const structured = pending ? "# Title ###\n\nBody.\n" : "# Title\n\nBody.\n";
+    fs.writeFileSync(file, structured);
+    const response = await send(documentQuery(file));
+    assert.equal(response.status, 200);
+    const native = await response.json();
+    assert.equal(native.kind, "native");
+    assert.equal(native.source, structured);
+    assert.equal(native.normalizationPending, pending);
+    assert.equal("issue" in native, false);
+    assert.deepEqual(loadEditorFile(file), native);
+    assert.equal(fs.readFileSync(file, "utf8"), structured);
+  }
+
+  const listing = await (await send(`/api/folder?${new URLSearchParams({ root: a })}`)).json();
+  const listed = listing.entries.find((entry: { path: string }) => entry.path === file);
+  assert.equal(listed?.kind, "document");
+  assert.equal("native" in listed, false);
 });
 
 test("HTTP rejects an escaped surrogate locator and preserves valid Unicode names", async t => {

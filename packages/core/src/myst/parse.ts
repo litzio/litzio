@@ -34,6 +34,29 @@ export const OPTIONS = { extensions: { smartquotes: false, citations: false, att
 const parseMyst = createMystParser(OPTIONS);
 const imageTokenizer = createTokenizer(OPTIONS);
 
+const parserLossReasons = {
+  depth: "Markdown nesting exceeds the parser limit and content would be lost.",
+  entity: "An invalid numeric character reference would be replaced.",
+  table: "A Markdown table row contains content beyond its header width.",
+} as const;
+
+function parserLoss(reason: string, line?: number): DocumentWriteError {
+  return new DocumentWriteError(reason, {
+    code: "parser-loss", line,
+    action: "Keep editing as text, or correct the affected Markdown before opening as a structured document.",
+  });
+}
+
+/** MyST tokenizes some directive arguments and bodies speculatively. Inspect
+ * surviving nodes so opaque values (such as Mermaid code) stay literal. */
+function assertNoParserLoss(node: MystNode): void {
+  const kind: unknown = node.litzioParserLoss;
+  if (kind === "depth" || kind === "entity" || kind === "table") {
+    throw parserLoss(parserLossReasons[kind], kind === "entity" ? undefined : node.position?.start.line);
+  }
+  node.children?.forEach(assertNoParserLoss);
+}
+
 /** Read one line without document reference definitions as a standalone image. Only an
  * inline image link without a title can produce this token on its own. The writer uses
  * the same reading to keep a Figure whose URL or alt text would not survive it. */
@@ -55,11 +78,16 @@ export function sourcePosition(node: MystNode): MystNode["position"] {
 
 export function parse(source: string, { complexTables = false, nativeAdmission = false, documentMetadata = false } = {}): MystDocument {
   assertUnicode(source);
+  const nul = source.indexOf("\0");
+  if (nul !== -1) throw parserLoss("A NUL character would be replaced by the Markdown parser.", source.slice(0, nul).split(/\r\n?|\n/).length);
   const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
   const file = new VFile();
+  let hasParserLoss = false;
+  file.data.litzioParserLoss = () => { hasParserLoss = true; };
   const document = documentMetadata && text.includes("]:")
     ? parseLinkDefinitions(text, file, OPTIONS)
     : parseMyst(text, file);
+  if (hasParserLoss) assertNoParserLoss(document);
   markFrontMatter(document, text);
   if (documentMetadata) ensureFrontMatter(document);
   const convertedTables = complexTables ? new Set<MystNode>() : undefined;

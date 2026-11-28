@@ -1943,7 +1943,7 @@ test("CLI batch groups plain table edits while retaining the first refused comma
   };
   const refusal = command([edits[0], { ...edits[1], text: "invalid\0text" }, edits[2], edits[1]]);
   assert.equal(refusal.status, 1);
-  assert.match(refusal.stderr, /operation 2 \(update-table-cell\): table cell text cannot be preserved.*nothing was written/);
+  assert.match(refusal.stderr, /operation 2 \(update-table-cell\): A NUL character would be replaced.*nothing was written/);
   assert.deepEqual(readFileSync(file), Buffer.from(source));
   const accepted = command(edits);
   assert.equal(accepted.status, 0, accepted.stderr);
@@ -2585,6 +2585,22 @@ test("native create and admission keep existing files intact and report structur
     assert.ok(diagnostic.error.reason && diagnostic.error.action);
     assert.equal(readFileSync(file, "utf8"), unpreservable);
 
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("CLI refuses to edit a paragraph when a nested image alt would lose content", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-cli-parser-loss-"));
+  const file = path.join(dir, "figure.md");
+  const source = Buffer.from("![overview ![marker&#0;](pin.png)](overview.png)\n\nBefore.\n");
+  try {
+    writeFileSync(file, source);
+    const edited = run(["replace-text", file, "--from", "Before", "--to", "After"]);
+    assert.equal(edited.status, 1);
+    assert.match(edited.stderr, /invalid numeric character reference/i);
+    assert.deepEqual(readFileSync(file), source);
+    const checked = run(["check", file, "--format", "json"]);
+    assert.equal(checked.status, 1);
+    assert.equal(JSON.parse(checked.stdout).error.code, "parser-loss");
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

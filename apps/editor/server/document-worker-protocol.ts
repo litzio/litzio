@@ -1,10 +1,9 @@
 import { NativeDocumentError, writeIssueOf, type LocalWriteKind } from "@litzio/core";
 import type { SaveRequest, SaveResponse } from "../shared/document-protocol.ts";
 import { SaveContentError, type SaveFailure } from "../shared/save-error.ts";
-import type { readModel } from "./document-replay.ts";
+import type { readEditorMarkdown } from "./document-reader.ts";
 import { DocumentConflictError } from "./document-save-compute.ts";
 
-export type DocumentReadModel = ReturnType<typeof readModel>;
 export type SaveWork = { kind: "save"; path: string; disk: string; request: Omit<SaveRequest, "describe">; local?: boolean;
   /** Reply with the changed blocks' inspect nodes (SaveRequest.describe). */
   describe?: true };
@@ -15,7 +14,7 @@ export type DocumentWork =
   | { kind: "verify-local-write"; save: SaveWork; expected: string };
 
 export type DocumentResults = {
-  open: DocumentReadModel | undefined;
+  open: ReturnType<typeof readEditorMarkdown>;
   bibliography: string[];
   save: SaveResponse & { markdown: string; localWrite?: { kind: LocalWriteKind; blockCount: number; path: readonly number[] }; fallback?: string };
   "verify-local-write": { outcome: "equal" } | { outcome: "different"; markdown: string; revision: string }

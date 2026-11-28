@@ -59,7 +59,7 @@ index f199ff62c7a2ad4938696f18ff469cf15c07e0cc..bfaf79a9350cf81102f376cab9725bf4
  /**
   * MyST Parser as a Unified Plugin
 diff --git a/dist/myst.js b/dist/myst.js
-index 616f80d64a4416d560136b43e62951fb72966de5..720327bc1da17803dc0ac11cf54c51f031b1306c 100644
+index 616f80d64a4416d560136b43e62951fb72966de5..676aae501e4a45ea93d9ff7c8ce69e8148aca810 100644
 --- a/dist/myst.js
 +++ b/dist/myst.js
 @@ -1,4 +1,5 @@
@@ -105,7 +105,7 @@ index 616f80d64a4416d560136b43e62951fb72966de5..720327bc1da17803dc0ac11cf54c51f0
 -    const tokenizer = createTokenizer(parsedOpts);
 -    const tree = tokensToMyst(content, tokenizer.parse(content, { vfile }), parsedOpts.mdast);
 +    const parseTokens = tokenize ?? ((source, env) => createTokenizer(parsedOpts).parse(source, env));
-+    const tree = tokensToMyst(content, parseTokens(content, { vfile }), parsedOpts.mdast);
++    const tree = tokensToMyst(content, parseTokens(content, { vfile, litzioParserLoss: vfile?.data.litzioParserLoss }), parsedOpts.mdast);
      applyDirectives(tree, parsedOpts.directives, parsedOpts.vfile, {
          parseMyst: (source, offset = 0) => {
 -            const mdast = mystParse(source, opts);
@@ -114,7 +114,7 @@ index 616f80d64a4416d560136b43e62951fb72966de5..720327bc1da17803dc0ac11cf54c51f0
              visit(mdast, (node) => {
                  if (node.position) {
 diff --git a/dist/tokensToMyst.js b/dist/tokensToMyst.js
-index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..70b1778185c7fd50c5a5e4195707c9e136eebd91 100644
+index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..fa16ce4a86e8df222a191f2419f617c5f00cbebe 100644
 --- a/dist/tokensToMyst.js
 +++ b/dist/tokensToMyst.js
 @@ -57,6 +57,12 @@ function hasClassName(token, matcher) {
@@ -130,7 +130,17 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..70b1778185c7fd50c5a5e4195707c9e1
  function getColAlign(t) {
      if (t.attrs?.length) {
          for (const attrPair of t.attrs) {
-@@ -98,22 +104,23 @@ const defaultMdast = {
+@@ -69,6 +75,9 @@ function getColAlign(t) {
+         }
+     }
+ }
++function hasEntityLoss(token) {
++    return token.type === 'litzio_entity_loss' || token.children?.some(hasEntityLoss);
++}
+ const defaultMdast = {
+     heading: {
+         type: 'heading',
+@@ -98,22 +107,23 @@ const defaultMdast = {
              const start = Number(tokens[index + 1]?.info);
              return {
                  ordered: true,
@@ -159,7 +169,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..70b1778185c7fd50c5a5e4195707c9e1
              if (t.attrGet('class') === 'task-list-item') {
                  // This is a temporary property used to clean up the AST in a subsequent pass
                  attrs.__taskList = true;
-@@ -132,7 +139,7 @@ const defaultMdast = {
+@@ -132,7 +142,7 @@ const defaultMdast = {
          isLeaf: true,
          noCloseToken: true,
          getAttrs(t) {
@@ -168,7 +178,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..70b1778185c7fd50c5a5e4195707c9e1
          },
      },
      fence: {
-@@ -155,7 +162,7 @@ const defaultMdast = {
+@@ -155,7 +165,7 @@ const defaultMdast = {
                      .filter((n) => !isNaN(n) && n > 0)
                  : undefined;
              return {
@@ -177,7 +187,42 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..70b1778185c7fd50c5a5e4195707c9e1
                  ...normalizeLabel(name),
                  class: getClassName(t),
                  showLineNumbers: showLineNumbers || undefined, // Only add to MDAST if true
-@@ -506,7 +513,59 @@ const defaultOptions = {
+@@ -191,6 +201,18 @@ const defaultMdast = {
+             };
+         },
+     },
++    litzio_depth_loss: {
++        type: 'litzioDepthLoss',
++        noCloseToken: true,
++        isLeaf: true,
++        getAttrs: () => ({ litzioParserLoss: 'depth' }),
++    },
++    litzio_entity_loss: {
++        type: 'text',
++        noCloseToken: true,
++        isLeaf: true,
++        getAttrs: t => ({ value: t.content, litzioParserLoss: 'entity' }),
++    },
+     image: {
+         type: 'image',
+         noCloseToken: true,
+@@ -202,6 +224,7 @@ const defaultMdast = {
+             return {
+                 url: token.attrGet('src'),
+                 alt: alt || undefined,
++                ...(token.children?.some(hasEntityLoss) ? { litzioParserLoss: 'entity' } : {}),
+                 title: token.attrGet('title') || undefined,
+                 class: getClassName(token, [ALIGN_CLASS]),
+                 width: token.attrGet('width') || undefined,
+@@ -243,6 +266,7 @@ const defaultMdast = {
+     },
+     tr: {
+         type: 'tableRow',
++        getAttrs: t => t.meta?.litzioParserLoss ? { litzioParserLoss: t.meta.litzioParserLoss } : {},
+     },
+     th: {
+         type: 'tableCell',
+@@ -506,7 +530,59 @@ const defaultOptions = {
      listItemParagraphs: true,
      nestBlocks: true,
  };
@@ -237,7 +282,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..70b1778185c7fd50c5a5e4195707c9e1
      const opts = {
          ...defaultOptions,
          ...options,
-@@ -540,9 +599,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
+@@ -540,9 +616,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
              node.checked = html[0].value.includes('checked=""');
              // Remove the inline html
              node.children?.splice(0, 1);

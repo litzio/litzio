@@ -3,7 +3,7 @@ import type { NodePath } from "./document.ts";
 /** Write refusal information, independent of an editor, transport or filesystem. */
 export type WriteIssueCode = "native-metadata" | "native-content"
   | "invalid-structure" | "invalid-operation" | "unsupported-content" | "empty-content"
-  | "round-trip-mismatch" | "serialization-failed" | "invalid-unicode"
+  | "round-trip-mismatch" | "serialization-failed" | "invalid-unicode" | "parser-loss"
   | "invalid-label" | "label-conflict" | "invalid-reference" | "invalid-footnote"
   | "line-break" | "table-cell-whitespace" | "table-shape" | "invalid-figure" | "fixed-number-unrepresentable";
 export type WriteIssue = { code?: WriteIssueCode; reason: string; action: string; path?: NodePath; line?: number };
