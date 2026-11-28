@@ -417,7 +417,7 @@ test("a Figure inserted with an image file is saved with it", () => {
   const editable = loadEditableDocument(nativeSource("Intro\n"));
   let { state } = editorState(nativeSource("Intro\n"));
   state = state.apply(insertFigureAfter(state, 0, undefined, { imageUrl: "./pasted.png", imageAlt: "" }));
-  assert.equal(saveEdits(nativeSource("Intro\n"), collectSupportedEdits(editable, editorDocumentJSON(state))).markdown, nativeSource("Intro\n\n:::{figure} ./pasted.png\n:::\n"));
+  assert.equal(saveEdits(nativeSource("Intro\n"), collectSupportedEdits(editable, editorDocumentJSON(state))).markdown, nativeSource("Intro\n\n![](./pasted.png)\n"));
 });
 
 

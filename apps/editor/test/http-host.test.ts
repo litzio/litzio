@@ -783,7 +783,7 @@ const saveBody = (file: string, text = "Edited.") => {
 test("HTTP authored creation preserves Core validity, receipt and exclusive publication", async t => {
   const { a, outside, send } = await fixture(t);
   const file = path.join(a, "new", "nested", "authored.md");
-  const authoring = { title: "Measurements", inputs: [{ key: "filtered", blocks: [{ kind: "admonition", variant: "note", text: "Above 15" }, { kind: "table", rows: [["Value"], ["18"], ["24"]] }, { kind: "figure", imageAsset: "chart", imageAlt: "Chart" }] }] };
+  const authoring = { title: "Measurements", inputs: [{ key: "filtered", blocks: [{ kind: "admonition", variant: "note", text: "Above 15" }, { kind: "table", rows: [["Value"], ["18"], ["24"]] }, { kind: "figure", imageAsset: "chart", imageAlt: "Chart", caption: "" }] }] };
   const images = [{ key: "chart", mime: "image/png", base64: png.toString("base64") }];
   const response = await send("/api/document", "PUT", { path: file, authoring, images });
   assert.equal(response.status, 201, await response.clone().text());

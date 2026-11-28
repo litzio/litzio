@@ -95,7 +95,7 @@ test("list item split, indent, outdent and kind change save as the edited list a
       ] },
     }]);
     const disk = saveFile(dir, markdown, state, editable);
-    assert.equal(disk, nativeSource("# Steps\n\n1. Wire\n\n   - Check \\*\\*x\\*\\*\n2. Power\n\nClose\n\nDone.\n"));
+    assert.equal(disk, nativeSource("# Steps\n\n1. Wire\n   - Check \\*\\*x\\*\\*\n2. Power\n\nClose\n\nDone.\n"));
     assert.equal(serialize(parse(disk)), disk);
     assert.deepEqual(loadEditableDocument(disk).blocks.map((block) => block.block), ["heading", "list", "paragraph", "paragraph"]);
   } finally {
