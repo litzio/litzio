@@ -146,7 +146,7 @@ export function DocumentActions({
           <TooltipTrigger render={<p className="document-status status" data-testid="status" data-operation={status}
             role="status" tabIndex={normalizationReceipt ? 0 : undefined} title={normalizationReceipt ? undefined : displayStatus || undefined} />}>
             {displayStatus ? <><StatusIcon aria-hidden="true" className={unsaved && idle ? "document-status-dirty" : undefined} />
-              <span className="sr-only">{displayStatus}{normalizationReceipt ? `. ${normalizationReceipt}` : ""}</span></> : null}
+              <span className="sr-only">{displayStatus}</span></> : null}
           </TooltipTrigger>
           {normalizationReceipt ? <TooltipContent side="bottom">{normalizationReceipt}</TooltipContent> : null}
         </Tooltip>
@@ -158,7 +158,7 @@ export function DocumentActions({
           <TooltipContent side="bottom" data-testid="draft-indicator-description">{draftNotice}</TooltipContent>
         </Tooltip> : null}
         {normalizationPending && onCompare ? <Tooltip>
-          <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm" className="top-bar-toggle"
+          <TooltipTrigger render={<Button type="button" variant="ghost" size="icon-sm"
             aria-label={`${normalizationNotice} ${i18n.t("Changes before saving")}`}
             disabled={compareDisabled} onClick={event => onCompare(event.currentTarget)} />}>
             <FileDiff aria-hidden="true" />

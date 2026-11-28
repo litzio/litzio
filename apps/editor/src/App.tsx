@@ -442,8 +442,10 @@ function EditorApp() {
   // Match the window-level navigation guard; a tab-owned Save still permits Settings diagnostics.
   const settingsDisabled = Boolean(operation || fileOperationPending || continuation);
   const switching = Boolean(operation || session?.switching);
-  function compareBeforeSave(returnFocus: HTMLElement | null, owner = session, external = false): void {
-    if (!owner || operationRef.current || owner.busy || (!external && !(owner.documentDirty || owner.draftActive || (owner.kind === "native" && owner.normalizationPending)))) return;
+  function compareBeforeSave(returnFocus: HTMLElement | null, owner = session, reason: "save" | "external" | "normalization" = "save"): void {
+    if (!owner || operationRef.current || owner.busy) return;
+    const edited = owner.documentDirty || owner.draftActive;
+    if (reason !== "external" && !edited && !(owner.kind === "native" && owner.normalizationPending)) return;
     saveComparisonReturnFocus.current = returnFocus;
     if (owner.kind === "text") {
       const snapshot = owner.getSnapshot();
@@ -451,7 +453,7 @@ function EditorApp() {
       return;
     }
     const submitted = owner.editorRef.current?.getDocument();
-    const initialView = owner.normalizationPending && !external ? "source" : undefined;
+    const initialView = reason === "normalization" || (reason === "save" && !edited) ? "source" : undefined;
     try { setSaveComparison({ client: owner.client, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, initialView, request: owner.savePreviewRequest() }); }
     catch (cause) {
       const failure = cause instanceof SaveContentError ? cause : new SaveContentError(messageOf(cause), undefined, { phase: "collect", cause });
@@ -460,7 +462,7 @@ function EditorApp() {
   }
   const save = () => session?.save();
   const compareExternal = useCallback((owner: EditorSession) => {
-    compareBeforeSave(globalThis.document.activeElement as HTMLElement, owner, true);
+    compareBeforeSave(globalThis.document.activeElement as HTMLElement, owner, "external");
   }, []);
   const showSource = () => nativeSession?.showSource();
   const setView = (next: "read" | "visual" | "source") => nativeSession?.setView(next);
@@ -1519,7 +1521,7 @@ function EditorApp() {
               onViewChange={(next) => { if (owner?.kind === "text" && next !== "source") owner.setView(next); if (owner?.kind === "native") { if (next === "source") void owner.showSource(); else owner.setView(next); } }}
               saveDisabled={!owner || groupBusy || owner.kind === "native" && owner.view === "read"}
               onSave={() => void owner?.save()}
-              onCompare={owner?.kind === "native" ? trigger => compareBeforeSave(trigger ?? fileActionsToggle.current, owner) : undefined}
+              onCompare={owner?.kind === "native" ? trigger => compareBeforeSave(trigger ?? fileActionsToggle.current, owner, trigger ? "normalization" : "save") : undefined}
               compareDisabled={!(owner?.documentDirty || owner?.draftActive || (owner?.kind === "native" && owner.normalizationPending)) || groupBusy}
               normalizationPending={owner?.kind === "native" && owner.normalizationPending}
               normalizedLineCount={owner?.kind === "native" ? owner.normalizedLineCount : undefined}
