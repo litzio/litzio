@@ -29,6 +29,58 @@ import {
 const technical = readFileSync(new URL("./fixtures/technical-document.md", import.meta.url), "utf8");
 const TABLE = 12;
 
+test("grouped pipe cell edits keep sequential write bytes and readback meaning", () => {
+  const source = "---\nlitzio: 1\n---\n\n| 3.14 kg/m (주) | A-1 |\n| :--- | ---: |\n| | **Fixed** |\n| Before | 10% |\n";
+  const original = core.parse(source);
+  const originalBytes = core.serialize(original);
+  const paths = [[1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 2, 0], [1, 2, 1]];
+  const replacements = ["Voltage", "", "e\u0301  7", "3.14 kg/m", "10%  (주)", "A-1", "예, 아니오", "x = +20.5 °C; OK?"];
+  let state = 2045;
+  const sample = (bound: number) => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return Math.floor(state / 2 ** 32 * bound);
+  };
+  for (let caseIndex = 0; caseIndex < 128; caseIndex++) {
+    const available = [...paths];
+    const edits = Array.from({ length: 2 + sample(paths.length - 1) }, () => ({
+      path: available.splice(sample(available.length), 1)[0],
+      content: replacements[sample(replacements.length)],
+    }));
+    const grouped = core.tryUpdateTableCells(original, edits);
+    assert.ok(grouped, `eligible group ${caseIndex}`);
+    const sequential = edits.reduce((doc, edit) => core.updateTableCell(doc, edit.path, edit.content), original);
+    const groupedWrite = core.serializeWithReadback(grouped);
+    const sequentialWrite = core.serializeWithReadback(sequential);
+    assert.equal(groupedWrite.markdown, sequentialWrite.markdown);
+    assert.deepEqual(core.getEditableDocument(groupedWrite.document), core.getEditableDocument(sequentialWrite.document));
+  }
+  assert.equal(core.serialize(original), originalBytes);
+});
+
+test("a group cannot hide repeated cells or an earlier cell's round-trip refusal", () => {
+  const original = core.parse("---\nlitzio: 1\n---\n\n| Header |\n| --- |\n| Before |\n");
+  const header = { path: [1, 0, 0], content: "Changed" };
+  const body = { path: [1, 1, 0], content: "Repaired" };
+  const bad = { ...body, content: "invalid\0text" };
+  assert.equal(core.tryUpdateTableCells(original, [header, body, body]), undefined);
+  assert.equal(core.tryUpdateTableCells(original, [header, bad, body]), undefined);
+  assert.equal(core.tryUpdateTableCells(original, [bad, header]), undefined);
+  assert.throws(() => core.updateTableCell(core.updateTableCell(original, header.path, header.content), bad.path, bad.content),
+    error => core.writeIssueOf(error).code === "round-trip-mismatch");
+});
+
+test("pipe cell grouping limits dots to decimals and excludes link and formatting syntax", () => {
+  const original = core.parse("---\nlitzio: 1\n---\n\n| Header |\n| --- |\n| Before |\n");
+  const first = { path: [1, 0, 0], content: "5.25 kg/m" };
+  for (const content of [
+    "example.com", "www.example.com", "//example.com", "10.0.0.1", "https://localhost",
+    "<https://example.com>", "[label](target)", "a*b", "a_b", "a`b", "$x$", "{ref}", "@key",
+    "[^note]", "a\\b", "a|b", "a~~b", "a\tb",
+  ]) {
+    assert.equal(core.tryUpdateTableCells(original, [first, { path: [1, 1, 0], content }]), undefined, content);
+  }
+});
+
 test("internally read a complex table and write stable canonical bytes with caption, options and notes", () => {
   const source = [
     "---", "litzio: 1", "---", "", ":::{table} **Operating limits** {ref}`conditions`",

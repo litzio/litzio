@@ -51,6 +51,7 @@ import {
   updateList,
   updateCodeBlock,
   updateTableCell,
+  tryUpdateTableCells,
   updateTableCellBlocks,
   updateTableCaption,
   insertTableNote,
@@ -76,6 +77,7 @@ import {
 import type {
   OrderItem,
   SupportedEdits,
+  TableCellEdit,
 } from "../shared/document-protocol.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 export { SaveContentError } from "../shared/save-error.ts";
@@ -202,15 +204,18 @@ export function replayEdits(
     }
     return updateFigure(current, figure.path, figureContent(figure.to));
   });
-  for (const edit of edits.cells ?? []) {
+  function checkCell(edit: TableCellEdit) {
+    assertPath(edit.path, "table cell");
+    // A complex table's cell path names the column where the cell starts (ADR-0024).
+    const cell = tableCellAtPath(blockAt(editable, [edit.path[0]]), edit.path);
+    if (!cell?.editable) {
+      throw new Error(`table cell edit is not allowed at [${edit.path.join(",")}]`);
+    }
+  }
+  function applyCell(edit: TableCellEdit) {
     const target = { path: edit.path, part: 0 };
     editAt(target, () => {
-      assertPath(edit.path, "table cell");
-      // A complex table's cell path names the column where the cell starts (ADR-0024).
-      const cell = tableCellAtPath(blockAt(editable, [edit.path[0]]), edit.path);
-      if (!cell?.editable) {
-        throw new Error(`table cell edit is not allowed at [${edit.path.join(",")}]`);
-      }
+      checkCell(edit);
       if ("blocks" in edit) {
         if (!Array.isArray(edit.blocks)) throw new Error(`table cell blocks must be an array at [${edit.path.join(",")}]`);
         document = editAt(target, () => updateTableCellBlocks(document, edit.path, edit.blocks));
@@ -221,6 +226,28 @@ export function replayEdits(
       }
       document = editAt(target, () => updateTableCell(document, edit.path, edit.content));
     });
+  }
+  const cells = edits.cells ?? [];
+  for (let start = 0; start < cells.length;) {
+    const table = cells[start]?.path?.[0];
+    let end = start + 1;
+    while (table !== undefined && end < cells.length && cells[end]?.path?.[0] === table) end++;
+    if (end - start > 1) {
+      try {
+        const group = cells.slice(start, end);
+        if (group.every((edit): edit is Extract<TableCellEdit, { content: InlineContent[] }> =>
+          !("blocks" in edit) && Array.isArray(edit.content))) {
+          for (const edit of group) checkCell(edit);
+          const next = tryUpdateTableCells(document, group);
+          if (next) {
+            document = next;
+            start = end;
+            continue;
+          }
+        }
+      } catch { /* Report the first refusal in the original order below. */ }
+    }
+    for (; start < end; start++) applyCell(cells[start]);
   }
   // Snapshot cells are edited above at their snapshot paths. Core then removes the absent rows and
   // columns, moves the kept ones into their new order, adds rows and columns in new-grid order,
@@ -257,8 +284,16 @@ export function replayEdits(
       for (const [column, align] of (edit.align ?? []).entries()) {
         document = editAt(target, () => updateTableColumnAlignment(document, edit.path, column, align));
       }
+      const added = (cell: typeof edit.cells[number]) => edit.rows[cell.row] === null || edit.columns[cell.column] === null;
+      const next = edit.cells.length > 1 && edit.cells.every(cell => cell && added(cell))
+        ? tryUpdateTableCells(document, edit.cells.map(cell => ({ path: [edit.path[0], cell.row, cell.column], content: cell.content })))
+        : undefined;
+      if (next) {
+        document = next;
+        return;
+      }
       for (const cell of edit.cells) {
-        if (edit.rows[cell.row] !== null && edit.columns[cell.column] !== null) {
+        if (!added(cell)) {
           throw new Error(`table cell [${cell.row},${cell.column}] was not added`);
         }
         document = editAt(target, () => updateTableCell(document, [edit.path[0], cell.row, cell.column], cell.content), { row: cell.row, column: cell.column });

@@ -155,6 +155,7 @@ export const updateEnumerator = fence(operations.updateEnumerator);
 export const updateFigure = fence(operations.updateFigure);
 export const updateMediaReferences = fence(operations.updateMediaReferences);
 export const updateTableCell = fence(operations.updateTableCell);
+export const tryUpdateTableCells = fence(operations.tryUpdateTableCells);
 export const updateTableCellBlocks = fence(operations.updateTableCellBlocks);
 export const updateTableCaption = fence(operations.updateTableCaption);
 export const insertTableNote = fence(operations.insertTableNote);
