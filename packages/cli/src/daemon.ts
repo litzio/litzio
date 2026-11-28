@@ -119,7 +119,13 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
       catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     }
     const inspect = async (candidate: NonNullable<typeof record>) => {
-      try { return { ...candidate, ...await inspectDaemon(candidate, productVersion), state: "running", running: true }; }
+      try {
+        const health = await inspectDaemon(candidate, productVersion);
+        const identity = health.identity ?? (health.screenInstanceGuard
+          ? (await daemonRpc(candidate, "/api/host-capabilities", undefined, { instanceId: health.instanceId }).catch(() => undefined))?.identity
+          : undefined);
+        return { ...candidate, ...health, identity, state: "running", running: true };
+      }
       catch (error) {
         const started = processStart(candidate.pid);
         const owner = !started ? "exited" : started === candidate.processStartedAt ? "alive but unresponsive/incompatible" : "PID reused";
@@ -147,10 +153,7 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
   }
   try {
     const health = await inspectDaemon(record, productVersion);
-    const identity = health.identity ?? (action === "status" && health.screenInstanceGuard
-      ? (await daemonRpc(record, "/api/host-capabilities", undefined, { instanceId: health.instanceId }).catch(() => undefined))?.identity
-      : undefined);
-    const status = { state: "running", running: true, ...record, ...health, identity };
+    const status = { state: "running", running: true, ...record, ...health };
     if (alreadyRunning) console.error(`Already running (pid ${record.pid}, ${record.url}, ${health.launcher}).`);
     console.log(action === "start" || config.json ? JSON.stringify(status) : statusTable(status));
   } catch (error) {

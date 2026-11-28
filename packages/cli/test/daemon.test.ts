@@ -1,5 +1,6 @@
 import { hostIdentity } from "../../../apps/editor/server/host-identity.ts";
 import { DAEMON_PROTOCOL } from "../../../apps/editor/server/daemon-protocol.ts";
+import { DAEMON_INSTANCE_HEADER } from "../../../apps/editor/shared/daemon-version.ts";
 import { DesktopDaemon } from "../../../apps/desktop/src/daemon-client.ts";
 import { once } from "node:events";
 import assert from "node:assert/strict";
@@ -11,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { build } from "esbuild";
 import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
 import { CliDiagnostics } from "../../../test/helpers/cli-diagnostics.ts";
 import { acquireDaemonLock, processStart, reclaimStaleDaemon, daemonPort, readDaemonRecord, stopDaemon, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
 
@@ -78,6 +80,44 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
   let stopped = false;
   let owned: DaemonRecord | undefined;
   try {
+    await t.test("status reads a missing account from the verified daemon instance", async () => {
+      const runAs = "FixtureUser";
+      const health = { pid: process.pid, startedAt: new Date().toISOString(), instanceId: "fixture", processStartedAt: "fixture",
+        daemonHome: directory, executable: process.execPath, roots: [], nonLoopback: false, launcher: "cli-run",
+        productVersion: "test-version", protocolVersion: DAEMON_PROTOCOL, screenInstanceGuard: true };
+      let capabilityInstance = health.instanceId;
+      const server = createHttpServer((req, res) => {
+        res.setHeader("Content-Type", "application/json");
+        if (req.url === "/daemon/health") { res.end(JSON.stringify(health)); return; }
+        if (req.url === "/api/host-capabilities" && req.headers[DAEMON_INSTANCE_HEADER] === capabilityInstance) {
+          res.end(JSON.stringify({ identity: { runAs } })); return;
+        }
+        res.statusCode = 409;
+        res.end(JSON.stringify({ error: "Host connection changed." }));
+      });
+      server.listen(0, "127.0.0.1");
+      await once(server, "listening");
+      const address = server.address();
+      assert.ok(address && typeof address !== "string");
+      const discovery = path.join(directory, "instance.json");
+      try {
+        fs.mkdirSync(directory, { recursive: true });
+        fs.writeFileSync(discovery, JSON.stringify({ ...health, url: `http://127.0.0.1:${address.port}` }));
+        const status = async () => {
+          const result = await execute(["status", "--json"]);
+          assert.equal(result.code, 0, result.stderr);
+          const body = JSON.parse(result.stdout);
+          assert.equal(body.state, "running");
+          return body;
+        };
+        assert.deepEqual((await status()).identity, { runAs });
+        capabilityInstance = "replacement";
+        assert.equal((await status()).identity, undefined);
+      } finally {
+        fs.rmSync(discovery, { force: true });
+        await new Promise<void>(resolve => server.close(() => resolve()));
+      }
+    });
     const results = await Promise.all([execute(["start"]), execute(["start"])]);
     for (const result of results) {
       assert.equal(result.code, 0, result.code === 0 ? result.stderr : result.failureDiagnostics());
