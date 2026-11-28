@@ -246,6 +246,23 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     }
     const writeDriveScreen = (label: string) => writeFileSync(path.join(pluginDirectory, "screen.jsx"), `export default function Screen({React,ui,invoke,storage}) {
       const [result,setResult] = React.useState("Ready");
+      const [notifications,setNotifications] = React.useState([]);
+      const refusal = React.useRef(0), run = React.useRef(0);
+      const rejectEdit = () => {
+        const sequence = ++refusal.current;
+        setNotifications(items => [...items.filter(item => !item.id.startsWith("reject:wire:")),
+          {id:"reject:wire:" + sequence, message:"Wire edit rejected (" + sequence + ")", severity:"error"}]);
+      };
+      const startRun = () => {
+        const id = ++run.current;
+        setNotifications(items => [...items, {id:"start:" + id, message:"Run " + id + " uses default settings", severity:"warning"}]);
+        setResult("Run " + id + " started");
+      };
+      const failRun = () => {
+        const id = run.current;
+        setNotifications(items => items.some(item => item.id === "fail:" + id) ? items :
+          [...items, {id:"fail:" + id, message:"Run " + id + " failed", severity:"error"}]);
+      };
       const saveOnClose = React.useRef(false);
       React.useEffect(() => () => {
         if (saveOnClose.current) {
@@ -259,6 +276,10 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         saveOnClose.current = true;
       };
       return <><p>{${JSON.stringify(label)}}</p>
+        <ui.Notifications items={notifications} />
+        <ui.Button onClick={rejectEdit}>Reject edit</ui.Button>
+        <ui.Button onClick={startRun}>Start run</ui.Button>
+        <ui.Button onClick={failRun}>Fail run</ui.Button>
         <ui.Button onClick={()=>invoke("snapshot",{}).then(setResult).catch(error=>setResult(error.message))}>Read installed value</ui.Button>
         <ui.Button onClick={()=>prepare().catch(error=>setResult(error.message))}>Prepare storage</ui.Button>
         <ui.Button onClick={()=>invoke("readStorage").then(setResult).catch(error=>setResult(error.message))}>Read saved view</ui.Button>
@@ -271,7 +292,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       writeContentEditDocument(name: string, source: string) {
         if (name.includes("/") || name.includes("\\")) throw new Error("Content edit fixture names are file names");
         writeFileSync(path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "content-edit", name), source);
-      }, editSource() {
+      }, editScreenForReload: () => writeDriveScreen("Reloaded runtime fixture"), editSource() {
       const file = path.join(pluginDirectory, "host.mjs");
       writeFileSync(file, readFileSync(file, "utf8").replace("Original value", "Updated value"));
       writeDriveScreen("Updated runtime fixture");

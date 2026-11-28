@@ -1,4 +1,5 @@
 import { ScreenFrame } from "../components/ui/task-header.tsx";
+import { NotificationScope } from "../components/ui/notification-center.tsx";
 import { PluginScreenCode, ScreenBoundary } from "./PluginScreenCode.tsx";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { desktopConnection } from "../desktop-connection.ts";
@@ -63,6 +64,9 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, fileOpen, o
     <ScreenFrame title={screen.title}>
     {loading ? <Notice role="status">{i18n.t("Loading")}</Notice> : !active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
-    <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ? <PluginScreenCode key={`local:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} fileOpen={selection} onOpen={onOpenDocument} /> : null}</ScreenBoundary>
+    <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ?
+      <NotificationScope value={{ name: contribution.title, reveal: action => action() }}>
+        <PluginScreenCode key={`local:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} fileOpen={selection} onOpen={onOpenDocument} />
+      </NotificationScope> : null}</ScreenBoundary>
   </ScreenFrame></div>;
 }

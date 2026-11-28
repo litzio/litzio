@@ -22,15 +22,25 @@
 
 Host는 로컬 출처를 복사하고 설치본 안에서 필요한 esbuild 번들을 준비한다. 실행 시 npm 설치나 원격 import 해석을 하지 않는다. 불러오는 중에도 검증한 manifest의 화면 이름과 아이콘을 목록에 제공한다. 이때 목록의 `activation`은 Host가 정한 `loading` 또는 `slow`이며, 작업 막대는 아이콘을 흐리게 표시하고 Tooltip에서 불러오는 중임을 알린다. 탭을 열면 불러오는 중을 표시하며, 준비되면 같은 탭에서 화면 코드와 설치본 digest revision을 읽어 연다. 목록에서 화면이 사라지면 사용할 수 없음을 표시한다. 1440px 기준 화면은 [작업 막대](assets/plugin-startup-1918/activity-1440-light.png)와 [열린 탭](assets/plugin-startup-1918/screen-1440-light.png)이다. 원본을 편집해도 화면 revision은 유지되며, 다시 읽기가 성공하면 새 설치본의 revision을 제공한다. 대상 Host의 `/api/plugin-screens`의 screens 작업은 화면 목록과 선택적 코드를 반환한다. 파일 동작 조회도 같은 경로를 사용한다. 클라이언트는 CSP script-src의 blob 모듈로 실행한다. 샌드박스·iframe·권한 모델·서명·버전 협상은 만들지 않는다.
 
-`invoke(localOperationId,input)`는 자기 plugin과 해당 화면의 HostClient에 고정한다. 공개 작업은 schema·effect·receipt를 공유하고 화면 전용 handler는 JSON을 전달한다. Core 문서 의미나 공식 저장을 화면에서 우회하지 않는다. disable·reload 및 위 연결 수명 조건에 따라 이전 화면을 내린다. 열린 화면은 연결 확인이 정상일 때 2초마다 코드 없이 revision을 확인하며 변경 시 새 코드를 받는다. 파일 감시·자동 reload는 아니다. import/render/cleanup 오류는 해당 화면에서 격리한다. async/event 오류는 작성자가 catch해 Notice로 표시한다.
+`invoke(localOperationId,input)`는 자기 plugin과 해당 화면의 HostClient에 고정한다. 공개 작업은 schema·effect·receipt를 공유하고 화면 전용 handler는 JSON을 전달한다. Core 문서 의미나 공식 저장을 화면에서 우회하지 않는다. disable·reload 및 위 연결 수명 조건에 따라 이전 화면을 내린다. 열린 화면은 연결 확인이 정상일 때 2초마다 코드 없이 revision을 확인하며 변경 시 새 코드를 받는다. 파일 감시·자동 reload는 아니다. import/render/cleanup 오류는 해당 화면에서 격리한다. async/event 오류는 작성자가 catch한다. 창 단위 경고·오류는 알림 센터에 올리고, 입력이나 화면 내용에 연결된 피드백은 Notice로 표시한다.
 
-invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명시적 PluginPublicError일 때), errorKind, inputIssues, receipt를 덧붙인다. 예: `invoke("lookup", input).catch(e => setError(e.code ? e.code + ": " + e.message : e.message))`. Notice의 자식 텍스트로 표시하고 innerHTML로 삽입하지 않는다. 입력 진단의 필드 경로·이유와 공개 오류의 code/message 제한은 [실행 계약](plugin-stage1-v1.md#호출자에게-전달하는-실패-1634)을 따른다. 성공 반환값은 계속 result이며 receipt를 씌우지 않는다. 실패 receipt가 uncertain이면 대상을 확인한 뒤 재시도 여부를 결정한다.
+invoke 실패는 Error.message에 Host가 정리한 텍스트를 담고 code(명시적 PluginPublicError일 때), errorKind, inputIssues, receipt를 덧붙인다. 예: `invoke("lookup", input).catch(e => setError(e.code ? e.code + ": " + e.message : e.message))`. 일반 텍스트로 표시하고 innerHTML로 삽입하지 않는다. 입력 진단의 필드 경로·이유와 공개 오류의 code/message 제한은 [실행 계약](plugin-stage1-v1.md#호출자에게-전달하는-실패-1634)을 따른다. 성공 반환값은 계속 result이며 receipt를 씌우지 않는다. 실패 receipt가 uncertain이면 대상을 확인한 뒤 재시도 여부를 결정한다.
 
 ### 화면 저장소
 
 `storage.get(key)`, `storage.set(key, value)`, `storage.delete(key)`는 비동기이며 고정 HostClient와 자기 플러그인 ID에 묶인다. 화면과 handler는 [같은 저장소](plugin-stage1-v1.md#플러그인-저장소)를 사용한다. 예를 들어 `await storage.set("view", {order: "latest"})`로 저장한 뒤 `await storage.get("view")`로 복원한다. 실패는 `Error`의 message와 code로 확인하고, Host 응답에는 기존 errorKind와 receipt도 따른다.
 
 `get`은 탭 수명에 따라 취소될 수 있고, `set`·`delete`는 탭을 닫을 때 보낸 요청도 이어서 처리할 수 있도록 탭 수명 signal을 사용하지 않는다. 세 메서드 모두 고정 연결을 확인한다.
+
+### 화면 알림 (#2056)
+
+`<ui.Notifications items={items} />`는 본문에 자리를 차지하지 않고 창의 공용 알림 센터에 등록한다. 각 항목은 `{id: string, message: string, severity: "warning" | "error"}`다. 메시지는 일반 텍스트이며 카드 문맥에는 manifest에서 온 화면 제목을 표시한다. 새 경고·오류의 자동 표시, 초점, 종 단추와 닫기는 [공용 알림 규칙](ui-patterns-v1.md#p07-입력-오류와-알림-센터)을 따른다. 입력에 연결된 피드백은 화면의 Notice 등 기존 부품으로 표시한다.
+
+한 소스 안에서 ID는 고유하다. 같은 ID는 같은 원인의 갱신이다. 문구가 바뀌어도 사용자가 닫은 ID는 목록에서 빠질 때까지 숨긴다. 알림을 지우려면 항목을 목록에서 뺀다. 같은 종류의 새 거절을 표시하려면 이전 항목을 빼고 새 ID(예를 들어 `reject:${kind}:${seq}`)를 등록한다. 실행 시작 경고와 실패 오류는 실행 ID별로 등록한다. 경고는 실행을 막지 않는다.
+
+알림은 창 메모리에 있으며 소스 unmount 시 제거된다. 탭을 닫거나 코드가 바뀐 reload로 화면을 다시 마운트하면 정리된다. 화면이 유지되는 reload, 탭 전환과 전체화면 진입·해제에서는 화면 상태와 함께 유지된다. SDK 0.23.0부터 지원한다.
+
+합성 플러그인의 카드에 화면 제목이 표시된 예는 [1440px 밝은 테마 캡처](assets/screen-notifications-2056/1440-light.png)에서 확인할 수 있다.
 
 ## 파일 동작으로 열기 (#2018)
 
