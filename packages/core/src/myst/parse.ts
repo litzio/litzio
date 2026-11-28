@@ -6,7 +6,7 @@ import {
 import { VFile } from "vfile";
 import { DocumentWriteError } from "../write-error.ts";
 import { recognizeGitHubAlert } from "./admonition.ts";
-import { FRONT_MATTER_FIELD } from "./constants.ts";
+import { markFrontMatter } from "./metadata.ts";
 import { locateFootnotes } from "./footnote.ts";
 import { retainMermaidOptions } from "./figure.ts";
 import { assertComplexTableDirective, isNativeTableSource, readTableBreaks, retainTableSource } from "./table.ts";
@@ -107,30 +107,4 @@ function rejectOutOfScopeHtml(node: MystNode, path: number[] = []): void {
     });
   }
   node.children?.forEach((child, index) => rejectOutOfScopeHtml(child, [...path, index]));
-}
-
-/**
- * myst-parser replaces its `front_matter` token with an ordinary `yaml` fence, so the
- * tree alone cannot tell front matter from a leading ```yaml block. The source can:
- * of the block rules, only front matter opens a code block with `-` (fences open with
- * ``` or ~~~, indented code with spaces), and it only starts at the first line.
- */
-function markFrontMatter(document: MystDocument, source: string): void {
-  const first = document.children[0];
-  if (first?.type === "code" && first.position?.start.line === 1 && source.startsWith("-")) {
-    const lines = source.split(/\r?\n/);
-    const opener = /^(-{3,})[\t ]*$/.exec(lines[0]);
-    // An indented marker can belong to a YAML block scalar. The upstream rule
-    // also accepts it as a closer; do not reinterpret that ambiguous input.
-    const closer = /^(-{3,})[\t ]*$/.exec(lines[(first.position.end.line ?? 1) - 1]);
-    first[FRONT_MATTER_FIELD] = opener && closer && first.position.end.line > 1 &&
-      closer[1].length >= opener[1].length ? true : "unclosed or unsupported delimiter";
-    if (first[FRONT_MATTER_FIELD] === true) {
-      // MyST's code conversion trims a trailing blank line. In YAML a block scalar
-      // (notably |+) can give that newline meaning. Keep the complete metadata value;
-      // the marker above keeps its role and required document-start context semantic.
-      const content = lines.slice(1, first.position.end.line - 1);
-      first.value = content.length ? `${content.join("\n")}\n` : "";
-    }
-  }
 }
