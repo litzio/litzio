@@ -16,6 +16,7 @@ import { trashFile } from "./os-trash.ts";
 import { requestQuery } from "./request-query.ts";
 import { ResetGuard } from "./reset-guard.ts";
 import { requestRecorder } from "./daemon-log.ts";
+import { hostIdentity } from "./host-identity.ts";
 
 export const MAX_JSON_BYTES = 32 * 1024 * 1024;
 
@@ -199,6 +200,8 @@ export async function startHttpHost(options: HttpHostOptions) {
   }
   if (external) origins.add(external);
   for (const origin of origins) authorities.add(new URL(origin).host.toLowerCase());
+  // Start the process account lookup without delaying unrelated requests.
+  void hostIdentity().catch(() => { /* The next identity request retries. */ });
   let closing: Promise<void> | undefined;
   return {
     server,
