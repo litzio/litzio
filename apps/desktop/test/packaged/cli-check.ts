@@ -26,8 +26,8 @@ export function verifyPackagedCli(exe: string, shim: string, folder: string, exp
   assert.match(version.stdout, new RegExp(`^${brand.cliCommand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} ${expectedVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\(desktop, (?:[a-f0-9]{12,40}|unknown)\\)\\r?\\n$`));
   assert.equal(version.stderr, "");
   const good = path.join(folder, "한글 문서 & (test) 😀.md"), bad = path.join(folder, "invalid.md");
-  writeFileSync(good, "---\nlitzio: 1\n---\n\n# CLI check\n\nContent.\n");
-  writeFileSync(bad, "Not a native document.\n");
+  writeFileSync(good, "# CLI check\n\nContent.\n");
+  writeFileSync(bad, "<div>Unsupported HTML</div>\n");
   for (const [args, status] of [[['help'], 0], [['check', good, '--format', 'json'], 0], [['check', bad, '--format', 'json'], 1]] as const) {
     const actual = run([...args]);
     const independent = spawnSync(process.execPath, [path.join(standalone, "cli.mjs"), ...args], { cwd: folder, env, encoding: "utf8", timeout: 20_000 });

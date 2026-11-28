@@ -618,7 +618,6 @@ export const en = {
   "Text mode · Not a {{product}} document": `Text mode · Not a ${brand.name.en} document`,
   "Text editor": "Text editor",
   "The file changed outside the editor. Your text is kept. Copy it before reloading the disk version.": "The file changed outside the editor. Your text is kept. Copy it before reloading the disk version.",
-  "This file is now a native document. Reload before saving.": "This file is now a native document. Reload before saving.",
   "unsupported": "unsupported",
   "decoration": "decoration",
   "converted": "converted",
@@ -662,7 +661,6 @@ export const en = {
   "Endnote text is empty → Enter text or remove its references and definition together.": "Endnote text is empty → Enter text or remove its references and definition together.",
   "Empty endnote → Enter text or remove references + definition": "Empty endnote → Enter text or remove references + definition",
 
-  "Invalid marker → Open native file": "Invalid marker → Open native file",
   "Invalid settings → Review settings": "Invalid settings → Review settings",
   "Unsupported content → Replace": "Unsupported content → Replace",
   "Invalid structure → Report details": "Invalid structure → Report details",
@@ -683,7 +681,6 @@ export const en = {
   "Fixed number cannot be saved → Add content or clear number": "Fixed number cannot be saved → Add content or clear number",
   "Fixed number cannot be saved → Enter equation content or clear the fixed number.": "Fixed number cannot be saved → Enter equation content or clear the fixed number.",
 
-  "Invalid marker → Open a {{product}} document or create one.": `Invalid marker → Open a ${brand.name.en} document or create one.`,
   "Unsupported settings → Check document frontmatter.": "Unsupported settings → Check document frontmatter.",
   "Unsupported content or nesting → Remove or replace it.": "Unsupported content or nesting → Remove or replace it.",
   "Invalid structure → Keep edits and report technical details.": "Invalid structure → Keep edits and report technical details.",
@@ -1256,7 +1253,6 @@ export const en = {
   "Restart to update": "Restart to update",
   "Cannot open document": "Cannot open document",
   "OK": "OK",
-  "{{product}} edits only documents it created. To edit this text here, create a new document with + in the sidebar and paste it in. The file itself is left as it is.": `${brand.name.en} edits only documents it created. To edit this text here, create a new document with + in the sidebar and paste it in. The file itself is left as it is.`,
   "Your current document has not changed.": "Your current document has not changed.",
   "No document was opened.": "No document was opened.",
   "Reloading…": "Reloading…",
@@ -2056,7 +2052,6 @@ export const ko: Record<keyof typeof en, string> = {
   "Text mode · Not a {{product}} document": `텍스트 모드 · ${brand.name.ko} 문서가 아닙니다`,
   "Text editor": "텍스트 편집기",
   "The file changed outside the editor. Your text is kept. Copy it before reloading the disk version.": "다른 곳에서 파일을 변경했습니다. 입력한 텍스트는 유지됩니다. 디스크 내용을 다시 불러오기 전에 텍스트를 복사하세요.",
-  "This file is now a native document. Reload before saving.": `이 파일은 이제 ${brand.name.ko} 문서입니다. 저장 전에 다시 불러오세요.`,
   "unsupported": "변환 못 함",
   "decoration": "장식",
   "converted": "변환",
@@ -2097,7 +2092,6 @@ export const ko: Record<keyof typeof en, string> = {
   "Endnote text is empty → Enter text or remove its references and definition together.": "미주 내용이 비어 있습니다 → 내용을 입력하거나 참조와 정의를 함께 제거하세요.",
   "Empty endnote → Enter text or remove references + definition": "빈 미주 → 내용 입력 또는 참조·정의 함께 제거",
 
-  "Invalid marker → Open native file": `표식 오류 → ${brand.name.ko} 문서 열기`,
   "Invalid settings → Review settings": "설정 오류 → 문서 설정 확인",
   "Unsupported content → Replace": "미지원 내용 → 삭제·변경",
   "Invalid structure → Report details": "구조 오류 → 세부 정보로 제보",
@@ -2118,7 +2112,6 @@ export const ko: Record<keyof typeof en, string> = {
   "Fixed number cannot be saved → Add content or clear number": "고정 번호 저장 불가 → 내용 입력 또는 번호 해제",
   "Fixed number cannot be saved → Enter equation content or clear the fixed number.": "고정 번호를 저장할 수 없음 → 수식 내용을 입력하거나 고정 번호를 해제하세요.",
 
-  "Invalid marker → Open a {{product}} document or create one.": `표식 오류 → ${brand.name.ko} 문서를 열거나 새로 만드세요.`,
   "Unsupported settings → Check document frontmatter.": "미지원 설정 → 문서 앞부분의 설정을 확인하세요.",
   "Unsupported content or nesting → Remove or replace it.": "미지원 내용·중첩 → 해당 내용을 지우거나 바꾸세요.",
   "Invalid structure → Keep edits and report technical details.": "구조 오류 → 작업을 유지하고 세부 정보로 오류를 알려 주세요.",
@@ -2693,7 +2686,6 @@ export const ko: Record<keyof typeof en, string> = {
   "Restart to update": "다시 시작하여 업데이트",
   "Cannot open document": "문서를 열 수 없음",
   "OK": "확인",
-  "{{product}} edits only documents it created. To edit this text here, create a new document with + in the sidebar and paste it in. The file itself is left as it is.": `${brand.name.ko}에서 만든 문서만 편집할 수 있습니다. 이 텍스트를 편집하려면 사이드바의 +로 새 문서를 만들고 붙여 넣으세요. 원본 파일은 그대로 유지됩니다.`,
   "Your current document has not changed.": "현재 문서는 변경되지 않았습니다.",
   "No document was opened.": "열린 문서가 없습니다.",
   "Reloading…": "다시 불러오는 중…",

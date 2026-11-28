@@ -46,13 +46,6 @@ port.on("message", (work: DocumentWork | { kind: "settle-save"; committed: boole
       case "bibliography":
         reply({ result: readModel(cache.opening(work.path, work.source) ?? work.source).bibliography.declarations });
         break;
-      case "check-text": {
-        let native = false;
-        try { readModel(work.source); native = true; }
-        catch { /* Same admission as Editor Open. */ }
-        reply({ result: native });
-        break;
-      }
       case "save": {
         const { path, disk, request } = work;
         const { path: _path, base, revision, ...edits } = request;

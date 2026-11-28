@@ -16,10 +16,6 @@ export function OpenRefusalDialog({ openRefusal, setOpenRefusal, openRefusalRetu
             <DialogTitle>{i18n.t("Cannot open document")}</DialogTitle>
             <DialogDescription render={<div />} className="grid gap-4 [overflow-wrap:anywhere]">
               <p>{i18n.t("“{{name}}” is not a supported {{product}} document.", { name: openRefusal ? splitDocumentPath(openRefusal.path).name : "" })}</p>
-              {/* In plain words first; Core's exact reason and action follow as the details. */}
-              {openRefusal?.code === "native-marker" ? (
-                <p>{i18n.t("{{product}} edits only documents it created. To edit this text here, create a new document with + in the sidebar and paste it in. The file itself is left as it is.")}</p>
-              ) : null}
               <div className="open-refusal-details">
                 <p>{i18n.t("Technical details")}</p>
                 <p>{openRefusal?.reason}</p>

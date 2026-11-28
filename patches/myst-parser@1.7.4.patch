@@ -54,7 +54,7 @@ index f199ff62c7a2ad4938696f18ff469cf15c07e0cc..389c7ecd1e2e32b7c87878e24f3137d1
  type Options = Partial<AllOptions>;
  export declare const defaultOptions: Omit<AllOptions, 'vfile'>;
  export declare function createTokenizer(opts?: Options): MarkdownIt;
-+export declare function createMystParser(opts?: Omit<Options, 'vfile'>): (content: string, vfile: VFile) => GenericParent;
++export declare function createMystParser(opts?: Omit<Options, 'vfile'>, configure?: (tokenizer: MarkdownIt) => void): (content: string, vfile: VFile) => GenericParent;
  export declare function mystParse(content: string, opts?: Options): GenericParent;
  /**
   * MyST Parser as a Unified Plugin
@@ -68,7 +68,7 @@ index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f520
  import { defaultDirectives } from 'myst-directives';
  import { defaultRoles } from 'myst-roles';
  import { VFile } from 'vfile';
-@@ -77,16 +78,39 @@ export function createTokenizer(opts) {
+@@ -77,16 +78,40 @@ export function createTokenizer(opts) {
          tokenizer.use(deflistPlugin);
      if (extensions.tasklist)
          tokenizer.use(tasklistPlugin);
@@ -77,8 +77,9 @@ index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f520
  }
 -export function mystParse(content, opts) {
 +/** Reuse parser setup while giving each top-level or nested parse fresh rule state. */
-+export function createMystParser(opts) {
++export function createMystParser(opts, configure) {
 +    const tokenizer = createTokenizer(opts);
++    configure?.(tokenizer);
 +    // markdown-it-myst's nested tokenizer temporarily changes core and block rules.
 +    // It can re-enable rules disabled by configuration, including smartquotes.
 +    const rules = [tokenizer.core.ruler, tokenizer.block.ruler].flatMap(ruler =>

@@ -12,7 +12,7 @@ async (page, { openDocument }) => {
   const rejected = await page.request.get(`${origin}/api/document?path=${encodeURIComponent(rejectedPath)}`, { headers: { Connection: "close" } });
   const textFile = await rejected.json();
   assert(rejected.status() === 200 && textFile.kind === 'text' && !textFile.document, 'Unsupported Markdown was not classified as text');
-  const refusal = { code:'native-marker', error:'Host admission failed', issue:{ reason:'Host admission failed', action:'Review the file.' } };
+  const refusal = { code:'native-metadata', error:'Host admission failed', issue:{ reason:'Host admission failed', action:'Review the file.' } };
   const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
   const snapshot = () => editor.evaluate(el => JSON.stringify({doc:el.editor.getJSON(), selection:el.editor.state.selection.toJSON()}));
   const activePath = await page.getByTestId('current-file').getAttribute('title');
@@ -43,7 +43,7 @@ async (page, { openDocument }) => {
   }
 
   // A filesystem failure keeps the existing top error, even when its text resembles a native reason.
-  await page.route('**/api/document?*', route => route.fulfill({status:403, json:{error:'Permission denied. A native document requires leading frontmatter with litzio: 1'}}));
+  await page.route('**/api/document?*', route => route.fulfill({status:403, json:{error:'Permission denied.'}}));
   try {
     await page.getByRole('treeitem', {name:'blocked-markdown.md',exact:true}).click();
     await page.getByTestId('error').filter({hasText:'Permission denied.'}).waitFor();
