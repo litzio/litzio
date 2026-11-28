@@ -1,4 +1,4 @@
-import { hostIdentity } from "./host-identity.ts";
+import { cachedHostIdentity } from "./host-identity.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { hostPaths } from "./host-paths.ts";
@@ -25,7 +25,7 @@ export async function daemonRequest(req: IncomingMessage, res: ServerResponse, u
     reply(res, 409, { error: "Daemon protocol mismatch. Stop with the CLI version matching the running daemon, or Ctrl+C in its foreground terminal; then start the desired version. Do not kill by PID alone.", protocolVersion: control.health.protocolVersion }); return true;
   }
   if (!url.pathname.startsWith("/daemon/")) return false;
-  if (url.pathname === "/daemon/health" && req.method === "GET") { reply(res, 200, { ...control.health, identity: await hostIdentity(), screenInstanceGuard: true }); return true; }
+  if (url.pathname === "/daemon/health" && req.method === "GET") { reply(res, 200, { ...control.health, identity: cachedHostIdentity(), screenInstanceGuard: true }); return true; }
   if (url.pathname === "/daemon/plugin-source-folder" && req.method === "GET" && !url.search && !control.health.nonLoopback) {
     reply(res, 200, { directory: path.resolve(hostPaths().plugins), instanceId: control.health.instanceId }); return true;
   }

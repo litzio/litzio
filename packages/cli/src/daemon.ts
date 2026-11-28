@@ -6,7 +6,7 @@ import { isIP } from "node:net";
 import { brand } from "../../../brand.ts";
 import { startHttpHost } from "../../../apps/editor/server/http-host.ts";
 import { DAEMON_PROTOCOL, sameInstance } from "../../../apps/editor/server/daemon-protocol.ts";
-import { daemonChannel, startDaemonChild, acquireDaemonLock, processStart, reclaimStaleDaemon, daemonDirectory, daemonPort, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
+import { daemonChannel, startDaemonChild, acquireDaemonLock, processStart, reclaimStaleDaemon, daemonDirectory, daemonPort, daemonRpc, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
 import { daemonLog, describeError, repeatLog, watchEventLoop } from "../../../apps/editor/server/daemon-log.ts";
 import { buildCommit, productVersion } from "./version.ts";
 
@@ -147,7 +147,10 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
   }
   try {
     const health = await inspectDaemon(record, productVersion);
-    const status = { state: "running", running: true, ...record, ...health };
+    const identity = health.identity ?? (action === "status" && health.screenInstanceGuard
+      ? (await daemonRpc(record, "/api/host-capabilities", undefined, { instanceId: health.instanceId }).catch(() => undefined))?.identity
+      : undefined);
+    const status = { state: "running", running: true, ...record, ...health, identity };
     if (alreadyRunning) console.error(`Already running (pid ${record.pid}, ${record.url}, ${health.launcher}).`);
     console.log(action === "start" || config.json ? JSON.stringify(status) : statusTable(status));
   } catch (error) {
