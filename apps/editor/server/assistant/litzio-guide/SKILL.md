@@ -47,6 +47,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 - 구조가 필요한 읽기는 `litzio inspect <file> --format json`의 Core `content`를 사용한다. `text`는 요약이다. 표 캡션은 `caption`, 목록은 `items[].content`와 `items[].list`이며 그림 캡션·셀·미주 정의에도 `content`가 있다. 체크리스트는 `checklist: true`와 항목별 `checked`다.
 - 취소선은 `~~문구~~`를 쓴다. 참고·팁·중요·경고·위험 알림의 첫 줄은 `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`이고, 본문은 `>`로 시작하는 한 문단이다. 캡션·라벨·번호 옵션이 없는 단독 그림은 `![대체 텍스트](./sample.png)`로 쓴다. 중첩 목록 앞 빈 줄은 하위 목록이 문단을 끊을 수 있는 경우 생략한다.
 - 체크리스트(할 일·점검표)는 글머리표 목록의 모든 항목에 `- [ ] 할 일` / `- [x] 끝난 일`을 붙이고 항목 사이에 빈 줄을 두지 않는다. 번호 목록이나 일부 항목에만 체크박스를 쓰면 문서가 열리지 않는다. 체크는 그 항목의 `[ ]`↔`[x]`만 바꾸거나 전체 접근에서 `litzio update-list-item-checked <file> --path <목록> --item <항목 번호,중첩 번호> --checked true|false`를 쓴다. `insert-list`·`update-list`의 ListContent는 `"checklist":true`와 항목 `"checked"`를 받는다.
+- 빈 줄이 있는 일반 목록을 `inspect --format json`에서 읽어 고칠 때는 해당 목록의 `"loose":true`를 중첩 단계별로 유지한다. 새 목록과 체크리스트에서는 생략한다.
 
 ## 안전한 부분 편집 (쓰기 CLI를 허용하는 전체 접근)
 `litzio inspect document.md --format json`에서 현재 revision과 NodePath를 얻는다. 해당 블록에 Before가 있을 때 아래 operations.json 예제를 쓸 수 있다. 실제 inspect 결과의 path/from으로 바꾼다.

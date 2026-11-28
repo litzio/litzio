@@ -25,6 +25,7 @@ const inline: z.ZodType<InlineContent> = z.lazy(() => z.discriminatedUnion("kind
 const content = z.array(inline);
 const listFields = {
   ordered: z.boolean(), checklist: z.boolean().optional(), start: z.number().int().positive().optional(),
+  loose: z.boolean().optional(),
   style: z.enum(LIST_STYLES).optional(), delimiter: z.enum([".", ")"]).optional(),
 };
 const listItem: z.ZodType<ListItemContent> = z.lazy(() => z.strictObject({ content, checked: z.boolean().optional(), list: list.optional() }));

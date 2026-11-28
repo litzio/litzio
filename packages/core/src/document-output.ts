@@ -134,7 +134,7 @@ function machineBlock(block: EditableBlock): MachineNode[] {
   }
   if (block.block === "list") {
     return [{ ...base, ordered: block.ordered, ...(block.ordered ? { start: block.start, style: block.style ?? "decimal", delimiter: block.delimiter ?? "." } : {}),
-      ...(block.checklist ? { checklist: true } : {}), items: block.items }];
+      ...(block.checklist ? { checklist: true } : {}), ...(block.loose ? { loose: true } : {}), items: block.items }];
   }
   throw new Error("Unknown native block");
 }

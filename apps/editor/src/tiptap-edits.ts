@@ -416,11 +416,12 @@ function listContent(node: TiptapJSON): ListContent {
     return { content, ...(checklist ? { checked: item.attrs?.checked === true } : {}), ...(nested ? { list: listContent(nested) } : {}) };
   });
   if (items.length === 0) throw new Error("a list needs at least one item");
-  if (node.type === "bulletList") return { ordered: false, items };
+  const spacing = node.attrs?.loose === true ? { loose: true } : {};
+  if (node.type === "bulletList") return { ordered: false, ...spacing, items };
   if (checklist) return { ordered: false, checklist: true, items };
   const start = Number(node.attrs?.start ?? 1);
   if (!Number.isInteger(start) || start < 0) throw new Error("numbered list start must be a non-negative integer");
-  return { ordered: true, start,
+  return { ordered: true, start, ...spacing,
     ...(node.attrs?.style && node.attrs.style !== "decimal" ? { style: node.attrs.style as ListContent["style"] } : {}),
     ...(node.attrs?.delimiter && node.attrs.delimiter !== "." ? { delimiter: node.attrs.delimiter as ListContent["delimiter"] } : {}), items };
 }
@@ -449,7 +450,8 @@ function footnoteLabel(node: TiptapJSON): string {
 
 
 function sameList(left: ListContent, right: ListContent): boolean {
-  return left.ordered === right.ordered && !!left.checklist === !!right.checklist && (left.start ?? 1) === (right.start ?? 1) && left.items.length === right.items.length &&
+  return left.ordered === right.ordered && !!left.checklist === !!right.checklist && !!left.loose === !!right.loose &&
+    (left.start ?? 1) === (right.start ?? 1) && left.items.length === right.items.length &&
     (left.style ?? "decimal") === (right.style ?? "decimal") && (left.delimiter ?? ".") === (right.delimiter ?? ".") &&
     left.items.every((item, index) => {
       const other = right.items[index];
@@ -752,7 +754,7 @@ function complexTableInput(node: TiptapJSON): { block: "table"; grid: "complex";
  * the kind of each block, with each list's numbering, items and nesting. */
 function cellSkeleton(cell: ReturnType<typeof complexTableCells>[number][number]): string {
   const list = (content: ListContent): unknown => ({ ordered: content.ordered, start: content.start, style: content.style, delimiter: content.delimiter,
-    checklist: content.checklist, items: content.items.map(item => item.list ? list(item.list) : null) });
+    checklist: content.checklist, loose: content.loose, items: content.items.map(item => item.list ? list(item.list) : null) });
   return JSON.stringify({ ...cell, blocks: cell.blocks.map(block => block.kind === "paragraph" ? "paragraph" : list(block.list)) });
 }
 

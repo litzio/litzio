@@ -107,10 +107,11 @@ const FIGURE_NOTE = [
   "Values that cannot round-trip through canonical Markdown are rejected.",
 ];
 const LIST_NOTE = [
-  "--list is Core ListContent JSON: {\"ordered\": boolean, \"checklist\"?: boolean, \"start\"?: number, \"items\": [...]}.",
+  "--list is Core ListContent JSON: {\"ordered\": boolean, \"checklist\"?: boolean, \"loose\"?: boolean, \"start\"?: number, \"items\": [...]}.",
   "Each item is {\"content\": InlineContent[], \"checked\"?: boolean, \"list\"?: ListContent}; the optional list nests below the item.",
   "Numbered lists start at \"start\" (default 1); optional style: decimal (default), lower-alpha, upper-alpha, lower-roman, upper-roman; delimiter: . (default) or ).",
   "Bullet lists have no start, style or delimiter. Empty items are saved as list markers.",
+  "\"loose\": true preserves loose spacing at that list level where its shape allows it. Omit it for tight lists and checklists.",
   "A checklist is a bullet list with \"checklist\": true; each item's \"checked\" defaults to false. Only checklist items have \"checked\".",
   "Example: --list '{\"ordered\":false,\"items\":[{\"content\":[{\"kind\":\"text\",\"text\":\"First\"}]}]}'",
 ];
