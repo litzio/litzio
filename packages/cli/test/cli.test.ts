@@ -1943,7 +1943,7 @@ test("CLI batch groups plain table edits while retaining the first refused comma
   };
   const refusal = command([edits[0], { ...edits[1], text: "invalid\0text" }, edits[2], edits[1]]);
   assert.equal(refusal.status, 1);
-  assert.match(refusal.stderr, /operation 2 \(update-table-cell\): table cell text cannot be preserved.*nothing was written/);
+  assert.match(refusal.stderr, /operation 2 \(update-table-cell\): A NUL character would be replaced.*nothing was written/);
   assert.deepEqual(readFileSync(file), Buffer.from(source));
   const accepted = command(edits);
   assert.equal(accepted.status, 0, accepted.stderr);
