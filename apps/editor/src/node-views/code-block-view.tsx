@@ -15,7 +15,7 @@ export function CodeBlockView({ node, editor, getPos, updateAttributes }: ReactN
       data-source-path={String(node.attrs.sourcePath ?? "")}
     >
       <div className="code-block-controls" contentEditable={false}>
-        <CodeLanguageInput language={String(node.attrs.language ?? "")} readOnly={!editable}
+        <CodeLanguageInput language={String(node.attrs.language ?? "")} readOnly={!editable} required={node.attrs.meta != null}
           onChange={(language) => { if (editor.isEditable) updateAttributes({ language }); }} />
         <CopyButton preserveSelection text={node.textContent} label={t("Copy code")} />
       </div>

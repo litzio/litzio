@@ -35,7 +35,7 @@ import { labelError, targetLabelError } from "./label.ts";
 import { isAdmonitionVariant, supportedAdmonitionContent, type AdmonitionVariant } from "./myst/admonition.ts";
 import { LIST_STYLES, MAX_LIST_START, type ListContent } from "./list.ts";
 import type { CodeBlockContent } from "./code.ts";
-import { createCodeNode, supportedCodeBlock } from "./myst/code.ts";
+import { createCodeNode, isCodeFenceMeta, supportedCodeBlock } from "./myst/code.ts";
 import { createListNode, supportedListContent } from "./myst/list.ts";
 import { createQuoteNode, supportedQuoteContent } from "./myst/quote.ts";
 import {
@@ -716,7 +716,11 @@ export function updateCodeBlock(document: MystDocument, path: NodePath, changes:
   if (!current) {
     throw new DocumentDiagnosticError("unsupported-content", `code block at [${path.join(",")}] is not editable in this version`);
   }
-  const content = { language: changes?.language ?? current.language, code: changes?.code ?? current.code };
+  const content = {
+    language: changes?.language ?? current.language,
+    code: changes?.code ?? current.code,
+    meta: changes?.meta === undefined ? current.meta : changes.meta,
+  };
   assertCodeBlockContent(content);
   const next = cloneDocument(document);
   next.children[path[0]] = createCodeNode(content);
@@ -731,6 +735,12 @@ function assertCodeBlockContent(content: CodeBlockContent): void {
   if (/[\s`]/.test(content.language) || content.language.startsWith("{")) {
     throw new DocumentDiagnosticError("invalid-operation", "code block language must be one word without spaces, backticks or a leading {");
   }
+  if (content.meta !== undefined) {
+    if (!content.language) throw new DocumentDiagnosticError("invalid-operation", "code fence info requires a language");
+    if (!isCodeFenceMeta(content.meta)) {
+      throw new DocumentDiagnosticError("invalid-operation", "code fence info must be a single line starting with separating whitespace");
+    }
+  }
   if (content.code.includes("\r")) {
     throw new DocumentDiagnosticError("invalid-operation", "code block line breaks must be \\n");
   }
@@ -744,7 +754,7 @@ function assertCodeBlockRoundTrip(document: MystDocument, index: number, content
   const reloaded = reparsed.children[bodyIndex(document, index)];
   const block = reloaded && supportedCodeBlock(reloaded);
   if (reparsed.children.length !== complete.children.length || !block || block.language !== content.language ||
-      block.code !== content.code || repeatRoundTrip(result).markdown !== markdown) {
+      block.code !== content.code || block.meta !== content.meta || repeatRoundTrip(result).markdown !== markdown) {
     throw new DocumentDiagnosticError("round-trip-mismatch", CODE_FAILURE);
   }
 }

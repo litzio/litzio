@@ -4,4 +4,6 @@ export type CodeBlockContent = {
   language: string;
   /** The literal code between the fences. */
   code: string;
+  /** Raw fence info after the language, including the separating whitespace. */
+  meta?: string;
 };

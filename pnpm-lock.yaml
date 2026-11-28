@@ -169,7 +169,7 @@ patchedDependencies:
   markdown-it-myst@1.0.18: 143c81fa59db17fa4d2c5d2b4c5b531f5861dce19d569440a8c482cb8aa64467
   markdown-it-task-lists@2.1.1: 59bea71410787ce224e06e6bb6bb620fff13548db89cf866a5963de70df412f9
   markdown-it@13.0.2: 18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470
-  myst-parser@1.7.4: e58e18fc5a66579233cb7e05767d37452e14063b96e795fe0745620fe44b6851
+  myst-parser@1.7.4: 1c76b06e633730437b5aa83f585303db21960ccaf61df3691213666c3b382b5d
   myst-to-md@1.0.17: 10b09b0f5c2341e4d2678d1b5e778e4cb4621f559c164c0bb5e7cda3edb2cbce
   prosemirror-view@1.42.9: f0862ad3781ba585960de903f72c9369ac157aad350808681b7f67a896f2852b
 
@@ -454,7 +454,7 @@ importers:
         version: 1.10.1
       myst-parser:
         specifier: 1.7.4
-        version: 1.7.4(patch_hash=e58e18fc5a66579233cb7e05767d37452e14063b96e795fe0745620fe44b6851)
+        version: 1.7.4(patch_hash=1c76b06e633730437b5aa83f585303db21960ccaf61df3691213666c3b382b5d)
       myst-to-md:
         specifier: 1.0.17
         version: 1.0.17(patch_hash=10b09b0f5c2341e4d2678d1b5e778e4cb4621f559c164c0bb5e7cda3edb2cbce)
@@ -8281,7 +8281,7 @@ snapshots:
       simple-validators: 1.2.0
       spdx-correct: 3.2.0
 
-  myst-parser@1.7.4(patch_hash=e58e18fc5a66579233cb7e05767d37452e14063b96e795fe0745620fe44b6851):
+  myst-parser@1.7.4(patch_hash=1c76b06e633730437b5aa83f585303db21960ccaf61df3691213666c3b382b5d):
     dependencies:
       '@types/markdown-it': 13.0.9
       he: 1.2.0

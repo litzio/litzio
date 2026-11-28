@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { getEditableDocument as readDocument, parse as openDocument, serialize as writeDocument, updateCodeBlock as editCodeBlock } from "../src/index.ts";
 import {
   getEditableDocument,
   canonicalWriteError,
@@ -52,6 +53,36 @@ test("fenced and indented code project as editable Code block v1 content", () =>
     { block: "code", path: [0], language: "python", code: "print(1)" },
     { block: "code", path: [1], language: "", code: "indented\ncode" },
   ]);
+});
+
+test("public Core preserves raw code fence info across writes and language edits", () => {
+  for (const { fence, language, meta, code } of [
+    { fence: "```", language: "js", meta: " title=&quot;x&quot;", code: "sample" },
+    { fence: "```", language: "js", meta: "  title=x\t  ", code: "sample" },
+    { fence: "```", language: "js", meta: "\tcopy", code: "sample" },
+    { fence: "```", language: "mermaid", meta: " {copy}", code: "graph TD" },
+    { fence: "~~~~", language: "js", meta: " title=`x`", code: "~~~\nsample" },
+  ]) {
+    const source = [fence + language + meta, code, fence, ""].join("\n");
+    const document = openDocument(source);
+    const saved = writeDocument(document);
+    assert.equal(saved, source);
+    assert.equal(writeDocument(openDocument(saved)), saved);
+    assert.deepEqual(readDocument(document).blocks[0], { block: "code", path: [1], language, code, meta });
+
+    const updated = writeDocument(editCodeBlock(document, [1], { language: "text" }));
+    assert.equal(updated, [fence + "text" + meta, code, fence, ""].join("\n"));
+    assert.throws(() => editCodeBlock(document, [1], { language: "" }), /language/);
+    assert.equal(writeDocument(document), source);
+  }
+});
+
+test("a MyST Mermaid directive still follows Figure admission and serialization", () => {
+  assert.throws(() => openDocument("```{mermaid}\ngraph TD\n```\n"));
+  const figure = openDocument(":::{figure}\n\n```{mermaid}\ngraph TD\n```\n:::\n");
+  const [block] = readDocument(figure).blocks;
+  assert.equal(block.block === "figure" && block.mermaidSource, "graph TD");
+  assert.match(writeDocument(figure), /```\{mermaid\}\ngraph TD\n```/);
 });
 
 

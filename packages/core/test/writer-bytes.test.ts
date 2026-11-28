@@ -13,6 +13,7 @@ test("local canonical Save agrees with full write, reread and repeat on seeded e
   const results = Object.values(corpus);
   assert.equal(corpus["without-frontmatter"].fallback["document-retry"], corpus["without-frontmatter"].tests);
   assert.ok(corpus["unmarked-frontmatter"].paragraph + corpus["unmarked-frontmatter"].cell > 0);
+  assert.ok(corpus["adjacent-code-info"].paragraph + corpus["adjacent-code-info"].cell > 0);
   assert.ok(results.some(item => item.paragraph > 0));
   assert.ok(results.some(item => item.cell > 0));
   assert.ok(results.some(item => Object.keys(item.fallback).length > 0));

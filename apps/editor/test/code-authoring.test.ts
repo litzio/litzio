@@ -53,7 +53,8 @@ function saveFile(dir: string, markdown: string, state: EditorState, editable: R
 
 test("code block text and language edits save as the edited fence and reload editable", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-editor-code-"));
-  const markdown = nativeSource("# Setup\n\n```sh\nnpm i\n```\n\nDone.\n");
+  const meta = '  title="setup.sh"  ';
+  const markdown = nativeSource("# Setup\n\n```sh" + meta + "\nnpm i\n```\n\nDone.\n");
   try {
     let { editable, state } = editorState(markdown);
     assert.equal(state.doc.child(1).type.name, "codeBlock");
@@ -66,13 +67,13 @@ test("code block text and language edits save as the edited fence and reload edi
     state = state.apply(state.tr.setNodeAttribute(blockPos, "language", "bash"));
 
     const edits = collectSupportedEdits(editable, editorDocumentJSON(state));
-    assert.deepEqual(edits.codes, [{ path: [2], code: { language: "bash", code: "npm i\n\n  npm test" } }]);
+    assert.deepEqual(edits.codes, [{ path: [2], code: { language: "bash", code: "npm i\n\n  npm test", meta } }]);
     const disk = saveFile(dir, markdown, state, editable);
-    assert.equal(disk, nativeSource("# Setup\n\n```bash\nnpm i\n\n  npm test\n```\n\nDone.\n"));
+    assert.equal(disk, nativeSource("# Setup\n\n```bash" + meta + "\nnpm i\n\n  npm test\n```\n\nDone.\n"));
     assert.equal(serialize(parse(disk)), disk);
     const reloaded = loadEditableDocument(disk).blocks;
     assert.deepEqual(reloaded.map((block) => block.block), ["heading", "code", "paragraph"]);
-    assert.deepEqual(reloaded[1], { block: "code", path: [2], language: "bash", code: "npm i\n\n  npm test" });
+    assert.deepEqual(reloaded[1], { block: "code", path: [2], language: "bash", code: "npm i\n\n  npm test", meta });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

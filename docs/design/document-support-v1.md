@@ -92,7 +92,7 @@ Support is decided from Core semantic structure and existing authoring helpers, 
 | Figure | Empty/pending, one image or one option-free non-empty `mermaid` directive, optional container label, fixed `:enumerator:` string and one supported inline caption. A top-level `![alt](url)` alone in its paragraph is a captionless Figure. A Figure with only an image URL and optional alt text uses this form if that one image line reads back with the same URL and alt text; otherwise that Figure alone keeps `{figure}`, for example a path with non-ASCII characters or spaces. Captions, labels, numbering options, pending Figures and Mermaid use `{figure}`. Numbering follows the [shared contract](heading-numbering-v1.md#fixed-numbers-720). Image links with titles, images in prose or links, and multiple images in one paragraph are unsupported. Alt text requires an image. Mermaid source is opaque. No legends, subfigures, mixed content or extra directive/image/Mermaid attributes. |
 | Table | Rectangular GFM grid with a header row, supported inline cells with hard breaks, column alignment and optional table caption, note paragraphs, label and fixed number. Only plain GFM and the exact `{table}` directive are accepted for simple grids. Directive options may contain only `name` / `label`, `enumerator` and numbering visibility (`enumerated` / `numbered`), and any MyST VFile diagnostic within the directive's source range causes refusal, including duplicate/unknown options in colon-line or YAML syntax. `{csv-table}`, `{list-table}` and other table directives are refused with or without caption/Label. Canonical output uses a bare GFM grid unless the table has a caption, label, notes, fixed number or explicit numbering visibility. Numbering visibility and paragraph legends follow the [table format contract](table-caption-v1.md). Complex tables follow [ADR-0024](../adr/0024-complex-tables.md). |
 | List | Ordered or unordered lists with supported paragraph content and supported nested lists; existing start and nesting rules. Ordered lists preserve style and delimiter under the [ordered format contract](#ordered-list-formats-734). A list retains at least one item. Each item may be empty, including a parent with only a nested list, or contain supported inline content such as text, a citation, footnote reference, math, code or semantic reference. This applies at every nesting level. Insert/update operations normalize whitespace-only content to empty content as described below. A [checklist](#checklists-1893) is an unordered list whose every item has a check state. No arbitrary nested blocks. |
-| Code | Plain fenced code with the existing language contract; no captioned/directive variants. |
+| Code | Plain fenced or indented code, with an optional language and [raw info after the language](#code-fence-info-2071). Captioned and attributed code directives are unsupported. |
 | Quote, divider, admonition | An empty quote or one supported paragraph; thematic break; all standard admonition kinds with an empty body or one supported paragraph. Top-level GitHub alerts with one supported paragraph map `NOTE`, `TIP`, `IMPORTANT`, `WARNING`, `CAUTION` to `note`, `tip`, `important`, `warning`, `danger`. The marker occupies the first line and the body lines have explicit `>` markers. Escape the opening `[` for a literal quote. Write an eligible alert in GitHub syntax if it reads back unchanged. Empty boxes, other kinds and fallback forms use MyST directives. Custom titles/options and additional body blocks are unsupported. |
 | Footnote and target | One non-empty supported paragraph per definition, no footnote references inside definitions; citations and document references are supported. Label targets and semantic references follow their existing contracts. |
 
@@ -101,6 +101,23 @@ Markdown images other than a top-level standalone image (see Figure above), chec
 Markdown link reference definitions are accepted when each declaration supplies a link that survives in the document. Canonical writing inlines those links, preserving destination and title. An unused or shadowed declaration would disappear from the parsed tree, so Core refuses it with `invalid-reference` and the Editor opens the file in text mode.
 
 Bare `@name` (including `@kim` and `@param`) is literal text, as is already escaped `\@name`. Core disables MyST's shorthand citation extension at the parse boundary while keeping explicit roles parsed. In accordance with [ADR-0008 decision 3](../adr/0008-citations-and-bibliography.md#3-지원할-인용-형태), unescaped citation-like brackets such as `[@key]`, `[@a; @b]` and `[@key, p. 3]` are refused with `native-content` and guidance to use an explicit citation role or escape the opening bracket or the `@` for literal text. This applies to supported text surfaces including endnote definitions; actual links, code and math retain their syntax. Code or math inside such brackets, as in ``[`@param`]`` or `[$@key$]`, is still refused because default MyST reads the bracket as a citation; `\[` keeps it literal. Explicit `{cite}`, `{cite:t}` and `{cite:p}` roles follow [Citations](citations-v1.md), preserving exact keys, group order and narrative/parenthetical meaning. Prefix/suffix/partial and other unsupported attributes are refused.
+
+## Code fence info (#2071)
+
+Core carries the raw suffix after the first language token in optional `meta`.
+It includes the separating space or tab and any trailing whitespace. Quoting,
+entities and braces in the suffix are kept verbatim. A blank suffix is omitted.
+If fence info contains a backtick, the canonical writer uses a tilde fence
+longer than the matching runs in the body. MyST directives such as `{mermaid}`
+continue through the directive parser. The language `mermaid` denotes a plain
+code block in a regular fence.
+
+Editing the body or changing the language keeps the suffix. A block carrying
+`meta` requires a language. New blocks omit the field unless authoring supplies
+it. Structured authoring and JSON `machineNodes` use the same optional field,
+including the separating whitespace. Canonical readback compares the literal
+suffix, language and block boundaries. Source that fails this check follows
+the existing text-opening path.
 
 ## Paragraph leading indentation (#1160)
 

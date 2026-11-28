@@ -127,7 +127,7 @@ function machineBlock(block: EditableBlock): MachineNode[] {
     return [base];
   }
   if (block.block === "code") {
-    return [{ ...base, language: block.language, code: block.code }];
+    return [{ ...base, language: block.language, code: block.code, ...(block.meta !== undefined ? { meta: block.meta } : {}) }];
   }
   if (block.block === "target") {
     return [{ ...base, label: block.label }];

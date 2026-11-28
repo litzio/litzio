@@ -137,10 +137,12 @@ export function localWriteCorpus(large: boolean) {
   const fixtures = Object.entries(expected.fixtures).map(([name, { input }]): [string, Corpus] =>
     [name, { input: input.startsWith("---\n") ? input : header + input, ...(large ? {} : { count: 3 }) }]);
   const ordinaryBody = "First paragraph.\n\nSecond paragraph.\n\n| Input | Result |\n| --- | --- |\n| Signal | Pass |\n";
+  const infoBody = '```js  title=&quot;x&quot;  \ncode\n```\n\nFirst paragraph.\n\n| Key |\n| --- |\n| A |\n\n~~~js title=`x`\ncode\n~~~\n';
   const corpus: [string, Corpus][] = [
     ...fixtures,
     ["without-frontmatter", { input: ordinaryBody, ...(large ? {} : { count: 6 }) }],
     ["unmarked-frontmatter", { input: `---\ntitle: Results\n---\n\n${ordinaryBody}`, ...(large ? {} : { count: 6 }) }],
+    ["adjacent-code-info", { input: header + infoBody, ...(large ? {} : { count: 6 }) }],
     ["synthetic-300", { input: synthetic(300), count: large ? 400 : 12 }],
     ["synthetic-2300", { input: synthetic(2300), count: large ? 100 : 4 }],
   ];
