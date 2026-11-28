@@ -10,9 +10,9 @@ import { i18n } from "../i18n.ts";
 
 export type Comparison = { before: string; after: string; sourceOnly?: boolean; fallback?: string; bibliography?: DocumentFileResponse["bibliography"]; changed: boolean; missing: boolean; failure?: Error };
 
-export default function SourceCompare({ load, recovery = false, assistant = false, visual }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean; assistant?: boolean; visual?: { client: HostClient; path: string; bibliography?: DocumentFileResponse["bibliography"]; unsupported?: string } }) {
+export default function SourceCompare({ load, recovery = false, assistant = false, initialView, visual }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean; assistant?: boolean; initialView?: "source"; visual?: { client: HostClient; path: string; bibliography?: DocumentFileResponse["bibliography"]; unsupported?: string } }) {
   useTranslation();
-  const [view, setView] = useState<"visual" | "source">(visual && !visual.unsupported ? "visual" : "source");
+  const [view, setView] = useState<"visual" | "source">(initialView ?? (visual && !visual.unsupported ? "visual" : "source"));
   const [visualError, setVisualError] = useState("");
   const unavailable = useCallback((reason: string) => { setVisualError(reason); setView("source"); }, []);
   const [result, setResult] = useState<Comparison>();

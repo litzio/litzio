@@ -1,6 +1,5 @@
 import fs, { readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { hasNativeMarker } from "@litzio/core";
 import { decodeUtf8, textRevision } from "@litzio/file-commit";
 import { accessPath, inside, LOCAL_FILE_ACCESS, rootIdentity, type FileAccess } from "./file-access.ts";
 import { resolveDocumentPath, resolveEditorPath } from "./document-path.ts";
@@ -40,38 +39,17 @@ const entryOrder = new Intl.Collator(undefined, { numeric: true });
 /**
  * One level of a folder the user chose. Regular folders and files of every extension are listed:
  * hidden entries and symlinks are left out, and a requested folder must stay inside the chosen
- * one, symlinks resolved. Each document says whether its leading frontmatter carries the native
- * marker when found. Markdown admission is decided on Open. Nothing is remembered between requests.
+ * one, symlinks resolved. Markdown admission is decided on Open. Nothing is remembered between requests.
  */
 export function listFolder(requestedRoot: string | undefined, requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): FolderResponse {
   if (!requestedRoot?.trim()) throw new Error("folder path is required");
   const root = path.resolve(accessPath(requestedRoot.trim(), access));
   const folder = path.resolve(accessPath(requestedPath?.trim() || root, access));
   if (!inside(root, folder)) throw new Error("folder is outside the chosen folder");
-  const listed = readFolder(folder, "all", () => {
+  return readFolder(folder, "all", () => {
     if (!inside(fs.realpathSync(root), fs.realpathSync(folder))) throw new Error("folder symlink escapes the chosen folder");
     return { rootId: rootIdentity(root, access), root, path: folder, ...(path.relative(root, folder) === "" ? {} : { parent: path.dirname(folder) }) };
   });
-  return { ...listed, entries: listed.entries.map(entry => entry.kind === "document" ? withNativeMarker(entry) : entry) };
-}
-
-// This prefix is enough to identify short marked headers for the folder hint.
-const MARKER_PREFIX_BYTES = 4096;
-
-/** Reads a positive marker hint for Markdown, or identifies a text file by extension. */
-function withNativeMarker(entry: FolderEntry): FolderEntry {
-  if (path.extname(entry.path).toLowerCase() === ".txt") return { ...entry, native: false };
-  let descriptor: number | undefined;
-  try {
-    descriptor = fs.openSync(entry.path, "r");
-    const prefix = Buffer.alloc(MARKER_PREFIX_BYTES);
-    const length = fs.readSync(descriptor, prefix, 0, MARKER_PREFIX_BYTES, 0);
-    return hasNativeMarker(new TextDecoder().decode(prefix.subarray(0, length))) ? { ...entry, native: true } : entry;
-  } catch {
-    return entry;
-  } finally {
-    if (descriptor !== undefined) fs.closeSync(descriptor);
-  }
 }
 
 /**

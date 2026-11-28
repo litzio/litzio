@@ -839,7 +839,7 @@ test("Host paths refuse unpaired surrogates without creating or reading replacem
   }
 });
 
-test("a chosen folder lists all regular files, marks only documents, and stays inside", () => {
+test("a chosen folder lists all regular files without an admission hint, and stays inside", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-folder-"));
   const chosen = path.join(dir, "docs");
   const outside = path.join(dir, "outside");
@@ -859,7 +859,7 @@ test("a chosen folder lists all regular files, marks only documents, and stays i
       ["folder:guides", "document:a9.md", "document:a10.md", "document:b.md", "document:notes.txt", "document:UPPER.MD"]);
     assert.equal(top.entries[1]?.path, path.join(path.resolve(chosen), "a9.md"));
     // Unmarked Markdown has no assertion about admission in the folder listing.
-    assert.deepEqual(top.entries.map(entry => entry.native), [undefined, true, true, undefined, false, true]);
+    assert.ok(top.entries.every(entry => !Object.hasOwn(entry, "native")));
 
     // Choosing a folder can browse outside the eventual sidebar root, with Host-owned crumbs.
     const browsed = browseFolder(chosen);
@@ -871,7 +871,7 @@ test("a chosen folder lists all regular files, marks only documents, and stays i
       }
     }
     // Choosing a folder returns names and metadata, never content.
-    assert.deepEqual(browsed.entries, top.entries.filter(entry => entry.kind !== "file").map(({ native: _native, ...entry }) => entry));
+    assert.deepEqual(browsed.entries, top.entries.filter(entry => entry.kind !== "file"));
     assert.equal(browsed.crumbs[0]?.path, path.parse(chosen).root);
     assert.deepEqual(browsed.crumbs.at(-1), { name: "docs", path: chosen });
     for (let index = 1; index < browsed.crumbs.length; index++) {
@@ -1268,7 +1268,7 @@ test("Host opens unsupported Markdown as text while native Save stays fail-close
     assert.equal(saved.status, 200);
     assert.equal(loadDocumentFile(writable).document.title, "HTTP title");
     assert.equal(loadDocumentFile(writable).document.status, "review");
-    assert.deepEqual(await saved.json(), { revision: documentRevision(readFileSync(writable, "utf8")) });
+    assert.deepEqual(await saved.json(), { revision: documentRevision(readFileSync(writable, "utf8")), normalizedLineCount: 0 });
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -1319,7 +1319,7 @@ test("HTTP Save reports file and revision failures without leaking paths or writ
     assert.deepEqual(decisions, [false]);
     const saved = await post(request);
     assert.equal(saved.status, 200);
-    assert.deepEqual(await saved.json(), { revision: documentRevision(readFileSync(file, "utf8")) });
+    assert.deepEqual(await saved.json(), { revision: documentRevision(readFileSync(file, "utf8")), normalizedLineCount: 0 });
     assert.deepEqual(decisions, [false, true]);
   } finally {
     await documents.close();
@@ -1493,7 +1493,7 @@ for (const mode of ["local memo", "HTTP worker", "HTTP fast Save"] as const) tes
   const file = path.join(dir, "mixed.md");
   const other = path.join(dir, "other.md");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const opening = nativeSource("# Original heading\n\nAlpha[^n].\n\nBeta.\n\nGamma.\n\nDelta.\n\nEpsilon.\n\n" +
+  const opening = nativeSource("# Original heading ###\n\nAlpha[^n].\n\nBeta.\n\nGamma.\n\nDelta.\n\nEpsilon.\n\n" +
     "- One\n- Two\n\n| A | B |\n| --- | --- |\n| C | D |\n\n$$\nx = 1\n$$\n\n[^n]: Opening note.\n");
   writeFileSync(file, opening);
   writeFileSync(other, nativeSource("Another document.\n"));
@@ -1518,6 +1518,7 @@ for (const mode of ["local memo", "HTTP worker", "HTTP fast Save"] as const) tes
     : loadEditorFile(target, undefined, cache);
   const snapshot = await open(file);
   assert.equal(snapshot.kind, "native");
+  assert.equal(snapshot.normalizationPending, true);
   if (!useWorker) assert.ok(cache.opening(snapshot.path, opening));
   let tab: SaveRequest["base"] = { source: opening };
   let revision = snapshot.revision;
@@ -1531,7 +1532,7 @@ for (const mode of ["local memo", "HTTP worker", "HTTP fast Save"] as const) tes
       throw new DocumentConflictError();
     }
     const { markdown } = saveEdits(base.source, edits, false);
-    return { markdown, revision: documentRevision(markdown) };
+    return { markdown, revision: documentRevision(markdown), normalizedLineCount: disk.includes("# Original heading ###") ? 1 : 0 };
   }
 
   function outcome<T>(run: () => T) {
@@ -1555,7 +1556,7 @@ for (const mode of ["local memo", "HTTP worker", "HTTP fast Save"] as const) tes
       const body = await response.json();
       if (response.ok) {
         assert.equal(response.status, 200);
-        actual = { result: { markdown: readFileSync(file, "utf8"), revision: body.revision } };
+        actual = { result: { markdown: readFileSync(file, "utf8"), revision: body.revision, normalizedLineCount: body.normalizedLineCount } };
       } else if (response.status === 409) {
         assert.equal(body.failure.phase, "revision");
         actual = { failure: { reason: body.error, name: "DocumentConflictError" } };
@@ -1566,8 +1567,8 @@ for (const mode of ["local memo", "HTTP worker", "HTTP fast Save"] as const) tes
       }
     } else {
       actual = outcome(() => {
-        const { markdown, revision } = saveDocumentFile(file, request, undefined, cache);
-        return { markdown, revision };
+        const { markdown, revision, normalizedLineCount } = saveDocumentFile(file, request, undefined, cache);
+        return { markdown, revision, normalizedLineCount };
       });
     }
     assert.deepEqual(actual, expected);
@@ -2575,7 +2576,7 @@ test("unsupported recovery leaves its plaintext copy and other records available
   const filePath = path.join(tmpdir(), "recovery.md");
   const record: RecoveryRecord = {
     id: "current", version: 3, path: filePath, recordedAt: Date.now(), recoveryText: "",
-    snapshot: { file: { path: filePath, source, document: model, revision: "a".repeat(64), endnotesInPlace: true },
+    snapshot: { file: { path: filePath, source, document: model, revision: "a".repeat(64), endnotesInPlace: true, normalizationPending: false },
       editor: { editorDocument: structuredClone(saved), savedDocument: saved } },
   };
   record.recoveryText = recoveryText(record.snapshot);

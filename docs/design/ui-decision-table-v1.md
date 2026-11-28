@@ -125,6 +125,7 @@ UI 원칙과 화면 종류별 바탕·여백은 [DESIGN.md](../../DESIGN.md)를 
 | 알림 묶음 | NotificationCenter의 내부 disclosure·ghost Button | [P07 묶음·마지막 닫기](ui-patterns-v1.md#같은-종류-묶음과-마지막-닫기) |
 | AI 설정 | SettingsSelect·ghost Button·모델 Dialog·Input·FieldError(Ollama 진단의 주소) | [비서 설정](main-agent-v1.md#연결과-설정), [P05](ui-patterns-v1.md#p05-입력칸placeholder위계) |
 | Desktop 연결·진단·종료 | DesktopMenu의 NotificationCenter·Button·DropdownMenu, About의 SettingsRow·details, main의 native 종료 확인 | [Desktop 로컬 연결](desktop-distribution-v1.md#desktop-local-connection), [공유 daemon](desktop-distribution-v1.md#shared-daemon-desktop) |
+| 저장 표기 안내 | 탭 줄의 ghost icon-sm Button·Lucide FileDiff·공용 Tooltip, 저장 후 기존 상태 Tooltip | [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터) |
 | 저장·복구 비교 | VisualCompare·DocumentEditor Read NodeView·ChoiceGroup·Button·Tooltip; unchanged-run disclosure만 ProseMirror decoration 소유 native button 예외. editor 위치 mapping 안에 유지 | [저장 비교](editing-session-save-v1.md#pre-save-visual-comparison-1201), [복구 비교](editing-session-save-v1.md#recovery-visual-comparison-1201) |
 | PDF 읽기 | task tab·DocumentTabs·Button·Tooltip·Input·Notice. 원본 종이는 테마와 무관하게 흰색 PDF paper 역할 | [Shell PDF](editor-ux-shell-v1.md#read-only-pdf-tabs-1337), [Host](filesystem-host-boundary-v1.md#pdf-byte-preview-1337) |
 | 자료와 문서 블록 대조 | 플러그인 `ui.LinkedDocumentView`와 기존 DocumentView·Button·블록 윤곽. 자료 내용과 분류 표시는 화면 코드가 제공 | [연결 띠 계약](plugin-screens-v1.md#자료와-문서-블록의-연결-띠) |

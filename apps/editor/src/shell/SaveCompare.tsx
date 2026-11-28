@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
-export type SaveComparison = { client: HostClient; path: string; revision: string; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error; text?: string; bibliography?: DocumentFileResponse["bibliography"] };
+export type SaveComparison = { client: HostClient; path: string; revision: string; initialView?: "source"; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error; text?: string; bibliography?: DocumentFileResponse["bibliography"] };
 
 export default function SaveCompare({ comparison, returnFocus, onClose }: {
   comparison: SaveComparison; returnFocus: RefObject<HTMLElement | null>; onClose(): void;
@@ -42,7 +42,7 @@ export default function SaveCompare({ comparison, returnFocus, onClose }: {
           </div>
         </DialogDescription>
       </DialogHeader>
-      <SourceCompare load={load} visual={{ client: comparison.client, path: comparison.path, bibliography: comparison.bibliography, unsupported: comparison.text !== undefined ? i18n.t("Text sessions use Source comparison.") : undefined }} />
+      <SourceCompare load={load} initialView={comparison.initialView} visual={{ client: comparison.client, path: comparison.path, bibliography: comparison.bibliography, unsupported: comparison.text !== undefined ? i18n.t("Text sessions use Source comparison.") : undefined }} />
       <DialogFooter><Button ref={closeButton} variant="outline" size="sm" onClick={onClose}>{i18n.t("Close")}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;

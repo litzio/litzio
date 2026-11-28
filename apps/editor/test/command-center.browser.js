@@ -744,7 +744,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   await page.setViewportSize({width:1280,height:720});
   const bulk = Array.from({length:2000},(_,i) => {
     const name = `bulk-${String(i).padStart(4,'0')}.md`;
-    return {name,path:file(name),kind:'document',native:true};
+    return {name,path:file(name),kind:'document'};
   });
   const bulkListing = async route => {
     const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
@@ -758,9 +758,16 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
     await folder.getByRole('treeitem',{name:'bulk-1999.md',exact:true,includeHidden:true}).waitFor({state:'attached'});
     const collapse = page.getByRole('button',{name:'Collapse Explorer',exact:true});
     if (await collapse.isVisible()) await collapse.click();
+    // The folder observer can refresh on its own while the 50 keyboard steps run.
+    // Measure requests caused by search and resume the observer before opening a result.
+    await page.clock.setSystemTime(new Date('2026-10-24T01:00:00Z'));
+    await page.clock.pauseAt(new Date('2026-10-24T01:01:00Z'));
     searchRequests = 0;
     page.on('request', countSearchRequests);
-    await open('bulk');
+    await page.keyboard.press('Control+Slash');
+    await page.clock.runFor(50);
+    await waitForInput();
+    await input().fill('bulk');
     const visibleCount = await center().getByRole('option').count();
     check(visibleCount === 50, 'Large result set did not show only the first 50 matches');
     const count = center().getByTestId('command-center-count');
@@ -787,8 +794,10 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
     await input().fill('bulk-1999');
     check(await center().getByRole('option').count() === 1 && await count.innerText() === 'Results: 1', 'Narrowing searched only the first 50 matches');
     check(await count.evaluate(n => n === window.commandCenterCount), 'Query changes remounted the live count status');
+    await page.clock.runFor(1000);
     check(searchRequests === 0, 'Searching made Host requests');
     page.off('request', countSearchRequests);
+    await page.clock.resume();
     await page.keyboard.press('Enter'); await center().waitFor({state:'detached'});
     await page.waitForFunction(() => document.querySelector('[data-testid="current-file"]')?.textContent === 'bulk-1999.md');
     await ready();
@@ -798,6 +807,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
     result.largeListing = {documents:bulk.length,visibleCount};
   } finally {
     page.off('request', countSearchRequests);
+    await page.clock.resume();
     await page.unroute('**/api/folder?**', bulkListing);
   }
   // #528: the existing entry works with an open tab, follows live UI language, and

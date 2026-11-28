@@ -30,6 +30,7 @@
 
 4. 기존 문서는 원본을 바로 고치고 `litzio check <file> --format json`으로 검사한다.
    잘못된 문서 저장을 발견하고 수정하기 위해서다([ADR-0021](../adr/0021-general-agent-assistant.md)).
+   다른 사람의 저장소 파일을 고친 경우 쓰기 CLI 영수증의 `normalizedLineCount`를 사용자에게 알린다.
    Windows 제한 실행에서 PowerShell의 .NET 메서드가 ConstrainedLanguage로 거절되면 공급자 패치 또는 허용된 폴더의 UTF-8 cmdlet·Node 쓰기로 계속하도록 안내한다. 읽기 전용·접근 거절은 유지하고 PC 정책은 변경하지 않는다.
 5. 대화에는 활성 문서의 저장된 경로만 전달하고 미저장 본문은 보내지 않으며, 저장본을 사용한다고 알린다.
    화면의 편집본과 디스크 내용을 혼동하지 않게 한다.

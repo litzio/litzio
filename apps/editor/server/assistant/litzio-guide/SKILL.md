@@ -56,7 +56,7 @@ description: 리치오 앱 사용법, 문서 템플릿과 터미널 CLI 이어�
 [{"command":"update-node-text","path":"1","from":"Before","to":"After"}]
 ```
 
-`litzio apply-batch document.md --operations operations.json --if-revision <inspect의-revision> --format json`은 작업 하나도 `{ok,command,applied,revision}`으로 결과를 준다. `--dry-run`으로 먼저 확인할 수 있다. mismatch는 쓰지 않고 거부한다. 성공 뒤 다시 inspect하여 새 경로와 revision을 얻는다. 단일 edit 명령은 새 revision receipt를 출력하지 않는다. 부분 의미 편집도 canonical 문서 전체를 저장하며 미저장 편집본이나 창의 Undo와 공유하지 않는다. 제한 권한의 CLI guard를 우회하지 않는다.
+`litzio apply-batch document.md --operations operations.json --if-revision <inspect의-revision> --format json`은 작업 하나도 `{ok,command,applied,revision,normalizedLineCount}`으로 결과를 준다. `--dry-run`으로 먼저 확인할 수 있다. mismatch는 쓰지 않고 거부한다. 다음 편집의 위치는 다시 inspect하여 얻는다. 단일 edit 명령의 `--format json`도 `revision`과 `normalizedLineCount`를 반환한다. 이 줄 수는 편집 전 디스크 원문의 정규화 기준이며 편집과 겹친 줄도 센다. 부분 의미 편집도 canonical 문서 전체를 저장하며 미저장 편집본이나 창의 Undo와 공유하지 않는다. 제한 권한의 CLI guard를 우회하지 않는다.
 
 - 표 칸의 줄바꿈은 `InlineContent`의 `{"kind":"break"}`이며 표 주석은 표에 속한 문단 배열 `notes`다. 작성 입력은 읽기에서 얻은 두 필드를 그대로 받는다.
 - Markdown 본문을 직접 작성할 때는 목록에 `- 항목`과 `1. 항목`을 쓴다. 캡션·라벨·주석·번호 옵션이 없는 단순 표는 맨 파이프 표(`| 이름 | 값 |`, 구분줄 `| --- | --- |`)로 쓴다. 라벨과 고정 번호가 없는 블록 수식은 여는 `$$`, LaTeX 본문, 닫는 `$$`를 별도 줄에 쓴다.

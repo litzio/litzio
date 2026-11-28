@@ -25,6 +25,8 @@ import {
   moveBlock,
   moveSection,
   parse,
+  parseWithCanonicalMarkdown,
+  countNormalizedLines,
   removeBlock,
   removeSection,
   placeEndnotes,
@@ -497,7 +499,7 @@ export function parseCommandArgs(command: string, args: string[]): ParsedArgs {
   }
 
   const allowed = ["--bibliography-root", ...(COMMAND_OPTIONS[command] ?? []), ...(isEditCommand(command)
-    ? ["--if-revision", "--dry-run", ...(tokens.includes("--dry-run") ? ["--format"] : [])] : [])];
+    ? ["--if-revision", "--dry-run", "--format"] : [])];
   const seen = new Set<string>();
   const flags: string[] = [];
   let format: OutputFormat = "text";
@@ -619,7 +621,7 @@ function tableCellEdit(flags: string[]) {
 
 export function applyDocumentBatch(source: string, operations: unknown) {
   if (!Array.isArray(operations) || operations.length === 0) throw new Error("--operations must be a non-empty JSON array");
-  const original = parse(source);
+  const { document: original, canonicalMarkdown } = parseWithCanonicalMarkdown(source);
   let document = original;
   let unchanged = true;
   let triedUntil = 0;
@@ -666,5 +668,6 @@ export function applyDocumentBatch(source: string, operations: unknown) {
     }
   }
   const markdown = unchanged ? source : serializeChange(original, () => document);
-  return { markdown, applied: operations.length, references, unchanged };
+  return { markdown, applied: operations.length, references, unchanged,
+    normalizedLineCount: unchanged ? 0 : countNormalizedLines(source, canonicalMarkdown) };
 }

@@ -39,7 +39,7 @@ function fixture() {
   const saves: { previousRevision: string; revision: string; blocks?: SavedBlock[] }[] = [];
   let changes = 0;
   const session = createContentEditSession({
-    snapshot: { kind: "native", path: "/docs/view.md", source, document: snapshot, revision: "r0", endnotesInPlace: true },
+    snapshot: { kind: "native", path: "/docs/view.md", source, document: snapshot, revision: "r0", endnotesInPlace: true, normalizationPending: false },
     editor: () => editor,
     requestSave: body => new Promise((resolve, reject) => requests.push({ body, resolve: (revision, blocks) => resolve({ revision, ...(blocks ? { blocks } : {}) }), reject })),
     onChange: () => { changes++; },

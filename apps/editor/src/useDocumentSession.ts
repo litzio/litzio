@@ -98,6 +98,8 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   // The opened source writes endnote definitions elsewhere than canonical write puts them; the
   // first Save moves them. Opening never writes and does not make the document dirty.
   const [endnotesMove, setEndnotesMove] = useState(!initial.endnotesInPlace);
+  const [normalizationPending, setNormalizationPending] = useState(initial.normalizationPending);
+  const [normalizedLineCount, setNormalizedLineCount] = useState(0);
   const draftNotice = draftActive
     ? i18n.t("Save and Source include applied content only. Unapplied edit drafts stay unsaved until you apply them.")
     : "";
@@ -202,6 +204,8 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     setSaveLocations([]);
     sessionBase.current = { source: next.source };
     setEndnotesMove(!next.endnotesInPlace);
+    setNormalizationPending(next.normalizationPending);
+    setNormalizedLineCount(0);
     sourceRevision.current = next.revision;
     setExternalRevision(undefined);
     setOpenedPath(next.path);
@@ -280,6 +284,8 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       } else clearPendingSave();
       setExternalRevision(undefined);
       setEndnotesMove(false);
+      setNormalizationPending(false);
+      setNormalizedLineCount(result.normalizedLineCount ?? 0);
       if (payload.bibliography !== undefined && JSON.stringify(payload.bibliography) !== JSON.stringify(bibliography?.declarations ?? [])) {
         const declarations = payload.bibliography;
         const sources = await requestBibliography(openedPath, result.revision, declarations, bibliographyRoot);
@@ -393,7 +399,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   function getSnapshot(): DocumentSessionSnapshot {
     if (!isCurrent() || !editorRef.current) throw new Error("Editor is not ready");
     return structuredClone({
-      file: { kind: "native", bibliographyRoot, ...(bibliography ? { bibliography: { declarations: bibliography.declarations } } : {}), path: openedPathRef.current, document, source: sessionBase.current.source, revision: sourceRevision.current, endnotesInPlace: sessionBase.current.savedEdits !== undefined || !endnotesMove },
+      file: { kind: "native", bibliographyRoot, ...(bibliography ? { bibliography: { declarations: bibliography.declarations } } : {}), path: openedPathRef.current, document, source: sessionBase.current.source, revision: sourceRevision.current, normalizationPending, endnotesInPlace: sessionBase.current.savedEdits !== undefined || !endnotesMove },
       editor: editorRef.current.getSnapshot(),
       ...(sessionBase.current.savedEdits ? { savedEdits: sessionBase.current.savedEdits } : {}),
     });
@@ -471,7 +477,8 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       requestAnimationFrame(() => { if (isCurrent()) editorRef.current?.revealSaveLocation(location); });
     },
     draftActive, assetPending, documentDirty, busy, switching, busyRef, draftNotice,
-    documentNotice: endnotesMove ? i18n.t(ENDNOTES_MOVE_NOTICE) : "",
+    normalizationPending, normalizedLineCount,
+    normalizationDetail: endnotesMove ? i18n.t(ENDNOTES_MOVE_NOTICE) : "",
     load, save, showSource, reload, reloadFromDisk, reloadDialog, setReloadDialog,
     pendingWork, revealItem,
     imageChoice, imageReturnFocus, selectImage, closeImageChoice,

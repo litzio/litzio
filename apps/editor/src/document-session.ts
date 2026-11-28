@@ -82,6 +82,7 @@ export function createDocumentRequests(client: HostClient) {
       revision: payload.revision,
       source: payload.source,
       endnotesInPlace: payload.endnotesInPlace !== false,
+      normalizationPending: payload.normalizationPending === true,
     };
   }
 
@@ -131,6 +132,7 @@ export function createDocumentRequests(client: HostClient) {
       });
     }
     return { revision: payload.revision, ...(payload.pendingLocalWrite === true ? { pendingLocalWrite: true } : {}),
+      ...(typeof payload.normalizedLineCount === "number" ? { normalizedLineCount: payload.normalizedLineCount } : {}),
       ...(Array.isArray(payload.blocks) ? { blocks: payload.blocks } : {}) };
   }
 

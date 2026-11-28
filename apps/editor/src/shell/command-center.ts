@@ -12,7 +12,6 @@ export type CommandCenterItem = {
   icon: LucideIcon;
   disabled?: boolean;
   /** A listed text file, as in the sidebar. */
-  foreign?: boolean;
   /** A command opening another surface owns its focus after the center has closed. */
   takesFocus?: boolean;
   run(): void;
