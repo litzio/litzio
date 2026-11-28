@@ -16,6 +16,8 @@ SDK 0.23.0은 플러그인 화면에 창 단위 경고·오류 등록 부품 `ui
 
 SDK 0.24.0은 문서 작성 입력과 `machineNodes` 출력에 목록별 선택 필드 `loose`를 추가한다. 새 목록과 체크리스트는 이 필드를 생략한다. 이 입력을 제공하는 플러그인은 SDK 0.24.0 이상이 필요하다. [목록 간격 계약](document-support-v1.md#loose-and-tight-lists-2064)을 따른다.
 
+SDK 0.25.0부터 문서 작성 입력의 코드 블록(`kind: "code"`)과 `machineNodes` 출력은 선택 필드 `meta`를 지원한다. 언어 뒤의 구분 공백부터 줄 끝까지 담는다. 읽은 블록을 다시 작성할 때는 언어와 본문에 이 값을 함께 전달한다. [코드 펜스 정보 계약](document-support-v1.md#code-fence-info-2071)을 따른다.
+
 ## 신분증
 
 최소 artifact는 `litzio-plugin.json`, `host.mjs`, `screen.jsx`다.

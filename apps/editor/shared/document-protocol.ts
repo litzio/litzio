@@ -75,7 +75,7 @@ export type TableShapeEdit = {
   cells: { row: number; column: number; content: InlineContent[] }[];
 };
 
-/** The new language and code of an editable code block. */
+/** The new content of an editable code block, including any retained fence info. */
 export type CodeEdit = {
   path: NodePath;
   code: CodeBlockContent;

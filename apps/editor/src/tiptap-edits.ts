@@ -206,7 +206,7 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
         if (label !== block.label) labels.push({ path: block.path, from: block.label, to: label });
       } else if (block.block === "code") {
         const code = codeContent(node);
-        if (code.language !== block.language || code.code !== block.code) codes.push({ path: block.path, code });
+        if (code.language !== block.language || code.code !== block.code || code.meta !== block.meta) codes.push({ path: block.path, code });
       } else if (block.block === "list") {
         const list = listContent(node);
         if (sameList(list, block)) return;
@@ -302,7 +302,7 @@ export function collectSupportedEdits(snapshot: EditableDocument, next: TiptapJS
 export function isSessionPlaceholder(node: TiptapJSON): boolean {
   if (!isNewBlockPath(sourcePathOf(node))) return false;
   if (node.type === "paragraph") return (node.content ?? []).length === 0;
-  if (node.type === "codeBlock") return (node.content ?? []).length === 0 && !node.attrs?.language;
+  if (node.type === "codeBlock") return (node.content ?? []).length === 0 && !node.attrs?.language && !node.attrs?.meta;
   return false;
 }
 
@@ -426,7 +426,7 @@ function listContent(node: TiptapJSON): ListContent {
     ...(node.attrs?.delimiter && node.attrs.delimiter !== "." ? { delimiter: node.attrs.delimiter as ListContent["delimiter"] } : {}), items };
 }
 
-/** Code block v1 content of an editor code block: unmarked text and a language. */
+/** Code block content collected through the same path for new and existing blocks. */
 function codeContent(node: TiptapJSON): CodeBlockContent {
   let code = "";
   for (const child of node.content ?? []) {
@@ -437,7 +437,9 @@ function codeContent(node: TiptapJSON): CodeBlockContent {
   }
   const language = node.attrs?.language ?? "";
   if (typeof language !== "string") throw new Error("code block language must be a string");
-  return { language, code };
+  const meta = node.attrs?.meta ?? undefined;
+  if (meta !== undefined && (typeof meta !== "string" || !language)) throw new Error("code fence info requires a language");
+  return { language, code, ...(meta !== undefined ? { meta } : {}) };
 }
 
 const EMPTY_FOOTNOTE = "footnote definition cannot be empty.";

@@ -78,3 +78,14 @@ test("numeric character reference loss survives nested inline parsing", () => {
     assert.throws(() => parse(source), loss(/numeric character reference/i), source);
   }
 });
+
+test("code fence meta stays literal and does not hide parser loss elsewhere", () => {
+  const fence = "```js  title=&quot;x&quot; data-value=&#0;\t  \nsample();\n```\n";
+  const source = fence + "\nBefore.\n";
+  assert.equal(serialize(parse(source)), source);
+  const brokenImage = "![overview ![marker&#0;](pin.png)](overview.png)\n\n";
+  for (const invalid of [fence + "\n" + brokenImage, brokenImage + fence]) {
+    assert.throws(() => parse(invalid), loss(/numeric character reference/i));
+  }
+  assert.equal(serialize(parse(source)), source);
+});

@@ -303,7 +303,7 @@ const SourcedCodeBlock = CodeBlockLowlight.extend({
     return [...plugins.slice(0, -1), codeHighlightingPlugin(plugins.at(-1)!)];
   },
   addAttributes() {
-    return blockAttrs({ language: { default: "", rendered: false } });
+    return blockAttrs({ language: { default: "", rendered: false }, meta: { default: null, rendered: false } });
   },
   addInputRules() {
     return [];

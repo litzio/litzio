@@ -535,7 +535,7 @@ export function replayEdits(
     } else if (item.block === "list") {
       document = editAt(target, () => insertList(document, index, item.list));
     } else if (item.block === "code") {
-      document = editAt(target, () => insertCodeBlock(document, index, { language: item.language, code: item.code }));
+      document = editAt(target, () => insertCodeBlock(document, index, item));
     } else if (item.block === "target") {
       document = editAt(target, () => insertTarget(document, index, typeof item.label === "string" ? item.label : ""));
     } else {

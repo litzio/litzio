@@ -176,7 +176,8 @@ const COMMANDS: CommandSpec[] = [
     group: "Create and inspect",
     summary: `Create a ${brand.name.en} native document, optionally from a template`,
     usage: `${brand.cliCommand} create <file> [--template <name|id> | --input <json-file>] [--language <ko|en>] [--format <text|json>]`,
-    details: ["Create a new .md file. Empty/template creation requires an existing directory; --input creates missing parent directories. --input accepts {authoring, images:[{key,mime,base64}]} through the shared Host authoring operation. Existing files are never overwritten. Success prints the created path; --format json prints the creation receipt."],
+    details: ["Create a new .md file. Empty/template creation requires an existing directory; --input creates missing parent directories. --input accepts {authoring, images:[{key,mime,base64}]} through the shared Host authoring operation. Existing files are never overwritten. Success prints the created path; --format json prints the creation receipt.",
+      "A code block in --input can provide meta with the raw fence info, including the space or tab after the language."],
   },
 
   {
@@ -285,6 +286,7 @@ const COMMANDS: CommandSpec[] = [
       "Inspect semantic blocks and editable targets. YAML frontmatter is optional.",
       "JSON nodes expose Core InlineContent as content (table caption as caption, note paragraphs as notes, list items as items). text is a readable summary. JSON includes revision: the SHA-256 of the original UTF-8 text read for this inspect.",
       "Reports body character counts with and without spaces (JSON: characterCount).",
+      "JSON code nodes include meta when the fence has info after its language.",
       ...REVISION_NOTE,
       "",
       "Editability fields describe the current semantic projection.",
@@ -624,6 +626,7 @@ const COMMANDS: CommandSpec[] = [
     usage: `${brand.cliCommand} update-code-block <file> --path <index> [--language <name>] [--code <text>]`,
     details: [
       "Update one editable top-level code block. Omitted properties are unchanged.",
+      "Existing fence info after the language is preserved. A block with fence info requires a non-empty language.",
       ...CODE_NOTE,
       "Code blocks with captions, labels or other directive options are not native content.",
       ...PATH_NOTE,
