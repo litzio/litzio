@@ -65,9 +65,8 @@ function metadata(document: MystDocument): void {
   if (yaml.errors.length || !isMap(yaml.contents)) throw new NativeDocumentError("native-metadata", `Invalid native frontmatter: ${yaml.errors[0]?.message ?? "expected a YAML mapping"}`, [0], 1);
   const marker = yaml.get("litzio", true);
   if (!isScalar(marker) || marker.value !== 1) throw new NativeDocumentError("native-marker", "Unsupported native document marker; expected YAML number litzio: 1", [0], 1);
-  for (const pair of yaml.contents.items) {
-    if (!isScalar(pair.key) || !["litzio", "title", "numbering", "bibliography", "template", "status"].includes(String(pair.key.value))) throw new NativeDocumentError("native-metadata", "Native frontmatter supports only litzio, title, numbering, bibliography, template and status", [0], 1);
-  }
+  // Other fields belong to other tools; they are kept as written and never read as Litzio metadata.
+  if (yaml.contents.items.some(pair => !isScalar(pair.key))) throw new NativeDocumentError("native-metadata", "Native frontmatter keys must be plain scalars", [0], 1);
   try { getDocumentStatus(document); getDocumentTitle(document); declaredBibliography(document); getTemplateMetadata(document); }
   catch (error) {
     const refusal = new NativeDocumentError("native-metadata", (error as Error).message, [0], 1);
