@@ -15,13 +15,12 @@ type MessageAreaProps = {
   notice: string;
   noticeAction?: (() => void) | null;
   warnings?: readonly { id: string; message: string }[];
-  documentNotice?: string;
   onReveal?(): void;
   onNoticeExpired(): void;
 };
 
 /** Existing message producers register with the window center; notices keep their five-second lifetime. */
-export function MessageArea({ error, errorCause = error, noticeCause, saveError, notice, noticeAction = null, warnings = [], documentNotice = "", onReveal, onNoticeExpired }: MessageAreaProps) {
+export function MessageArea({ error, errorCause = error, noticeCause, saveError, notice, noticeAction = null, warnings = [], onReveal, onNoticeExpired }: MessageAreaProps) {
   useTranslation();
   const expire = useRef(onNoticeExpired);
   expire.current = onNoticeExpired;
@@ -36,10 +35,8 @@ export function MessageArea({ error, errorCause = error, noticeCause, saveError,
     revision: JSON.stringify(saveError?.locations),
     ...(saveError ? { render: () => <SaveErrorContent {...saveError} /> } : { reveal: onReveal }),
   });
-  for (const [testId, message, severity] of [
-    ["document-notice", documentNotice, "info"], ["notice", notice, "info"],
-  ] as const) if (message) items.push({ id: testId === "notice" ? `notice:${causeId(noticeCause ?? notice)}` : testId, message, severity, testId, reveal: onReveal,
-    ...(testId === "notice" && noticeAction ? { render: () => <><p>{message}</p><Button variant="ghost" size="sm" onClick={noticeAction}>{i18n.t("Undo")}</Button></> } : {}),
+  if (notice) items.push({ id: `notice:${causeId(noticeCause ?? notice)}`, message: notice, severity: "info", testId: "notice", reveal: onReveal,
+    ...(noticeAction ? { render: () => <><p>{notice}</p><Button variant="ghost" size="sm" onClick={noticeAction}>{i18n.t("Undo")}</Button></> } : {}),
   });
   for (const warning of warnings) items.push({ ...warning, severity: "warning", testId: "writeability-warning", reveal: onReveal });
   useNotifications(items);

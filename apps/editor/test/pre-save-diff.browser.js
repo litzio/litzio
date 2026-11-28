@@ -1,10 +1,79 @@
-async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, expect }) => {
+async (page, { openPath, reloadDocument, activeDocument, screenshots = false, removeTabFixture, expect }) => {
   const check = (ok, why) => { if (!ok) throw new Error(why); };
   const origin = page.url().split('/').slice(0, 3).join('/');
   const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   const file = [root, 'tmp', 'document-tabs', 'technical-1.md'].join(sep);
+  const normalizationFile = [root, 'tmp', 'document-tabs', 'normalization.md'].join(sep);
+  await openPath(page, normalizationFile);
+  const pending = page.getByRole('button', { name: /^Saving will normalize Markdown|^저장하면 표기가 정리됩니다/ });
+  const normalizationStatus = page.getByTestId('status');
+  const language = async value => page.evaluate(async value => {
+    await (await import('/src/i18n.ts')).i18n.changeLanguage(value);
+    await document.fonts.ready;
+  }, value);
+  const normalizationCapture = async (name, mask = []) => {
+    if (screenshots) await page.screenshot({ path: `tmp/2068-normalization/${name}.png`, mask: [...mask, page.locator('.activity-bar-status')], maskColor: '#e5e7eb' });
+  };
+  const normalizedDialog = page.getByTestId('save-comparison');
+  const tooltip = page.locator('[data-slot="tooltip-content"][data-open]');
+  await expect(pending).toBeVisible();
+  await page.setViewportSize({ width: 640, height: 900 });
+  await expect(pending).toBeInViewport({ ratio: 1 });
+  await expect(page.getByTestId('save')).toBeInViewport({ ratio: 1 });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  if (screenshots) {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await language('ko');
+    await page.mouse.move(0, 0);
+    await normalizationCapture('01-open-1440');
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await normalizationCapture('05-open-1920');
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+  await page.getByTestId('save').focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(pending).toBeFocused();
+  await expect(tooltip).toHaveText(screenshots ? '저장하면 표기가 정리됩니다' : 'Saving will normalize Markdown.');
+  if (screenshots) {
+    await pending.hover();
+    await normalizationCapture('02-hover-1440');
+  }
+  await page.keyboard.press('Enter');
+  await expect(normalizedDialog.getByRole('region', { name: /Source differences|소스 변경 내용/ })).toBeVisible();
+  await normalizationCapture('03-comparison-1440', [normalizedDialog.getByText(normalizationFile, { exact: true })]);
+  await page.keyboard.press('Escape');
+  await expect(normalizedDialog).toHaveCount(0);
+  await expect(pending).toBeFocused();
+  await language('en');
+  await page.getByRole('button', { name: 'File actions', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Changes before saving' })).toBeEnabled();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+Slash');
+  const center = page.getByRole('dialog', { name: 'Command center' });
+  await center.getByRole('combobox').fill('> Changes before saving');
+  await center.getByRole('option', { name: 'Changes before saving' }).click();
+  await expect(normalizedDialog.getByRole('region', { name: 'Source differences' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(normalizedDialog).toHaveCount(0);
+  if (screenshots) await language('ko');
+  const saveNormalization = async () => {
+    const reply = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api/document'));
+    await page.getByTestId('save').click();
+    return (await reply).json();
+  };
+  const first = await saveNormalization();
+  check(first.normalizedLineCount === 3, 'First Save must report three normalized lines');
+  await expect(pending).toHaveCount(0);
+  await normalizationStatus.hover();
+  await expect(tooltip).toHaveText(screenshots ? '표기 3줄 정리됨' : 'Markdown lines normalized: 3');
+  await normalizationCapture('04-saved-1440');
+  const again = await saveNormalization();
+  check(again.normalizedLineCount === 0 && again.revision === first.revision, 'Second Save must keep normalized bytes');
+  await language('en');
+  await reloadDocument(page);
+  await expect(pending).toHaveCount(0);
   await openPath(page, file);
   await activeDocument(page).locator(".document-title-input").fill("Converter report");
   await page.getByTestId('save').click();
@@ -168,7 +237,7 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await editor().evaluate(node => node.editor.commands.insertContentAt(1, 'Next edit. '));
   // Command center reuses the same command and captures the acknowledged Save checkpoint.
   await page.keyboard.press('Control+Slash');
-  await page.getByRole('combobox').fill('Changes before saving');
+  await page.getByRole('combobox').fill('> Changes before saving');
   await page.getByRole('option', { name: /Changes before saving/ }).click();
   await dialog().getByRole('button', { name: 'Source', exact: true }).click();
   await dialog().getByRole('region', { name: 'Source differences', exact: true }).waitFor();

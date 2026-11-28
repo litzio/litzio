@@ -186,7 +186,8 @@ export type DocumentFileResponse = SampleAvailability & {
   source: string;
   document: EditableDocument;
   revision: string;
-  /** Why Core cannot write this snapshot as canonical Markdown, or null when Save can. */
+  /** The opened source differs from the Core's canonical Markdown. */
+  normalizationPending: boolean;
   /** False when the source writes footnote definitions elsewhere than after the body in endnote
    * order: the first Save moves them there, as Source shows. Opening never writes. */
   endnotesInPlace: boolean;
@@ -211,6 +212,8 @@ export type DocumentStartResponse = SampleAvailability & { start: true; allowedR
 
 /** Save acknowledges applied edits without replacing the Editor's opening source. */
 export type SaveResponse = Pick<DocumentFileResponse, "revision"> & { pendingLocalWrite?: true;
+  /** Canonical changes in the pre-save source. Present for structured writes. */
+  normalizedLineCount?: number;
   /** With `describe`, when the Save kept the top-level structure: the blocks it changed, in document order. */
   blocks?: SavedBlock[] };
 
@@ -233,7 +236,7 @@ export type DocumentErrorResponse = { error: string; code?: NativeDocumentErrorC
  * a Markdown marker was found, false for `.txt`, and otherwise absent. It does not predict admission.
  * Optional `modifiedAt` is an ISO timestamp; `size` is bytes for files only. Missing stat metadata does not remove the entry.
  */
-export type FolderEntry = { name: string; kind: "folder" | "document" | "image" | "file"; path: string; native?: boolean; modifiedAt?: string; size?: number };
+export type FolderEntry = { name: string; kind: "folder" | "document" | "image" | "file"; path: string; modifiedAt?: string; size?: number };
 
 /**
  * One level of a folder the user chose (`root`). `path` is the listed folder inside it and

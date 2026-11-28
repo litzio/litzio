@@ -26,7 +26,7 @@ import {
   insertList,
   insertCodeBlock,
   insertParagraph,
-  parse,
+  parseWithCanonicalMarkdown,
   removeBlock,
   reconcileEndnotes,
   serializeWithReadback,
@@ -99,18 +99,19 @@ function editAt<T>(target: OrderItem, apply: () => T, cell?: SaveContentError["c
   }
 }
 
-type ReplaySnapshot = Readonly<{ original: CoreDocument; editable: EditableDocument }>;
+type ReplaySnapshot = Readonly<{ original: CoreDocument; editable: EditableDocument; normalizationSource?: string }>;
 
 /** Both replays read this snapshot. Core operations return separate documents. */
 export function prepareReplay(source: string): ReplaySnapshot {
-  const original = parse(source);
-  return { original, editable: getEditableDocument(original) };
+  const { document: original, canonicalMarkdown } = parseWithCanonicalMarkdown(source);
+  return { original, editable: getEditableDocument(original),
+    ...(source !== canonicalMarkdown ? { normalizationSource: canonicalMarkdown } : {}) };
 }
 
 /** The read model, canonical writeability and endnote placement of one parsed snapshot. */
-export function readModel(source: string | ReplaySnapshot): { document: EditableDocument; endnotesInPlace: boolean; bibliography: { declarations: string[] } } {
-  const { original, editable } = typeof source === "string" ? prepareReplay(source) : source;
-  return { document: editable, endnotesInPlace: endnotesInPlace(original), bibliography: { declarations: citationReport(original).bibliography } };
+export function readModel(source: string | ReplaySnapshot): { document: EditableDocument; endnotesInPlace: boolean; normalizationPending: boolean; bibliography: { declarations: string[] } } {
+  const { original, editable, normalizationSource } = typeof source === "string" ? prepareReplay(source) : source;
+  return { document: editable, endnotesInPlace: endnotesInPlace(original), normalizationPending: normalizationSource !== undefined, bibliography: { declarations: citationReport(original).bibliography } };
 }
 
 export function saveEdits(

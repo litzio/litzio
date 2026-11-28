@@ -32,7 +32,7 @@ async function compare(record: RecoveryRecord, signal: AbortSignal, client: Host
       if (!result.disk.document) throw new Error(result.disk.error);
       const editorDocument = toTiptapDocument(result.disk.document);
       // Identical salvage traversal to newly recorded recovery copies; no Markdown conversion.
-      before = recoveryText({ file: { path: record.path, source: result.disk.source, revision: result.disk.revision, document: result.disk.document, endnotesInPlace: true }, editor: { editorDocument, savedDocument: editorDocument } });
+      before = recoveryText({ file: { path: record.path, source: result.disk.source, revision: result.disk.revision, document: result.disk.document, endnotesInPlace: true, normalizationPending: false }, editor: { editorDocument, savedDocument: editorDocument } });
     }
     after = record.recoveryText;
   }

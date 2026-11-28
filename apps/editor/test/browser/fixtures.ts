@@ -187,6 +187,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "bulk-1999.md", create: () => document("technical-document.md").create() },
     { name: "foreign.md", create: () => "# Ordinary Markdown\n\nNo frontmatter.\n" },
     { name: "notes.txt", create: () => "Not a document" },
+    { name: "normalization.md", create: () => "# 시운전 기록 ###\n\n전원 투입 전에 확인할 항목입니다.\n\n* 입력 전압을 확인합니다.\n* 보호 회로를 점검합니다.\n" },
     document("diagram.svg"),
     ...["alpha", "beta"].flatMap(folder => [
       { name: `${folder}/guide.md`, create: () => document("technical-document.md").create() },

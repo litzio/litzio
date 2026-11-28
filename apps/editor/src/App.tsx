@@ -71,7 +71,7 @@ import darkIcon from "@brand-dark-icon";
 import { CommandCenter } from "./shell/CommandCenter.tsx";
 import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
-import { CaseSensitive, MessageSquare, Maximize, Minimize, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Highlighter, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Search, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal, X } from "lucide-react";
+import { CaseSensitive, MessageSquare, Maximize, Minimize, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FolderOpen, Highlighter, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Search, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal, X } from "lucide-react";
 import type {
   EditorFileResponse,
   DocumentStartResponse,
@@ -443,7 +443,7 @@ function EditorApp() {
   const settingsDisabled = Boolean(operation || fileOperationPending || continuation);
   const switching = Boolean(operation || session?.switching);
   function compareBeforeSave(returnFocus: HTMLElement | null, owner = session, external = false): void {
-    if (!owner || operationRef.current || owner.busy || (!external && !(owner.documentDirty || owner.draftActive))) return;
+    if (!owner || operationRef.current || owner.busy || (!external && !(owner.documentDirty || owner.draftActive || (owner.kind === "native" && owner.normalizationPending)))) return;
     saveComparisonReturnFocus.current = returnFocus;
     if (owner.kind === "text") {
       const snapshot = owner.getSnapshot();
@@ -451,7 +451,8 @@ function EditorApp() {
       return;
     }
     const submitted = owner.editorRef.current?.getDocument();
-    try { setSaveComparison({ client: owner.client, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, request: owner.savePreviewRequest() }); }
+    const initialView = owner.normalizationPending && !external ? "source" : undefined;
+    try { setSaveComparison({ client: owner.client, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, initialView, request: owner.savePreviewRequest() }); }
     catch (cause) {
       const failure = cause instanceof SaveContentError ? cause : new SaveContentError(messageOf(cause), undefined, { phase: "collect", cause });
       setSaveComparison({ client: owner.client, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, failure: new SaveDisplayError([failure], submitted) });
@@ -1300,8 +1301,8 @@ function EditorApp() {
     })) : []),
     ...listedDocuments.filter(entry => !openedPaths.has(entry.path)).map(entry => ({
       id: `file:${entry.path}`, kind: "file" as const, label: entry.name,
-      detail: `${i18n.t("Explorer")} · ${entry.native === false ? `${i18n.t("Not a {{product}} document")} · ` : ""}${entry.path}`,
-      icon: entry.native === false ? FileX : FileText, foreign: entry.native === false,
+      detail: `${i18n.t("Explorer")} · ${entry.path}`,
+      icon: FileText,
       disabled: busy || Boolean(continuation), takesFocus: true,
       run: () => {
         // Run after dismissal so an admission/recovery dialog can own focus. Keep a live return
@@ -1336,7 +1337,7 @@ function EditorApp() {
     { id: "save", kind: "command", label: i18n.t("Save"), icon: Save, disabled: !session || busy || view === "read",
       keywords: ["save", "저장"], shortcut: SAVE_SHORTCUT.label, run: () => { if (!settingsFocused) void save(); } },
     { id: "save-comparison", kind: "command", label: i18n.t("Changes before saving"), icon: FileDiff,
-      disabled: !document || !(documentDirty || draftActive) || busy, takesFocus: true, keywords: ["diff compare save preview", "저장 전 변경 내용 보기"],
+      disabled: !document || !(documentDirty || draftActive || nativeSession?.normalizationPending) || busy, takesFocus: true, keywords: ["diff compare save preview", "저장 전 변경 내용 보기"],
       run: () => compareBeforeSave(commandReturnFocus.current) },
     { id: "reload", kind: "command", label: i18n.t("Reload"), icon: RotateCcw, disabled: !session || busy, takesFocus: true,
       keywords: ["reload", "다시 불러오기", "새로고침"], run: () => { void reload(); } },
@@ -1518,8 +1519,11 @@ function EditorApp() {
               onViewChange={(next) => { if (owner?.kind === "text" && next !== "source") owner.setView(next); if (owner?.kind === "native") { if (next === "source") void owner.showSource(); else owner.setView(next); } }}
               saveDisabled={!owner || groupBusy || owner.kind === "native" && owner.view === "read"}
               onSave={() => void owner?.save()}
-              onCompare={owner?.kind === "text" ? undefined : () => compareBeforeSave(fileActionsToggle.current, owner)}
-              compareDisabled={!(owner?.documentDirty || owner?.draftActive) || groupBusy}
+              onCompare={owner?.kind === "native" ? trigger => compareBeforeSave(trigger ?? fileActionsToggle.current, owner) : undefined}
+              compareDisabled={!(owner?.documentDirty || owner?.draftActive || (owner?.kind === "native" && owner.normalizationPending)) || groupBusy}
+              normalizationPending={owner?.kind === "native" && owner.normalizationPending}
+              normalizedLineCount={owner?.kind === "native" ? owner.normalizedLineCount : undefined}
+              normalizationDetail={owner?.kind === "native" ? owner.normalizationDetail : undefined}
               onReload={() => void owner?.reload()}
               reloadDisabled={!owner || groupBusy}
               onCopyPath={() => void copyPath(owner?.openedPath)}

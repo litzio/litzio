@@ -45,18 +45,6 @@ export function supportedHeadingContent(node: MystNode): InlineContent[] | undef
   return content && inlineContentText(content).length > 0 && !breaks(content) ? content : undefined;
 }
 
-/**
- * Whether source starts with frontmatter carrying the native marker `litzio: 1`, read from the
- * leading frontmatter alone for the folder listing. Admission uses the full document.
- */
-export function hasNativeMarker(source: string): boolean {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(source.replace(/^\uFEFF/, ""));
-  if (!match) return false;
-  const yaml = parseDocument(match[1]!);
-  const marker = isMap(yaml.contents) ? yaml.get("litzio", true) : undefined;
-  return isScalar(marker) && marker.value === 1;
-}
-
 /** Validate source metadata before accepting a file; canonicalization cannot detect duplicate YAML keys. */
 function metadata(document: MystDocument): void {
   const first = document.children[0];

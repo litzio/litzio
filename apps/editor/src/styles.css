@@ -439,11 +439,6 @@ button {
 
 .open-refusal-details p { margin: 0; }
 
-/* A listed text file has quieter styling and its own icon. */
-.sidebar-tree-item[data-foreign] {
-  color: var(--id-color-text-subtle);
-}
-
 /* Without a chosen folder: one click lists a recently opened folder again. */
 .sidebar-recent {
   display: grid;
@@ -929,7 +924,6 @@ button {
 .command-center-result[data-highlighted] { background: var(--id-color-surface-selected); color: var(--id-color-text-selected); }
 .command-center-result[data-highlighted]:hover { background: var(--id-color-surface-selected-hover); }
 .command-center-result[data-disabled] { color: var(--id-color-text-subtle); cursor: default; }
-.command-center-result[data-foreign] { color: var(--id-color-text-subtle); }
 .command-center-result-copy { display: grid; flex: 1; min-width: 0; }
 .command-center-result-label, .command-center-result-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .command-center-result[data-highlighted] .command-center-result-detail { color: inherit; }

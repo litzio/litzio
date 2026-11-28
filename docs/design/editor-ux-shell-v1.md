@@ -115,7 +115,7 @@ browser scenario checks paper/flat preference, native surface classes, long-line
 scrollWidth/clientWidth for both file types, Undo and exact Save/Reload source.
 The existing tab row retains Save, status and file actions. Other extensions retain
 their existing preview/information behavior. Explorer and Command Center include
-`.txt` files; native marker hints remain hints, never admission rules.
+`.txt` files. Explorer and file search show Markdown filenames with the standard file icon.
 See [document kinds](document-support-v1.md#text-files-in-the-editor-817) and
 [Save/recovery protection](editing-session-save-v1.md#text-editing-sessions-817).
 The native Source screen remains read-only canonical Markdown from Core; it is not
@@ -1014,12 +1014,8 @@ searches the entire source. This explicit presentation limit replaces the earlie
 without changing source scope or shell action handlers. #556 adds only the two match grades above; no search index,
 virtualization library or document-content command is introduced.
 
-As in Files, a listed Markdown file with `native: false` remains selectable but uses subtle text,
-the crossed-file icon and `Not an Litzio document` explanation (also accessible). This keeps the
-same admission explanation available through either navigation entry. The existing Host/Core
-admission check remains authoritative even for a listing marked native. Images, other regular files
-and folders are omitted: they are preview/navigation entries rather than editable documents and
-retain their existing sidebar entry points.
+As in Files, Markdown entries show their filenames and the standard file icon. Core determines
+admission at Open. Images, other regular files and folders retain their sidebar entry points.
 
 Selecting an unopened file closes the center before calling the same `openFolderDocument` handler
 as the sidebar, including existing operation/continuation restrictions, retained dirty tabs and

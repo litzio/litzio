@@ -56,7 +56,7 @@ test("replace-text exposes case options, counts committed changes, and leaves ze
 
   const committed = run(command);
   assert.equal(committed.status, 0, committed.stderr);
-  assert.equal(committed.stdout, "Replaced 1 match.\n");
+  assert.equal(committed.stdout, "Replaced 1 match.\nNormalized Markdown lines: 1\n");
   assert.equal(readFileSync(file, "utf8"), nativeSource("# drive notes\n\nA mo**to**r and MOTOR.\n"));
 
   writeFileSync(file, source);
@@ -72,7 +72,7 @@ test("replace-text exposes case options, counts committed changes, and leaves ze
 
   const single = run(["replace-text", file, "--from", "MOTOR", "--to", "drive", "--ignore-case"]);
   assert.equal(single.status, 0, single.stderr);
-  assert.equal(single.stdout, "");
+  assert.equal(single.stdout, "Normalized Markdown lines: 1\n");
   assert.match(readFileSync(file, "utf8"), /^# drive notes$/m);
   assert.match(readFileSync(file, "utf8"), /mo\*\*to\*\*r and MOTOR\./);
 
@@ -3424,6 +3424,33 @@ test("inspect preserves Core inline content at every native location", () => {
     assert.equal(created.status, 0, created.stderr);
     assert.equal(readFileSync(rebuilt, "utf8"), serialize(parse(source)));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("structured CLI writes report normalization of the pre-edit source", () => {
+  const file = path.join(fixtures, "normalization.md");
+  const operations = path.join(fixtures, "normalization.json");
+  const source = "# Heading ###\n\nBody.\n";
+  writeFileSync(operations, JSON.stringify([{ command: "replace-text", from: "Heading", to: "Revised" }]));
+  for (const [command, ...flags] of [
+    ["format"],
+    ["replace-text", "--from", "Heading", "--to", "Revised"],
+    ["apply-batch", "--operations", operations],
+  ]) {
+    writeFileSync(file, source);
+    const result = run([command!, file, ...flags, "--format", "json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const written = readFileSync(file, "utf8");
+    assert.equal(written, command === "format" ? "# Heading\n\nBody.\n" : "# Revised\n\nBody.\n");
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.normalizedLineCount, 1);
+    assert.equal(receipt.revision, textRevision(written));
+    assert.equal(JSON.parse(run(["format", file, "--format", "json"]).stdout).normalizedLineCount, 0);
+    assert.equal(readFileSync(file, "utf8"), written);
+  }
+  writeFileSync(file, source.replaceAll("\n", "\r\n"));
+  const text = run(["format", file]);
+  assert.equal(text.status, 0, text.stderr);
+  assert.equal(text.stdout, "Normalized Markdown lines: 3\n");
 });
 
 // Public SDK/CLI integration: byte parity, locator parity and conflicts, without new subprocesses.

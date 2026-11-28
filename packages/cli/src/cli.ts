@@ -20,6 +20,8 @@ import {
   inspectDocument,
   countDocumentCharacters,
   parse,
+  parseWithCanonicalMarkdown,
+  countNormalizedLines,
   sectionMarker,
   blockTargets,
   targetNumbers,
@@ -84,6 +86,7 @@ const REVISION_NOTE = [
 const DRY_RUN_NOTE = [
   "--dry-run runs the same edits and canonical write checks without committing or creating temporary files.",
   "Text prints the result revision, check summary and bibliography diagnostics on stdout, then --- markdown --- and canonical Markdown. Other warnings use stderr.",
+  "Successful structured writes with --format json include revision and normalizedLineCount.",
   "--dry-run --format json prints dryRun, revision, markdown and the same diagnostic fields as check; batches add applied.",
   "Original literal-syntax warnings also print on stderr; JSON previews keep their Core entries in originalWarnings (or []).",
   "Failures keep the usual stderr messages and exit 1, including in JSON mode.",
@@ -166,8 +169,8 @@ const COMMANDS: CommandSpec[] = [
       "Step errors: operation <1-based index> (<command>): <original error>; nothing was written.",
       "Only step input/options, Core, validation and intermediate placement errors have that prefix.",
       "Batch-wide errors (original read/parse, revision, final validation and commit) keep single-command messages without a prefix.",
-      "Without --dry-run, JSON success: {\"ok\":true,\"command\":\"apply-batch\",\"applied\":N,\"revision\":\"<result revision>\"}.",
-      "Without --dry-run, text success prints nothing. Run inspect again for paths before a later request.",
+      "Without --dry-run, JSON success: {\"ok\":true,\"command\":\"apply-batch\",\"applied\":N,\"revision\":\"<result revision>\",\"normalizedLineCount\":N}.",
+      "Without --dry-run, text success prints the normalization count only when positive. Run inspect again for paths before a later request.",
       ...DRY_RUN_NOTE,
     ],
   },
@@ -957,16 +960,17 @@ function main(argv: string[]): number {
     if (ifRevision !== undefined && ifRevision !== revision) {
       throw new Error("revision mismatch; run inspect again; nothing was written");
     }
-    const original = parse(source);
+    const { document: original, canonicalMarkdown } = parseWithCanonicalMarkdown(source);
     const references = unresolvedReferences(original);
     const changed = change(original);
     const markdown = result.replaced === 0 ? source : serializeChange(original, () => changed);
-    return finishEdit(path, markdown, revision, result, dryRun, format, references, bibliographyRoot);
+    return finishEdit(path, markdown, revision, result, dryRun, format, references, bibliographyRoot,
+      result.replaced === 0 ? 0 : countNormalizedLines(source, canonicalMarkdown));
   }
 
   if (command === "apply-batch") {
-    const { markdown, revision, applied, references, unchanged } = applyBatch(file, flag(flags, "--operations"), ifRevision);
-    return finishEdit(file, markdown, revision, { command, applied }, dryRun, format, references, bibliographyRoot, unchanged);
+    const { markdown, revision, applied, references, unchanged, normalizedLineCount } = applyBatch(file, flag(flags, "--operations"), ifRevision);
+    return finishEdit(file, markdown, revision, { command, applied }, dryRun, format, references, bibliographyRoot, normalizedLineCount, unchanged);
   }
   if (command === "replace-text" && flags.includes("--all")) {
     const result: EditResult = { command };
@@ -1010,8 +1014,8 @@ type Preview = EditResult & { dryRun: true; revision: string; markdown: string;
 
 /** The only edit write boundary. Preview never enters file-commit's mutation path. */
 function finishEdit(file: string, markdown: string, revision: string, result: EditResult,
-  dryRun: boolean, format: OutputFormat, references: ReturnType<typeof unresolvedReferences>, bibliographyRoot?: string,
-  unchanged = false): number {
+  dryRun: boolean, format: OutputFormat, references: ReturnType<typeof unresolvedReferences>, bibliographyRoot: string | undefined,
+  normalizedLineCount: number, unchanged = false): number {
   if (dryRun) {
     const resultRevision = textRevision(markdown);
     const document = parse(markdown);
@@ -1029,10 +1033,12 @@ function finishEdit(file: string, markdown: string, revision: string, result: Ed
     }
     warnLiteralSyntax(references);
   }
-  if (result.command === "apply-batch" && format === "json") {
-    process.stdout.write(`${JSON.stringify({ ok: true, ...result, revision: textRevision(markdown) })}\n`);
+  if (format === "json") {
+    process.stdout.write(`${JSON.stringify({ ok: true, ...result, revision: textRevision(markdown), normalizedLineCount })}\n`);
+  } else {
+    if (result.replaced !== undefined) process.stdout.write(`Replaced ${result.replaced} ${result.replaced === 1 ? "match" : "matches"}.\n`);
+    if (normalizedLineCount > 0) process.stdout.write(`Normalized Markdown lines: ${normalizedLineCount}\n`);
   }
-  if (result.replaced !== undefined) process.stdout.write(`Replaced ${result.replaced} ${result.replaced === 1 ? "match" : "matches"}.\n`);
   return 0;
 }
 
@@ -1190,7 +1196,7 @@ function commandHelp(name: string): string {
   if (name === "assistant" || name === "app-reset") return ["Usage:", `  ${spec.usage}`, "", ...spec.details, ""].join("\n");
   const editing = isEditCommand(name);
   const addressed = /--(?:at|path|from) <(?:index|heading index|table)/.test(spec.usage);
-  return ["Usage:", `  ${spec.usage}${editing ? " [--if-revision <revision>] [--dry-run [--format <text|json>]]" : ""}`, "", ...spec.details,
+  return ["Usage:", `  ${spec.usage}${editing ? " [--if-revision <revision>] [--dry-run] [--format <text|json>]" : ""}`, "", ...spec.details,
     ...(spec.usage.includes("--at <index|end>") ? ["",
       "--at end inserts at the body end before endnote definitions, or after the last body block.",
       "For an empty native document this is index 1. Core resolves the position on the current snapshot.",

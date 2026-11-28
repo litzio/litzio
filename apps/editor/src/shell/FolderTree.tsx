@@ -6,7 +6,7 @@ import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { Copy, Link, Pencil, Trash2, ChevronRight, Ellipsis, File, Image as ImageIcon, FileText, FileX, FolderOpen, FolderPlus, Info, PanelRightOpen, Plus, RotateCw, X } from "lucide-react";
+import { Copy, Link, Pencil, Trash2, ChevronRight, Ellipsis, File, Image as ImageIcon, FileText, FolderOpen, FolderPlus, Info, PanelRightOpen, Plus, RotateCw, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { viewScreenIcon } from "../views/view-screen-icon.ts";
 import { viewFileActions, type OpenPluginFile } from "../views/view-file-actions.ts";
@@ -184,18 +184,16 @@ export function FolderTree({ onCopyPath, onAddToChat, onFileAction, pluginScreen
             .concat(pathActions(entry.path, tree.root, onCopyPath), deleteFolder);
           const expanded = folder && tree.expanded.has(entry.path);
           // Only known text entries are distinguished before Open.
-          const foreign = entry.kind === "document" && entry.native === false;
           const pluginActions = folder ? [] : viewFileActions(pluginScreens, entry.path);
           const usesPlugin = entry.kind === "file" && !/\.pdf$/i.test(entry.path) && pluginActions.some(({ action }) => action.openByDefault);
-          const description = foreign ? i18n.t("Not a {{product}} document") : entry.kind === "image" ? i18n.t("Read-only image preview") : entry.kind === "file" && !usesPlugin ? i18n.t("This file cannot be edited in {{product}}.") : undefined;
-          const Icon = foreign ? FileX : entry.kind === "image" ? ImageIcon : entry.kind === "file" ? File : FileText;
+          const description = entry.kind === "image" ? i18n.t("Read-only image preview") : entry.kind === "file" && !usesPlugin ? i18n.t("This file cannot be edited in {{product}}.") : undefined;
+          const Icon = entry.kind === "image" ? ImageIcon : entry.kind === "file" ? File : FileText;
           const row = (
             <li
               key={entry.path}
               ref={row => { if (row) rows.current.set(entry.path, row); else rows.current.delete(entry.path); }}
               role="treeitem"
               className={`sidebar-tree-item${folder ? " sidebar-tree-item--actions" : ""}`}
-              data-foreign={foreign || undefined}
               data-path={entry.path}
               style={{ "--tree-depth": item.depth + 1 } as CSSProperties}
               tabIndex={entry.path === tabStop ? 0 : -1}

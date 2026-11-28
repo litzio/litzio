@@ -744,7 +744,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
   await page.setViewportSize({width:1280,height:720});
   const bulk = Array.from({length:2000},(_,i) => {
     const name = `bulk-${String(i).padStart(4,'0')}.md`;
-    return {name,path:file(name),kind:'document',native:true};
+    return {name,path:file(name),kind:'document'};
   });
   const bulkListing = async route => {
     const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });

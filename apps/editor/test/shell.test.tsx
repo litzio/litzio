@@ -646,18 +646,20 @@ test("sidebar folder is a tree under the chosen folder that marks the open docum
   assert.match(collapsed, /<ul\b(?=[^>]*role="tree")(?=[^>]*hidden)/);
   assert.match(collapsed, /aria-label="Expand folder docs"/);
 
-  // A plain-text file stays listed with its text-only hint.
+  // Files are listed by name without a document admission hint.
   const mixed = listing(String.raw`C:\docs`, [
-    { name: "plain.txt", kind: "document", path: String.raw`C:\docs\plain.txt`, native: false },
+    { name: "plain.txt", kind: "document", path: String.raw`C:\docs\plain.txt` },
     { name: "plain.md", kind: "document", path: String.raw`C:\docs\plain.md` },
-    { name: "note.md", kind: "document", path: String.raw`C:\docs\note.md`, native: true },
+    { name: "note.md", kind: "document", path: String.raw`C:\docs\note.md` },
   ]);
   const marked = renderToStaticMarkup(
     <Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, nodes: new Map([[mixed.path, mixed]]), expanded: new Set() }]}
       onOpenFolder={noop} />,
   );
-  assert.match(marked, /<li\b(?=[^>]*data-foreign="true")(?=[^>]*aria-description="Not a Litzio document")[^>]*>/);
-  assert.equal(marked.match(/data-foreign/g)?.length, 1, "only the text file");
+  assert.match(marked, /plain\.txt/);
+  assert.match(marked, /plain\.md/);
+  assert.match(marked, /note\.md/);
+  assert.doesNotMatch(marked, /data-foreign|Not a Litzio document/);
   try {
     void i18n.changeLanguage("ko");
     const localized = renderToStaticMarkup(

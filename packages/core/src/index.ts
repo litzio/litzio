@@ -10,7 +10,7 @@ import * as templates from "./myst/template.ts";
 import type { Document } from "./document.ts";
 import { inspectDocument as inspectTree } from "./document.ts";
 import { getEditableDocument as editableTree } from "./editable.ts";
-import { createDocument as createNativeDocument, parseNativeDocument as parseTree, serializeNativeDocument as serializeTree,
+import { createDocument as createNativeDocument, parseNativeDocument as parseTree, parseNativeSnapshot, serializeNativeDocument as serializeTree,
   serializeNativeDocumentWithReadback as serializeTreeWithReadback,
   canonicalWriteError as canonicalWriteErrorTree, canonicalWriteIssue as canonicalWriteIssueTree } from "./myst/native.ts";
 import type { MystDocument } from "./myst/tree.ts";
@@ -28,7 +28,8 @@ export type { Document, NodePath, BlockSummary } from "./document.ts";
 export { LocalWriteBaseline, type LocalWriteEdit, type LocalWriteKind } from "./myst/local-write.ts";
 export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DOCUMENT_AUTHORING_CONTRACT, DocumentAuthoringError } from "./document-authoring.ts";
 export type { DocumentAuthoringInput, AuthoredDocument } from "./document-authoring.ts";
-export { hasNativeMarker, NativeDocumentError } from "./myst/native.ts";
+export { NativeDocumentError } from "./myst/native.ts";
+export { countNormalizedLines } from "./normalization.ts";
 /** Markdown text (for example pasted) read as native body blocks, with the open-document parser and admission. */
 export { readMarkdownFragment, type MarkdownFragment } from "./myst/fragment.ts";
 export type { NativeDocumentErrorCode } from "./myst/native.ts";
@@ -88,6 +89,7 @@ function fence<F>(implementation: F): Fenced<F> {
 }
 
 export const parse = fence(parseTree);
+export const parseWithCanonicalMarkdown = fence(parseNativeSnapshot);
 export const createDocument = fence(createNativeDocument);
 export const serialize = fence(serializeTree);
 /** Canonical bytes and the parsed document that passed their readback check. */
