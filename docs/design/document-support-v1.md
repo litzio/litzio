@@ -100,6 +100,8 @@ Markdown images other than a top-level standalone image (see Figure above), chec
 
 Markdown link reference definitions are accepted when each declaration supplies a link that survives in the document. Canonical writing inlines those links, preserving destination and title. An unused or shadowed declaration would disappear from the parsed tree, so Core refuses it with `invalid-reference` and the Editor opens the file in text mode.
 
+Core reports `parser-loss` when the Markdown block tokenizer would skip content past its nesting limit, an inline numeric character reference would be replaced, the input contains a NUL character (including in frontmatter or code), or a pipe-table row contains content beyond the header width. The Editor opens the original source in text mode and shows the reason. Escaped references, code literals, valid references to U+FFFD and empty overflow cells keep their normal Markdown meaning.
+
 Bare `@name` (including `@kim` and `@param`) is literal text, as is already escaped `\@name`. Core disables MyST's shorthand citation extension at the parse boundary while keeping explicit roles parsed. In accordance with [ADR-0008 decision 3](../adr/0008-citations-and-bibliography.md#3-지원할-인용-형태), unescaped citation-like brackets such as `[@key]`, `[@a; @b]` and `[@key, p. 3]` are refused with `native-content` and guidance to use an explicit citation role or escape the opening bracket or the `@` for literal text. This applies to supported text surfaces including endnote definitions; actual links, code and math retain their syntax. Code or math inside such brackets, as in ``[`@param`]`` or `[$@key$]`, is still refused because default MyST reads the bracket as a citation; `\[` keeps it literal. Explicit `{cite}`, `{cite:t}` and `{cite:p}` roles follow [Citations](citations-v1.md), preserving exact keys, group order and narrative/parenthetical meaning. Prefix/suffix/partial and other unsupported attributes are refused.
 
 ## Paragraph leading indentation (#1160)
@@ -245,6 +247,7 @@ both whole-document and operation-specific round-trip comparisons:
 | `unsupported-content` | Unsupported inline kinds/formatting, block shapes, list/code/citation content and writer diagnostics. |
 | `empty-content` | Required paragraph/heading/endnote text is empty, or a split would create an empty persistent paragraph. |
 | `round-trip-mismatch` | Fingerprint loss, operation content/canonical instability, or changed block boundaries. |
+| `parser-loss` | Block nesting truncation, numeric character reference replacement, NUL, or discarded content beyond a pipe table's header width. |
 | `serialization-failed` | Writer throws without a specific serialization diagnostic. |
 | `invalid-unicode` | Unpaired UTF-16 surrogate, including an unrepresentable text split. |
 | `invalid-label` | Invalid/unreferenceable target or endnote label syntax, or an empty equation label that dollar math cannot preserve. |

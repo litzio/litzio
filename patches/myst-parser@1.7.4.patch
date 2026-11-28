@@ -42,7 +42,7 @@ index 0000000000000000000000000000000000000000..964ffb76e42ac5d437ee4c67d81a5c84
 +  }, {alt: ['paragraph', 'reference', 'blockquote']});
 +}
 diff --git a/dist/myst.d.ts b/dist/myst.d.ts
-index f199ff62c7a2ad4938696f18ff469cf15c07e0cc..389c7ecd1e2e32b7c87878e24f3137d134245656 100644
+index f199ff62c7a2ad4938696f18ff469cf15c07e0cc..bfaf79a9350cf81102f376cab9725bf4363e2711 100644
 --- a/dist/myst.d.ts
 +++ b/dist/myst.d.ts
 @@ -1,10 +1,12 @@
@@ -59,7 +59,7 @@ index f199ff62c7a2ad4938696f18ff469cf15c07e0cc..389c7ecd1e2e32b7c87878e24f3137d1
  /**
   * MyST Parser as a Unified Plugin
 diff --git a/dist/myst.js b/dist/myst.js
-index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f52084d8af9c 100644
+index 616f80d64a4416d560136b43e62951fb72966de5..676aae501e4a45ea93d9ff7c8ce69e8148aca810 100644
 --- a/dist/myst.js
 +++ b/dist/myst.js
 @@ -1,4 +1,5 @@
@@ -105,7 +105,7 @@ index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f520
 -    const tokenizer = createTokenizer(parsedOpts);
 -    const tree = tokensToMyst(content, tokenizer.parse(content, { vfile }), parsedOpts.mdast);
 +    const parseTokens = tokenize ?? ((source, env) => createTokenizer(parsedOpts).parse(source, env));
-+    const tree = tokensToMyst(content, parseTokens(content, { vfile }), parsedOpts.mdast);
++    const tree = tokensToMyst(content, parseTokens(content, { vfile, litzioParserLoss: vfile?.data.litzioParserLoss }), parsedOpts.mdast);
      applyDirectives(tree, parsedOpts.directives, parsedOpts.vfile, {
          parseMyst: (source, offset = 0) => {
 -            const mdast = mystParse(source, opts);
@@ -114,7 +114,7 @@ index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f520
              visit(mdast, (node) => {
                  if (node.position) {
 diff --git a/dist/tokensToMyst.js b/dist/tokensToMyst.js
-index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..e8d9b76b5df56a58866620ae46d815ab80169c22 100644
+index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..25762dcdc2aef4cafe31f6961cfb29fee115c2f8 100644
 --- a/dist/tokensToMyst.js
 +++ b/dist/tokensToMyst.js
 @@ -98,22 +98,23 @@ const defaultMdast = {
@@ -146,7 +146,42 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..e8d9b76b5df56a58866620ae46d815ab
              if (t.attrGet('class') === 'task-list-item') {
                  // This is a temporary property used to clean up the AST in a subsequent pass
                  attrs.__taskList = true;
-@@ -506,7 +507,59 @@ const defaultOptions = {
+@@ -191,6 +192,18 @@ const defaultMdast = {
+             };
+         },
+     },
++    litzio_depth_loss: {
++        type: 'litzioDepthLoss',
++        noCloseToken: true,
++        isLeaf: true,
++        getAttrs: () => ({ litzioParserLoss: 'depth' }),
++    },
++    litzio_entity_loss: {
++        type: 'text',
++        noCloseToken: true,
++        isLeaf: true,
++        getAttrs: t => ({ value: t.content, litzioParserLoss: 'entity' }),
++    },
+     image: {
+         type: 'image',
+         noCloseToken: true,
+@@ -202,6 +215,7 @@ const defaultMdast = {
+             return {
+                 url: token.attrGet('src'),
+                 alt: alt || undefined,
++                ...(token.children?.some(child => child.type === 'litzio_entity_loss') ? { litzioParserLoss: 'entity' } : {}),
+                 title: token.attrGet('title') || undefined,
+                 class: getClassName(token, [ALIGN_CLASS]),
+                 width: token.attrGet('width') || undefined,
+@@ -243,6 +257,7 @@ const defaultMdast = {
+     },
+     tr: {
+         type: 'tableRow',
++        getAttrs: t => t.meta?.litzioParserLoss ? { litzioParserLoss: t.meta.litzioParserLoss } : {},
+     },
+     th: {
+         type: 'tableCell',
+@@ -506,7 +521,59 @@ const defaultOptions = {
      listItemParagraphs: true,
      nestBlocks: true,
  };
@@ -206,7 +241,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..e8d9b76b5df56a58866620ae46d815ab
      const opts = {
          ...defaultOptions,
          ...options,
-@@ -540,9 +593,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
+@@ -540,9 +607,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
              node.checked = html[0].value.includes('checked=""');
              // Remove the inline html
              node.children?.splice(0, 1);

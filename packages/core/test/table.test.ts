@@ -66,7 +66,7 @@ test("a group cannot hide repeated cells or an earlier cell's round-trip refusal
   assert.equal(core.tryUpdateTableCells(original, [header, bad, body]), undefined);
   assert.equal(core.tryUpdateTableCells(original, [bad, header]), undefined);
   assert.throws(() => core.updateTableCell(core.updateTableCell(original, header.path, header.content), bad.path, bad.content),
-    error => core.writeIssueOf(error).code === "round-trip-mismatch");
+    error => core.writeIssueOf(error).code === "parser-loss");
 });
 
 test("pipe cell grouping limits dots to decimals and excludes link and formatting syntax", () => {

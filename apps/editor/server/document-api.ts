@@ -130,10 +130,8 @@ async function openEditorFile(
   const filePath = resolveEditorPath(requestedPath, access);
   const source = decodeUtf8(readFileSync(filePath));
   const file = { path: filePath, source, revision: documentRevision(source) };
-  const model = path.extname(filePath).toLowerCase() === ".md"
-    ? await thread.read({ kind: "open", path: canonicalFilePath(filePath), source }, signal)
-    : undefined;
-  return model ? { ...file, kind: "native", ...model } : { ...file, kind: "text" };
+  if (path.extname(filePath).toLowerCase() !== ".md") return { ...file, kind: "text" };
+  return { ...file, ...await thread.read({ kind: "open", path: canonicalFilePath(filePath), source }, signal) };
 }
 
 async function saveFileInOrder(request: SaveRequest | TextSaveRequest, access: FileAccess, thread: DocumentThread, signal: AbortSignal): Promise<SaveResponse> {

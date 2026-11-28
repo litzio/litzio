@@ -194,11 +194,11 @@ export type DocumentFileResponse = SampleAvailability & {
 
 /** Plain text has no Core read model or semantic edits. */
 export type TextFileResponse = SampleAvailability & {
-
   kind: "text";
   path: string;
   source: string;
   revision: string;
+  issue?: WriteIssue;
 };
 export type EditorFileResponse = DocumentFileResponse | TextFileResponse;
 export type TextSaveRequest = { kind: "text"; path: string; revision: string; source: string };

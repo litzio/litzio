@@ -2,6 +2,7 @@ import { parentPort } from "node:worker_threads";
 import { textRevision } from "@litzio/file-commit";
 import { citationReport, type Document, type LocalWriteBaseline } from "@litzio/core";
 import { readModel } from "./document-replay.ts";
+import { readEditorMarkdown } from "./document-reader.ts";
 import { DocumentSaveCache } from "./document-save-cache.ts";
 import { prepareDocumentSave } from "./document-save-compute.ts";
 import { documentDiagnostic, saveDiagnostic, type DocumentWork, type DocumentWorkReply, type SaveWork } from "./document-worker-protocol.ts";
@@ -37,10 +38,7 @@ port.on("message", (work: DocumentWork | { kind: "settle-save"; committed: boole
   try {
     switch (work.kind) {
       case "open": {
-        let result;
-        try { result = readModel(cache.open(work.path, work.source)); }
-        catch { /* An unsupported Markdown file opens as text. */ }
-        reply({ result });
+        reply({ result: readEditorMarkdown(work.path, work.source, cache) });
         break;
       }
       case "bibliography":

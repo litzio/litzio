@@ -21,11 +21,12 @@ union, limits and snapshot policy are specified in [Citations v1](citations-v1.m
 
 Shared Vite/Desktop/HTTP `GET /api/document` returns either a native Core read model
 or `{ kind: text, path, source, revision }` for `.txt` and Core-refused `.md`.
+Parser-loss refusals include Core's `issue` with a reason and source line when known.
 Native semantic Save requests keep their existing strict replay schema.
 A separate tagged request `{ kind: text, path, source, revision }` allows no native
-edit/base fields. It checks Root/path, UTF-8/Unicode, current revision and current
-disk admission before invoking the existing File commit. A native file cannot be
-written through this raw path, even by forging the kind tag. New remains native `.md`.
+edit/base fields. It checks Root/path, UTF-8/Unicode and current revision before
+invoking the existing File commit with the supplied text. Open or Reload classifies
+the resulting file. New remains native `.md`.
 Folder listings include `.txt` as openable text files; other extensions are unchanged.
 Recovery's disk-only comparison also reads `.txt` without attempting native replay.
 No retained document/session state or new persistence service is introduced.

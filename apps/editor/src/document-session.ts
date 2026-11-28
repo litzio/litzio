@@ -67,7 +67,8 @@ export function createDocumentRequests(client: HostClient) {
       }
       throw new SaveContentError(payload.error ?? `request failed (${response.status})`, payload.target, payload.failure);
     }
-    if (payload.kind === "text") return { ...(payload.samples ? { samples: payload.samples } : {}), ...(payload.sampleProblem ? { sampleProblem: payload.sampleProblem } : {}), kind: "text", path: payload.path, source: payload.source, revision: payload.revision };
+    if (payload.kind === "text") return { ...(payload.samples ? { samples: payload.samples } : {}), ...(payload.sampleProblem ? { sampleProblem: payload.sampleProblem } : {}), kind: "text", path: payload.path, source: payload.source, revision: payload.revision,
+      ...(payload.issue?.code === "parser-loss" && typeof payload.issue.reason === "string" ? { issue: payload.issue } : {}) };
     const declarations = payload.bibliography?.declarations ?? [];
     const sources = await requestBibliography(payload.path, payload.revision, declarations, bibliographyRoot, signal);
     signal?.throwIfAborted();

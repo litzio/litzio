@@ -7,7 +7,7 @@ import type { LocalWriteStatus } from "../shared/document-protocol.ts";
 import type { DocumentResults, SaveWork } from "./document-worker-protocol.ts";
 
 // Temporary #1986 counters. Increase the rules version with a fix that restarts the count.
-const rulesVersion = 6;
+const rulesVersion = 7;
 type KindCounts = { completed: number; mismatches: number; documents: string[]; largeDocuments: string[];
   firstCounted: string | null; lastMismatch: string | null };
 const emptyKind = (): KindCounts => ({

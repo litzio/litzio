@@ -153,7 +153,10 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
       data-document-tab={id} data-active={focused ? "true" : "false"} data-visible={active ? "true" : "false"} data-group-index={groupIndex}
       style={{ "--editor-group-index": groupIndex } as CSSProperties} onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>
       <div className="text-document document-column" data-view={session.view}>
-        <p className="text-mode-notice" data-testid="text-mode-notice">{i18n.t(session.view === "read" ? "Markdown · Not a {{product}} document" : "Text mode · Not a {{product}} document")}</p>
+        <p className="text-mode-notice" data-testid="text-mode-notice">
+          {i18n.t(session.view === "read" ? "Markdown · Not a {{product}} document" : "Text mode · Not a {{product}} document")}
+          {file.issue && <>{" · "}{file.issue.reason}{typeof file.issue.line === "number" ? i18n.t(", source line {{line}}", { line: file.issue.line }) : ""}</>}
+        </p>
         <article className="document" data-read-only={session.view === "read"}>
           {session.markdown && session.view === "read" ? <div ref={reading} className="document-editor plain-markdown" data-testid="plain-markdown" onClick={event => {
             const anchor = event.target instanceof Element ? event.target.closest("a") : null;
