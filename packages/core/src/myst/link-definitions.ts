@@ -98,3 +98,11 @@ export function assertUsedLinkDefinitions(document: MystDocument): void {
     action: "Keep editing as text, or use the definition in a link before opening as a structured document.",
   });
 }
+
+/** The footnote probe reads the same source plus the references lifted from
+ * HTML table cells. Its successful read also resolves links inside those notes. */
+export function adoptRecoveredLinkDefinitions(document: MystDocument, probe: MystDocument): void {
+  const unused = unusedDefinitions.get(probe);
+  if (unused) unusedDefinitions.set(document, unused);
+  else unusedDefinitions.delete(document);
+}

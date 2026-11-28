@@ -76,6 +76,9 @@ test("a footnote referenced only by a complex table keeps the document's shared 
   const first = roundTrip(parseComplex(source));
   assert.match(first.markdown, /\[\^n\]: See \[manual\]\(https:\/\/example\.com\/manual\)\./);
   assert.equal(repeatRoundTrip(first).markdown, first.markdown);
+  assert.equal(core.serialize(core.parse(source)), first.markdown);
+  assert.throws(() => core.parse(source + "\n[unused]: https://example.com/backup\n"),
+    error => writeIssueOf(error).code === "invalid-reference");
 });
 
 test("a footnote referenced only by a complex table keeps another footnote it references", () => {

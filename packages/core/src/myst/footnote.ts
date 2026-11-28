@@ -66,12 +66,12 @@ function sourceDefinitions(text: string, options: object): SourceDefinition[] {
  * the read model, the Editor and section operations see one order.
  */
 export function locateFootnotes(document: MystDocument, text: string, options: object,
-  parseDocument?: (source: string) => MystDocument): void {
+  parseDocument?: (source: string) => MystDocument): MystDocument | undefined {
   const written = sourceDefinitions(text, options);
   rememberLiteralSource(document, text, options, new Set(written.map(item => item.label)));
   // The last definition of a label is the one kept.
   const last = new Map(written.map(definition => [definition.label, definition]));
-  if (parseDocument && written.length) recoverFootnotes(document, text, last, parseDocument);
+  const recovery = parseDocument && written.length ? recoverFootnotes(document, text, last, parseDocument) : undefined;
   const kept = new Set<string>();
   for (const node of document.children) {
     if (node.type !== "footnoteDefinition") continue;
@@ -87,13 +87,14 @@ export function locateFootnotes(document: MystDocument, text: string, options: o
   const unreferenced = written.find(definition => !kept.has(definition.label));
   if (repeated) document[DROPPED_FOOTNOTE_FIELD] = REPEATED(repeated.label);
   else if (unreferenced) document[DROPPED_FOOTNOTE_FIELD] = UNREFERENCED(unreferenced.label);
+  return recovery;
 }
 
 /** A synthetic reference lets MyST keep the same definition it would for a
  * normal body reference. Parse the full source so reference links and other
  * footnotes inside the definition see their original context. */
 function recoverFootnotes(document: MystDocument, text: string, written: Map<string, SourceDefinition>,
-  parseDocument: (source: string) => MystDocument): void {
+  parseDocument: (source: string) => MystDocument): MystDocument | undefined {
   const existing = new Set(document.children.filter(node => node.type === "footnoteDefinition").map(node => node.label));
   const needed = new Set(document.children.flatMap(footnoteReferences).filter(label => written.has(label) && !existing.has(label)));
   if (!needed.size) return;
@@ -117,6 +118,7 @@ function recoverFootnotes(document: MystDocument, text: string, written: Map<str
       if (written.has(reference) && !existing.has(reference)) needed.add(reference);
     }
   }
+  return parsed;
 }
 
 /** Each top-level block as endnote ordering sees it: the label it defines, and the references it holds. */

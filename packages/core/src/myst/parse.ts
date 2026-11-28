@@ -8,7 +8,7 @@ import { DocumentWriteError } from "../write-error.ts";
 import { recognizeGitHubAlert } from "./admonition.ts";
 import { ensureFrontMatter, markFrontMatter } from "./metadata.ts";
 import { locateFootnotes } from "./footnote.ts";
-import { parseLinkDefinitions } from "./link-definitions.ts";
+import { adoptRecoveredLinkDefinitions, parseLinkDefinitions } from "./link-definitions.ts";
 import { retainMermaidOptions } from "./figure.ts";
 import { assertComplexTableDirective, isNativeTableSource, readTableBreaks, retainTableSource } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
@@ -97,7 +97,10 @@ export function parse(source: string, { complexTables = false, nativeAdmission =
     containerChildrenTransform({ ...document, children }, new VFile());
   } else containerChildrenTransform(document, new VFile());
   readTableBreaks(document);
-  locateFootnotes(document, text, OPTIONS, convertedTables?.size ? parse : undefined);
+  const probe = locateFootnotes(document, text, OPTIONS, convertedTables?.size
+    ? source => parse(source, { documentMetadata })
+    : undefined);
+  if (probe) adoptRecoveredLinkDefinitions(document, probe);
   // Native admission refuses HTML outside the grids itself, with its own codes and reasons.
   if (complexTables && !nativeAdmission) rejectOutOfScopeHtml(document);
   return document;
