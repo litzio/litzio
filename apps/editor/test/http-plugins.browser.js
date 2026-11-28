@@ -165,6 +165,53 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await observer.getByTestId('activity-bar').getByRole('button', { name: 'Drive fixture', exact: true }).click();
   await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
   const storageScreen = observer.getByTestId("view-workspace").filter({ visible: true });
+  const bell = observer.getByRole("button", { name: "Notifications", exact: true });
+  const list = observer.locator("#notification-list");
+  const cardText = message => list.getByText(message, { exact: true });
+  const rejectEdit = storageScreen.getByRole("button", { name: "Reject edit", exact: true });
+  await rejectEdit.click();
+  await expect(cardText("Wire edit rejected (1)")).toBeVisible();
+  await rejectEdit.click();
+  const rejection = cardText("Wire edit rejected (2)");
+  await expect(cardText("Wire edit rejected (1)")).toBeHidden();
+  await expect(rejection).toBeVisible();
+  const rejectionCard = list.getByRole("listitem").filter({ has: observer.getByText("Wire edit rejected (2)", { exact: true }) });
+  await expect(rejectionCard.getByText("Drive fixture", { exact: true })).toBeVisible();
+  if (screenshots) {
+    await observer.setViewportSize({ width: 1440, height: 900 });
+    await observer.screenshot({ path: "tmp/screen-notifications-2056/1440-light.png", animations: "disabled",
+      mask: [observer.locator(".activity-bar-status, .document-path, .sidebar-folder-name, .document-start-folder-path")] });
+  }
+  await bell.press("Enter");
+  await expect(rejection).toBeHidden();
+  await bell.press("Enter");
+  await expect(rejection).toBeVisible();
+  await rejectionCard.getByRole("button", { name: "Dismiss notification", exact: true }).click();
+  await expect(rejection).toBeHidden();
+  await rejectEdit.click();
+  await expect(cardText("Wire edit rejected (3)")).toBeVisible();
+
+  const startRun = storageScreen.getByRole("button", { name: "Start run", exact: true });
+  const failRun = storageScreen.getByRole("button", { name: "Fail run", exact: true });
+  for (const id of [1, 2]) {
+    await startRun.click();
+    await expect(storageScreen.locator("output")).toHaveText(`Run ${id} started`);
+    await expect(cardText(`Run ${id} uses default settings`)).toBeVisible();
+    await failRun.click();
+    await failRun.click();
+    await expect(cardText(`Run ${id} failed`)).toBeVisible();
+  }
+  await observer.keyboard.press("F11");
+  await expect(observer.getByRole("button", { name: "Exit full screen" })).toBeVisible();
+  await expect(cardText("Run 2 failed")).toBeVisible();
+  await observer.keyboard.press("F11");
+  // Malformed items from plugin code are dropped instead of crashing the window-level center.
+  await storageScreen.getByRole("button", { name: "Send malformed", exact: true }).click();
+  await expect(cardText("Valid among malformed")).toBeVisible();
+  await expect(cardText("Run 2 failed")).toBeVisible();
+  await expect(cardText("Empty id")).toHaveCount(0);
+  await expect(cardText("Unknown severity")).toHaveCount(0);
+
   await storageScreen.getByRole("button", { name: "Prepare storage" }).click();
   await expect(storageScreen.locator("output")).toHaveText("Handler draft");
   const storageReply = method => observer.waitForResponse(response => {
@@ -178,16 +225,23 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   }));
   await observer.getByRole("button", { name: "Close Drive fixture", exact: true }).click();
   await savedOnClose;
+  await expect(bell).toHaveAccessibleDescription("Notifications: none");
   await observer.getByTestId("activity-bar").getByRole("button", { name: "Drive fixture", exact: true }).click();
   await storageScreen.getByRole("button", { name: "Read saved view" }).click();
   await expect(storageScreen.locator("output")).toHaveText("Saved on close");
+  await rejectEdit.click();
+  await expect(cardText("Wire edit rejected (1)")).toBeVisible();
+  pluginFixture.editScreenForReload();
+  pluginFixture.cli(["plugins", "reload", "fixture.drive"]);
+  await expect(observer.getByText("Reloaded runtime fixture", { exact: true })).toBeVisible();
+  await expect(bell).toHaveAccessibleDescription("Notifications: none");
   const readSnapshot = async value => {
     const screen = observer.getByTestId("view-workspace").filter({ visible: true });
     await screen.getByRole("button", { name: "Read installed value" }).click();
     await expect(screen.locator("output")).toHaveText(value);
   };
   pluginFixture.editSource();
-  await expect(observer.getByText('Runtime fixture', { exact: true })).toBeVisible();
+  await expect(observer.getByText("Reloaded runtime fixture", { exact: true })).toBeVisible();
   await readSnapshot("Original value");
   await page.bringToFront();
   // Settings finds the edited source and applies it to the same registration.

@@ -1,6 +1,8 @@
 import type { NodePath, machineNodes } from "@litzio/core";
 import type { ScreenDocumentViewChange } from "./document-view-change.ts";
 
+export type ScreenNotification = { id: string; message: string; severity: "warning" | "error" };
+
 /** One top-level block of a Save the Host accepted: its nodes as `inspect --format json` lists them. */
 export type ScreenDocumentSavedBlock = { path: NodePath; nodes: ReturnType<typeof machineNodes> };
 
@@ -144,7 +146,8 @@ export const SCREEN_UI = {
   Button: 'Standard button props; variant outline (when omitted)/default (explicit primary)/ghost/destructive, size default/sm/icon.',
   Input: 'Standard input props; wrap in a visible label.',
   Select: 'label:string, value:string, onValueChange(value:string), options:{value:string,label:string}[], optional disabled:boolean, placeholder:string. Single selection with label above the control by default. hideLabel?:boolean visually hides the required accessible label for inline toolbar buttons.',
-  Notice: 'children, optional tone="error"; catch async/event failures here.',
+  Notice: 'children, optional tone="error"; inline feedback tied to a field or screen content.',
+  Notifications: 'items: readonly {id:string,message:string,severity:"warning"|"error"}[]; registers plain-text notifications in the window notification center without rendering screen content. Only non-empty string id/message are shown; other items are dropped.',
   DataTable: 'title:string, rows:object[], columns:string[], optional labels:{field:"Label"}, fields:{field:{type:"number"}}, rowKey:string (identity field), selectedKey?:string|number, onSelectRow?:(row)=>void. With onSelectRow, click or focus a row and press Enter/Space to select; links do not select. Caller owns selectedKey across sorting/filtering/pages.',
   ItemList: 'items:{id:string,label:string,status?:{tone:"ok"|"progress"|"warning"|"error"|"neutral",label:string},details?:(string|null)[],group?:string}[], groups?:{id:string,title:string,collapsed?:boolean}[] (shown in this order; collapsed is only the initial state), onOpen:(item)=>void, hideStatusLabel?:boolean. Rows of items people open, such as documents or tasks: status mark, name, then short details; use ui.DataTable instead for data compared by value. The same details index lines up in every row; use null for an empty position. Whole rows open on click or Enter; Arrow keys/Home/End move between rows and group titles. Group titles collapse and show the item count while collapsed. Items without a known group come first, untitled. hideStatusLabel keeps the mark and its accessible name when group titles already state the status. Renders nothing when items is empty; show ui.EmptyState yourself. Fills its parent width; narrow parents move details below the name.',
   Row: 'label:ReactNode, description?:ReactNode, children:ReactNode, kind?:"item"|"fact" (item by default). Name left, values/controls right; stacks in narrow containers. fact is a semantic definition pair; use code for paths/identifiers.',
@@ -163,6 +166,7 @@ export const SCREEN_UI = {
 export const SCREEN_UI_GUIDANCE = Object.entries(SCREEN_UI).map(([name, props]) => `ui.${name}: ${props}`).join('\n') + `
 Design rules:
 - The frame owns background, page padding and the screen title; do not add them yourself.
+- Use ui.Notifications for window-level warnings and errors and ui.Notice for inline field or screen feedback. Pass plain text and keep the list in screen state. Reuse an ID only to update the same cause, including after dismissal. For a new edit refusal, remove the previous refusal of that kind and add a new ID (for example "reject:" + kind + ":" + sequence). For run-start warnings and run failures, use IDs such as "start:" + runId and "fail:" + runId. Remove resolved items from the list. The center supplies the screen name and removes the source on unmount, including after a reload that remounts the screen. A reload that keeps the screen mounted also keeps its notifications. This part requires Litzio with SDK 0.23.0 or later. State the requirement in the manifest description and release instructions.
 - Put screen status and main actions in ScreenLayout status/actions, in the header; put short information about what the screen shows, such as a file name and page count, in details.
 - A screen showing one item opened from a list gives the way back to the list with ScreenLayout back; do not add a separate button doing the same in actions.
 - Use ui.Row for a name and value/control; ui.Section for several rows. Do not repeat group/item names or group a single item.
