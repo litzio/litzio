@@ -6,7 +6,7 @@ import { isIP } from "node:net";
 import { brand } from "../../../brand.ts";
 import { startHttpHost } from "../../../apps/editor/server/http-host.ts";
 import { DAEMON_PROTOCOL, sameInstance } from "../../../apps/editor/server/daemon-protocol.ts";
-import { daemonChannel, startDaemonChild, acquireDaemonLock, processStart, reclaimStaleDaemon, daemonDirectory, daemonPort, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
+import { daemonChannel, startDaemonChild, acquireDaemonLock, processStart, reclaimStaleDaemon, daemonDirectory, daemonPort, daemonRpc, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
 import { daemonLog, describeError, repeatLog, watchEventLoop } from "../../../apps/editor/server/daemon-log.ts";
 import { buildCommit, productVersion } from "./version.ts";
 
@@ -119,7 +119,13 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
       catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     }
     const inspect = async (candidate: NonNullable<typeof record>) => {
-      try { return { ...candidate, ...await inspectDaemon(candidate, productVersion), state: "running", running: true }; }
+      try {
+        const health = await inspectDaemon(candidate, productVersion);
+        const identity = health.identity ?? (health.screenInstanceGuard
+          ? (await daemonRpc(candidate, "/api/host-capabilities", undefined, { instanceId: health.instanceId }).catch(() => undefined))?.identity
+          : undefined);
+        return { ...candidate, ...health, identity, state: "running", running: true };
+      }
       catch (error) {
         const started = processStart(candidate.pid);
         const owner = !started ? "exited" : started === candidate.processStartedAt ? "alive but unresponsive/incompatible" : "PID reused";

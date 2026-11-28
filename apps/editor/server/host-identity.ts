@@ -4,10 +4,16 @@ import { promisify } from "node:util";
 
 const execute = promisify(execFile);
 let identity: Promise<{ runAs: string }> | undefined;
+let resolvedIdentity: { runAs: string } | undefined;
+
+/** Health can report a known account without waiting on the OS lookup. */
+export function cachedHostIdentity(): { runAs: string } | undefined {
+  return resolvedIdentity && { ...resolvedIdentity };
+}
 
 /** Process token identity, never the UI user or an environment-supplied account. */
 export async function hostIdentity(): Promise<{ runAs: string }> {
-  identity ??= readHostIdentity().catch(error => {
+  identity ??= readHostIdentity().then(account => resolvedIdentity = account).catch(error => {
     identity = undefined;
     throw error;
   });
