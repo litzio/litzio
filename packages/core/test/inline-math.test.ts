@@ -51,11 +51,30 @@ test("paragraphs with inline math are editable inline content", () => {
   ]);
 });
 
+test("digits outside dollar delimiters keep prices and similar text literal", () => {
+  for (const value of ["$10 / $20", "$5 and $10", "가격은 $3,000에서 $5,000", "$x$1", "1$x$"]) {
+    const source = value + "\n";
+    const document = parse(source);
+    assert.deepEqual(paragraph(document)?.content, [text(value)]);
+    assert.equal(serialize(document), source);
+    assert.equal(write("Plain.\n", [text(value)]), source);
+  }
+  const source = "$x$\n\n$a+b$ 다음\n\n$$\nx=1\n$$\n";
+  const document = parse(source);
+  assert.deepEqual(paragraph(document)?.content, [math("x")]);
+  assert.deepEqual(paragraph(document, 1)?.content, [math("a+b"), text(" 다음")]);
+  assert.equal(getNode(document, [2]).type, "math");
+  assert.equal(serialize(document), source);
+  assert.equal(serialize(parse(serialize(document))), source);
+});
+
 test("inline math is written in MyST's dollar form where it reloads unchanged", () => {
   // `$...$` and {math} both parse to inline math; the canonical form is `$...$`.
   assert.equal(serialize(parse("The current is {math}`i_d` and **$v_{dc}$**.\n")),
     "The current is $i_d$ and **$v_{dc}$**.\n");
-  assert.equal(serialize(parse("Gap {math}` x `, then {math}`x`5.\n")), "Gap $ x $, then $x$5.\n");
+  assert.equal(serialize(parse("Gap {math}` x `.\n")), "Gap $ x $.\n");
+  assert.equal(write("Plain.\n", [text("1"), math("x")]), "1{math}`x`\n");
+  assert.equal(write("Plain.\n", [math("x"), text("5.")]), "{math}`x`5.\n");
   // Sources with a dollar or a trailing backslash, and math right after a line break, keep the role.
   assert.equal(serialize(parse("{math}`a\\$b` {math}`a\\\\`\n")), "{math}`a\\$b` {math}`a\\\\`\n");
   assert.equal(serialize(parse("A\n$x$ and B\\\n$y$\n")), "A\n{math}`x` and B\\\n{math}`y`\n");
@@ -73,17 +92,17 @@ test("inline math source can be changed, created and removed", () => {
   assert.equal(write(source, [math("x")]), "$x$\n");
 });
 
-test("literal dollar signs in text are written escaped and reload as text, not inline math", () => {
+test("literal dollar signs in text are escaped where needed to reload as text", () => {
   const source = "The current is $i_d$.\n";
   // Only a dollar that would open math is escaped; its partner then cannot close any.
   assert.equal(write(source, [text("Measure $THD$ below 5%.")]), "Measure \\$THD$ below 5%.\n");
-  assert.equal(write(source, [text("Cost $5 and $6.")]), "Cost \\$5 and $6.\n");
+  assert.equal(write(source, [text("Cost $5 and $6.")]), "Cost $5 and $6.\n");
   assert.equal(write(source, [text("a\\$b $$")]), "a\\\\\\$b \\$\\$\n");
   // Unescaped, `$**$` across the strong boundary would be math: this block keeps every escape.
   assert.equal(write(source, [{ kind: "strong", children: [text("$a$")] }, math("x"), text("$ end")]),
     "**\\$a\\$**$x$\\$ end\n");
   // Every block that holds text: escaped dollars in headings, titles, cells and link text reload as written.
-  const blocks = "# Price \\$5 and $6\n\n:::{note} Cost \\$5 and $6\nBody\n:::\n\n| \\$a$ |\n| --- |\n| x |\n\n[\\$a$](https://x.example)\n";
+  const blocks = "# Price $5 and $6\n\n:::{note} Cost $5 and $6\nBody\n:::\n\n| \\$a$ |\n| --- |\n| x |\n\n[\\$a$](https://x.example)\n";
   assert.equal(serialize(parse(blocks)), blocks);
   assert.match(serialize(updateTableCell(parse("| A |\n| - |\n| b |\n"), [0, 1, 0], "cost $x$")), /\| cost \\\$x\$ \|/);
 });

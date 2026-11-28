@@ -15,7 +15,7 @@ import { encodeEmphasisBoundaries, hasAlternateBoundaries } from "./emphasis-bou
 import { encodeLineStarts, hasLineStartSyntax } from "./line-start.ts";
 import { sourceSyntaxDiagnostics } from "./literal-syntax.ts";
 import { holdsAt, markMinimalEscape, minimalEscapeText } from "./minimal-escape.ts";
-import { parse, standaloneImage } from "./parse.ts";
+import { MATH_EXTENSIONS, parse, standaloneImage } from "./parse.ts";
 import { prepareReferences } from "./reference.ts";
 import { assertComplexTableDirective, isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode, tableNoteParagraphs } from "./table.ts";
 import { locateTableCells, needsComplexGrid, usePipeGrid } from "./table-grid.ts";
@@ -25,7 +25,7 @@ import { cloneDocument, type MystDocument, type MystNode } from "./tree.ts";
 const LOSS = "Document contains semantic content that cannot be preserved in canonical Markdown";
 // Ask the pinned upstream citation rule which literal @ positions need protection.
 // Do not duplicate its key grammar, preceding-character or URL-context rules.
-const writerTokenizer = createTokenizer({ extensions: { smartquotes: false } });
+const writerTokenizer = createTokenizer({ extensions: { smartquotes: false, math: MATH_EXTENSIONS } });
 const citationRules = writerTokenizer.inline.ruler.getRules("");
 writerTokenizer.inline.ruler.disable("citation");
 const nonCitationRules = new Set(writerTokenizer.inline.ruler.getRules(""));
@@ -392,7 +392,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     }
     // myst-to-md writes inline math as the `{math}` role; write MyST's usual `$...$`.
     if (node.children?.some(child => child.type === "inlineMath")) {
-      node.children = node.children.map((child, index, siblings) => isDollarMath(child, siblings[index - 1])
+      node.children = node.children.map((child, index, siblings) => isDollarMath(child, siblings[index - 1], siblings[index + 1])
         ? { type: "html", value: `$${child.value}$` } : child);
     }
     node.children?.forEach((child, childIndex) => {
@@ -567,10 +567,17 @@ function escapeTableCodeAndMath(node: MystNode): void {
 /** Whether inline math can be written as `$...$`. The value must not hold `$` or end in a
  * backslash that would escape the closing `$`. The writer turns a line ending before an `html`
  * node into a space, so math right after a line break keeps the role. */
-function isDollarMath(node: MystNode, previous: MystNode | undefined): boolean {
-  return node.type === "inlineMath" && typeof node.value === "string" && /^[^$\r\n]*[^$\r\n\\]$/.test(node.value) &&
-    Object.keys(node).every(key => key === "type" || key === "value" || key === "position") &&
-    previous?.type !== "break" && !(previous?.type === "text" && /[\r\n]$/.test(String(previous.value)));
+function isDollarMath(node: MystNode, previous: MystNode | undefined, next: MystNode | undefined): boolean {
+  if (node.type !== "inlineMath" || typeof node.value !== "string" || !/^[^$\r\n]*[^$\r\n\\]$/.test(node.value) ||
+      !Object.keys(node).every(key => key === "type" || key === "value" || key === "position") ||
+      previous?.type === "break" || (previous?.type === "text" && /[\r\n]$/.test(String(previous.value)))) return false;
+  const before = previous?.type === "text" ? String(previous.value).slice(-1) : "";
+  const after = next?.type === "text" ? String(next.value).slice(0, 1) : "";
+  // A preceding text backslash is escaped by the Markdown writer.
+  const source = `${before === "\\" ? " " : before}$${node.value}$${after}`;
+  const state = new writerTokenizer.inline.State(source, writerTokenizer, {}, []);
+  state.pos = before.length;
+  return mathRule(state, true);
 }
 
 /** Escape a literal `@` where the citation rule would read one, and a `$` where dollar math

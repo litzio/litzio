@@ -94,11 +94,12 @@ test("text keeps only the escapes that its meaning or other MyST readers need (#
     [root(paragraph(text("R&D & more"))), "R&D & more\n"],
     [root(paragraph(text("Embed ![[note.png]] and #tag"))), "Embed ![[note.png]] and #tag\n"],
     [root({ type: "heading", depth: 2, children: [text("Use C#")] }), "## Use C#\n"],
+    [root(paragraph(text("$5 and $10"))), "$5 and $10\n"],
     // These still need one: citation shorthand for default MyST, math, line-start
     // blocks, a reference, emphasis, a pipe in a cell and a bracket in link text.
     [root(paragraph(text("[@literal] here"))), "\\[\\@literal] here\n"],
     [root(paragraph(text("[see @key]"))), "\\[see \\@key]\n"],
-    [root(paragraph(text("$5 and $10"))), "\\$5 and $10\n"],
+    [root(paragraph(text("$x$"))), "\\$x$\n"],
     [root(paragraph(text("# a")), paragraph(text("1. a")), paragraph(text("- a"))), "\\# a\n\n1\\. a\n\n\\- a\n"],
     [root(paragraph(text("&amp; and &#123;"))), "\\&amp; and \\&#123;\n"],
     [root(paragraph(text("_a_ word"))), "\\_a\\_ word\n"],

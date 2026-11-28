@@ -295,3 +295,27 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..fa16ce4a86e8df222a191f2419f617c5
              }
          }
      });
+diff --git a/dist/math.d.ts b/dist/math.d.ts
+--- a/dist/math.d.ts
++++ b/dist/math.d.ts
+@@ -1,6 +1,7 @@
++import type { dollarmathPlugin } from 'markdown-it-dollarmath';
+ import type MarkdownIt from 'markdown-it';
+ export type MathExtensionOptions = {
+     amsmath?: boolean;
+-    dollarmath?: boolean;
++    dollarmath?: boolean | Parameters<typeof dollarmathPlugin>[1];
+ };
+ export declare function plugin(md: MarkdownIt, options?: true | MathExtensionOptions): void;
+diff --git a/dist/math.js b/dist/math.js
+--- a/dist/math.js
++++ b/dist/math.js
+@@ -3,7 +3,7 @@
+ export function plugin(md, options) {
+     const opts = options === true ? { amsmath: true, dollarmath: true } : options;
+     if (opts?.dollarmath)
+-        dollarmathPlugin(md);
++        dollarmathPlugin(md, opts.dollarmath === true ? undefined : opts.dollarmath);
+     if (opts?.amsmath)
+         amsmathPlugin(md);
+ }
