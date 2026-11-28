@@ -263,6 +263,16 @@ test("GitHub alerts share existing admonition meaning and keep literal quotes an
   }
 });
 
+test("an image that a bare Markdown image cannot keep stays a Figure without dropping other conventions or the fast-save baseline", () => {
+  // Korean and space paths read back percent-encoded or not as an image.
+  const source = native("# T\n\nFirst ~~struck~~.\n\n:::{figure} ./그림 1.png\n:::\n\n:::{figure} ./사진.png\n:alt: 사진\n:::\n\n" +
+    "![](./plain.png)\n\n> [!NOTE]\n> Keep.\n\nLast.\n");
+  const saved = serialize(parse(source));
+  assert.equal(saved, source);
+  assert.ok(core.LocalWriteBaseline.fromCanonical(saved, parse(saved)));
+  assert.equal(serialize(parse(saved)), saved);
+});
+
 test("a Markdown fragment reads as the body of an opened document, with endnotes apart", () => {
   const body = "# 측정시스템 분석\n\n## 발표 흐름\n\n1. **MSA 목적:** 측정값 신뢰\n2. **반복성:** 같은 사람\n\n| A | B |\n|---|:-:|\n| `x` | [y](https://example.com) |\n\n오늘은 **측정**을 설명합니다[^n].\n\n[^n]: 주석.\n";
   const fragment = core.readMarkdownFragment(body.replace(/\n/g, "\r\n"));

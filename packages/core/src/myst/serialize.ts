@@ -11,7 +11,7 @@ import { isFigure, figureContentKind } from "./figure.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { encodeEmphasisBoundaries, hasAlternateBoundaries } from "./emphasis-boundary.ts";
 import { encodeLineStarts, hasLineStartSyntax } from "./line-start.ts";
-import { parse } from "./parse.ts";
+import { parse, standaloneImage } from "./parse.ts";
 import { prepareReferences } from "./reference.ts";
 import { assertComplexTableDirective, isTableDirective, tableOf, tableCaptionParagraph, tableBlockNode, tableNoteParagraphs } from "./table.ts";
 import { locateTableCells, needsComplexGrid, usePipeGrid } from "./table-grid.ts";
@@ -227,6 +227,15 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
   return result;
 }
 
+/** Decide per Figure, before the document write, so an image whose URL or alt text would not
+ * read back keeps `{figure}` without a document-wide retry. Local writes then get the same bytes. */
+function keepsStandaloneImage(image: MystNode): boolean {
+  let read: ReturnType<typeof standaloneImage>;
+  try { read = standaloneImage(render({ type: "paragraph", children: [image] })); }
+  catch { return false; }
+  return read !== undefined && read.url === image.url && read.alt === (image.alt ?? "");
+}
+
 function parsedRoundTrip(markdown: string, complexTables: boolean): RoundTrip {
   const reparsed = parse(markdown, { complexTables });
   return { markdown, reparsed, fingerprint: semanticFingerprint(reparsed) };
@@ -346,7 +355,8 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     }
     if (useConvention && parent === tree && figureKind === "image" && node.children?.length === 1 &&
         node.children[0].url && Object.keys(node).every(key => ["type", "kind", "children", "position"].includes(key)) &&
-        Object.keys(node.children[0]).every(key => ["type", "url", "alt", "position"].includes(key))) {
+        Object.keys(node.children[0]).every(key => ["type", "url", "alt", "position"].includes(key)) &&
+        keepsStandaloneImage(node.children[0])) {
       node.type = "paragraph";
       delete node.kind;
       conventions.attempted?.add(path[0]);

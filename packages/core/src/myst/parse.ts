@@ -33,6 +33,17 @@ export const OPTIONS = { extensions: { smartquotes: false, citations: false, att
 const parseMyst = createMystParser(OPTIONS);
 const imageTokenizer = createTokenizer(OPTIONS);
 
+/** Read one line without document reference definitions as a standalone image. Only an
+ * inline image link without a title can produce this token on its own. The writer uses
+ * the same reading to keep a Figure whose URL or alt text would not survive it. */
+export function standaloneImage(line: string): { url: string; alt: string } | undefined {
+  const tokens = imageTokenizer.parseInline(line, {})[0]?.children;
+  const image = tokens?.length === 1 ? tokens[0] : undefined;
+  if (image?.type !== "image" || image.attrGet("title") !== null) return undefined;
+  // myst-parser reads alt text the same way.
+  return { url: image.attrGet("src") ?? "", alt: image.attrGet("alt") || (image.children ?? []).reduce((text, child) => text + child.content, "") };
+}
+
 const directiveRanges = new WeakMap<MystNode, NonNullable<MystNode["position"]>>();
 
 /** Single lifted blocks occupy the directive fences. Keep this parser evidence apart
@@ -63,10 +74,7 @@ export function parse(source: string, { complexTables = false, nativeAdmission =
     const line = lines[start.line - 1];
     if (start.line !== end.line || !line || !/^ {0,3}!\[/.test(line) || !node.url ||
         !Object.keys(node).every(key => node[key] === undefined || ["type", "position", "url", "alt"].includes(key))) return node;
-    // Parse the line without document reference definitions. Only an inline image
-    // link can produce this token on its own.
-    const tokens = imageTokenizer.parseInline(line.trim(), {})[0]?.children;
-    if (tokens?.length !== 1 || tokens[0].type !== "image" || tokens[0].attrGet("title") !== null) return node;
+    if (!standaloneImage(line.trim())) return node;
     return { type: "container", kind: "figure", children: [node], position: node.position };
   });
   liftMystDirectivesAndRolesTransform(document);
