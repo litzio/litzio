@@ -14,7 +14,17 @@ export function fakeProviderCli(root: string, state: FakeCliState) {
   writeFileSync(file, JSON.stringify(state));
   writeFileSync(bin, process.platform === "win32" ? `@"${process.execPath}" "${dispatcher}" "${file}" %*\r\n` : `#!/bin/sh\nexec "${process.execPath}" "${dispatcher}" "${file}" "$@"\n`);
   if (process.platform !== "win32") chmodSync(bin, 0o755);
-  return { bin, read: () => JSON.parse(readFileSync(file, "utf8")) as FakeCliState, write: (next: Partial<FakeCliState>) => writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), ...next })) };
+  let lastState = state;
+  return {
+    bin,
+    read: () => {
+      const json = readFileSync(file, "utf8");
+      // The fixture truncates the file before writing. Poll again if we read during that gap.
+      if (json !== "") lastState = JSON.parse(json) as FakeCliState;
+      return lastState;
+    },
+    write: (next: Partial<FakeCliState>) => writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), ...next })),
+  };
 }
 
 /** Replace the public release source; tests never reach GitHub. */
