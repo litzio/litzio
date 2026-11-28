@@ -1,7 +1,7 @@
 import { createTokenizer } from "myst-parser";
 import { isScalar, Scalar } from "yaml";
 import { DocumentWriteError } from "../write-error.ts";
-import { metadata } from "./metadata.ts";
+import { metadata, writeMetadata } from "./metadata.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { OPTIONS } from "./parse.ts";
 import { serializeFor } from "./serialize.ts";
@@ -40,7 +40,7 @@ export function updateDocumentTitle(document: MystDocument, title: string | null
   const { node, yaml } = metadata(next);
   if (title === null) yaml.delete("title");
   else yaml.set("title", title);
-  node.value = String(yaml);
+  writeMetadata(node, yaml, "title");
   serializeFor(next, "document title cannot be preserved through canonical round-trip");
   return next;
 }

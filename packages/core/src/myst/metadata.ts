@@ -1,7 +1,7 @@
 import { DocumentDiagnosticError } from "../write-error.ts";
-import { isMap, parseDocument } from "yaml";
+import { Document, isMap, isNode, isScalar, parseDocument, visit, type Pair, type Node } from "yaml";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
-import type { MystDocument } from "./tree.ts";
+import type { MystDocument, MystNode } from "./tree.ts";
 
 /** Shared YAML document for semantic metadata edits; preserves comments and unrelated settings. */
 export function metadata(document: MystDocument) {
@@ -10,4 +10,68 @@ export function metadata(document: MystDocument) {
   const yaml = parseDocument(String(node.value ?? ""));
   if (yaml.errors.length || !isMap(yaml.contents)) throw new DocumentDiagnosticError("native-metadata", "Invalid native frontmatter");
   return { node, yaml };
+}
+
+function pairOf(yaml: Document, key: string): Pair | undefined {
+  return isMap(yaml.contents) ? yaml.contents.items.find(pair => (isScalar(pair.key) ? pair.key.value : pair.key) === key) : undefined;
+}
+
+/** Source lines of a top-level pair: from its key's line through the line ending its value and that value's comments. */
+function lines(source: string, pair: Pair): [number, number] | undefined {
+  const key = (pair.key as Node | null)?.range, value = (pair.value as Node | null)?.range ?? key;
+  if (!key || !value) return undefined;
+  const start = source.lastIndexOf("\n", key[0] - 1) + 1;
+  // Only a key that starts its line can be replaced by whole lines.
+  if (source.slice(start, key[0]).trim()) return undefined;
+  let end = value[2];
+  while (end > start && /\s/.test(source[end - 1])) end--;
+  const newline = source.indexOf("\n", end);
+  return [start, newline === -1 ? source.length : newline + 1];
+}
+
+/** The pair alone; comment lines above its key stay in the source outside the replaced lines. */
+function pairSource(yaml: Document, pair: Pair): string {
+  const copy = pair.clone(yaml.schema);
+  if (isNode(copy.key)) { copy.key.commentBefore = undefined; copy.key.spaceBefore = false; }
+  const single = new Document({});
+  (single.contents as { items: Pair[] }).items.push(copy);
+  return String(single);
+}
+
+/**
+ * Write an edited metadata document back to the front matter node. Only the lines of the one
+ * changed top-level key are replaced, and a new key follows the last field, so other fields,
+ * including ones Litzio does not interpret, keep their exact source. When the replacement does
+ * not read back as the edited YAML, the whole YAML is written, keeping its meaning but not
+ * necessarily its spelling.
+ */
+export function writeMetadata(node: MystNode, yaml: Document, key: string): void {
+  const source = String(node.value ?? "");
+  const before = parseDocument(source);
+  const old = pairOf(before, key), next = pairOf(yaml, key);
+  let written: string | undefined;
+  if (isMap(before.contents) && !before.contents.flow) {
+    const last = before.contents.items.at(-1);
+    const end = last ? lines(source, last)?.[1] : source.length;
+    const span = old ? lines(source, old) : end === undefined ? undefined : [end, end];
+    const text = next ? pairSource(yaml, next) : "";
+    if (span) {
+      const head = source.slice(0, span[0]);
+      written = (old || !head || head.endsWith("\n") ? head : `${head}\n`) + text + source.slice(span[1]);
+    }
+  }
+  node.value = written !== undefined && readsBack(written, yaml) ? written : String(yaml);
+}
+
+function readsBack(source: string, yaml: Document): boolean {
+  const reparsed = parseDocument(source);
+  return !reparsed.errors.length && spelling(reparsed) === spelling(yaml);
+}
+
+/** Comments and values as the YAML writer spells them. Blank lines between fields stay where the
+ * source has them, so they do not count. */
+function spelling(yaml: Document): string {
+  const copy = yaml.clone();
+  visit(copy, { Node(_, node) { node.spaceBefore = false; } });
+  return String(copy);
 }

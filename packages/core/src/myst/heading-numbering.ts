@@ -3,7 +3,7 @@ import { defaultHeadingNumbering, type HeadingNumbering } from "../numbering.ts"
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { cloneDocument, type MystDocument } from "./tree.ts";
 import { serializeFor } from "./serialize.ts";
-import { metadata } from "./metadata.ts";
+import { metadata, writeMetadata } from "./metadata.ts";
 
 /** Native v1 has one numbering policy: H1-H6 body sections. */
 export function getHeadingNumbering(document: MystDocument): HeadingNumbering | undefined {
@@ -19,7 +19,7 @@ export function updateHeadingNumbering(document: MystDocument, enabled: boolean)
   const { node, yaml } = metadata(next);
   yaml.setIn(["numbering", "headings"], enabled);
   yaml.setIn(["numbering", "title"], false);
-  node.value = String(yaml);
+  writeMetadata(node, yaml, "numbering");
   serializeFor(next, "heading numbering cannot be preserved through canonical round-trip");
   return next;
 }
