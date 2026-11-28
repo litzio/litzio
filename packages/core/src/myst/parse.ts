@@ -8,6 +8,7 @@ import { DocumentWriteError } from "../write-error.ts";
 import { recognizeGitHubAlert } from "./admonition.ts";
 import { ensureFrontMatter, markFrontMatter } from "./metadata.ts";
 import { locateFootnotes } from "./footnote.ts";
+import { parseLinkDefinitions } from "./link-definitions.ts";
 import { retainMermaidOptions } from "./figure.ts";
 import { assertComplexTableDirective, isNativeTableSource, readTableBreaks, retainTableSource } from "./table.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
@@ -56,7 +57,9 @@ export function parse(source: string, { complexTables = false, nativeAdmission =
   assertUnicode(source);
   const text = source.startsWith("\uFEFF") ? source.slice(1) : source;
   const file = new VFile();
-  const document = parseMyst(text, file) as MystDocument;
+  const document = documentMetadata && text.includes("]:")
+    ? parseLinkDefinitions(text, file, OPTIONS)
+    : parseMyst(text, file);
   markFrontMatter(document, text);
   if (documentMetadata) ensureFrontMatter(document);
   const convertedTables = complexTables ? new Set<MystNode>() : undefined;

@@ -9,6 +9,7 @@ import { isFigure, supportedFigureContent } from "./figure.ts";
 import { supportedFootnoteContent } from "./footnote.ts";
 import { checklistShapeIssue, supportedListContent } from "./list.ts";
 import { citationShorthand } from "./literal-syntax.ts";
+import { assertUsedLinkDefinitions } from "./link-definitions.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { parse as parseTree } from "./parse.ts";
 import { isDivider, supportedQuoteContent } from "./quote.ts";
@@ -146,6 +147,7 @@ export function assertNativeDocument(document: MystDocument): void {
     if (!supportedBlock(node)) throw new NativeDocumentError("native-content", `Unsupported native content: ${node.type}${node.kind ? ` (${node.kind})` : ""}`, [index], node.position?.start.line);
     assertInlineContent(node, [index]);
   });
+  assertUsedLinkDefinitions(document);
 }
 
 export function parseNativeDocument(source: string): MystDocument {

@@ -327,6 +327,30 @@ test("the native marker is read from leading frontmatter alone, without admittin
     assert.equal(hasNativeMarker(source), false, source);
   }
 });
+test("native admission refuses unused link definitions but keeps resolved reference links", () => {
+  const unused = "# Runbook\n\nFix typo.\n\n[backup-console]: https://ops.example.org/recovery\n";
+  assert.throws(() => parse(unused), error => {
+    const issue = core.writeIssueOf(error);
+    return issue.code === "invalid-reference" && issue.line === 5 && /backup-console/i.test(issue.reason);
+  });
+  const used = unused.replace("Fix typo.", "Open [the backup console][Backup-Console].");
+  assert.equal(serialize(parse(used)), "# Runbook\n\nOpen [the backup console](https://ops.example.org/recovery).\n");
+  const definition = "[site]: https://example.com\n";
+  // Equal URLs do not demonstrate that this particular definition was used.
+  for (const source of [
+    `See [the site](https://example.com).\n\n${definition}`,
+    `See [site].\n\n${definition}[SITE]: https://else.example\n`,
+    `:::{note}\nSee [site].\n\n${definition}[other]: https://example.com\n:::\n`,
+  ]) {
+    assert.throws(() => parse(source), error => core.writeIssueOf(error).code === "invalid-reference", source);
+  }
+  assert.equal(serialize(parse(`:::{note}\nSee [site][].\n\n${definition}:::\n`)), "> [!NOTE]\n> See [site](https://example.com).\n");
+  const alert = `> [!NOTE]\n> See [site].\n\n${definition}`;
+  assert.equal(serialize(parse(alert)), "> [!NOTE]\n> See [site](https://example.com).\n");
+  const fenced = `Body.\n\n\`\`\`text\n${definition}\`\`\`\n`;
+  assert.equal(serialize(parse(fenced)), fenced);
+});
+
 test("native admission rejects unsupported structure instead of projecting partial documents", () => {
   for (const body of ["Text ![inline](./x.png).\n", "[![linked](./x.png)](./y)\n", "![one](a.png)\n![two](b.png)\n",
     "![titled](./x.png \"A title\")\n", "![reference][img]\n\n[img]: ./x.png\n", "1. [x] task\n",

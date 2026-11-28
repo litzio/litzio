@@ -896,11 +896,12 @@ test("HTTP starts with only allowed places and saves both roots through Core and
 test("HTTP opens and saves an ordinary README as a structured document", async t => {
   const { a, send } = await fixture(t);
   const file = path.join(a, "README.md");
-  const source = [
-    "# Example project", "", "Read the [manual](https://example.com/manual).", "",
+  const body = [
+    "# Example project", "", "Read the [manual][guide].", "",
     "- Install", "- Run", "", "| Command | Result |", "| --- | --- |", "| start | ready |", "",
     "```sh", "npm start", "```", "",
   ].join("\n");
+  const source = body + "\n[guide]: https://example.com/manual\n";
   fs.writeFileSync(file, source);
   const opened = await (await send(documentQuery(file))).json();
   assert.equal(opened.kind, "native");
@@ -918,9 +919,28 @@ test("HTTP opens and saves an ordinary README as a structured document", async t
   assert.equal(saved.status, 200, await saved.clone().text());
   const reopened = await (await send(documentQuery(file))).json();
   assert.equal(reopened.kind, "native");
-  assert.equal(reopened.source, source.replace("Read the", "See the"));
+  assert.equal(reopened.source, body.replace("Read the [manual][guide]", "See the [manual](https://example.com/manual)"));
   assert.equal(reopened.revision, (await saved.json()).revision);
   assert.equal(fs.readFileSync(file, "utf8"), reopened.source);
+});
+
+test("HTTP keeps an unused link definition when correcting a README in text mode", async t => {
+  const { a, send } = await fixture(t);
+  const file = path.join(a, "README.md");
+  const source = "# Runbook\n\nFix typo.\n\n[backup-console]: https://ops.example.org/recovery\n";
+  fs.writeFileSync(file, source);
+  const opened = await (await send(documentQuery(file))).json();
+  const structured = await send("/api/document", "POST", {
+    path: file, revision: opened.revision, base: { source },
+    paragraphs: [{ path: [2], content: [{ kind: "text", text: "Fixed typo." }] }],
+  });
+  assert.equal(structured.status, 400);
+  assert.match((await structured.json()).error, /Unused link reference definition/i);
+  assert.equal(fs.readFileSync(file, "utf8"), source);
+  assert.equal(opened.kind, "text");
+  const corrected = source.replace("Fix typo.", "Fixed typo.");
+  assert.equal((await send("/api/document", "POST", { kind: "text", path: file, revision: opened.revision, source: corrected })).status, 200);
+  assert.equal(fs.readFileSync(file, "utf8"), corrected);
 });
 
 test("HTTP rejects an escaped surrogate locator and preserves valid Unicode names", async t => {
