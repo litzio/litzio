@@ -122,17 +122,57 @@ export function plainRoundTrip(document: MystDocument, previous?: RoundTrip): Ro
  * conventional form cannot preserve their meaning in the complete document. */
 function writeWithConventions(document: MystDocument, previous: RoundTrip | undefined, attempt: Attempt): RoundTrip {
   const attempted = new Set<number>();
+  const mismatch = (error: unknown): error is SemanticLossError =>
+    error instanceof SemanticLossError && error.location.code === "round-trip-mismatch";
   try { return writeRoundTrip(document, previous, attempt, { attempted }); }
   catch (error) {
-    if (!(error instanceof SemanticLossError) || error.location.code !== "round-trip-mismatch" || !attempted.size) throw error;
-    const path = error.location.path?.[0];
-    if (path !== undefined && attempted.has(path) && attempted.size > 1) {
-      try { return writeRoundTrip(document, previous, attempt, { skip: new Set([path]) }); }
-      catch { /* A second affected block may also need MyST syntax. */ }
+    if (!mismatch(error) || !attempted.size) throw error;
+    // Keep the conventions of every block that read back; skip only the blocks a refusal
+    // names. One refusal names all differing blocks it can align, so a retry is rarely needed
+    // twice. Only a refusal that names no new attempted block skips them all.
+    const skip = new Set<number>();
+    let failure: SemanticLossError = error;
+    for (let retry = 0; retry < 2; retry++) {
+      const found = failedBlocks(failure).filter(block => attempted.has(block) && !skip.has(block));
+      if (!found.length || found.length === attempted.size) break;
+      for (const block of found) skip.add(block);
+      try { return writeRoundTrip(document, previous, attempt, { skip }); }
+      catch (next) {
+        if (!mismatch(next)) break;
+        failure = next;
+      }
     }
     try { return writeRoundTrip(document, previous, attempt, { skip: attempted }); }
     catch { throw error; }
   }
+}
+
+/** Original top-level indices of the blocks a refusal names. */
+const refusedBlocks = new WeakMap<SemanticLossError, number[]>();
+function failedBlocks(error: SemanticLossError): number[] {
+  const path = error.location.path?.[0];
+  return refusedBlocks.get(error) ?? (path === undefined ? [] : [path]);
+}
+
+/** Name every top-level block that reads back differently, when the reread keeps the block
+ * count so blocks still align, together with narrowed-escape blocks that read as literal syntax. */
+function refusal(error: SemanticLossError, expected: ReturnType<typeof semanticFingerprint>, result: RoundTrip,
+  blockPaths: number[][], literal: number[]): SemanticLossError {
+  const blocks = new Set<number>(literal);
+  const after = result.fingerprint.children;
+  if (expected.children.length === after.length) {
+    expected.children.forEach((block, index) => {
+      if (semanticDifferenceIssue(block, after[index])) blocks.add(blockPaths[index][0]);
+    });
+  }
+  if (blocks.size) refusedBlocks.set(error, [...blocks]);
+  return error;
+}
+
+function literalBlocks(result: RoundTrip, blockPaths: number[][], minimal: ReadonlySet<number>): number[] {
+  if (!minimal.size) return [];
+  return sourceSyntaxDiagnostics(result.reparsed).map(item => blockPaths[item.path[0]]?.[0])
+    .filter((block): block is number => block !== undefined && minimal.has(block));
 }
 
 function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined, attempt: Attempt, conventions: Conventions = {}): RoundTrip {
@@ -234,15 +274,15 @@ function writeRoundTrip(document: MystDocument, previous: RoundTrip | undefined,
         }
       }
     }
-    throw new SemanticLossError(difference.reason, { path });
+    throw refusal(new SemanticLossError(difference.reason, { path }), expected, result, blockPaths,
+      literalBlocks(result, blockPaths, minimal));
   }
   // Same meaning is not enough for narrowed escapes: text must not read as citation shorthand,
   // which native admission rejects, or as other literal syntax, which reopening reports.
-  if (minimal.size) {
-    const literal = sourceSyntaxDiagnostics(result.reparsed).find(item => minimal.has(blockPaths[item.path[0]]?.[0]));
-    if (literal) {
-      throw new SemanticLossError("text would read as literal syntax without its escapes", { path: blockPaths[literal.path[0]] });
-    }
+  const literal = literalBlocks(result, blockPaths, minimal);
+  if (literal.length) {
+    throw refusal(new SemanticLossError("text would read as literal syntax without its escapes", { path: [literal[0]] }),
+      expected, result, blockPaths, literal);
   }
   return result;
 }

@@ -6,7 +6,7 @@ import { semanticDifference, semanticFingerprint } from "../src/myst/fingerprint
 import { EXPECTED_URL, attempt, generatedCases, type Expected } from "./writer-bytes-cases.ts";
 import { localWriteCorpus } from "./local-write-corpus.ts";
 import { mystParse } from "myst-parser";
-import { parse as parseNative } from "@litzio/core";
+import { parse as parseNative, serialize as serializeNative } from "@litzio/core";
 
 test("local canonical Save agrees with full write, reread and repeat on seeded edits", () => {
   const results = Object.values(localWriteCorpus(false));
@@ -126,4 +126,12 @@ test("a block whose unescaped text would read differently keeps the escapes in t
   const output = serialize(document);
   assert.equal(output, "see \\[x]\\(y) and a\\_b\n\nsnake_case\n");
   assert.equal(serialize(parse(output)), output);
+  // Two and three such blocks: only they take the upstream escapes; the wiki link keeps its form.
+  const header = "---\nlitzio: 1\n---\n\n";
+  const two = `${header}See [[Manual]].\n\nShow \\[x](one).\n\nShow \\[y](two).\n`;
+  assert.equal(serializeNative(parseNative(two)), `${header}See [[Manual]].\n\nShow \\[x]\\(one).\n\nShow \\[y]\\(two).\n`);
+  const three = `${header}Show \\[x](one).\n\nSee [[Manual]] and snake_case.\n\nShow \\[y](two).\n\nShow \\[z](three) R&D.\n`;
+  const written = serializeNative(parseNative(three));
+  assert.equal(written, `${header}Show \\[x]\\(one).\n\nSee [[Manual]] and snake_case.\n\nShow \\[y]\\(two).\n\nShow \\[z]\\(three) R\\&D.\n`);
+  assert.equal(serializeNative(parseNative(written)), written);
 });
