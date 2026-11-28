@@ -164,10 +164,10 @@ async (page, { openDocument }) => {
     kindLabelShown,
     quoteEdited,
     twoDividers,
-    dangerSaved: saved.includes(':::{danger}\nKind me.\n:::'),
-    strikeSavedAsDel: saved.includes('{del}`Strike` ') && saved.includes('Text {del}`gone` kept'),
+    dangerSaved: saved.includes('> [!CAUTION]\n> Kind me.'),
+    strikeSaved: saved.includes('~~Strike~~ ') && saved.includes('Text ~~gone~~ kept'),
     scriptsExclusive,
-    scriptsSavedAsRoles: saved.includes('{del}`Strike` {sup}`me`{sub}`.`'),
+    scriptsSavedAsRoles: saved.includes('~~Strike~~ {sup}`me`{sub}`.`'),
     headingFiveSaved: saved.includes('##### Deep heading'),
     dangerReloaded: await reloaded.locator('aside[data-block="admonition"][data-variant="danger"]').count() === 1,
     quotesReloaded: await reloaded.locator('blockquote[data-block="quote"]').count() === 2 &&

@@ -67,10 +67,9 @@ test("admonition body edits pass through Core and preserve inline semantics on r
   assert.equal(saved.markdown, nativeSource([
     "# Title",
     "",
-    ":::{warning}",
-    "After **bold** and *italic*, [manual](https://a.example), $x$\\",
-    "next.",
-    ":::",
+    "> [!WARNING]",
+    "> After **bold** and *italic*, [manual](https://a.example), $x$\\",
+    "> next.",
     "",
     "Outside paragraph.",
     "",
@@ -94,7 +93,7 @@ test("an admonition kind change and a body edit save together and keep the inlin
   const edits = collectSupportedEdits(loadEditableDocument(source), edited.doc.toJSON() as TiptapJSON);
   assert.equal(edits.admonitions?.[0]?.variant, "danger");
   const saved = saveEdits(source, edits);
-  assert.ok(saved.markdown.includes(":::{danger}\nNow **bold** and *italic*"), saved.markdown);
+  assert.ok(saved.markdown.includes("> [!CAUTION]\n> Now **bold** and *italic*"), saved.markdown);
   const savedBlock = loadEditableDocument(saved.markdown).blocks[1];
   assert.equal(savedBlock?.block === "admonition" && savedBlock.editable, true);
 });

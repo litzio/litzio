@@ -73,8 +73,8 @@ test("Layer 2: losses without any diagnostic are rejected by the semantic finger
 });
 
 test("ordinary images keep their absent alignment instead of gaining directive defaults", () => {
-  // The `{image}` directive defaults `align` to center; a Markdown image has no alignment.
-  assert.match(rawMyst("![alt](./x.png)\n").markdown, /^```\{image\}/);
+  const document = parse("![alt](./x.png)\n");
+  assert.equal(document.children[0].children?.[0].align, undefined);
   assert.equal(serialize(parse("![alt](./x.png)\n")), "![alt](./x.png)\n");
 });
 
@@ -85,7 +85,7 @@ test("supported documents serialize unchanged, deterministically and idempotentl
     "```{math}\n:label: eq-a\nx^2\n```\n\n$$\ny\n$$ (eq-b)\n",
     ":::{figure} ./a.png\n:label: fig-a\n:alt: Alt\n\nCaption\n:::\n",
     "| a | b |\n| --- | --- |\n| 1 | 2 |\n",
-    ":::{note}\nBody\n:::\n\n:::{admonition} Title\n:class: tip\nBody\n:::\n",
+    "> [!NOTE]\n> Body\n\n:::{admonition} Title\n:class: tip\nBody\n:::\n",
     "*   one\n*   two\n\n1. first\n2. second\n",
     "(sec-a)=\n\n## A\n\nSee {eq}`eq-a`, {numref}`Figure %s <fig-a>` and {ref}`sec-a`.\n",
   ]) {

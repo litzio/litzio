@@ -12,6 +12,19 @@ import { machineNodes } from "../src/document-output.ts";
 
 const numbers = (document: MystDocument) => targetNumbers(getEditableDocument(document).blocks.map(blockTargets));
 
+test("standalone images and MyST Figures share the figure counter and retain number references", () => {
+  const source = "![Alt](./plain.png)\n\n:::{figure} ./named.png\n:name: named\n\nCaption.\n:::\n\n" +
+    ":::{figure} ./second.png\n:::\n\n:::{figure} ./unnumbered.png\n:enumerated: false\n:::\n\nSee {numref}\x60named\x60.\n";
+  const document = parse(source);
+  const saved = serialize(document);
+  assert.match(saved, /!\[Alt\]\(\.\/plain\.png\)/);
+  assert.match(saved, /!\[\]\(\.\/second\.png\)/);
+  assert.match(saved, /:::\{figure\} \.\/unnumbered\.png\n:enumerated: false/);
+  assert.deepEqual(numbers(document), [{ figure: 1 }, { figure: 2 }, { figure: 3 }, {}, {}]);
+  assert.deepEqual(numbers(parse(saved)), numbers(document));
+  assert.equal(serialize(parse(saved)), saved);
+});
+
 test("fixed enumerators survive canonical writing, edits, moves and MyST target resolution", async () => {
   const core = await import("../src/index.ts");
   const source = "---\nlitzio: 1\n---\n\n:::{figure} ./image.png\n:name: fig\n:enumerator: 17\n:alt: Image\n\nCaption with $x$ and {eq}`eq`.\n:::\n\n:::{table} Values\n:name: tbl\n:enumerator: A.3\n\n| A | B |\n| :--- | ---: |\n| $x$ | `a` |\n:::\n\n```{math}\n:label: eq\n:enumerator: 4-2\n\nx=1\n```\n\n:::{figure}\n:name: diagram\n:enumerator: A.3\n\n```{mermaid}\ngraph TD; A-->B\n```\n\nDiagram with $x$ and {eq}`eq`.\n:::\n\n:::{figure}\n:enumerator: 5\n:::\n\nSee {numref}`fig`, {numref}`tbl`, {eq}`eq` and {numref}`diagram`.\n";

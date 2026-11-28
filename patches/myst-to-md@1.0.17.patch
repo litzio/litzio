@@ -13,10 +13,28 @@ index 575288a3086db3a0542797bee3bbad952f284e53..5c0845ac18f6c940fac4a8683f1b91ce
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 66fa25c52a0d15ee520c6446009321a29782612c..42132618d52c6a3520fdf48b2a977bab1dfdccf1 100644
+index 66fa25c52a0d15ee520c6446009321a29782612c..5f437c92e55d77941ab0716e1ff6d9af82071299 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -8,12 +8,23 @@ import { roleHandlers } from './roles.js';
+@@ -5,15 +5,42 @@ import { directiveHandlers, directiveValidators } from './directives.js';
+ import { miscHandlers, miscValidators } from './misc.js';
+ import { referenceHandlers } from './references.js';
+ import { roleHandlers } from './roles.js';
++
++function gfmDelete(node, _, state, info) {
++    if (state.stack.includes('gfmDelete') || info.before.endsWith('~') || info.after.startsWith('~')) {
++        return roleHandlers.delete(node, _, state, info);
++    }
++    const exit = state.enter('gfmDelete');
++    const tracker = state.createTracker(info);
++    const open = tracker.move('~~');
++    const result = open + tracker.move(state.containerPhrasing(node, {
++        before: open, after: '~~', ...tracker.current(),
++    })) + tracker.move('~~');
++    exit();
++    return result;
++}
++gfmDelete.peek = () => '~';
  import { addFrontmatter, runValidators, unsupportedHandlers } from './utils.js';
  const FOOTNOTE_HANDLER_KEYS = ['footnoteDefinition', 'footnoteReference'];
  const TABLE_HANDLER_KEYS = ['table', 'tableRow', 'tableCell'];
@@ -27,6 +45,7 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..42132618d52c6a3520fdf48b2a977bab
          ...roleHandlers,
          ...referenceHandlers,
          ...miscHandlers,
++        gfmDelete,
 +        list(node, parent, state, info) {
 +            if (!node.ordered) return defaultHandlers.list(node, parent, state, info);
 +            const previous = parent?.children?.[parent.children.indexOf(node) - 1];
@@ -41,14 +60,22 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..42132618d52c6a3520fdf48b2a977bab
      };
      const handlerKeys = [
          ...Object.keys(handlers),
-@@ -25,11 +36,15 @@ export function writeMd(file, node, frontmatter) {
+@@ -25,11 +52,23 @@ export function writeMd(file, node, frontmatter) {
      const options = {
          fences: true,
          rule: '-',
 +        bullet: '-',
 +        bulletOther: '*',
 +        listItemIndent: 'one',
-+        join: [(left, right) => left.type === 'list' && right.type === 'list' && right.ordered ? 1 : undefined],
++        unsafe: [{ character: '~', after: '~' }],
++        join: [(left, right, parent) => {
++            if (left.type === 'list' && right.type === 'list' && right.ordered) return 1;
++            // A non-1 ordered marker or an empty marker cannot interrupt a paragraph.
++            const paragraph = right.type === 'list' ? right.children?.[0]?.children?.[0] : undefined;
++            if (parent.type === 'listItem' && left.type === 'paragraph' && right.type === 'list' &&
++                (!right.ordered || ((right.start ?? 1) === 1 && (!right.style || right.style === 'decimal'))) &&
++                paragraph?.type === 'paragraph' && paragraph.children?.length) return 0;
++        }],
          handlers: {
              ...handlers,
              ...unsupported,
@@ -59,10 +86,31 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..42132618d52c6a3520fdf48b2a977bab
      const validators = { ...directiveValidators, ...miscValidators };
      runValidators(node, validators, file);
 diff --git a/src/index.ts b/src/index.ts
-index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..ad0f407544a11523251a77a2abb841580437bef1 100644
+index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..caf26398ae82f8e98858e80a54098ea1e3966eae 100644
 --- a/src/index.ts
 +++ b/src/index.ts
-@@ -15,12 +15,23 @@ import type { PageFrontmatter } from 'myst-frontmatter';
+@@ -9,18 +9,45 @@ import { directiveHandlers, directiveValidators } from './directives.js';
+ import { miscHandlers, miscValidators } from './misc.js';
+ import { referenceHandlers } from './references.js';
+ import { roleHandlers } from './roles.js';
++
++function gfmDelete(node: any, _: any, state: any, info: any) {
++    if (state.stack.includes('gfmDelete') || info.before.endsWith('~') || info.after.startsWith('~')) {
++        return roleHandlers.delete(node, _, state, info);
++    }
++    const exit = state.enter('gfmDelete');
++    const tracker = state.createTracker(info);
++    const open = tracker.move('~~');
++    const result = open + tracker.move(state.containerPhrasing(node, {
++        before: open, after: '~~', ...tracker.current(),
++    })) + tracker.move('~~');
++    exit();
++    return result;
++}
++gfmDelete.peek = () => '~';
+ import { addFrontmatter, runValidators, unsupportedHandlers } from './utils.js';
+ import type { PageFrontmatter } from 'myst-frontmatter';
+ 
  const FOOTNOTE_HANDLER_KEYS = ['footnoteDefinition', 'footnoteReference'];
  const TABLE_HANDLER_KEYS = ['table', 'tableRow', 'tableCell'];
  
@@ -73,6 +121,7 @@ index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..ad0f407544a11523251a77a2abb84158
      ...roleHandlers,
      ...referenceHandlers,
      ...miscHandlers,
++        gfmDelete,
 +    list(node: any, parent: any, state: any, info: any) {
 +      if (!node.ordered) return defaultHandlers.list(node, parent, state, info);
 +      const previous = parent?.children?.[parent.children.indexOf(node) - 1];
@@ -87,7 +136,7 @@ index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..ad0f407544a11523251a77a2abb84158
    };
    const handlerKeys = [
      ...Object.keys(handlers),
-@@ -32,11 +43,16 @@ export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter)
+@@ -32,11 +59,24 @@ export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter)
    const options: Options = {
      fences: true,
      rule: '-',
@@ -95,7 +144,15 @@ index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..ad0f407544a11523251a77a2abb84158
 +    bulletOther: '*',
 +    listItemIndent: 'one',
 +    // Ordered delimiters are semantic; a style line separates same-delimiter siblings.
-+    join: [(left, right) => left.type === 'list' && right.type === 'list' && right.ordered ? 1 : undefined],
++    unsafe: [{ character: '~', after: '~' }],
++        join: [(left, right, parent) => {
++            if (left.type === 'list' && right.type === 'list' && right.ordered) return 1;
++            // A non-1 ordered marker or an empty marker cannot interrupt a paragraph.
++            const paragraph = right.type === 'list' ? right.children?.[0]?.children?.[0] : undefined;
++            if (parent.type === 'listItem' && left.type === 'paragraph' && right.type === 'list' &&
++                (!right.ordered || ((right.start ?? 1) === 1 && (!(right as any).style || (right as any).style === 'decimal'))) &&
++                paragraph?.type === 'paragraph' && paragraph.children?.length) return 0;
++        }],
      handlers: {
        ...handlers,
        ...unsupported,

@@ -502,7 +502,7 @@ test("image paste inserts a Core-backed Figure as one independent Undo event", a
   assert.match(figure.attrs.imageUrl, /^\.\/assets\/document-1\.png$/);
   assert.equal(figure.attrs.imageAlt, "");
   const saved = saveEdits(nativeSource("Alpha.\n\nBeta.\n"), collectSupportedEdits(loadEditableDocument(nativeSource("Alpha.\n\nBeta.\n")), e.view.state.doc.toJSON()));
-  assert.match(saved.markdown, /:::\{figure\} \.\/assets\/document-1/);
+  assert.match(saved.markdown, /!\[\]\(\.\/assets\/document-1\.png\)/);
   assert.equal(undo(e.view.state, tr => e.view.dispatch(tr)), true);
   assert.equal(e.view.state.doc.childCount, 2);
   assert.equal(e.view.state.doc.firstChild!.textContent, "typed Alpha.");

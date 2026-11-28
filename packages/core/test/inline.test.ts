@@ -94,7 +94,7 @@ test("paragraph insertion accepts rich inline semantics without a lossy text int
   assert.throws(() => insertParagraph(original, 1, [{ kind: "math", value: "" }]), /math/);
 });
 
-test("strikethrough is editable inline content written as the {del} role", () => {
+test("strikethrough reads both spellings and prefers double tildes with a stable MyST fallback", () => {
   const paragraph = getEditableDocument(parse("A {del}`gone **bold**` text.\n")).blocks[0];
   assert.ok(paragraph.block === "paragraph" && paragraph.editable);
   assert.deepEqual(paragraph.content[1], { kind: "delete", children: [
@@ -106,10 +106,13 @@ test("strikethrough is editable inline content written as the {del} role", () =>
     { kind: "text", text: " " }, { kind: "delete", children: [{ kind: "math", value: "x" }] },
   ];
   const saved = serialize(insertParagraph(parse("# Title\n"), 1, content));
-  assert.ok(saved.includes("{del}`value`"), saved);
+  assert.ok(saved.includes("~~value~~"), saved);
   const block = getEditableDocument(parse(saved)).blocks[1];
   assert.ok(block.block === "paragraph");
   assert.deepEqual(block.content, content);
+
+  const mixed = "~~safe~~\n\nA {del}`~edge` beside \\~~literal\\~~ and ~single~.\n";
+  assert.equal(serialize(parse(mixed)), mixed);
 });
 
 test("subscript and superscript are editable inline content written as the {sub} and {sup} roles", () => {

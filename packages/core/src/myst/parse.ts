@@ -1,10 +1,11 @@
-import { createMystParser } from "myst-parser";
+import { createMystParser, createTokenizer } from "myst-parser";
 import {
   containerChildrenTransform,
   liftMystDirectivesAndRolesTransform,
 } from "myst-transforms";
 import { VFile } from "vfile";
 import { DocumentWriteError } from "../write-error.ts";
+import { recognizeGitHubAlert } from "./admonition.ts";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { locateFootnotes } from "./footnote.ts";
 import { retainMermaidOptions } from "./figure.ts";
@@ -28,8 +29,20 @@ import { assertUnicode } from "./unicode.ts";
 // native admission; explicit cite roles retain their typed meaning.
 // Keep MyST's HTML recognition: disabling it would admit unsupported HTML as text.
 // The pinned markdown-it patch bounds unterminated inline HTML scans instead.
-export const OPTIONS = { extensions: { smartquotes: false, citations: false, attrs_block: true } };
+export const OPTIONS = { extensions: { smartquotes: false, citations: false, attrs_block: true, strikethrough: true } };
 const parseMyst = createMystParser(OPTIONS);
+const imageTokenizer = createTokenizer(OPTIONS);
+
+/** Read one line without document reference definitions as a standalone image. Only an
+ * inline image link without a title can produce this token on its own. The writer uses
+ * the same reading to keep a Figure whose URL or alt text would not survive it. */
+export function standaloneImage(line: string): { url: string; alt: string } | undefined {
+  const tokens = imageTokenizer.parseInline(line, {})[0]?.children;
+  const image = tokens?.length === 1 ? tokens[0] : undefined;
+  if (image?.type !== "image" || image.attrGet("title") !== null) return undefined;
+  // myst-parser reads alt text the same way.
+  return { url: image.attrGet("src") ?? "", alt: image.attrGet("alt") || (image.children ?? []).reduce((text, child) => text + child.content, "") };
+}
 
 const directiveRanges = new WeakMap<MystNode, NonNullable<MystNode["position"]>>();
 
@@ -53,7 +66,23 @@ export function parse(source: string, { complexTables = false, nativeAdmission =
       directiveRanges.set(node.children[0], node.position);
     }
   }
+  let lines: string[] | undefined;
+  document.children = document.children.map(node => {
+    if (node.type !== "image" || !node.position) return node;
+    lines ??= text.split(/\r\n?|\n/);
+    const { start, end } = node.position;
+    const line = lines[start.line - 1];
+    if (start.line !== end.line || !line || !/^ {0,3}!\[/.test(line) || !node.url ||
+        !Object.keys(node).every(key => node[key] === undefined || ["type", "position", "url", "alt"].includes(key))) return node;
+    if (!standaloneImage(line.trim())) return node;
+    return { type: "container", kind: "figure", children: [node], position: node.position };
+  });
   liftMystDirectivesAndRolesTransform(document);
+  for (const [index, node] of document.children.entries()) {
+    if (node.type !== "blockquote" || !node.position) continue;
+    lines ??= text.split(/\r\n?|\n/);
+    document.children[index] = recognizeGitHubAlert(node, lines) ?? node;
+  }
   if (convertedTables?.size) {
     document.children.forEach((node, index) => {
       if (convertedTables.has(node)) assertComplexTableDirective(node, [index]);

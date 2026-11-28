@@ -211,7 +211,7 @@ test("Modified document serializes canonically", () => {
   assert.equal(output.includes(MUTATED_TEXT), true);
   assert.equal(output.includes(INSERTED_TEXT), true);
   assert.equal(output.includes("phase current"), false);
-  assert.match(output, /^# Converter Control\n\n:::{note}/);
+  assert.match(output, /^# Converter Control\n\n> \[!NOTE\]/);
   assert.equal(output.endsWith("\n"), true);
 });
 

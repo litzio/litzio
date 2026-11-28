@@ -1665,7 +1665,7 @@ test("paragraph edits are saved through Core operations", () => {
   const saved = saveParagraph(PARAGRAPH_FROM, [{ kind: "text", text: PARAGRAPH_TO }]);
   assert.equal(saved.markdown.includes(PARAGRAPH_TO), true);
   assert.equal(saved.markdown.includes(PARAGRAPH_FROM), false);
-  assert.equal(saved.markdown.includes(":::{warning}"), true);
+  assert.equal(saved.markdown.includes("> [!WARNING]"), true);
 });
 
 test("rich paragraph saves through updateParagraphInlineContent", () => {

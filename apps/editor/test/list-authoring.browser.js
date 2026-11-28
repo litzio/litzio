@@ -160,11 +160,9 @@ async (page, { openDocument, withBlockHover }) => {
     'Intro paragraph.',
     '',
     '1. First',
-    '',
     '   1. InnerTail',
     '',
     '- Wire',
-    '',
     '  - Check',
     '- Power',
     '',
@@ -299,7 +297,7 @@ async (page, { openDocument, withBlockHover }) => {
   await openScratch('list-inline.md');
   await page.locator('[data-document-tab][data-active=true] .document-editor ul').first().waitFor({state:'visible'});
   const inlineReopened = await shape();
-  const inlineExpected = ['---', 'litzio: 1', '---', '', '# Lists', '', '- Outer', '', '  - Middle', '',
+  const inlineExpected = ['---', 'litzio: 1', '---', '', '# Lists', '', '- Outer', '  - Middle',
     '    - Deep' + inlineParagraph, ...inlineTail].join('\n');
 
   const result = {
@@ -320,8 +318,8 @@ async (page, { openDocument, withBlockHover }) => {
     checklistSaved: checklistSaved === `${expected.replace('Done.\n', 'Done.\n\n- [x] Cable\n- [x] 점검\n  - [ ] Sub\n\nAfter checklist\n')}`,
     checklistReopened: checklistReopened === keyChecked,
     readOnlyKept,
-    kindsSwitched: kindsSwitched === checklistSaved.replace('- Wire\n\n  - Check\n- Power', '- [ ] Wire\n  - [ ] Check\n- [ ] Power')
-      .replace('- [x] Cable\n- [x] 점검\n  - [ ] Sub', '- Cable\n- 점검\n\n  - Sub'),
+    kindsSwitched: kindsSwitched === checklistSaved.replace('- Wire\n  - Check\n- Power', '- [ ] Wire\n  - [ ] Check\n- [ ] Power')
+      .replace('- [x] Cable\n- [x] 점검\n  - [ ] Sub', '- Cable\n- 점검\n  - Sub'),
     inlineAtomsKept: inlineAtoms === 'inlineMath,footnoteReference,citation,crossReference' &&
       inlineJoined.caret.startsWith('"DeepBold and italic') && inlineJoined.caret.endsWith('@4'),
     inlineSavedCanonical: inlineSaved === inlineExpected,
