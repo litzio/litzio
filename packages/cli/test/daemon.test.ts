@@ -99,8 +99,9 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
     assert.equal(status.stderr, "");
     assert.equal(JSON.parse(status.stdout).instanceId, first.instanceId);
     assert.equal(JSON.parse(status.stdout).launcher, "cli-start");
-    assert.deepEqual(JSON.parse(status.stdout).identity, hostIdentity());
-    assert.ok((await execute(["status"])).stdout.includes(hostIdentity().runAs));
+    const identity = await hostIdentity();
+    assert.deepEqual(JSON.parse(status.stdout).identity, identity);
+    assert.ok((await execute(["status"])).stdout.includes(identity.runAs));
     assert.match((await execute(["status"])).stdout, /Run as/);
     assert.match((await execute(["status"])).stdout, /Launcher\s+cli-start/);
     assert.equal((await execute(["stop"])).code, 1);

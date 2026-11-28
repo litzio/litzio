@@ -319,7 +319,7 @@ export async function handleDocumentRequest(
     return;
   }
   if (url === "/api/host-capabilities" && req.method === "GET") {
-    sendJson(res, 200, { fileDeletion: removeFile && (removeFile !== trashFile || await osTrashAvailable()) ? "trash" : "permanent", identity: hostIdentity() }); return;
+    sendJson(res, 200, { fileDeletion: removeFile && (removeFile !== trashFile || await osTrashAvailable()) ? "trash" : "permanent", identity: await hostIdentity() }); return;
   }
   if (url === "/api/templates" || url === "/api/template") {
     try {

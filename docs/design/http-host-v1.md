@@ -346,7 +346,7 @@ The 2026-10-13 dependency audit still reports 16 existing transitive advisories 
 
 이 변경은 기존 필드를 바꾸지 않는 추가 정보다. 새 클라이언트도 이 필드의 존재를 연결 조건으로 요구하지 않으므로 프로토콜 4를 유지한다. 값을 제공하지 않거나 연결되지 않은 Host의 계정은 추측하지 않는다. 구버전 호환 계층이나 데이터 migration은 추가하지 않는다.
 
-Host capability의 OS 계산은 프로세스 수명을 따른다(#1487). Windows 휴지통 지원 검사(프로세스 세션의 interactive 여부·OS 버전)는 동시 요청에서 같은 진행 중 계산을 공유하고, 성공한 `true`/`false` 결과를 재사용한다. PowerShell 실행 실패·잘못된 응답은 해당 요청에서 unavailable로 처리하지만 캐시하지 않아 다음 요청에서 다시 계산한다. `identity.runAs`도 기존처럼 성공한 실행 계정만 프로세스 수명 동안 재사용하며 실패 시 다음 요청에서 재시도한다. 따라서 정상 capability 관측마다 PowerShell을 실행하지 않는다. handler에 주입한 삭제 adapter의 선택은 요청에 적용된 adapter를 따르며, 이 값싼 선택에는 OS 조회가 없다. 실제 휴지통 이동은 매 작업의 경로·revision·OS 결과를 계속 확인하며 capability 캐시가 작업 성공을 보증하지 않는다.
+Host capability의 OS 계산은 프로세스 수명을 따른다(#1487). Windows 휴지통 지원 검사(프로세스 세션의 interactive 여부·OS 버전)는 동시 요청에서 같은 진행 중 계산을 공유하고, 성공한 `true`/`false` 결과를 재사용한다. PowerShell 실행 실패·잘못된 응답은 해당 요청에서 unavailable로 처리하지만 캐시하지 않아 다음 요청에서 다시 계산한다. `identity.runAs`는 HTTP Host 시작 시 비동기로 조회한다. health와 capability는 진행 중인 실행 계정 조회를 공유한다. 성공한 값은 프로세스 수명 동안 재사용하며 실패 시 다음 요청에서 재시도한다. 따라서 정상 capability 관측마다 PowerShell을 실행하지 않는다. handler에 주입한 삭제 adapter의 선택은 요청에 적용된 adapter를 따르며, 이 값싼 선택에는 OS 조회가 없다. 실제 휴지통 이동은 매 작업의 경로·revision·OS 결과를 계속 확인하며 capability 캐시가 작업 성공을 보증하지 않는다.
 
 CLI `litzio daemon status` 표는 실행 중인 각 daemon의 `Run as (실행 계정)`을 표시하며 `--json`은 같은 `identity.runAs`를 보존한다. 이 읽기 작업의 범위는 기존 로컬/수동 daemon 상태 조회이고 쓰기 receipt는 없다. 응답을 확인하지 못한 daemon은 기존 unreachable 상태를 유지하고 계정은 표시하지 않는다.
 
