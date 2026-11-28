@@ -1,4 +1,4 @@
-import { DocumentDiagnosticError } from "../write-error.ts";
+import { DocumentDiagnosticError, DocumentWriteError } from "../write-error.ts";
 import { Document, isMap, isNode, isScalar, parseDocument, visit, type Pair, type Node } from "yaml";
 import { FRONT_MATTER_FIELD } from "./constants.ts";
 import type { MystDocument, MystNode } from "./tree.ts";
@@ -11,6 +11,9 @@ export function metadata(document: MystDocument) {
   if (yaml.errors.length || !isMap(yaml.contents)) throw new DocumentDiagnosticError("native-metadata", "Invalid native frontmatter");
   return { node, yaml };
 }
+
+/** The frontmatter fields Litzio interprets; others belong to other tools. */
+const LITZIO_FIELDS: unknown[] = ["litzio", "title", "numbering", "bibliography", "template", "status"];
 
 function pairOf(yaml: Document, key: string): Pair | undefined {
   return isMap(yaml.contents) ? yaml.contents.items.find(pair => (isScalar(pair.key) ? pair.key.value : pair.key) === key) : undefined;
@@ -42,8 +45,9 @@ function pairSource(yaml: Document, pair: Pair): string {
  * Write an edited metadata document back to the front matter node. Only the lines of the one
  * changed top-level key are replaced, and a new key follows the last field, so other fields,
  * including ones Litzio does not interpret, keep their exact source. When the replacement does
- * not read back as the edited YAML, the whole YAML is written, keeping its meaning but not
- * necessarily its spelling.
+ * not read back as the edited YAML, the whole YAML is written, and only when Litzio's fields
+ * are all there is: the YAML reading cannot keep every value of another tool's field (a 64-bit
+ * integer, `1.0`, `0x1F`), so such a document refuses the edit instead.
  */
 export function writeMetadata(node: MystNode, yaml: Document, key: string): void {
   const source = String(node.value ?? "");
@@ -60,7 +64,15 @@ export function writeMetadata(node: MystNode, yaml: Document, key: string): void
       written = (old || !head || head.endsWith("\n") ? head : `${head}\n`) + text + source.slice(span[1]);
     }
   }
-  node.value = written !== undefined && readsBack(written, yaml) ? written : String(yaml);
+  if (written === undefined || !readsBack(written, yaml)) {
+    if (isMap(yaml.contents) && yaml.contents.items.some(pair => !LITZIO_FIELDS.includes(isScalar(pair.key) ? pair.key.value : pair.key))) {
+      throw new DocumentWriteError("Document metadata can change only when each frontmatter field starts its own line, so that fields of other tools keep their source", {
+        code: "native-metadata", path: [0], action: "Write the frontmatter with one field per line (key: value), then retry.",
+      });
+    }
+    written = String(yaml);
+  }
+  node.value = written;
 }
 
 function readsBack(source: string, yaml: Document): boolean {

@@ -253,11 +253,31 @@ test("frontmatter fields of other tools keep their exact source through body and
   }
   assert.equal(serialize(core.updateDocumentTitle(parse(sources[1]), "New")), sources[1].replace("title: Old", "title: New"));
 
-  // A flow mapping has no lines of its own per key, so the whole YAML is written; its meaning stays.
-  const flow = parse("---\n{litzio: 1, tags: [a, b]}\n---\n\nBody.\n");
+  // A flow mapping has no lines of its own per key. With Litzio's fields only, the whole YAML is written.
+  const flow = parse("---\n{litzio: 1, title: Old}\n---\n\nBody.\n");
   const saved = serialize(core.updateDocumentStatus(flow, "draft"));
-  assert.deepEqual(parseYaml(saved.split("---\n")[1]), { litzio: 1, tags: ["a", "b"], status: "draft" });
+  assert.deepEqual(parseYaml(saved.split("---\n")[1]), { litzio: 1, title: "Old", status: "draft" });
   assert.equal(serialize(parse(saved)), saved);
+});
+
+test("values of other tools' frontmatter fields are never rewritten through their YAML reading", () => {
+  // A JavaScript number, a YAML 1.2 reading or a writer's default spelling would change each of these.
+  const values = "id: 9007199254740993\nratio: 1.0\nlarge: 1e3\nmask: 0x1F\nmode: 0o17\nday: 2024-01-01\n" +
+    "at: 2024-01-01T10:00:00+09:00\nempty: ~\nnone: null\nflag: yes\noff: no\n";
+  const block = `---\nlitzio: 1\n${values}---\n\nBody.\n`;
+  for (const edit of [(document: core.Document) => core.updateDocumentStatus(document, "draft"),
+    (document: core.Document) => core.updateDocumentTitle(document, "New"), (document: core.Document) => updateHeadingNumbering(document, true)]) {
+    const saved = serialize(edit(parse(block)));
+    assert.ok(saved.startsWith(`---\nlitzio: 1\n${values}`), saved);
+    assert.equal(serialize(parse(saved)), saved);
+  }
+  // A flow mapping cannot keep their lines, so a metadata edit refuses instead of writing other values.
+  const flow = parse(`---\n{litzio: 1, ${values.trimEnd().split("\n").join(", ")}}\n---\n\nBody.\n`);
+  for (const edit of [() => core.updateDocumentStatus(flow, "draft"), () => core.updateDocumentTitle(flow, "New")]) {
+    assert.throws(edit, (error: unknown) => core.writeIssueOf(error).code === "native-metadata");
+  }
+  assert.equal(serialize(updateParagraphInlineContent(flow, [1], [{ kind: "text", text: "Edited." }])).split("---\n")[1],
+    `{litzio: 1, ${values.trimEnd().split("\n").join(", ")}}\n`);
 });
 
 test("Litzio's own field names keep their rules when another tool uses them differently", () => {
