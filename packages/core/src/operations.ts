@@ -790,10 +790,19 @@ export function updateTableCell(document: MystDocument, path: NodePath, cell: Ta
   return next;
 }
 
-const plainCellText = /^(?:[\p{L}\p{N}][\p{L}\p{M}\p{N}]*(?: +[\p{L}\p{N}][\p{L}\p{M}\p{N}]*)*)$/u;
+// This allowlist excludes inline syntax characters entirely. In particular, parentheses
+// have no link label or role to attach to, and URLs have no scheme delimiter or domain dot.
+// An ASCII decimal token is the only permitted use of a period.
+const plainCellCharacters = /^[\p{L}\p{M}\p{N} .,;+=%/()?°-]+$/u;
+const decimalCellToken = /^[+-]?[0-9]+\.[0-9]+[%°]?$/u;
+
+function plainCellText(text: string): boolean {
+  return text === text.trim() && plainCellCharacters.test(text) && /[\p{L}\p{N}]/u.test(text) &&
+    (!text.includes(".") || text.split(" ").every(token => !token.includes(".") || decimalCellToken.test(token)));
+}
 
 function isPlainCell(content: InlineContent[]): boolean {
-  return !content.length || (content.length === 1 && content[0].kind === "text" && plainCellText.test(content[0].text));
+  return !content.length || (content.length === 1 && content[0].kind === "text" && plainCellText(content[0].text));
 }
 
 /** Try a single checked write for distinct cells of one pipe table. When this returns undefined,
@@ -816,14 +825,14 @@ export function tryUpdateTableCells(
       const children = cell.children ?? [];
       const [text] = children;
       if (children.length && (children.length !== 1 || text.type !== "text" || typeof text.value !== "string" ||
-          !plainCellText.test(text.value) || Object.keys(text).some(key => !["type", "position", "value"].includes(key)))) return undefined;
+          !plainCellText(text.value) || Object.keys(text).some(key => !["type", "position", "value"].includes(key)))) return undefined;
       const after = tableCellInput(content);
       if (!isPlainCell(after)) return undefined;
       seen.add(cell);
       changes.push({ path, content: after });
     }
     // A pipe cell bounds its inline parse. In either version these cells contain only
-    // words, spaces or nothing, so no prefix can change delimiters, grid shape, escaping,
+    // allowlisted literal text or nothing, so no prefix can change delimiters, grid shape, escaping,
     // links or endnotes. A successful round-trip therefore holds for every mix of old
     // and new cells in this group. The unchanged document context is checked as usual.
     const next = cloneDocument(document);
