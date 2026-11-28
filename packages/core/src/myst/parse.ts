@@ -30,7 +30,11 @@ import { assertUnicode } from "./unicode.ts";
 // native admission; explicit cite roles retain their typed meaning.
 // Keep MyST's HTML recognition: disabling it would admit unsupported HTML as text.
 // The pinned markdown-it patch bounds unterminated inline HTML scans instead.
-export const OPTIONS = { extensions: { smartquotes: false, citations: false, attrs_block: true, strikethrough: true } };
+// Prices stay literal when a digit sits outside the dollar delimiters.
+export const MATH_EXTENSIONS = { amsmath: true, dollarmath: { allow_digits: false } };
+export const OPTIONS = {
+  extensions: { smartquotes: false, citations: false, attrs_block: true, strikethrough: true, math: MATH_EXTENSIONS },
+};
 const parseMyst = createMystParser(OPTIONS);
 const imageTokenizer = createTokenizer(OPTIONS);
 

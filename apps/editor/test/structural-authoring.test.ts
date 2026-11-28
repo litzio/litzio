@@ -406,7 +406,7 @@ test("content editing keeps text, inline math in a cell, list items and captions
   admitContentEdits(edits);
   const saved = saveEdits(lockedSource, edits).markdown;
   assert.match(saved, /First paragraph Fixed\./);
-  assert.match(saved, /\| 1 \| \$x\^2\$2 \|/);
+  assert.match(saved, /\| 1 \| \{math\}`x\^2`2 \|/);
   assert.match(saved, /:::\{table\} Caption text/);
   assert.match(saved, /- two\n- three\n/);
   assert.doesNotMatch(saved, /one/);
