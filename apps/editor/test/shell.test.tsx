@@ -666,8 +666,8 @@ test("sidebar folder is a tree under the chosen folder that marks the open docum
       <Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, nodes: new Map([[mixed.path, mixed]]), expanded: new Set() }]}
         onOpenFolder={noop} />,
     );
-    assert.match(localized, /title="C:\\docs\\plain.txt\nLitzio 문서가 아님"/);
-    assert.match(localized, /aria-description="Litzio 문서가 아님"/);
+    assert.match(localized, /title="C:\\docs\\plain.txt"/);
+    assert.doesNotMatch(localized, /Litzio 문서가 아님/);
     assert.match(localized, /aria-label="docs 폴더 접기"/);
   } finally { void i18n.changeLanguage("en"); }
 });
@@ -756,7 +756,7 @@ test("status presentation distinguishes loaded, dirty, confirmed save and in-fli
       view="visual" onViewChange={noop} saveDisabled={false} onSave={noop} /></TooltipProvider>);
     if (expected) assert.ok(html.includes(`title="${expected}"`));
     assert.match(html, /role="status"/);
-    assert.ok(expected ? html.includes(`class="sr-only">${expected}</span>`) : html.includes('role="status"></p>'), `${status}, dirty=${unsaved}`);
+    assert.ok(expected ? html.includes(`class="sr-only">${expected}</span>`) : /<p\b(?=[^>]*role="status")[^>]*><\/p>/.test(html), `${status}, dirty=${unsaved}`);
   }
 });
 
