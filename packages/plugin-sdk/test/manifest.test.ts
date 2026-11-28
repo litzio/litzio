@@ -74,6 +74,19 @@ test('SDK exposes document title and admonition operations', () => {
 
 import * as sdk from '../src/index.ts';
 
+test('SDK document authoring and machine nodes retain raw code fence info', async () => {
+  const meta = '  title=&quot;setup.sh&quot;  ';
+  const { authoring } = authoredDocumentRequestSchema.parse({ authoring: { inputs: [{ key: 'setup', blocks: [
+    { kind: 'code', language: 'sh', code: 'npm i', meta },
+    { kind: 'code', language: 'sh', code: 'npm test' },
+  ] }] } });
+  const { source } = await sdk.authorDocument(authoring);
+  const [withInfo, withoutInfo] = sdk.machineNodes(sdk.getEditableDocument(sdk.parse(source)));
+  assert.ok(source.includes('```sh' + meta + '\n'));
+  assert.equal(withInfo.meta, meta);
+  assert.equal(Object.hasOwn(withoutInfo, 'meta'), false);
+});
+
 test('SDK exposes table note operations', () => {
   let doc = sdk.insertTable(sdk.parse('---\nlitzio: 1\n---\n\nBody.\n'), 1, [['A', 'B'], ['1', '2']]);
   doc = sdk.insertTableNote(doc, [1], 0, [{kind:'text', text:'First'}]);

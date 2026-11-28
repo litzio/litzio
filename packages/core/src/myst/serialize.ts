@@ -8,6 +8,7 @@ import { nestedListNeedsBlank } from "./list.ts";
 import { DocumentWriteError, writeIssueOf, type WriteIssue } from "../write-error.ts";
 import { completeFootnotes, endnotePlacement, footnoteWriteIssue } from "./footnote.ts";
 import { githubAlertTag } from "./admonition.ts";
+import { supportedCodeBlock, writeCodeFence } from "./code.ts";
 import { isFigure, figureContentKind } from "./figure.ts";
 import { FRONT_MATTER_FIELD, IMPLICIT_FRONT_MATTER } from "./constants.ts";
 import { encodeEmphasisBoundaries, hasAlternateBoundaries } from "./emphasis-boundary.ts";
@@ -364,6 +365,14 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
     // myst-to-md chooses its image directive by key presence, even for undefined
     // attributes emitted by myst-parser. Absent values must stay absent.
     for (const key of Object.keys(node)) if (node[key] === undefined) delete node[key];
+    if (node.type === "code" && node.meta !== undefined) {
+      const block = supportedCodeBlock(node);
+      if (block?.meta !== undefined) {
+        node.type = "html"; // Emit the already-validated fence verbatim on the write clone.
+        node.value = writeCodeFence(block.language, block.code, block.meta);
+        return;
+      }
+    }
     // MyST puts alignment on each cell; mdast-util-gfm-table expects columns on the table.
     // Nonuniform or unrepresentable alignment still fails the full fingerprint check.
     if (node.type === "table" && node.children?.[0]?.children?.some(cell => cell.align !== undefined)) {

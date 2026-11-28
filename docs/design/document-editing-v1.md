@@ -48,6 +48,8 @@ Language switching refreshes guidance without changing document state or history
 
 Highlighting is display-only and keeps the existing lowlight common language set. Its grammars load when a code block first exists, without changing document, selection or history. Empty/unregistered languages or a grammar load failure keep literal editable code and its language; language edits still use the existing Core code operation and canonical fence. The deferred chunk reduces the initial entry, not total deployment size.
 
+Changing the code language or body preserves any [fence info after the language](document-support-v1.md#code-fence-info-2071). When that info is present, the language menu disables Plain text because the saved fence needs a language.
+
 Triple-clicking the code body's `<pre>` padding or blank line area selects only the code
 textblock, matching engine-handled text clicks (#724). The same editable-wrapper boundary
 as Figure/Table captions otherwise allowed native selection into the next paragraph.

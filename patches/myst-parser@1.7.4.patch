@@ -42,7 +42,7 @@ index 0000000000000000000000000000000000000000..964ffb76e42ac5d437ee4c67d81a5c84
 +  }, {alt: ['paragraph', 'reference', 'blockquote']});
 +}
 diff --git a/dist/myst.d.ts b/dist/myst.d.ts
-index f199ff62c7a2ad4938696f18ff469cf15c07e0cc..389c7ecd1e2e32b7c87878e24f3137d134245656 100644
+index f199ff62c7a2ad4938696f18ff469cf15c07e0cc..bfaf79a9350cf81102f376cab9725bf4363e2711 100644
 --- a/dist/myst.d.ts
 +++ b/dist/myst.d.ts
 @@ -1,10 +1,12 @@
@@ -59,7 +59,7 @@ index f199ff62c7a2ad4938696f18ff469cf15c07e0cc..389c7ecd1e2e32b7c87878e24f3137d1
  /**
   * MyST Parser as a Unified Plugin
 diff --git a/dist/myst.js b/dist/myst.js
-index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f52084d8af9c 100644
+index 616f80d64a4416d560136b43e62951fb72966de5..720327bc1da17803dc0ac11cf54c51f031b1306c 100644
 --- a/dist/myst.js
 +++ b/dist/myst.js
 @@ -1,4 +1,5 @@
@@ -114,10 +114,23 @@ index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f520
              visit(mdast, (node) => {
                  if (node.position) {
 diff --git a/dist/tokensToMyst.js b/dist/tokensToMyst.js
-index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..e8d9b76b5df56a58866620ae46d815ab80169c22 100644
+index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..70b1778185c7fd50c5a5e4195707c9e136eebd91 100644
 --- a/dist/tokensToMyst.js
 +++ b/dist/tokensToMyst.js
-@@ -98,22 +98,23 @@ const defaultMdast = {
+@@ -57,6 +57,12 @@ function hasClassName(token, matcher) {
+ function getLang(t) {
+     return he.decode(t.info).trim().split(' ')[0].replace('\\', '');
+ }
++function getFenceInfo(t) {
++    // Preserve the separator and suffix before decoding or trimming the info string.
++    const match = /^[ \t]*([^ \t]+)([ \t]+[^\r\n]*)$/.exec(t.info);
++    if (!match?.[2].trim()) return { lang: getLang(t) };
++    return { lang: getLang({ info: match[1] }), meta: match[2] };
++}
+ function getColAlign(t) {
+     if (t.attrs?.length) {
+         for (const attrPair of t.attrs) {
+@@ -98,22 +104,23 @@ const defaultMdast = {
              const start = Number(tokens[index + 1]?.info);
              return {
                  ordered: true,
@@ -146,7 +159,25 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..e8d9b76b5df56a58866620ae46d815ab
              if (t.attrGet('class') === 'task-list-item') {
                  // This is a temporary property used to clean up the AST in a subsequent pass
                  attrs.__taskList = true;
-@@ -506,7 +507,59 @@ const defaultOptions = {
+@@ -132,7 +139,7 @@ const defaultMdast = {
+         isLeaf: true,
+         noCloseToken: true,
+         getAttrs(t) {
+-            return { lang: getLang(t), value: withoutTrailingNewline(t.content) };
++            return { ...getFenceInfo(t), value: withoutTrailingNewline(t.content) };
+         },
+     },
+     fence: {
+@@ -155,7 +162,7 @@ const defaultMdast = {
+                     .filter((n) => !isNaN(n) && n > 0)
+                 : undefined;
+             return {
+-                lang: getLang(t),
++                ...getFenceInfo(t),
+                 ...normalizeLabel(name),
+                 class: getClassName(t),
+                 showLineNumbers: showLineNumbers || undefined, // Only add to MDAST if true
+@@ -506,7 +513,59 @@ const defaultOptions = {
      listItemParagraphs: true,
      nestBlocks: true,
  };
@@ -206,7 +237,7 @@ index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..e8d9b76b5df56a58866620ae46d815ab
      const opts = {
          ...defaultOptions,
          ...options,
-@@ -540,9 +593,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
+@@ -540,9 +599,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
              node.checked = html[0].value.includes('checked=""');
              // Remove the inline html
              node.children?.splice(0, 1);
