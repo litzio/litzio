@@ -760,7 +760,8 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
     if (await collapse.isVisible()) await collapse.click();
     // The folder observer can refresh on its own while the 50 keyboard steps run.
     // Measure requests caused by search and resume the observer before opening a result.
-    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+    await page.clock.setSystemTime(new Date('2026-10-24T01:00:00Z'));
+    await page.clock.pauseAt(new Date('2026-10-24T01:01:00Z'));
     searchRequests = 0;
     page.on('request', countSearchRequests);
     await page.keyboard.press('Control+Slash');
@@ -793,6 +794,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
     await input().fill('bulk-1999');
     check(await center().getByRole('option').count() === 1 && await count.innerText() === 'Results: 1', 'Narrowing searched only the first 50 matches');
     check(await count.evaluate(n => n === window.commandCenterCount), 'Query changes remounted the live count status');
+    await page.clock.runFor(1000);
     check(searchRequests === 0, 'Searching made Host requests');
     page.off('request', countSearchRequests);
     await page.clock.resume();
