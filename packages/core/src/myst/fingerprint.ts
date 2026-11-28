@@ -1,11 +1,12 @@
 import { createHtmlId } from "myst-common";
+import { isLooseList } from "./list.ts";
 import type { MystNode } from "./tree.ts";
 
 /**
  * Serializer verification only: the semantics a document must keep through
  * canonical Markdown. This is not an Litzio AST; it is compared, never exposed.
  *
- * Every field is semantic unless listed here. Only source locations are ignored.
+ * Source locations are ignored. List spread flags are compared as effective looseness.
  */
 const SOURCE_FIELDS = new Set(["position"]);
 
@@ -20,11 +21,13 @@ export function semanticFingerprint(node: MystNode): Fingerprint {
   for (const key of Object.keys(node).sort()) {
     // An undefined field and an absent field mean the same thing.
     if (key === "type" || key === "children" || SOURCE_FIELDS.has(key) || node[key] === undefined) continue;
+    if (key === "spread" && (node.type === "list" || node.type === "listItem")) continue;
     // `$$ ... $$ (label)` math records the anchor derived from its identifier; the
     // `{math}` directive it is written as does not. Only the derived value is implied.
     if (key === "html_id" && typeof node.identifier === "string" && node.html_id === createHtmlId(node.identifier)) continue;
     fields[key] = canonicalValue(node[key]);
   }
+  if (node.type === "list" && isLooseList(node)) fields.loose = true;
   // Absent children and an empty children array mean the same thing.
   return { type: node.type, fields, children: normalizeChildren(node, (node.children ?? []).map(semanticFingerprint)) };
 }

@@ -35,9 +35,9 @@ function assertTableInline(content: InlineContent[], path: number[]): void {
 export function tableList(node: MystNode, path: number[]): ListContent {
   const list = supportedListContent(node, true);
   const validate = (list: ListContent): void => {
-    if (list.checklist !== undefined || list.style !== undefined || list.delimiter !== undefined ||
+    if (list.checklist !== undefined || list.loose || list.style !== undefined || list.delimiter !== undefined ||
         (list.ordered && (list.start! < 1 || list.start! > MAX_LIST_START))) {
-      tableGridError("Table lists support bullets and positive decimal numbering", path);
+      tableGridError("Table lists support tight bullets and positive decimal numbering", path);
     }
     for (const item of list.items) {
       assertTableInline(item.content, path);
@@ -77,7 +77,7 @@ export function tableCellBlocks(cell: MystNode | undefined): TableCellBlock[] | 
 export function tableCellBlockNodes(blocks: TableCellBlock[]): MystNode[] {
   return blocks.map(block => block.kind === "paragraph"
     ? { type: "paragraph", children: inlineContentToNodes(block.content) }
-    : createListNode(block.list));
+    : createListNode(block.list, false));
 }
 
 /** After a change to a table's cells, put the grid in the form its canonical write uses: a pipe

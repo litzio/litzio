@@ -11,6 +11,8 @@ export type ListContent = {
   ordered: boolean;
   /** A checklist: an unordered list whose every item has a check state. Absent on other lists. */
   checklist?: boolean;
+  /** Keep this Markdown list loose where its shape permits it. Defaults to tight. */
+  loose?: boolean;
   /** The first number of a numbered list; bullet lists have none. Defaults to 1 when inserting. */
   start?: number;
   /** Ordered marker style (default decimal); unavailable on bullet lists. */

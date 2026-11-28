@@ -14,6 +14,8 @@ SDK 0.13.0은 `insertAdmonition`, `updateAdmonitionVariant`, `updateAdmonitionIn
 
 SDK 0.23.0은 플러그인 화면에 창 단위 경고·오류 등록 부품 `ui.Notifications`와 타입 `ScreenNotification`을 제공한다. 이 부품을 쓰는 플러그인은 신분증의 `description`과 배포 안내에 SDK 0.23.0을 포함한 Litzio가 필요하다고 표기한다. [화면 알림 계약](plugin-screens-v1.md#화면-알림-2056)을 따른다.
 
+SDK 0.24.0은 문서 작성 입력과 `machineNodes` 출력에 목록별 선택 필드 `loose`를 추가한다. 새 목록과 체크리스트는 이 필드를 생략한다. 이 입력을 제공하는 플러그인은 SDK 0.24.0 이상이 필요하다. [목록 간격 계약](document-support-v1.md#loose-and-tight-lists-2064)을 따른다.
+
 ## 신분증
 
 최소 artifact는 `litzio-plugin.json`, `host.mjs`, `screen.jsx`다.

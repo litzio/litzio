@@ -157,7 +157,7 @@ export function readTableHtml(source: string, path: number[], line?: number): My
         rowspan: positive(attributes.get("rowspan")), colspan: positive(attributes.get("colspan")),
         ...(align !== undefined ? { align } : {}),
         children: blocks.map(block => {
-          if (block.tagName !== "p") return createListNode(list(block));
+          if (block.tagName !== "p") return createListNode(list(block), false);
           attrs(block);
           return { type: "paragraph", children: inlineContentToNodes(inline(block.childNodes)) };
         }),

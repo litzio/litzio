@@ -317,6 +317,26 @@ separate lists. Starts, kind, items and nesting survive repeated byte-stable wri
 This also applies to the internal writer's nested flows; Native List v1 still permits
 at most one nested list per item. No serializer guard is relaxed.
 
+#### Loose and tight lists (#2064)
+
+An ordinary Markdown list is loose when a blank line separates two of its items
+or two direct blocks in one item. Each nested list has its own spacing. Core reads
+both mdast spread fields and exposes optional `loose: true` per list in the
+editable model, `inspect --format json`, and list authoring input. Omission
+defaults to tight. Checklists and complex-table cell lists keep their existing
+formats.
+
+Canonical writing keeps the list's loose or tight rendering. It prefers a blank
+line between items in a loose list and can retain the original inner separator
+when that spelling fails the full round-trip check. A single-item list can be
+loose only if it has two direct blocks. Separators required before a nested
+marker, such as a non-1 number or an empty dash, remain. The round-trip
+fingerprint compares looseness independently at each list level.
+
+Adding or removing an item retains the spacing of its surviving list. An item
+moved by indent or outdent takes the destination's spacing. New lists and new
+sublists default to tight. The Editor provides spacing preservation on save.
+
 ### Ordered list formats (#734)
 
 `ListContent` accepts ordered-only `style` (`decimal`, `lower-alpha`, `upper-alpha`,
@@ -397,7 +417,7 @@ The [v0.1.0-beta.1 candidate release record](../releases/v0.1.0-beta.1.md) summa
 
 Files use UTF-8 and canonical LF line endings. CRLF/mixed input is normalized. A leading UTF-8 BOM is removed; U+FEFF elsewhere is content. Straight and curly quotes retain their meaning. Canonical output is semantic preservation, not byte preservation. Literal dollars and context-sensitive math retain the existing MyST boundary corrections.
 
-Paired double tildes (`~~text~~`) and the MyST `{del}` role both read as strikethrough. The canonical writer prefers double tildes and falls back to the role where the delimiters cannot preserve the marks and text. The pinned MyST reader treats single `~` delimiters as text. Escape literal runs of two or more tildes when they would form syntax. Canonical writing omits the blank between an item paragraph and a nested list when the nested marker can interrupt the paragraph. It keeps the separator for cases such as a non-1 ordered start or an empty dash that could form a Setext heading.
+Paired double tildes (`~~text~~`) and the MyST `{del}` role both read as strikethrough. The canonical writer prefers double tildes and falls back to the role where the delimiters cannot preserve the marks and text. The pinned MyST reader treats single `~` delimiters as text. Escape literal runs of two or more tildes when they would form syntax.
 
 Inside GFM table cells, inline code and math pipes receive one additional backslash
 on write; MyST removes it before inline parsing. Exact authored strings, including
@@ -510,7 +530,7 @@ Core `documentAuthoringSchema`와 `authorDocument`가 CLI `create --input` 및 �
 - `status`는 같은 세 문자열 중 하나이며 생략할 수 있다. CLI `create --input`과 화면 `saveDocument`도 같은 schema를 사용한다.
 - paragraph·heading(level)·quote·admonition(variant)·footnote(label)는 `text` 또는 `content: InlineContent[]` 중 정확히 하나를 받는다. 문자열은 Markdown 해석 없이 글자 그대로다.
 - table의 `rows` 각 셀과 figure의 `caption`은 문자열 또는 같은 InlineContent 배열이다. table은 `caption`, `notes`, `label`, `align`도 받는다. 셀의 줄바꿈은 문자열의 줄 끝 또는 `InlineContent`의 `break`로 작성한다. `notes`의 각 문단은 문자열 또는 `InlineContent[]`다.
-- list는 Core ListContent의 `ordered`, `checklist`, `start`, `style`, `delimiter`, `items:[{content,checked?,list?}]`를 받는다. 기존 문자열 items도 유지하며 체크리스트의 문자열 항목은 체크 안 됨이다.
+- list는 Core ListContent의 `ordered`, `checklist`, `loose`, `start`, `style`, `delimiter`, `items:[{content,checked?,list?}]`를 받는다. 기존 문자열 items도 유지하며 체크리스트의 문자열 항목은 체크 안 됨이다.
 - target(label)은 heading 앞의 Core target 블록이다. figure·table·equation도 label을 받는다. 참조는 InlineContent의 reference(role,label), 미주 표시는 footnote(label), 정의는 footnote 블록으로 연결한다. 정의는 Core 규칙대로 본문 뒤 첫 참조 순서로 배치하며 입력별 target receipt는 재배치된 경로를 가리킨다.
 
 읽기 출력의 `content`(표 칸의 `break` 포함), 목록 `items`, 표 `notes`를 변환 없이 해당 입력 필드에 넣는다. JSON nodes의 type은 blocks의 kind에, 표 cell 노드의 `content`는 rows에, 표 노드의 `notes`는 그대로 notes에, 별도 그림 caption 노드는 figure.caption에 매핑한다. path·text·editable·파생 번호 등 조회 필드는 입력이 아니다.

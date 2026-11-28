@@ -13,7 +13,7 @@ index 575288a3086db3a0542797bee3bbad952f284e53..928a4d6dc5e212ce37517ba019a6b6b2
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 66fa25c52a0d15ee520c6446009321a29782612c..a7ddf7a385690b669dff378906e6d22fb5426420 100644
+index 66fa25c52a0d15ee520c6446009321a29782612c..60d433afba62bad5e970e330ee9900ecab9605c0 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,15 +5,42 @@ import { directiveHandlers, directiveValidators } from './directives.js';
@@ -60,7 +60,7 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..a7ddf7a385690b669dff378906e6d22f
      };
      const handlerKeys = [
          ...Object.keys(handlers),
-@@ -25,11 +52,24 @@ export function writeMd(file, node, frontmatter) {
+@@ -25,11 +52,26 @@ export function writeMd(file, node, frontmatter) {
      const options = {
          fences: true,
          rule: '-',
@@ -72,9 +72,11 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..a7ddf7a385690b669dff378906e6d22f
 +            if (left.type === 'list' && right.type === 'list' && right.ordered) return 1;
 +            // A non-1 ordered marker or an empty marker cannot interrupt a paragraph.
 +            const paragraph = right.type === 'list' ? right.children?.[0]?.children?.[0] : undefined;
-+            if (parent.type === 'listItem' && left.type === 'paragraph' && right.type === 'list' &&
-+                (!right.ordered || ((right.start ?? 1) === 1 && (!right.style || right.style === 'decimal'))) &&
-+                paragraph?.type === 'paragraph' && paragraph.children?.length) return 0;
++            if (parent.type === 'listItem' && left.type === 'paragraph' && right.type === 'list') {
++                if (parent.spread) return 1;
++                return (!right.ordered || ((right.start ?? 1) === 1 && (!right.style || right.style === 'decimal'))) &&
++                    paragraph?.type === 'paragraph' && paragraph.children?.length ? 0 : 1;
++            }
 +        }],
          handlers: {
              ...handlers,
@@ -87,7 +89,7 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..a7ddf7a385690b669dff378906e6d22f
      const validators = { ...directiveValidators, ...miscValidators };
      runValidators(node, validators, file);
 diff --git a/src/index.ts b/src/index.ts
-index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..41164d7ddb5198d6e8a0f5f35743dbf00e13dd4f 100644
+index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..c5a551f5b91d3c55fe9f6d0bec13df2d0d47cb35 100644
 --- a/src/index.ts
 +++ b/src/index.ts
 @@ -9,18 +9,45 @@ import { directiveHandlers, directiveValidators } from './directives.js';
@@ -137,7 +139,7 @@ index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..41164d7ddb5198d6e8a0f5f35743dbf0
    };
    const handlerKeys = [
      ...Object.keys(handlers),
-@@ -32,11 +59,25 @@ export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter)
+@@ -32,11 +59,27 @@ export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter)
    const options: Options = {
      fences: true,
      rule: '-',
@@ -150,9 +152,11 @@ index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..41164d7ddb5198d6e8a0f5f35743dbf0
 +            if (left.type === 'list' && right.type === 'list' && right.ordered) return 1;
 +            // A non-1 ordered marker or an empty marker cannot interrupt a paragraph.
 +            const paragraph = right.type === 'list' ? right.children?.[0]?.children?.[0] : undefined;
-+            if (parent.type === 'listItem' && left.type === 'paragraph' && right.type === 'list' &&
-+                (!right.ordered || ((right.start ?? 1) === 1 && (!(right as any).style || (right as any).style === 'decimal'))) &&
-+                paragraph?.type === 'paragraph' && paragraph.children?.length) return 0;
++            if (parent.type === 'listItem' && left.type === 'paragraph' && right.type === 'list') {
++                if (parent.spread) return 1;
++                return (!right.ordered || ((right.start ?? 1) === 1 && (!(right as any).style || (right as any).style === 'decimal'))) &&
++                    paragraph?.type === 'paragraph' && paragraph.children?.length ? 0 : 1;
++            }
 +        }],
      handlers: {
        ...handlers,

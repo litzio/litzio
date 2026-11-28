@@ -4,6 +4,7 @@ import { createTokenizer } from "myst-parser";
 import { assertUnicode } from "./unicode.ts";
 import { VFile } from "vfile";
 import { semanticDifferenceIssue, semanticFingerprint } from "./fingerprint.ts";
+import { nestedListNeedsBlank } from "./list.ts";
 import { DocumentWriteError, writeIssueOf, type WriteIssue } from "../write-error.ts";
 import { completeFootnotes, endnotePlacement, footnoteWriteIssue } from "./footnote.ts";
 import { githubAlertTag } from "./admonition.ts";
@@ -388,13 +389,22 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][], { alternate, 
         visit(child, childIndex, node, node === tree ? blockPaths[childIndex] : [...path, childIndex], inLink, inCell);
       }
     });
-    // myst-to-md has no GFM task list writer and drops `checked`. Write each checkbox before
-    // the item's prepared inline content; an empty item is its checkbox alone, which the pinned
-    // task list patch reads back as an empty item. A checklist is written tight, also around a
-    // nested list, as myst-parser reads checkboxes only there. The full fingerprint still guards
-    // the result.
     if (node.type === "list") {
-      for (const item of node.children ?? []) {
+      const items = node.children ?? [];
+      // Prefer sibling spacing to optional paragraph-to-sublist gaps. The original
+      // spread flags remain available when this block needs the other spelling.
+      if (useConvention && items.length > 1) {
+        const optionalGaps = items.filter(item => item.spread && item.children?.length === 2 &&
+          item.children[0].type === "paragraph" && item.children[1].type === "list" && !nestedListNeedsBlank(item));
+        if (optionalGaps.length) {
+          node.spread = true;
+          for (const item of optionalGaps) item.spread = false;
+          conventions.attempted?.add(path[0]);
+        }
+      }
+      // The upstream writer drops checked. Emit a checkbox before the prepared
+      // inline content, or by itself for an empty item. The pinned reader needs tight spacing.
+      for (const item of items) {
         if (typeof item.checked !== "boolean") continue;
         item.spread = false;
         const marker = item.checked ? "[x]" : "[ ]";

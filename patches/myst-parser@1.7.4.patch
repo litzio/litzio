@@ -113,19 +113,99 @@ index 616f80d64a4416d560136b43e62951fb72966de5..9f6dd63dddc1179857deb48cddb2f520
              visit(mdast, (node) => {
                  if (node.position) {
 diff --git a/dist/tokensToMyst.js b/dist/tokensToMyst.js
-index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..d8ecaed2ffffb10f7efe99e0a41c948d6a8a056b 100644
+index 7b31a24e09b8e7447e74540a0f6ac9f4833c1bb2..e8d9b76b5df56a58866620ae46d815ab80169c22 100644
 --- a/dist/tokensToMyst.js
 +++ b/dist/tokensToMyst.js
-@@ -98,6 +98,8 @@ const defaultMdast = {
+@@ -98,22 +98,23 @@ const defaultMdast = {
              const start = Number(tokens[index + 1]?.info);
              return {
                  ordered: true,
 +                style: token.attrGet("style") ?? "decimal",
 +                delimiter: token.markup,
                  start: isNaN(start) || !info ? 1 : start,
-                 spread: false,
+-                spread: false,
++                spread: token.meta?.litzioSpread === true,
              };
-@@ -540,9 +542,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
+         },
+     },
+     bullet_list: {
+         type: 'list',
+-        attrs: {
+-            ordered: false,
+-            spread: false,
++        getAttrs(token) {
++            return { ordered: false, spread: token.meta?.litzioSpread === true };
+         },
+     },
+     list_item: {
+         type: 'listItem',
+         getAttrs(t) {
+-            const attrs = { spread: true };
++            const attrs = { spread: t.meta?.litzioSpread === true };
+             if (t.attrGet('class') === 'task-list-item') {
+                 // This is a temporary property used to clean up the AST in a subsequent pass
+                 attrs.__taskList = true;
+@@ -506,7 +507,59 @@ const defaultOptions = {
+     listItemParagraphs: true,
+     nestBlocks: true,
+ };
++/** Keep blank-line evidence before token conversion discards list and block boundaries. */
++function markListSpreads(src, tokens) {
++    if (!tokens.some(token => token.type === 'list_item_open')) return;
++    const lines = src.split(/\r\n?|\n/);
++    const lists = [];
++    const items = [];
++    const separated = token => token.map[0] > 0 && /^[ \t]*$/.test(lines[token.map[0] - 1]);
++    const spread = token => { (token.meta ??= {}).litzioSpread = true; };
++    for (const token of tokens) {
++        const item = items.at(-1);
++        if (item && token.map && token.level === item.token.level + 1 && token.nesting >= 0) {
++            const list = lists.at(-1);
++            if (item.seenBlock) {
++                list.innerCandidate ??= item.token;
++                if (separated(token)) {
++                    spread(item.token);
++                    list.innerSpread = true;
++                }
++            }
++            if (token.type === 'paragraph_open' && !token.hidden) list.looseParagraph = true;
++            item.seenBlock = true;
++        }
++        switch (token.type) {
++            case 'ordered_list_open':
++            case 'bullet_list_open':
++                lists.push({ token, itemCount: 0, innerSpread: false, looseParagraph: false });
++                break;
++            case 'ordered_list_close':
++            case 'bullet_list_close': {
++                const list = lists.pop();
++                // Reference definitions leave no block token, but can make a paragraph loose.
++                if (list.looseParagraph && !list.innerSpread) {
++                    if (list.itemCount > 1) spread(list.token);
++                    else if (list.innerCandidate) spread(list.innerCandidate);
++                }
++                break;
++            }
++            case 'list_item_open': {
++                const list = lists.at(-1);
++                if (list.itemCount && token.map && separated(token)) spread(list.token);
++                list.itemCount++;
++                items.push({ token, seenBlock: false });
++                break;
++            }
++            case 'list_item_close':
++                items.pop();
++                break;
++        }
++    }
++}
++
+ export function tokensToMyst(src, tokens, options = defaultOptions) {
++    markListSpreads(src, tokens);
+     const opts = {
+         ...defaultOptions,
+         ...options,
+@@ -540,9 +593,11 @@ export function tokensToMyst(src, tokens, options = defaultOptions) {
              node.checked = html[0].value.includes('checked=""');
              // Remove the inline html
              node.children?.splice(0, 1);
