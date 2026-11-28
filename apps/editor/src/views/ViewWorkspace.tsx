@@ -65,7 +65,7 @@ export function ViewWorkspace({ roots = [], id, root, owner, screen, fileOpen, o
     {loading ? <Notice role="status">{i18n.t("Loading")}</Notice> : !active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     <ScreenBoundary resetKey={contribution?.codeRevision}>{active && contribution?.code ?
-      <NotificationScope value={{ name: contribution.title, reveal: action => action() }}>
+      <NotificationScope value={{ name: screen.title, reveal: action => action() }}>
         <PluginScreenCode key={`local:${owner}:${screen.id}:${contribution.codeRevision}`} code={contribution.code} owner={owner} client={client} roots={roots} fileOpen={selection} onOpen={onOpenDocument} />
       </NotificationScope> : null}</ScreenBoundary>
   </ScreenFrame></div>;

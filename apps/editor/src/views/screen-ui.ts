@@ -14,9 +14,12 @@ import { LinkedDocumentView } from "./screen-linked-document-view.tsx";
 
 export const screenUI = { ContextMenu, Row, Section, Button: ScreenButton, Input, Select, Status, Steps, EmptyState, Progress, ItemList, DataTable: ScreenDataTable, Notice, Notifications: ScreenNotifications, Chart, ScreenLayout, Slider, SummaryCard, Toolbar, DocumentView, LinkedDocumentView } satisfies Record<keyof typeof SCREEN_UI, unknown>;
 
+// Cards render in the window-level center outside the screen's error boundary, so only
+// plain-text items are registered; anything else is dropped rather than risking the window.
 function ScreenNotifications({ items }: { items: readonly ScreenNotification[] }) {
   const notifications = items
-    .filter(item => item.severity === "warning" || item.severity === "error")
+    .filter(item => typeof item?.id === "string" && item.id !== "" && typeof item.message === "string" && item.message !== ""
+      && (item.severity === "warning" || item.severity === "error"))
     .map(({ id, message, severity }) => ({ id, message, severity }));
   return createElement(NotificationSource, { items: notifications });
 }

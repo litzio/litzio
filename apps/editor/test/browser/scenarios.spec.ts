@@ -263,6 +263,9 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         setNotifications(items => items.some(item => item.id === "fail:" + id) ? items :
           [...items, {id:"fail:" + id, message:"Run " + id + " failed", severity:"error"}]);
       };
+      const sendMalformed = () => setNotifications(items => [...items,
+        {id:"bad:object", message:{text:"Object message"}, severity:"error"}, {id:"", message:"Empty id", severity:"error"},
+        {id:"bad:severity", message:"Unknown severity", severity:"info"}, {id:"ok:mixed", message:"Valid among malformed", severity:"warning"}]);
       const saveOnClose = React.useRef(false);
       React.useEffect(() => () => {
         if (saveOnClose.current) {
@@ -280,6 +283,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         <ui.Button onClick={rejectEdit}>Reject edit</ui.Button>
         <ui.Button onClick={startRun}>Start run</ui.Button>
         <ui.Button onClick={failRun}>Fail run</ui.Button>
+        <ui.Button onClick={sendMalformed}>Send malformed</ui.Button>
         <ui.Button onClick={()=>invoke("snapshot",{}).then(setResult).catch(error=>setResult(error.message))}>Read installed value</ui.Button>
         <ui.Button onClick={()=>prepare().catch(error=>setResult(error.message))}>Prepare storage</ui.Button>
         <ui.Button onClick={()=>invoke("readStorage").then(setResult).catch(error=>setResult(error.message))}>Read saved view</ui.Button>

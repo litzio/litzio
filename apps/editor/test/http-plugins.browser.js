@@ -205,6 +205,12 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, openDocumen
   await expect(observer.getByRole("button", { name: "Exit full screen" })).toBeVisible();
   await expect(cardText("Run 2 failed")).toBeVisible();
   await observer.keyboard.press("F11");
+  // Malformed items from plugin code are dropped instead of crashing the window-level center.
+  await storageScreen.getByRole("button", { name: "Send malformed", exact: true }).click();
+  await expect(cardText("Valid among malformed")).toBeVisible();
+  await expect(cardText("Run 2 failed")).toBeVisible();
+  await expect(cardText("Empty id")).toHaveCount(0);
+  await expect(cardText("Unknown severity")).toHaveCount(0);
 
   await storageScreen.getByRole("button", { name: "Prepare storage" }).click();
   await expect(storageScreen.locator("output")).toHaveText("Handler draft");
