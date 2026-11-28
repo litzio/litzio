@@ -758,9 +758,15 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
     await folder.getByRole('treeitem',{name:'bulk-1999.md',exact:true,includeHidden:true}).waitFor({state:'attached'});
     const collapse = page.getByRole('button',{name:'Collapse Explorer',exact:true});
     if (await collapse.isVisible()) await collapse.click();
+    // The folder observer can refresh on its own while the 50 keyboard steps run.
+    // Measure requests caused by search and resume the observer before opening a result.
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     searchRequests = 0;
     page.on('request', countSearchRequests);
-    await open('bulk');
+    await page.keyboard.press('Control+Slash');
+    await page.clock.runFor(50);
+    await waitForInput();
+    await input().fill('bulk');
     const visibleCount = await center().getByRole('option').count();
     check(visibleCount === 50, 'Large result set did not show only the first 50 matches');
     const count = center().getByTestId('command-center-count');
@@ -789,6 +795,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
     check(await count.evaluate(n => n === window.commandCenterCount), 'Query changes remounted the live count status');
     check(searchRequests === 0, 'Searching made Host requests');
     page.off('request', countSearchRequests);
+    await page.clock.resume();
     await page.keyboard.press('Enter'); await center().waitFor({state:'detached'});
     await page.waitForFunction(() => document.querySelector('[data-testid="current-file"]')?.textContent === 'bulk-1999.md');
     await ready();
@@ -798,6 +805,7 @@ async (page, { openPath, waitForActivePath, activeDocument, waitForExplorerLayou
     result.largeListing = {documents:bulk.length,visibleCount};
   } finally {
     page.off('request', countSearchRequests);
+    await page.clock.resume();
     await page.unroute('**/api/folder?**', bulkListing);
   }
   // #528: the existing entry works with an open tab, follows live UI language, and
