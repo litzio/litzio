@@ -378,7 +378,7 @@ test("canonical write keeps its bytes for colon fences, block breaks and comment
   // Pasting adds no writer rule: these bytes are what canonical write already produced.
   for (const body of ["# ::: heading\n", "| A |\n| --- |\n| ::: |\n", "> [!NOTE]\n> **::: body**\n",
     "H{sub}`::: example`\n", "[:::x](https://e.com)\n", "x :::\n", "**a** :::b\n", ":::{table} ::: Caption\n\n| A |\n| - |\n| x |\n:::\n",
-    "# +++ heading\n", "# % heading\n", "**+++** x\n", "**% x**\n", "a % b +++ c (l)=\n", "(lab)= x\n", "cost \\$5 here\n"]) {
+    "# +++ heading\n", "# % heading\n", "**+++** x\n", "**% x**\n", "a % b +++ c (l)=\n", "(lab)= x\n", "cost \\$5 and $6 here\n"]) {
     assert.equal(serialize(parse(native(body))), native(body), body);
   }
 });

@@ -98,7 +98,7 @@ test("inline math source can be changed, created from text and removed back to t
     const node = state.doc.nodeAt(position)!;
     return state.tr.replaceWith(position, position + node.nodeSize, state.schema.text("v_dc", node.marks));
   });
-  assert.match(removed, /^The current is \$i_d\$ and the voltage is \*\*v\\_dc\*\*\.$/m);
+  assert.match(removed, /^The current is \$i_d\$ and the voltage is \*\*v_dc\*\*\.$/m);
 
   // Everything else in the document is written as before.
   const rest = (markdown: string) => markdown.slice(markdown.indexOf("See {eq}"));

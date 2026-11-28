@@ -185,7 +185,7 @@ test("Figure validity rules reject values that canonical MyST cannot persist", (
   }
   // Literal dollars are escaped and stay caption text.
   const dollars = insertFigure(parse("Intro"), 1, { ...valid, caption: "cost $5 and $x$" });
-  assert.match(serialize(dollars), /\ncost \\\$5 and \\\$x\\\$\n/);
+  assert.match(serialize(dollars), /\ncost \\\$5 and \\\$x\$\n/);
   assert.equal(serialize(parse(serialize(dollars))), serialize(dollars));
   // A caption line that starts with MyST block syntax is escaped and stays caption text (#1846).
   for (const [caption, written] of [["% comment", /\n\\% comment\n:::\n/], ["+++", /\n\\\+\+\+\n:::\n/], [":::", /\n\\:::\n:::\n/]] as const) {

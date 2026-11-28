@@ -1,5 +1,5 @@
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 575288a3086db3a0542797bee3bbad952f284e53..5c0845ac18f6c940fac4a8683f1b91cedf0926aa 100644
+index 575288a3086db3a0542797bee3bbad952f284e53..928a4d6dc5e212ce37517ba019a6b6b21d8b960d 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -2,7 +2,7 @@ import type { Root } from 'myst-spec';
@@ -7,13 +7,13 @@ index 575288a3086db3a0542797bee3bbad952f284e53..5c0845ac18f6c940fac4a8683f1b91ce
  import type { VFile } from 'vfile';
  import type { PageFrontmatter } from 'myst-frontmatter';
 -export declare function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter): VFile;
-+export declare function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter, { tablePipeAlign }?: { tablePipeAlign?: boolean }): VFile;
++export declare function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter, { tablePipeAlign, handlers }?: { tablePipeAlign?: boolean; handlers?: Record<string, (...args: any[]) => string> }): VFile;
  declare const plugin: Plugin<[PageFrontmatter?], Root, VFile>;
  export default plugin;
  //# sourceMappingURL=index.d.ts.map
 \ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
-index 66fa25c52a0d15ee520c6446009321a29782612c..5f437c92e55d77941ab0716e1ff6d9af82071299 100644
+index 66fa25c52a0d15ee520c6446009321a29782612c..a7ddf7a385690b669dff378906e6d22fb5426420 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -5,15 +5,42 @@ import { directiveHandlers, directiveValidators } from './directives.js';
@@ -39,7 +39,7 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..5f437c92e55d77941ab0716e1ff6d9af
  const FOOTNOTE_HANDLER_KEYS = ['footnoteDefinition', 'footnoteReference'];
  const TABLE_HANDLER_KEYS = ['table', 'tableRow', 'tableCell'];
 -export function writeMd(file, node, frontmatter) {
-+export function writeMd(file, node, frontmatter, { tablePipeAlign } = {}) {
++export function writeMd(file, node, frontmatter, { tablePipeAlign, handlers: overrides } = {}) {
      const handlers = {
          ...directiveHandlers,
          ...roleHandlers,
@@ -60,7 +60,7 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..5f437c92e55d77941ab0716e1ff6d9af
      };
      const handlerKeys = [
          ...Object.keys(handlers),
-@@ -25,11 +52,23 @@ export function writeMd(file, node, frontmatter) {
+@@ -25,11 +52,24 @@ export function writeMd(file, node, frontmatter) {
      const options = {
          fences: true,
          rule: '-',
@@ -79,6 +79,7 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..5f437c92e55d77941ab0716e1ff6d9af
          handlers: {
              ...handlers,
              ...unsupported,
++            ...overrides,
          },
 -        extensions: [gfmFootnoteToMarkdown(), gfmTableToMarkdown()],
 +        extensions: [gfmFootnoteToMarkdown(), gfmTableToMarkdown({ tablePipeAlign })],
@@ -86,7 +87,7 @@ index 66fa25c52a0d15ee520c6446009321a29782612c..5f437c92e55d77941ab0716e1ff6d9af
      const validators = { ...directiveValidators, ...miscValidators };
      runValidators(node, validators, file);
 diff --git a/src/index.ts b/src/index.ts
-index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..caf26398ae82f8e98858e80a54098ea1e3966eae 100644
+index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..41164d7ddb5198d6e8a0f5f35743dbf00e13dd4f 100644
 --- a/src/index.ts
 +++ b/src/index.ts
 @@ -9,18 +9,45 @@ import { directiveHandlers, directiveValidators } from './directives.js';
@@ -115,7 +116,7 @@ index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..caf26398ae82f8e98858e80a54098ea1
  const TABLE_HANDLER_KEYS = ['table', 'tableRow', 'tableCell'];
  
 -export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter) {
-+export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter, { tablePipeAlign }: { tablePipeAlign?: boolean } = {}) {
++export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter, { tablePipeAlign, handlers: overrides }: { tablePipeAlign?: boolean; handlers?: Options["handlers"] } = {}) {
    const handlers = {
      ...directiveHandlers,
      ...roleHandlers,
@@ -136,7 +137,7 @@ index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..caf26398ae82f8e98858e80a54098ea1
    };
    const handlerKeys = [
      ...Object.keys(handlers),
-@@ -32,11 +59,24 @@ export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter)
+@@ -32,11 +59,25 @@ export function writeMd(file: VFile, node: Root, frontmatter?: PageFrontmatter)
    const options: Options = {
      fences: true,
      rule: '-',
@@ -156,6 +157,7 @@ index 97e785259f6c2d9cf55c9ea572f412a677a7ebc8..caf26398ae82f8e98858e80a54098ea1
      handlers: {
        ...handlers,
        ...unsupported,
++      ...overrides,
      },
 -    extensions: [gfmFootnoteToMarkdown(), gfmTableToMarkdown()],
 +    extensions: [gfmFootnoteToMarkdown(), gfmTableToMarkdown({ tablePipeAlign })],
